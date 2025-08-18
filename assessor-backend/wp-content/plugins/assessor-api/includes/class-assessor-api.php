@@ -139,6 +139,25 @@ class Assessor_API {
             'callback' => array($this, 'export_data'),
             'permission_callback' => array($this, 'check_auth')
         ));
+
+        // Settings routes
+        error_log('🔍 Assessor API: Registering settings routes');
+        register_rest_route('assessor/v1', '/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_settings'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_settings'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/logo', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'upload_logo'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        error_log('🔍 Assessor API: Settings routes registered');
         
         // Audit trail routes
         register_rest_route('assessor/v1', '/audit', array(
@@ -268,6 +287,21 @@ class Assessor_API {
     public function export_data($request) {
         $export = new Assessor_Export();
         return $export->export_data($request);
+    }
+
+    public function get_settings($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_settings();
+    }
+
+    public function save_settings($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_settings($request);
+    }
+
+    public function upload_logo($request) {
+        $settings = new Assessor_Settings();
+        return $settings->upload_logo($request);
     }
     
     public function get_audit_trail($request) {

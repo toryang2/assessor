@@ -67,6 +67,10 @@ export const endpoints = {
   
   // Dashboard
   dashboard: '/dashboard',
+
+  // Settings
+  settings: '/settings',
+  settingsLogo: '/settings/logo',
   
   // Export
   export: '/export',
@@ -199,12 +203,43 @@ export const apiService = {
     }
   },
 
-  uploadDocument: async (propertyId, formData) => {
+  // Settings
+  getSettings: async () => {
+    try {
+      const response = await api.get(endpoints.settings);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  saveSettings: async (settings) => {
+    try {
+      const response = await api.post(endpoints.settings, settings);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  uploadLogo: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const response = await api.post(endpoints.settingsLogo, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  uploadDocument: async (propertyId, formData, onUploadProgress) => {
     try {
       const response = await api.post(endpoints.propertyDocuments(propertyId), formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress,
       });
       return response.data;
     } catch (error) {

@@ -9,6 +9,7 @@ import {
   Button,
   Typography,
   Alert,
+  Snackbar,
   InputAdornment,
   IconButton,
   Container
@@ -22,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { theme, animations } from '../../theme/theme';
+import { apiService } from '../../utils/api';
 
 const Login = () => {
   
@@ -32,8 +34,19 @@ const Login = () => {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const initialSettings = (() => {
+    if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
+    try {
+      const cached = localStorage.getItem('assessor_settings');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('app_logo_url') : '';
+    if (cachedLogo) return { app_logo_url: cachedLogo };
+    return null;
+  })();
+  const [settings, setSettings] = useState(initialSettings);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
   // Redirect if already authenticated
 
@@ -42,6 +55,23 @@ const Login = () => {
   useEffect(() => {
     clearError();
   }, [clearError]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await apiService.getSettings();
+        setSettings(data);
+        try {
+          localStorage.setItem('assessor_settings', JSON.stringify(data));
+          if (data && data.app_logo_url) localStorage.setItem('app_logo_url', data.app_logo_url);
+        } catch (_) {}
+      } catch (e) {
+        const fallback = (window && window.__ASSESSOR_SETTINGS__) || null;
+        setSettings(fallback);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -85,7 +115,7 @@ const Login = () => {
     }
 
     console.log('✅ Login Component: Form validation passed, starting login process');
-    setLoading(true);
+    clearError();
     
     try {
       console.log('🔍 Login Component: Calling login function...');
@@ -94,19 +124,26 @@ const Login = () => {
       
       if (result.success) {
         console.log('✅ Login Component: Login successful');
+        setSnackbar({ open: true, message: 'Signed in successfully', severity: 'success' });
       } else {
         console.log('❌ Login Component: Login failed:', result.error);
+        setSnackbar({ open: true, message: result.error || 'Invalid username or password', severity: 'error' });
       }
     } catch (error) {
       console.error('❌ Login Component: Login error:', error);
+      setSnackbar({ open: true, message: error.message || 'Login failed', severity: 'error' });
     } finally {
-      setLoading(false);
+      // no-op
     }
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
+
+  // If already authenticated, do not render Login (avoid flicker on refresh)
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated) return null;
 
   return (
     <Box
@@ -161,7 +198,11 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Business sx={{ fontSize: 60, marginBottom: 2, opacity: 0.8 }} />
+                  {settings?.app_logo_url ? (
+                    <img src={settings.app_logo_url} alt="Logo" style={{ height: 128, marginBottom: 16, opacity: 0.9 }} />
+                  ) : (
+                    <Business sx={{ fontSize: 60, marginBottom: 2, opacity: 0.8 }} />
+                  )}
                 </motion.div>
                 
                 <motion.div
@@ -210,16 +251,7 @@ const Login = () => {
                   Sign In
                 </Typography>
 
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <Alert severity="error" sx={{ marginBottom: 3 }}>
-                      {error}
-                    </Alert>
-                  </motion.div>
-                )}
+                {/* Error toast is shown via Snackbar below */}
 
                 <TextField
                   fullWidth
@@ -281,7 +313,6 @@ const Login = () => {
                     fullWidth
                     variant="contained"
                     size="large"
-                    disabled={loading}
                     sx={{
                       height: 56,
                       fontSize: '1.1rem',
@@ -294,7 +325,7 @@ const Login = () => {
                       }
                     }}
                   >
-                    {loading ? 'Signing In...' : 'Sign In'}
+                    Sign In
                   </Button>
                 </motion.div>
 
@@ -329,6 +360,17 @@ const Login = () => {
           100% { transform: scale(1); opacity: 0.1; }
         }
       `}</style>
+
+      <Snackbar
+        open={snackbar.open || !!error}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity="error" sx={{ width: '100%' }}>
+          {snackbar.message || error || 'Login failed'}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

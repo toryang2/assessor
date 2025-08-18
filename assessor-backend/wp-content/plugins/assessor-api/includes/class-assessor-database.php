@@ -133,6 +133,19 @@ class Assessor_Database {
             KEY created_at (created_at)
         ) $charset_collate;";
         
+        // Settings table
+        $table_settings = $wpdb->prefix . 'assessor_settings';
+        $sql_settings = "CREATE TABLE $table_settings (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            app_logo_url varchar(500) DEFAULT '',
+            header_province varchar(255) DEFAULT '',
+            header_municipality varchar(255) DEFAULT '',
+            header_office varchar(255) DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+        
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
@@ -141,6 +154,7 @@ class Assessor_Database {
         dbDelta($sql_versions);
         dbDelta($sql_documents);
         dbDelta($sql_audit);
+        dbDelta($sql_settings);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();

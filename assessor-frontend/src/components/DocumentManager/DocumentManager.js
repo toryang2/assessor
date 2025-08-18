@@ -71,11 +71,11 @@ const DocumentManager = () => {
       
       // Fetch property details
       const propertyResponse = await apiService.getProperty(propertyId);
-      setProperty(propertyResponse.data);
+      setProperty(propertyResponse);
       
       // Fetch documents
       const documentsResponse = await apiService.getPropertyDocuments(propertyId);
-      setDocuments(documentsResponse.data || []);
+      setDocuments(documentsResponse.documents || []);
     } catch (err) {
       setError('Failed to fetch property and documents');
       console.error('Error fetching data:', err);
@@ -94,19 +94,18 @@ const DocumentManager = () => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
-        // Create FormData
+        // Create FormData matching backend expectation
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('document', file);
         formData.append('property_id', propertyId);
         formData.append('description', file.name);
-        formData.append('category', getFileCategory(file.type));
 
         // Upload file with progress tracking
-        await apiService.uploadDocument(formData, (progressEvent) => {
+        await apiService.uploadDocument(propertyId, formData, (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setUploadProgress(progress);
         });
-
+      
         // Update progress for multiple files
         const fileProgress = ((i + 1) / files.length) * 100;
         setUploadProgress(fileProgress);
@@ -157,10 +156,11 @@ const DocumentManager = () => {
     return 'other';
   };
 
-  const getFileIcon = (mimeType) => {
-    if (mimeType.startsWith('image/')) return <ImageIcon />;
-    if (mimeType === 'application/pdf') return <PdfIcon />;
-    if (mimeType.startsWith('text/')) return <DescriptionIcon />;
+  const getFileIconByExtension = (ext) => {
+    const e = (ext || '').toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(e)) return <ImageIcon />;
+    if (e === 'pdf') return <PdfIcon />;
+    if (['txt', 'md', 'csv'].includes(e)) return <DescriptionIcon />;
     return <FileIcon />;
   };
 
@@ -172,8 +172,8 @@ const DocumentManager = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatFileType = (mimeType) => {
-    return mimeType.split('/')[1]?.toUpperCase() || 'UNKNOWN';
+  const formatFileType = (ext) => {
+    return (ext || 'unknown').toUpperCase();
   };
 
   if (loading) {
@@ -325,7 +325,7 @@ const DocumentManager = () => {
                   <TableRow key={document.id} hover>
                     <TableCell>
                       <Box display="flex" alignItems="center">
-                        {getFileIcon(document.mime_type)}
+                        {getFileIconByExtension(document.file_type)}
                         <Box sx={{ ml: 1 }}>
                           <Typography variant="body2" fontWeight={600}>
                             {document.filename}
@@ -340,7 +340,7 @@ const DocumentManager = () => {
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={formatFileType(document.mime_type)}
+                        label={formatFileType(document.file_type)}
                         size="small"
                         variant="outlined"
                       />
@@ -350,13 +350,13 @@ const DocumentManager = () => {
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={document.category || 'Uncategorized'}
+                        label={getFileCategory(document.file_type || '')}
                         size="small"
                         color="primary"
                       />
                     </TableCell>
                     <TableCell>
-                      {format(new Date(document.created_at), 'MMM dd, yyyy')}
+                      {document.uploaded_at ? format(new Date(document.uploaded_at), 'MMM dd, yyyy') : ''}
                     </TableCell>
                     <TableCell>
                       <Box display="flex" gap={1}>

@@ -96,7 +96,24 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   }, [property]);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const uppercaseFields = new Set([
+      'tax_declaration_number',
+      'previous_tax_declaration_number',
+      'declarant_last_name',
+      'declarant_first_name',
+      'declarant_middle_initial',
+      'location',
+      'lot_number',
+      'unique_lot_number_identified',
+      'title_number',
+      'pin',
+      'address',
+      'kind_of_property',
+      'gen_class',
+      'memoranda'
+    ]);
+    const nextValue = (typeof value === 'string' && uppercaseFields.has(field)) ? value.toUpperCase() : value;
+    setFormData(prev => ({ ...prev, [field]: nextValue }));
     
     // Clear error for this field
     if (errors.includes(field)) {
@@ -217,12 +234,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Tax Declaration Number *"
+                  label="Tax Declaration Number"
                   value={formData.tax_declaration_number}
                   onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
                   error={errors.includes('tax_declaration_number')}
                   helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
                   required
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
               
@@ -233,30 +251,33 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   value={formData.previous_tax_declaration_number}
                   onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
                   helperText="Optional: Enter the previous tax declaration number to create a historical link"
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Declarant Last Name *"
+                  label="Declarant Last Name"
                   value={formData.declarant_last_name}
                   onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
                   error={errors.includes('declarant_last_name')}
                   helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
                   required
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
               
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Declarant First Name *"
+                  label="Declarant First Name"
                   value={formData.declarant_first_name}
                   onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
                   error={errors.includes('declarant_first_name')}
                   helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
                   required
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -266,19 +287,21 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="Declarant Middle Initial"
                   value={formData.declarant_middle_initial}
                   onChange={(e) => handleInputChange('declarant_middle_initial', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Location *"
+                  label="Location"
                   value={formData.location}
                   onChange={(e) => handleInputChange('location', e.target.value)}
                   error={errors.includes('location')}
                   helperText={errors.includes('location') ? errors.find(err => err === 'location') : ''}
                   placeholder="City/Municipality"
                   required
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -288,6 +311,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="Lot Number"
                   value={formData.lot_number}
                   onChange={(e) => handleInputChange('lot_number', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -297,6 +321,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="Unique Lot Number Identified"
                   value={formData.unique_lot_number_identified}
                   onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -319,6 +344,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="Title Number"
                   value={formData.title_number}
                   onChange={(e) => handleInputChange('title_number', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -333,6 +359,14 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   type="number"
                   inputProps={{ min: 0, step: 0.01 }}
                   placeholder="0.00"
+                  onBlur={() => {
+                    const v = formData.assessed_value;
+                    if (v === '' || v === null || v === undefined) return;
+                    const n = Number(v);
+                    if (!isNaN(n)) {
+                      handleInputChange('assessed_value', n.toFixed(2));
+                    }
+                  }}
                 />
               </Grid>
 
@@ -367,6 +401,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="PIN"
                   value={formData.pin}
                   onChange={(e) => handleInputChange('pin', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
 
@@ -379,6 +414,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   multiline
                   rows={2}
                   placeholder="Complete address"
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
             </Grid>
@@ -394,10 +430,10 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
-                  <InputLabel>Kind of Property *</InputLabel>
+                  <InputLabel>Kind of Property</InputLabel>
                   <Select
                     value={formData.kind_of_property}
-                    label="Kind of Property *"
+                    label="Kind of Property"
                     onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                     error={errors.includes('kind_of_property')}
                   >

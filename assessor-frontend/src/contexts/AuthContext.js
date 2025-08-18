@@ -12,9 +12,18 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialToken = (() => {
+    try { return localStorage.getItem('assessor_token') || null; } catch (_) { return null; }
+  })();
+  const initialUser = (() => {
+    try {
+      const raw = localStorage.getItem('assessor_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [token, setToken] = useState(initialToken);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Check for existing token on mount (temporarily disabled token validation)
@@ -52,7 +61,7 @@ export const AuthProvider = ({ children }) => {
           console.log('🔍 AuthContext: No stored auth found');
         }
       
-      setLoading(false);
+      // loading is kept false to avoid blocking UI; we opportunistically update auth state
     };
 
     validateStoredAuth();
@@ -96,8 +105,9 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ AuthContext: Login error:', error);
-      setError(error.message);
-      return { success: false, error: error.message };
+      const message = (error && error.message) ? error.message : 'Invalid username or password';
+      setError(message);
+      return { success: false, error: message };
     } finally {
       setLoading(false);
     }

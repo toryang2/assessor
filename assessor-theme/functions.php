@@ -42,8 +42,23 @@ remove_action('wp_head', 'wp_oembed_add_discovery_links');
 
 // Customize login page
 function assessor_custom_login_logo() {
-    echo '<style type="text/css">
-        #login h1 a {
+    $logo_url = esc_url(get_option('assessor_app_logo_url', ''));
+    $has_logo = !empty($logo_url);
+    echo '<style type="text/css">';
+    if ($has_logo) {
+        echo '#login h1 a {
+            background-image: url(' . $logo_url . ') !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            background-position: center center !important;
+            width: 320px !important;
+            height: 80px !important;
+            text-indent: -9999px !important;
+            overflow: hidden !important;
+            display: block !important;
+        }';
+    } else {
+        echo '#login h1 a {
             background-image: none !important;
             background-size: contain !important;
             width: 100% !important;
@@ -56,8 +71,9 @@ function assessor_custom_login_logo() {
         }
         #login h1 a:before {
             content: "Property Assessor System";
-        }
-    </style>';
+        }';
+    }
+    echo '</style>';
 }
 add_action('login_head', 'assessor_custom_login_logo');
 
@@ -99,15 +115,23 @@ function assessor_enqueue_react_app() {
         );
         
         // Add inline script for React configuration
+        global $wpdb;
+        $table = $wpdb->prefix . 'assessor_settings';
+        $row = $wpdb->get_row("SELECT app_logo_url, header_province, header_municipality, header_office FROM $table ORDER BY id DESC LIMIT 1", ARRAY_A);
+        if (!$row) {
+            $row = array(
+                'app_logo_url' => '',
+                'header_province' => 'Province of Bukidnon',
+                'header_municipality' => 'MUNICIPALITY OF KITAOTAO',
+                'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
+            );
+        }
         wp_add_inline_script('assessor-react-app', '
             try {
                 window.REACT_APP_BASE_URL = "' . get_site_url() . '/wp-json/assessor/v1";
                 window.__PUBLIC_URL__ = "' . get_template_directory_uri() . '/assets";
+                window.__ASSESSOR_SETTINGS__ = ' . wp_json_encode($row) . ';
                 console.log("React app script loaded from: ' . $js_url . '");
-                console.log("React app configuration set successfully");
-                console.log("WordPress script handle: assessor-react-app");
-                console.log("Script dependencies: []");
-                console.log("Script in footer: true");
             } catch (error) {
                 console.error("Error setting React app configuration:", error);
             }
@@ -151,6 +175,16 @@ function assessor_theme_setup() {
     }
 }
 add_action('after_setup_theme', 'assessor_theme_setup');
+
+// Output favicon and apple-touch-icon from saved settings (frontend index.html equivalents)
+function assessor_output_favicons_from_settings() {
+    $logo_url = esc_url(get_option('assessor_app_logo_url', ''));
+    if (!empty($logo_url)) {
+        echo "\n<link rel=\"icon\" href=\"{$logo_url}\" />\n";
+        echo "<link rel=\"apple-touch-icon\" href=\"{$logo_url}\" />\n";
+    }
+}
+add_action('wp_head', 'assessor_output_favicons_from_settings', 99);
 
 // Customize WordPress title
 function assessor_custom_title($title) {
@@ -248,12 +282,12 @@ add_action('init', function() {
             
             // Allow access to all frontend routes without authentication
             add_filter('rest_authentication_errors', function($result) {
-                // Allow REST API access for our custom endpoints
-                if (strpos($_SERVER['REQUEST_URI'], '/wp-json/assessor/') !== false) {
-                    return null; // Allow access
+                $uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+                if (strpos($uri, '/wp-json/assessor/') !== false) {
+                    return null; // Allow custom API access (dev convenience)
                 }
                 return $result;
-            });
+            }, 5);
         }
     }
 });

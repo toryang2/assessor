@@ -26,6 +26,13 @@ class Assessor_Documents {
         
         $documents = $wpdb->get_results($wpdb->prepare($query, $property_id));
         
+        // Add public URL for each document for client consumption
+        if (is_array($documents)) {
+            foreach ($documents as $doc) {
+                $doc->file_url = $this->upload_dir['baseurl'] . '/assessor-documents/' . $doc->property_id . '/' . $doc->filename;
+            }
+        }
+        
         return array('documents' => $documents);
     }
     
@@ -160,6 +167,9 @@ class Assessor_Documents {
         if (!$document) {
             return new WP_Error('document_not_found', 'Document not found', array('status' => 404));
         }
+        
+        // Add public URL for client consumption
+        $document->file_url = $this->upload_dir['baseurl'] . '/assessor-documents/' . $document->property_id . '/' . $document->filename;
         
         return $document;
     }

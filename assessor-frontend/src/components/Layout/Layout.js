@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Box,
@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
+import { apiService } from '../../utils/api';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
 import AuditTrail from '../AuditTrail/AuditTrail';
@@ -47,6 +48,17 @@ const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { user, logout } = useAuth();
+  const initialSettings = (() => {
+    if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
+    try {
+      const cached = localStorage.getItem('assessor_settings');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('app_logo_url') : '';
+    if (cachedLogo) return { app_logo_url: cachedLogo };
+    return null;
+  })();
+  const [settings, setSettings] = useState(initialSettings);
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -72,6 +84,22 @@ const Layout = ({ children }) => {
     setCurrentPage(page);
     setMobileOpen(false);
   };
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await apiService.getSettings();
+        setSettings(data);
+        try {
+          localStorage.setItem('assessor_settings', JSON.stringify(data));
+          if (data && data.app_logo_url) localStorage.setItem('app_logo_url', data.app_logo_url);
+        } catch (_) {}
+      } catch (e) {
+        setSettings(null);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const navigationItems = [
     {
@@ -116,7 +144,11 @@ const Layout = ({ children }) => {
         alignItems: 'center',
         textAlign: 'center'
       }}>
-        <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
+        {settings?.app_logo_url ? (
+          <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 86, marginBottom: 8 }} />
+        ) : (
+          <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
+        )}
         <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 1 }}>
           Assessor's Archiving System
         </Typography>

@@ -11,6 +11,30 @@
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <script>
+      (function() {
+        function setIcons(url) {
+          if (!url) return;
+          var icon = document.querySelector('link[rel="icon"]');
+          if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
+          icon.href = url;
+          var apple = document.querySelector('link[rel="apple-touch-icon"]');
+          if (!apple) { apple = document.createElement('link'); apple.rel = 'apple-touch-icon'; document.head.appendChild(apple); }
+          apple.href = url;
+        }
+        try {
+          if (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) {
+            setIcons(window.__ASSESSOR_SETTINGS__.app_logo_url);
+            return;
+          }
+          var base = window.REACT_APP_BASE_URL || (window.location.origin + '/wp-json/assessor/v1');
+          var settingsUrl = (base.replace(/\/$/, '')) + '/settings';
+          fetch(settingsUrl, { credentials: 'include' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+            if (d && d.app_logo_url) setIcons(d.app_logo_url);
+          }).catch(function(){});
+        } catch (e) {}
+      })();
+    </script>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

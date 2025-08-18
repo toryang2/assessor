@@ -11,7 +11,6 @@ import {
   TablePagination,
   TextField,
   Button,
-  Chip,
   IconButton,
   Typography,
   Grid,
@@ -39,6 +38,7 @@ import {
 import { motion } from 'framer-motion';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
+// We'll load html2pdf.js from CDN at runtime to avoid webpack sourcemap warnings
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -77,10 +77,38 @@ const PropertyTable = () => {
   const [printModal, setPrintModal] = useState(false);
   const [printHistory, setPrintHistory] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
+  const initialSettings = (() => {
+    if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
+    try {
+      const cached = localStorage.getItem('assessor_settings');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('app_logo_url') : '';
+    if (cachedLogo) return { app_logo_url: cachedLogo };
+    return null;
+  })();
+  const [settings, setSettings] = useState(initialSettings);
 
   useEffect(() => {
     fetchProperties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, searchTerm, filters]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await apiService.getSettings();
+        setSettings(data);
+        try {
+          localStorage.setItem('assessor_settings', JSON.stringify(data));
+          if (data && data.app_logo_url) localStorage.setItem('app_logo_url', data.app_logo_url);
+        } catch (_) {}
+      } catch (e) {
+        setSettings(null);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const fetchProperties = async () => {
     try {
@@ -210,32 +238,71 @@ const PropertyTable = () => {
     }
   };
 
-  const handlePrint = () => {
+  // removed html2pdf
+
+  const handlePrint = async () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+    const rawLogo = (settings && settings.app_logo_url) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
+    const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
+    const headerPh = 'Republic of the Philippines';
+    // Format helpers
+    const toFormalCase = (text) => {
+      if (!text) return '';
+      const small = new Set(['of','and','the','for','in','on','at','a','an']);
+      const words = String(text).toLowerCase().split(/\s+/);
+      return words.map((w, i) => {
+        if (!w) return w;
+        if (i > 0 && small.has(w)) return w;
+        return w.charAt(0).toUpperCase() + w.slice(1);
+      }).join(' ');
+    };
+    const baseProvince = (settings && settings.header_province) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
+    const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
+    const baseMunicipality = (settings && settings.header_municipality) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
+    const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
+    const headerOffice = (settings && settings.header_office) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
+    const headerTitle = 'RECORD VERIFICATION DATA FORM';
     const styles = `
       <style>
-        @page { size: A4; margin: 12mm; }
+        /* Force A4 portrait with explicit dimensions to strongly hint the print preview */
+        @page { size: A4; margin: 12mm 8mm; margin-top: 5mm; margin-bottom: -26mm; }
         @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { size: A4; margin: 12mm 8mm; margin-top: 5mm; margin-bottom: -26mm; }
+          html, body { width: 210mm; }
+          body { padding: 12mm 8mm; padding-top: 5mm; padding-bottom: -26mm; }
         }
-        body { font-family: Arial, sans-serif; padding: 16px; }
-        h2 { margin: 0 0 12px 0; }
-        .header { text-align: center; margin-bottom: 12px; }
-        .header img { height: 48px; display: block; margin: 0 auto 8px auto; }
-        .header h3 { margin: 2px 0; font-weight: 600; }
-        .header h4 { margin: 2px 0; font-weight: 600; }
+        body { font-family: Arial, sans-serif; }
+        
+        .header { font-family: Times New Roman, sans-serif; text-align: center; }
+        .header img { height: 64px; display: block; margin: 0 auto 8px auto; }
+        .header h3 { font-size: 16px; margin: 2px 0; font-weight: 400; }
+        .header h4 { font-size: 16px; margin: 2px 0; font-weight: 400; }
         .subheader { margin-top: 8px; font-weight: 700; text-decoration: underline; }
         .info { border: 1px solid #000; border-collapse: separate; border-spacing: 0; margin: 12px auto; }
         .info td { border: none; padding: 6px 8px; font-size: 12px; vertical-align: top; }
         .label { width: 220px; font-weight: 600; }
         .value { font-weight: normal; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
-        th { background: #f5f5f5; text-align: left; vertical-align: center !important; text-align: center; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 10px; }
+        thead { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        th { background-color: #cccccc !important; text-align: left; vertical-align: center !important; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         td { vertical-align: top !important; }
         .caption { color: #666; font-size: 11px; }
-        td.memo { max-width: 280px; white-space: normal; word-break: break-word; }
+        td.memo { white-space: normal; word-break: break-word; }
+        /* Adjust print column widths: 1st narrower, Memoranda wider */
+        thead th:nth-child(1), tbody td:nth-child(1) { width: 70px; }
+        thead th:nth-child(2), tbody td:nth-child(2) { width: 70px; }
+        thead th:nth-child(3), tbody td:nth-child(3) { width: 40px; }
+        thead th:nth-child(4), tbody td:nth-child(4) { width: 40px; }
+        thead th:nth-child(5), tbody td:nth-child(5) { width: 60px; }
+        thead th:nth-child(6), tbody td:nth-child(6) { width: 60px; }
+        thead th:nth-child(7), tbody td:nth-child(7) { width: 50px; }
+        thead th:nth-child(8), tbody td:nth-child(8) { width: 40%; }
+
+        /* Custom footer page numbering */
+        .print-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #666; padding: 2mm 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page-number:after { content: 'Page ' counter(page) ' of ' counter(pages); }
       </style>
     `;
     const rows = (printHistory || []).map((item, index) => `
@@ -257,23 +324,22 @@ const PropertyTable = () => {
     const html = `
       <html>
         <head>
-          <title>Tax Declaration History</title>
+          <title></title>
           ${styles}
         </head>
         <body>
           <div class="header">
-            <!-- Editable logo via settings; using sidebar/login logo path if available -->
-            <img src="${localStorage.getItem('app_logo_url') || ''}" alt="Logo" onerror="this.style.display='none'" />
-            <h4>Republic of the Philippines</h4>
-            <h4>Province of Bukidnon</h4>
-            <h3>MUNICIPALITY OF KITAOTAO</h3>
-            <h3>OFFICE OF THE MUNICIPAL ASSESSOR</h3>
-            <div class="subheader">RECORD VERIFICATION DATA FORM</div>
+            <img src="${appLogoUrl}" alt="Logo" onerror="this.style.display='none'" />
+            <h4>${headerPh}</h4>
+            <h4>${headerProvince}</h4>
+            <h3>${headerMunicipality}</h3>
+            <h3>${headerOffice}</h3>
+            <div class="subheader">${headerTitle}</div>
           </div>
 
           <table class="info">
             <tr>
-              <td class="label">Tax Declaration Number: <span class="value">${(printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span></td>
+              <td class="label">TAX DECLARATION NUMBER: <span class="value">${(printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span></td>
               <td class="label">PIN: <span class="value">${(printHistory[0] && printHistory[0].pin) || ''}</span></td>
             </tr>
             <tr>
@@ -293,6 +359,7 @@ const PropertyTable = () => {
               <td class="label">GEN. CLASS: <span class="value">${(printHistory[0] && printHistory[0].gen_class) || ''}</span></td>
             </tr>
           </table>
+          <div class="print-footer"><span class="page-number"></span></div>
 
           <table>
             <thead>
@@ -311,20 +378,43 @@ const PropertyTable = () => {
               ${rows}
             </tbody>
           </table>
+          <script>
+            (function(){
+              try {
+                var base = (window.opener && window.opener.location) ? window.opener.location.origin : (location.origin || '');
+                if (base) { history.replaceState(null, '', base + '/print'); }
+              } catch(e){}
+              function done(){
+                setTimeout(function(){ try { window.focus(); window.print(); } catch(e){} try { window.close(); } catch(e){} }, 100);
+              }
+              var imgs = Array.prototype.slice.call(document.images || []);
+              if (!imgs.length) { done(); return; }
+              var remaining = imgs.length;
+              var timer = setTimeout(done, 2000);
+              imgs.forEach(function(img){
+                if (img.complete) {
+                  if (--remaining === 0) { clearTimeout(timer); done(); }
+                } else {
+                  img.addEventListener('load', function(){ if (--remaining === 0) { clearTimeout(timer); done(); } });
+                  img.addEventListener('error', function(){ if (--remaining === 0) { clearTimeout(timer); done(); } });
+                }
+              });
+            })();
+          </script>
         </body>
       </html>
     `;
+
+    // Use HTML2PDF to generate a real PDF for consistent headers/footers/paging
+    // Fallback to simple print popup (html2pdf removed per request)
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
   };
 
-  const getStatusColor = (status) => {
-    return statusColors[status] || statusColors.info;
-  };
+  // const getStatusColor = (status) => {
+  //   return statusColors[status] || statusColors.info;
+  // };
 
   const clearFilters = () => {
     setFilters({
@@ -464,15 +554,15 @@ const PropertyTable = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>Tax Declaration Number</TableCell>
-                <TableCell>Declarant</TableCell>
-                <TableCell>Lot Number</TableCell>
-                <TableCell>Area (hectare)</TableCell>
-                <TableCell>Title Number</TableCell>
-                <TableCell>Assessed Value</TableCell>
-                <TableCell>Effectivity</TableCell>
+                <TableCell sx={{ width: 150 }}>Tax Declaration Number</TableCell>
+                <TableCell sx={{ width: 150 }}>Declarant</TableCell>
+                <TableCell sx={{ width: 80 }}>Lot Number</TableCell>
+                <TableCell sx={{ width: 80 }}>Area (hectare)</TableCell>
+                <TableCell sx={{ width: 80 }}>Title Number</TableCell>
+                <TableCell sx={{ width: 120 }}>Assessed Value</TableCell>
+                <TableCell sx={{ width: 80 }}>Effectivity</TableCell>
                 <TableCell>Memoranda</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell sx={{ width: 140 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75 } }}>

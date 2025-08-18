@@ -14,28 +14,8 @@ import Layout from './components/Layout/Layout';
 
 // Simple App Component - No Routing
 const SimpleApp = () => {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        fontSize: '18px',
-        color: '#666'
-      }}>
-        Loading...
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
-  return <Layout />;
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Layout /> : <Login />;
 };
 
 // Main App Component
