@@ -1,96 +1,154 @@
-# 🚀 WordPress Backend Setup Guide
+# Assessor API Setup Instructions
 
-## Prerequisites
-- XAMPP, WAMP, or similar local web server
-- PHP 7.4+ and MySQL 5.7+
+## Database Migration (Required for New Field Structure)
 
-## Quick Setup
+**IMPORTANT**: Before using the updated system, you must migrate your database to the new field structure.
 
-### 1. Start Your Web Server
-- Start Apache and MySQL services
-- Make sure ports 80 and 3306 are available
+### Step 1: Deactivate the Plugin
+1. Go to WordPress Admin → Plugins
+2. Deactivate the "Assessor History Archiving API" plugin
 
-### 2. Access the Install Script
-Open your browser and navigate to:
+### Step 2: Run Database Migration
+1. Access your MySQL database (via phpMyAdmin or command line)
+2. Run the SQL script from `reactivate_plugin.sql`
+3. This will drop and recreate the properties tables with the new schema
+
+### Step 3: Reactivate the Plugin
+1. Go to WordPress Admin → Plugins
+2. Activate the "Assessor History Archiving API" plugin
+
+## New Field Structure
+
+The system now uses the following field structure for properties:
+
+### Basic Information
+- **Tax Declaration Number** (Required) - Unique identifier for the property
+- **Previous Tax Declaration Number** - Links to the previous declaration in the chain
+- **Declarant** - Split into Last Name, First Name, and Middle Initial
+- **Location** - Property location (Required)
+- **Lot Number** - Property lot number
+- **Unique Lot Number Identified** - Additional lot identifier
+- **Area (hectare)** - Property area in hectares
+- **Title Number** - Property title number
+- **Assessed Value** - Property assessed value in pesos
+- **Effectivity Date** - When the assessment takes effect
+- **PIN** - Property Identification Number (text field)
+- **Address** - Complete property address
+- **Assessment Date** - Date of assessment
+- **Kind of Property** - Land, Building, Machinery, Improvements, Plant/Trees (Required)
+- **General Class** - Residential, Commercial, Industrial, etc.
+- **Memoranda** - Additional notes
+- **Supporting Documents** - Document references
+
+## Tax Declaration Linking Feature
+
+The system now supports manual linking of tax declarations to create historical chains:
+
+### How It Works
+1. **Manual Linking**: Enter the previous tax declaration number in the "Previous Tax Declaration Number" field when creating a new property.
+
+2. **Foreign Key Relationship**: The system will only create a link if the referenced previous tax declaration number exists in the database.
+
+3. **History Chain**: Click on any tax declaration number in the table to view the complete historical chain, showing how properties evolved over time.
+
+### Example Chain
 ```
-http://localhost/assessor-backend/install.php
+22-010-0002-12345 → 10-0002-12345 → G-00123
+```
+- **22-010-0002-12345** (Current/Newest) - has previous_tax_declaration_number = "10-0002-12345"
+- **10-0002-12345** (Previous) - has previous_tax_declaration_number = "G-00123"
+- **G-00123** (Oldest) - has no previous_tax_declaration_number
+
+### Features
+- **Manual Control**: You control which properties are linked by entering the previous tax declaration number
+- **Data Integrity**: Links are only created if the referenced property exists in the database
+- **Visual Chain Display**: The history modal shows the complete chain with property details
+- **Clickable Links**: Both current and previous tax declaration numbers are clickable
+- **Property Details**: Each entry in the chain shows declarant, location, assessed value, and property type
+- **Chronological Order**: History is displayed from newest to oldest
+
+## Installation Steps
+
+1. Upload the plugin files to `/wp-content/plugins/assessor-api/`
+2. Activate the plugin through the 'Plugins' menu in WordPress
+3. The plugin will automatically create the required database tables
+
+## Configuration
+
+### Environment Variables
+Set the following in your WordPress configuration:
+
+```php
+// JWT Secret (change this to a secure random string)
+define('JWT_SECRET', 'your-secure-jwt-secret-here');
+
+// API Base URL
+define('ASSESSOR_API_BASE_URL', 'http://your-domain.com/wp-json/assessor/v1');
 ```
 
-### 3. Follow Installation Steps
-- Enter database details (or use defaults)
-- Wait for WordPress installation
-- Wait for custom tables creation
-- Wait for plugin activation
-
-### 4. Default Login Credentials
+### Default Admin User
+The plugin creates a default admin user:
 - **Username**: `admin`
 - **Password**: `admin123`
+- **Email**: `admin@localgov.ph`
 
-### 5. Test the API
-Once installed, test the endpoint:
-```
-http://localhost/assessor-backend/wp-json/assessor/v1/login
-```
+**⚠️ Important**: Change the default password immediately after installation!
 
-## Manual Setup (Alternative)
+## API Endpoints
 
-### 1. Create Database
-```sql
-CREATE DATABASE assessor_db;
-CREATE USER 'assessor_user'@'localhost' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON assessor_db.* TO 'assessor_user'@'localhost';
-FLUSH PRIVILEGES;
-```
+### Authentication
+- `POST /assessor/v1/login` - User authentication
+- `POST /assessor/v1/logout` - User logout
+- `GET /assessor/v1/validate-token` - Validate JWT token
 
-### 2. Configure wp-config.php
-Copy `wp-config-sample.php` to `wp-config.php` and update:
-```php
-define('DB_NAME', 'assessor_db');
-define('DB_USER', 'assessor_user');
-define('DB_PASSWORD', 'your_password');
-define('DB_HOST', 'localhost');
-```
+### Properties
+- `GET /assessor/v1/properties` - List properties with filtering
+- `POST /assessor/v1/properties` - Create new property
+- `GET /assessor/v1/properties/{id}` - Get property details
+- `PUT /assessor/v1/properties/{id}` - Update property
+- `DELETE /assessor/v1/properties/{id}` - Delete property
 
-### 3. Activate Plugin
-- Access WordPress admin: `http://localhost/assessor-backend/wp-admin`
-- Go to Plugins > Installed Plugins
-- Activate "Assessor History Archiving API"
+### Dashboard & Reports
+- `GET /assessor/v1/dashboard` - Dashboard data
+- `POST /assessor/v1/export` - Export data
+- `GET /assessor/v1/audit` - Audit trail
 
 ## Troubleshooting
 
-### API 404 Error
-- Check if plugin is activated
-- Verify .htaccess file exists
-- Check WordPress permalink settings
+### Common Issues
 
-### CORS Issues
-- Plugin includes CORS headers
-- Make sure frontend URL is correct
-- Check browser console for errors
+1. **Plugin Not Activating**
+   - Check PHP version compatibility (requires PHP 7.4+)
+   - Verify WordPress version (requires 5.0+)
+   - Check file permissions
 
-### Database Connection
-- Verify MySQL service is running
-- Check database credentials
-- Ensure database exists
+2. **API Endpoints Not Working**
+   - Verify permalink settings are set to "Post name"
+   - Check .htaccess configuration
+   - Ensure plugin is activated
 
-## File Structure
-```
-assessor-backend/
-├── wp-content/
-│   └── plugins/
-│       └── assessor-api/
-│           ├── assessor-api.php
-│           └── includes/
-├── install.php
-└── wp-config.php
+3. **Database Tables Not Created**
+   - Deactivate and reactivate the plugin
+   - Check database user permissions
+   - Verify MySQL version compatibility
+
+4. **Migration Issues**
+   - Ensure you've run the migration script before reactivating
+   - Check database logs for any errors
+   - Verify all required fields are present in the new schema
+
+### Debug Mode
+Enable WordPress debug mode in `wp-config.php`:
+
+```php
+define('WP_DEBUG', true);
+define('WP_DEBUG_LOG', true);
+define('WP_DEBUG_DISPLAY', false);
 ```
 
 ## Support
-If you encounter issues, check:
-1. Web server error logs
-2. WordPress debug log
-3. Browser console errors
-4. Network tab in DevTools
+
+For technical support, check the WordPress error logs and browser console for detailed error messages.
 
 
 

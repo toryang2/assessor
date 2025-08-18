@@ -11,6 +11,7 @@ class Assessor_Properties {
         $offset = ($page - 1) * $per_page;
         
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $table_users = $wpdb->prefix . 'assessor_users';
         
         // Build WHERE clause for filtering
@@ -22,14 +23,19 @@ class Assessor_Properties {
             $where_values[] = '%' . $wpdb->esc_like($params['tax_declaration_number']) . '%';
         }
         
-        if (!empty($params['owner_name'])) {
-            $where_conditions[] = "p.owner_name LIKE %s";
-            $where_values[] = '%' . $wpdb->esc_like($params['owner_name']) . '%';
+        if (!empty($params['declarant_last_name'])) {
+            $where_conditions[] = "p.declarant_last_name LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['declarant_last_name']) . '%';
         }
         
-        if (!empty($params['property_location'])) {
-            $where_conditions[] = "p.property_location LIKE %s";
-            $where_values[] = '%' . $wpdb->esc_like($params['property_location']) . '%';
+        if (!empty($params['declarant_first_name'])) {
+            $where_conditions[] = "p.declarant_first_name LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['declarant_first_name']) . '%';
+        }
+        
+        if (!empty($params['location'])) {
+            $where_conditions[] = "p.location LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['location']) . '%';
         }
         
         if (!empty($params['status'])) {
@@ -128,7 +134,7 @@ class Assessor_Properties {
         $user_id = $this->get_user_id_from_request($request);
         
         // Validate required fields
-        $required_fields = array('tax_declaration_number', 'owner_name', 'property_location', 'property_type');
+        $required_fields = array('tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 'location', 'kind_of_property');
         foreach ($required_fields as $field) {
             if (empty($params[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
@@ -151,19 +157,29 @@ class Assessor_Properties {
             $table_properties,
             array(
                 'tax_declaration_number' => sanitize_text_field($params['tax_declaration_number']),
-                'owner_name' => sanitize_text_field($params['owner_name']),
-                'owner_address' => sanitize_textarea_field($params['owner_address']),
-                'property_location' => sanitize_textarea_field($params['property_location']),
-                'property_type' => sanitize_text_field($params['property_type']),
-                'land_area' => floatval($params['land_area']),
-                'building_area' => floatval($params['building_area']),
+                'previous_tax_declaration_number' => sanitize_text_field($params['previous_tax_declaration_number']),
+                'declarant_last_name' => sanitize_text_field($params['declarant_last_name']),
+                'declarant_first_name' => sanitize_text_field($params['declarant_first_name']),
+                'declarant_middle_initial' => sanitize_text_field($params['declarant_middle_initial']),
+                'location' => sanitize_textarea_field($params['location']),
+                'lot_number' => sanitize_text_field($params['lot_number']),
+                'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified']),
+                'area_hectare' => floatval($params['area_hectare']),
+                'title_number' => sanitize_text_field($params['title_number']),
                 'assessed_value' => floatval($params['assessed_value']),
-                'market_value' => floatval($params['market_value']),
+                'effectivity_date' => $params['effectivity_date'],
+                'pin' => sanitize_text_field($params['pin']),
+                'address' => sanitize_textarea_field($params['address']),
+                'assessment_date' => $params['assessment_date'],
+                'kind_of_property' => sanitize_text_field($params['kind_of_property']),
+                'gen_class' => sanitize_text_field($params['gen_class']),
+                'memoranda' => sanitize_textarea_field($params['memoranda']),
+                'supporting_documents' => sanitize_textarea_field($params['supporting_documents']),
                 'status' => 'active',
                 'created_by' => $user_id,
                 'updated_by' => $user_id
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result === false) {
@@ -195,17 +211,35 @@ class Assessor_Properties {
         
         // Update property
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        
+        // If tax_declaration_number is being changed, enforce uniqueness
+        if (isset($params['tax_declaration_number'])) {
+            $new_tax_number = sanitize_text_field($params['tax_declaration_number']);
+            $duplicate_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND id != %d",
+                $new_tax_number,
+                $id
+            ));
+            if ($duplicate_id) {
+                return new WP_Error('duplicate_tax_number', 'Tax declaration number already exists', array('status' => 400));
+            }
+        }
         $update_data = array(
             'updated_by' => $user_id,
             'updated_at' => current_time('mysql')
         );
         
-        $allowed_fields = array('owner_name', 'owner_address', 'property_location', 'property_type', 
-                               'land_area', 'building_area', 'assessed_value', 'market_value', 'status');
+        $allowed_fields = array(
+            'tax_declaration_number', 'previous_tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 
+            'declarant_middle_initial', 'location', 'lot_number', 'unique_lot_number_identified',
+            'area_hectare', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
+            'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
+            'supporting_documents', 'status'
+        );
         
         foreach ($allowed_fields as $field) {
             if (isset($params[$field])) {
-                if (in_array($field, array('land_area', 'building_area', 'assessed_value', 'market_value'))) {
+                if (in_array($field, array('area_hectare', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
                 } else {
                     $update_data[$field] = sanitize_text_field($params[$field]);
@@ -274,6 +308,111 @@ class Assessor_Properties {
         return $wpdb->get_var("SELECT COUNT(*) FROM $table_versions");
     }
     
+    public function get_tax_declaration_history($tax_declaration_number) {
+        global $wpdb;
+        
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $history = array();
+
+        // 1) Resolve to the latest (head) tax declaration in the chain starting from the given number
+        $head_number = $tax_declaration_number;
+        $visited_forward = array();
+        while ($head_number && !in_array($head_number, $visited_forward, true)) {
+            $visited_forward[] = $head_number;
+            $next_number = $wpdb->get_var($wpdb->prepare(
+                "SELECT tax_declaration_number 
+                 FROM $table_properties 
+                 WHERE previous_tax_declaration_number = %s AND status != 'deleted' 
+                 ORDER BY created_at DESC 
+                 LIMIT 1",
+                $head_number
+            ));
+            if (!$next_number) {
+                break;
+            }
+            $head_number = $next_number;
+        }
+
+        // 2) Build the chain backwards starting from the head (latest) down to the oldest
+        $current_number = $head_number ?: $tax_declaration_number;
+        $visited_backward = array();
+        while ($current_number && !in_array($current_number, $visited_backward, true)) {
+            $visited_backward[] = $current_number;
+
+            $property = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, tax_declaration_number, previous_tax_declaration_number, 
+                        declarant_last_name, declarant_first_name, declarant_middle_initial,
+                        location, lot_number, area_hectare, title_number, effectivity_date,
+                        assessed_value, kind_of_property, memoranda, pin, address, assessment_date, gen_class, created_at
+                 FROM $table_properties 
+                 WHERE tax_declaration_number = %s AND status != 'deleted'
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+                $current_number
+            ));
+            
+            if (!$property) {
+                break;
+            }
+            
+            // Fallback: if memoranda is empty on the live record, try latest version memoranda
+            $memoranda_value = $property->memoranda;
+            if (empty($memoranda_value)) {
+                $memoranda_value = $wpdb->get_var($wpdb->prepare(
+                    "SELECT memoranda FROM $table_versions WHERE property_id = %d ORDER BY version_number DESC LIMIT 1",
+                    $property->id
+                ));
+            }
+
+            $history[] = array(
+                'id' => $property->id,
+                'tax_declaration_number' => $property->tax_declaration_number,
+                'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
+                'declarant_name' => trim($property->declarant_last_name . ', ' . $property->declarant_first_name . 
+                                       ($property->declarant_middle_initial ? ' ' . $property->declarant_middle_initial . '.' : '')),
+                'location' => $property->location,
+                'lot_number' => $property->lot_number,
+                'area_hectare' => $property->area_hectare,
+                'title_number' => $property->title_number,
+                'effectivity_date' => $property->effectivity_date,
+                'assessed_value' => $property->assessed_value,
+                'kind_of_property' => $property->kind_of_property,
+                'memoranda' => $memoranda_value,
+                'pin' => $property->pin,
+                'address' => $property->address,
+                'assessment_date' => $property->assessment_date,
+                'gen_class' => $property->gen_class,
+                'created_at' => $property->created_at
+            );
+            
+            // Move to the previous declaration number
+            $current_number = $property->previous_tax_declaration_number;
+        }
+        
+        return $history;
+    }
+    
+    public function get_property_by_tax_number($tax_declaration_number) {
+        global $wpdb;
+        
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $table_users = $wpdb->prefix . 'assessor_users';
+        
+        $query = "
+            SELECT p.*, 
+                   c.full_name as created_by_name,
+                   u.full_name as updated_by_name
+            FROM $table_properties p
+            LEFT JOIN $table_users c ON p.created_by = c.id
+            LEFT JOIN $table_users u ON p.updated_by = u.id
+            WHERE p.tax_declaration_number = %s AND p.status != 'deleted'
+            ORDER BY p.created_at DESC
+            LIMIT 1
+        ";
+        
+        return $wpdb->get_row($wpdb->prepare($query, $tax_declaration_number));
+    }
+    
     private function create_property_version($property_id, $property_data, $change_reason) {
         global $wpdb;
         
@@ -292,18 +431,28 @@ class Assessor_Properties {
                 'property_id' => $property_id,
                 'version_number' => $next_version,
                 'tax_declaration_number' => $property_data->tax_declaration_number,
-                'owner_name' => $property_data->owner_name,
-                'owner_address' => $property_data->owner_address,
-                'property_location' => $property_data->property_location,
-                'property_type' => $property_data->property_type,
-                'land_area' => $property_data->land_area,
-                'building_area' => $property_data->building_area,
+                'previous_tax_declaration_number' => $property_data->previous_tax_declaration_number,
+                'declarant_last_name' => $property_data->declarant_last_name,
+                'declarant_first_name' => $property_data->declarant_first_name,
+                'declarant_middle_initial' => $property_data->declarant_middle_initial,
+                'location' => $property_data->location,
+                'lot_number' => $property_data->lot_number,
+                'unique_lot_number_identified' => $property_data->unique_lot_number_identified,
+                'area_hectare' => $property_data->area_hectare,
+                'title_number' => $property_data->title_number,
                 'assessed_value' => $property_data->assessed_value,
-                'market_value' => $property_data->market_value,
+                'effectivity_date' => $property_data->effectivity_date,
+                'pin' => $property_data->pin,
+                'address' => $property_data->address,
+                'assessment_date' => $property_data->assessment_date,
+                'kind_of_property' => $property_data->kind_of_property,
+                'gen_class' => $property_data->gen_class,
+                'memoranda' => $property_data->memoranda,
+                'supporting_documents' => $property_data->supporting_documents,
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
     

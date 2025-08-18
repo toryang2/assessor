@@ -30,8 +30,7 @@ import {
   Notifications,
   History,
   FileDownload,
-  Description,
-  Timeline
+  Archive
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
@@ -40,8 +39,7 @@ import PropertyTable from '../PropertyTable/PropertyTable';
 import AuditTrail from '../AuditTrail/AuditTrail';
 import UserManagement from '../UserManagement/UserManagement';
 import Export from '../Export/Export';
-import DocumentManager from '../DocumentManager/DocumentManager';
-import VersionHistory from '../VersionHistory/VersionHistory';
+import Settings from '../Settings/Settings';
 
 const drawerWidth = 280;
 
@@ -87,16 +85,6 @@ const Layout = ({ children }) => {
       badge: null
     },
     {
-      text: 'Version History',
-      icon: <Timeline />,
-      badge: null
-    },
-    {
-      text: 'Documents',
-      icon: <Description />,
-      badge: null
-    },
-    {
       text: 'Audit Trail',
       icon: <History />,
       badge: null
@@ -110,126 +98,87 @@ const Layout = ({ children }) => {
       text: 'User Management',
       icon: <AccountCircle />,
       badge: null
+    },
+    {
+      text: 'Settings',
+      icon: <AccountCircle />,
+      badge: null
     }
   ];
 
-
-
   const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-             <Box
-         sx={{
-           padding: 3,
-           textAlign: 'center',
-           position: 'relative',
-           overflow: 'hidden'
-         }}
-       >
-        <motion.div
-          initial="initial"
-          animate="animate"
-          variants={{
-            initial: { opacity: 0 },
-            animate: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.15
-              }
-            }
-          }}
-        >
-          <motion.div
-            variants={{
-              initial: { opacity: 0, y: 15 },
-              animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
-            }}
-          >
-            <Business sx={{ fontSize: 48, marginBottom: 1 }} />
-          </motion.div>
-          
-          <motion.div
-            variants={{
-              initial: { opacity: 0, y: 15 },
-              animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
-            }}
-          >
-            <Typography variant="h6" component="h2" gutterBottom>
-              Property Assessor
-            </Typography>
-          </motion.div>
-          
-          <motion.div
-            variants={{
-              initial: { opacity: 0, y: 15 },
-              animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
-            }}
-          >
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              History Archiving System
-            </Typography>
-          </motion.div>
-        </motion.div>
-      </Box>
-
-      {/* Navigation */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
-        <List sx={{ padding: 2 }}>
-          {navigationItems.map((item, index) => (
-            <motion.div
-              key={item.text}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.3 }}
-            >
-              <ListItem disablePadding sx={{ marginBottom: 1 }}>
-                <ListItemButton
-                  onClick={() => handleNavigation(item.text)}
-                  selected={currentPage === item.text}
-                  sx={{
-                    borderRadius: 2,
-                    '&.Mui-selected': {
-                      backgroundColor: theme.palette.primary.light + '20',
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        backgroundColor: theme.palette.primary.light + '30',
-                      },
-                    },
-                    '&:hover': {
-                      backgroundColor: theme.palette.action.hover,
-                    },
-                  }}
-                >
-                  <ListItemIcon
-                    sx={{
-                      color: 'inherit',
-                      minWidth: 40
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={item.text}
-                    primaryTypographyProps={{
-                      fontWeight: 400
-                    }}
-                  />
-                  {item.badge && (
-                    <Badge badgeContent={item.badge} color="error" />
-                  )}
-                </ListItemButton>
-              </ListItem>
-            </motion.div>
-          ))}
-        </List>
-      </Box>
-
-      {/* Footer */}
-      <Box sx={{ padding: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-        <Typography variant="caption" color="text.secondary" align="center">
-          © 2024 Philippine Local Government
+    <Box>
+      <Box sx={{ 
+        p: 2, 
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center'
+      }}>
+        <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
+        <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 1 }}>
+          Assessor's Archiving System
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Local Government
         </Typography>
       </Box>
+      
+      <List>
+        {navigationItems.map((item) => (
+          <motion.div key={item.text}>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => handleNavigation(item.text)}
+                selected={currentPage === item.text}
+                sx={{
+                  mx: 1,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                      color: 'white',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    color: currentPage === item.text ? 'white' : 'text.secondary',
+                    minWidth: 40,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: currentPage === item.text ? 600 : 400,
+                    color: currentPage === item.text ? 'white' : 'inherit',
+                  }}
+                  sx={{
+                    marginLeft: 0,
+                  }}
+                />
+                {item.badge && (
+                  <Badge badgeContent={item.badge} color="error" />
+                )}
+              </ListItemButton>
+            </ListItem>
+          </motion.div>
+        ))}
+      </List>
     </Box>
   );
 
@@ -257,40 +206,44 @@ const Layout = ({ children }) => {
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.3 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              <Typography variant="h6" noWrap component="div">
+              {currentPage === 'Dashboard' && <DashboardIcon sx={{ fontSize: 24, color: 'primary.main' }} />}
+              {currentPage === 'Properties' && <Business sx={{ fontSize: 24, color: 'primary.main' }} />}
+              {currentPage === 'Audit Trail' && <History sx={{ fontSize: 24, color: 'primary.main' }} />}
+              {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main' }} />}
+              {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main' }} />}
+              <Typography variant="h6" fontWeight={600}>
                 {currentPage}
               </Typography>
             </motion.div>
           </Box>
 
-          {/* Right side actions */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Tooltip title="Notifications">
-              <IconButton color="inherit" size="large">
-                <Badge badgeContent={3} color="error">
+              <IconButton color="inherit" size="small">
+                <Badge badgeContent={0} color="error">
                   <Notifications />
                 </Badge>
               </IconButton>
             </Tooltip>
-
+            
             <Tooltip title="Profile">
               <IconButton
                 onClick={handleProfileMenuOpen}
-                color="inherit"
-                size="large"
+                sx={{ ml: 1 }}
               >
                 <Avatar
-                  sx={{
-                    width: 32,
+                  sx={{ 
+                    width: 32, 
                     height: 32,
-                    backgroundColor: theme.palette.secondary.main,
-                    color: theme.palette.secondary.contrastText
+                    bgcolor: 'primary.main',
+                    fontSize: '0.875rem'
                   }}
                 >
                   {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
@@ -301,44 +254,39 @@ const Layout = ({ children }) => {
         </Toolbar>
       </AppBar>
 
-      {/* Sidebar */}
+      {/* Drawer */}
       <Box
         component="nav"
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
       >
-        {/* Mobile drawer */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
+            keepMounted: true,
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
+            '& .MuiDrawer-paper': { 
+              boxSizing: 'border-box', 
               width: drawerWidth,
-              border: 'none',
-              boxShadow: '2px 0 8px rgba(0,0,0,0.08)',
-              backgroundColor: theme.palette.background.paper
+              background: '#ffffff',
+              borderRight: `1px solid ${theme.palette.divider}`
             },
           }}
         >
           {drawer}
         </Drawer>
-
-        {/* Desktop drawer */}
         <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
+            '& .MuiDrawer-paper': { 
+              boxSizing: 'border-box', 
               width: drawerWidth,
-              border: 'none',
-              boxShadow: '2px 0 8px rgba(0,0,0,0.08)',
-              backgroundColor: theme.palette.background.paper
+              background: '#ffffff',
+              borderRight: `1px solid ${theme.palette.divider}`
             },
           }}
           open
@@ -347,15 +295,15 @@ const Layout = ({ children }) => {
         </Drawer>
       </Box>
 
-      {/* Main content */}
+      {/* Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
+          p: 3,
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          marginTop: '64px', // AppBar height
-          padding: 3,
-          backgroundColor: theme.palette.background.default,
+          mt: '64px',
+          background: '#f8fafc',
           minHeight: 'calc(100vh - 64px)'
         }}
       >
@@ -369,11 +317,10 @@ const Layout = ({ children }) => {
           >
             {currentPage === 'Dashboard' && <Dashboard />}
             {currentPage === 'Properties' && <PropertyTable />}
-            {currentPage === 'Version History' && <VersionHistory />}
-            {currentPage === 'Documents' && <DocumentManager />}
             {currentPage === 'Audit Trail' && <AuditTrail />}
             {currentPage === 'Export' && <Export />}
             {currentPage === 'User Management' && <UserManagement />}
+            {currentPage === 'Settings' && <Settings />}
           </motion.div>
         </AnimatePresence>
       </Box>
@@ -430,3 +377,4 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
+

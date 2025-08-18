@@ -32,9 +32,9 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  History as HistoryIcon,
-  AttachFile as AttachFileIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  Visibility as VisibilityIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -71,6 +71,12 @@ const PropertyTable = () => {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState(null);
+  const [historyModal, setHistoryModal] = useState(false);
+  const [taxHistory, setTaxHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [printModal, setPrintModal] = useState(false);
+  const [printHistory, setPrintHistory] = useState([]);
+  const [printLoading, setPrintLoading] = useState(false);
 
   useEffect(() => {
     fetchProperties();
@@ -86,8 +92,9 @@ const PropertyTable = () => {
         per_page: rowsPerPage,
         // Map search term to the fields the API expects
         tax_declaration_number: searchTerm || '',
-        owner_name: searchTerm || '',
-        property_location: filters.location || '',
+        declarant_last_name: searchTerm || '',
+        declarant_first_name: searchTerm || '',
+        location: filters.location || '',
         status: filters.status || '',
         date_from: filters.dateFrom ? format(filters.dateFrom, 'yyyy-MM-dd') : '',
         date_to: filters.dateTo ? format(filters.dateTo, 'yyyy-MM-dd') : ''
@@ -174,6 +181,147 @@ const PropertyTable = () => {
     fetchProperties();
   };
 
+  const handleViewHistory = async (taxDeclarationNumber) => {
+    try {
+      setHistoryLoading(true);
+      setHistoryModal(true);
+      
+      const response = await apiService.getTaxDeclarationHistory(taxDeclarationNumber);
+      setTaxHistory(response || []);
+    } catch (err) {
+      console.error('Error fetching tax declaration history:', err);
+      setTaxHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleViewPrintableHistory = async (taxDeclarationNumber) => {
+    try {
+      setPrintLoading(true);
+      setPrintModal(true);
+      const response = await apiService.getTaxDeclarationHistory(taxDeclarationNumber);
+      setPrintHistory(response || []);
+    } catch (err) {
+      console.error('Error fetching printable history:', err);
+      setPrintHistory([]);
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const styles = `
+      <style>
+        @page { size: A4; margin: 12mm; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+        body { font-family: Arial, sans-serif; padding: 16px; }
+        h2 { margin: 0 0 12px 0; }
+        .header { text-align: center; margin-bottom: 12px; }
+        .header img { height: 48px; display: block; margin: 0 auto 8px auto; }
+        .header h3 { margin: 2px 0; font-weight: 600; }
+        .header h4 { margin: 2px 0; font-weight: 600; }
+        .subheader { margin-top: 8px; font-weight: 700; text-decoration: underline; }
+        .info { border: 1px solid #000; border-collapse: separate; border-spacing: 0; margin: 12px auto; }
+        .info td { border: none; padding: 6px 8px; font-size: 12px; vertical-align: top; }
+        .label { width: 220px; font-weight: 600; }
+        .value { font-weight: normal; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+        th { background: #f5f5f5; text-align: left; vertical-align: center !important; text-align: center; }
+        td { vertical-align: top !important; }
+        .caption { color: #666; font-size: 11px; }
+        td.memo { max-width: 280px; white-space: normal; word-break: break-word; }
+      </style>
+    `;
+    const rows = (printHistory || []).map((item, index) => `
+      <tr>
+        <td>
+          <div>${item.tax_declaration_number || ''}</div>
+        </td>
+        <td>${item.declarant_name || ''}</td>
+        <td>${item.lot_number || ''}</td>
+        <td>${item.area_hectare || ''}</td>
+        <td>${item.title_number || ''}</td>
+        <td>₱${(item.assessed_value !== undefined && item.assessed_value !== null)
+          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '0.00'}</td>
+        <td>${item.effectivity_date || ''}</td>
+        <td class="memo">${item.memoranda || ''}</td>
+      </tr>
+    `).join('');
+    const html = `
+      <html>
+        <head>
+          <title>Tax Declaration History</title>
+          ${styles}
+        </head>
+        <body>
+          <div class="header">
+            <!-- Editable logo via settings; using sidebar/login logo path if available -->
+            <img src="${localStorage.getItem('app_logo_url') || ''}" alt="Logo" onerror="this.style.display='none'" />
+            <h4>Republic of the Philippines</h4>
+            <h4>Province of Bukidnon</h4>
+            <h3>MUNICIPALITY OF KITAOTAO</h3>
+            <h3>OFFICE OF THE MUNICIPAL ASSESSOR</h3>
+            <div class="subheader">RECORD VERIFICATION DATA FORM</div>
+          </div>
+
+          <table class="info">
+            <tr>
+              <td class="label">Tax Declaration Number: <span class="value">${(printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span></td>
+              <td class="label">PIN: <span class="value">${(printHistory[0] && printHistory[0].pin) || ''}</span></td>
+            </tr>
+            <tr>
+              <td class="label">OWNER: <span class="value">${(printHistory[0] && printHistory[0].declarant_name) || ''}</span></td>
+              <td class="label">ADDRESS: <span class="value">${(printHistory[0] && printHistory[0].address) || ''}</span></td>
+            </tr>
+            <tr>
+              <td class="label">LOCATION: <span class="value">${(printHistory[0] && printHistory[0].location) || ''}</span></td>
+              <td class="label">ASSESSMENT DATE: <span class="value">${(printHistory[0] && printHistory[0].assessment_date) || ''}</span></td>
+            </tr>
+            <tr>
+              <td class="label">EFFECTIVITY DATE: <span class="value">${(printHistory[0] && printHistory[0].effectivity_date) || ''}</span></td>
+              <td class="label">KIND OF PROPERTY: <span class="value">${(printHistory[0] && printHistory[0].kind_of_property) || ''}</span></td>
+            </tr>
+            <tr>
+              <td class="label"></td>
+              <td class="label">GEN. CLASS: <span class="value">${(printHistory[0] && printHistory[0].gen_class) || ''}</span></td>
+            </tr>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Tax Declaration Number</th>
+                <th>Declarant</th>
+                <th>Lot Number</th>
+                <th>Area (hectare)</th>
+                <th>Title Number</th>
+                <th>Assessed Value</th>
+                <th>Effectivity</th>
+                <th>Memoranda</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   const getStatusColor = (status) => {
     return statusColors[status] || statusColors.info;
   };
@@ -233,7 +381,7 @@ const PropertyTable = () => {
                 label="Search Properties"
                 value={searchTerm}
                 onChange={handleSearch}
-                placeholder="Search by tax declaration, owner, or location..."
+                placeholder="Search by tax declaration number or declarant..."
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
@@ -316,72 +464,81 @@ const PropertyTable = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>Tax Declaration</TableCell>
-                <TableCell>Owner</TableCell>
-                <TableCell>Location</TableCell>
-                <TableCell>Property Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Last Updated</TableCell>
+                <TableCell>Tax Declaration Number</TableCell>
+                <TableCell>Declarant</TableCell>
+                <TableCell>Lot Number</TableCell>
+                <TableCell>Area (hectare)</TableCell>
+                <TableCell>Title Number</TableCell>
+                <TableCell>Assessed Value</TableCell>
+                <TableCell>Effectivity</TableCell>
+                <TableCell>Memoranda</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody>
+            <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75 } }}>
               {safeProperties && safeProperties.length > 0 ? safeProperties.map((property) => (
                 <TableRow key={property.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ cursor: 'pointer', color: 'primary.main', textDecoration: 'underline', fontWeight: 600, lineHeight: 1.4, display: 'inline' }}
+                      onClick={() => handleViewHistory(property.tax_declaration_number)}
+                    >
                       {property.tax_declaration_number}
                     </Typography>
                   </TableCell>
-                  <TableCell>{property.owner_name}</TableCell>
-                  <TableCell>{property.location}</TableCell>
-                  <TableCell>{property.property_type}</TableCell>
                   <TableCell>
-                    <Chip
-                      label={property.status}
-                      size="small"
-                      sx={{
-                        backgroundColor: getStatusColor(property.status),
-                        color: 'white',
-                        fontWeight: 600
-                      }}
-                    />
+                    {property.declarant_last_name && property.declarant_first_name 
+                      ? `${property.declarant_last_name}, ${property.declarant_first_name}${property.declarant_middle_initial ? ` ${property.declarant_middle_initial}.` : ''}`
+                      : property.declarant || 'N/A'
+                    }
                   </TableCell>
+                  <TableCell>{property.lot_number}</TableCell>
+                  <TableCell>{property.area_hectare}</TableCell>
+                  <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
-                    {format(new Date(property.updated_at), 'MMM dd, yyyy')}
+                    <Typography variant="body2" fontWeight={600}>
+                      ₱{(property.assessed_value !== undefined && property.assessed_value !== null)
+                        ? Number(property.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        : '0.00'}
+                    </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Box display="flex" gap={1}>
+                  <TableCell>{property.effectivity_date || '—'}</TableCell>
+                  <TableCell sx={{ width: 280, maxWidth: 280, verticalAlign: 'top' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+                    >
+                      {property.memoranda || '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
+                    <Box display="flex" gap={1} alignItems="flex-start">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleViewPrintableHistory(property.tax_declaration_number)}
+                        color="default"
+                        sx={{ p: 0.25 }}
+                        title="View History (Print)"
+                      >
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
                       <IconButton
                         size="small"
                         onClick={() => handleEditProperty(property)}
                         color="primary"
+                        sx={{ p: 0.25 }}
                       >
-                        <EditIcon />
+                        <EditIcon fontSize="small" />
                       </IconButton>
-                      
-                      <IconButton
-                        size="small"
-                        onClick={() => window.location.href = `/versions/${property.id}`}
-                        color="info"
-                      >
-                        <HistoryIcon />
-                      </IconButton>
-                      
-                      <IconButton
-                        size="small"
-                        onClick={() => window.location.href = `/documents/${property.id}`}
-                        color="secondary"
-                      >
-                        <AttachFileIcon />
-                      </IconButton>
-                      
                       {isAdmin && (
                         <IconButton
                           onClick={() => handleDeleteProperty(property)}
                           color="error"
+                          size="small"
+                          sx={{ p: 0.25 }}
                         >
-                          <DeleteIcon />
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
                     </Box>
@@ -389,7 +546,7 @@ const PropertyTable = () => {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="text.secondary">
                       {loading ? 'Loading properties...' : 'No properties found'}
                     </Typography>
@@ -447,8 +604,146 @@ const PropertyTable = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Tax Declaration History Modal */}
+      <Dialog 
+        open={historyModal} 
+        onClose={() => setHistoryModal(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Tax Declaration History
+        </DialogTitle>
+        <DialogContent>
+          {historyLoading ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <Typography>Loading history...</Typography>
+            </Box>
+          ) : taxHistory.length > 0 ? (
+            <TableContainer component={Paper}>
+              <Table size="small" stickyHeader>
+                {/* <TableHead>
+                  <TableRow>
+                    <TableCell>Tax Declaration Number</TableCell>
+                    <TableCell>Declarant</TableCell>
+                    <TableCell>Lot Number</TableCell>
+                    <TableCell>Area (hectare)</TableCell>
+                    <TableCell>Title Number</TableCell>
+                    <TableCell>Assessed Value</TableCell>
+                    <TableCell>Effectivity</TableCell>
+                  </TableRow>
+                </TableHead> */}
+                <TableBody>
+                  {taxHistory.map((item, index) => (
+                    <TableRow key={index} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600} color="primary">
+                          {item.tax_declaration_number}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {index === 0 ? 'Current' : 'Previous'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{item.declarant_name}</TableCell>
+                      <TableCell>{item.lot_number || '—'}</TableCell>
+                      <TableCell>{item.area_hectare || '—'}</TableCell>
+                      <TableCell>{item.title_number || '—'}</TableCell>
+                      <TableCell>
+                        ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
+                          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : '0.00'}
+                      </TableCell>
+                      <TableCell>{item.effectivity_date || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography>No history found for this tax declaration number.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryModal(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Printable Tax Declaration History Modal */}
+      <Dialog 
+        open={printModal} 
+        onClose={() => setPrintModal(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Tax Declaration History (Printable)
+        </DialogTitle>
+        <DialogContent>
+          {printLoading ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <Typography>Loading history...</Typography>
+            </Box>
+          ) : printHistory.length > 0 ? (
+            <TableContainer component={Paper}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Tax Declaration Number</TableCell>
+                    <TableCell>Declarant</TableCell>
+                    <TableCell>Lot Number</TableCell>
+                    <TableCell>Area (hectare)</TableCell>
+                    <TableCell>Title Number</TableCell>
+                    <TableCell>Assessed Value</TableCell>
+                    <TableCell>Effectivity</TableCell>
+                    <TableCell>Memoranda</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {printHistory.map((item, index) => (
+                    <TableRow key={index} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600} color="primary">
+                          {item.tax_declaration_number}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {index === 0 ? 'Current' : 'Previous'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{item.declarant_name}</TableCell>
+                      <TableCell>{item.lot_number || '—'}</TableCell>
+                      <TableCell>{item.area_hectare || '—'}</TableCell>
+                      <TableCell>{item.title_number || '—'}</TableCell>
+                      <TableCell>
+                        ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
+                          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : '0.00'}
+                      </TableCell>
+                      <TableCell>{item.effectivity_date || '—'}</TableCell>
+                      <TableCell sx={{ maxWidth: 280 }}>
+                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                          {item.memoranda || '—'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography>No history found for this tax declaration number.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrintModal(false)}>Close</Button>
+          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained">
+            Print
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
 export default PropertyTable;
+

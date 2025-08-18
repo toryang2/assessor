@@ -93,6 +93,19 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_auth')
         ));
         
+        // Tax declaration history routes
+        register_rest_route('assessor/v1', '/tax-declaration-history/(?P<tax_number>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_tax_declaration_history'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/properties/by-tax-number/(?P<tax_number>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_property_by_tax_number'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
         // Version history routes
         register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/versions', array(
             'methods' => 'GET',
@@ -208,6 +221,16 @@ class Assessor_API {
     public function delete_property($request) {
         $properties = new Assessor_Properties();
         return $properties->delete_property($request['id']);
+    }
+    
+    public function get_tax_declaration_history($request) {
+        $properties = new Assessor_Properties();
+        return $properties->get_tax_declaration_history($request['tax_number']);
+    }
+
+    public function get_property_by_tax_number($request) {
+        $properties = new Assessor_Properties();
+        return $properties->get_property_by_tax_number($request['tax_number']);
     }
     
     public function get_property_versions($request) {

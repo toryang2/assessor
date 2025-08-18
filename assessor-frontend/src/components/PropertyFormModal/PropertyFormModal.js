@@ -15,206 +15,195 @@ import {
   CardContent
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { CloudUpload } from '@mui/icons-material';
 
 import { apiService } from '../../utils/api';
 
 const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   const [formData, setFormData] = useState({
     tax_declaration_number: '',
-    owner_name: '',
-    owner_address: '',
-    owner_contact: '',
-    property_type: '',
-    property_address: '',
+    previous_tax_declaration_number: '',
+    declarant_last_name: '',
+    declarant_first_name: '',
+    declarant_middle_initial: '',
     location: '',
-    land_area: '',
-    land_area_unit: 'sqm',
-    building_area: '',
-    building_area_unit: 'sqm',
+    lot_number: '',
+    unique_lot_number_identified: '',
+    area_hectare: '',
+    title_number: '',
     assessed_value: '',
-    market_value: '',
-    status: 'active',
-    remarks: ''
+    effectivity_date: '',
+    pin: '',
+    address: '',
+    assessment_date: '',
+    kind_of_property: '',
+    gen_class: '',
+    memoranda: '',
+    supporting_documents: null
   });
 
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     if (property) {
       setFormData({
         tax_declaration_number: property.tax_declaration_number || '',
-        owner_name: property.owner_name || '',
-        owner_address: property.owner_address || '',
-        owner_contact: property.owner_contact || '',
-        property_type: property.property_type || '',
-        property_address: property.property_address || '',
+        previous_tax_declaration_number: property.previous_tax_declaration_number || '',
+        declarant_last_name: property.declarant_last_name || '',
+        declarant_first_name: property.declarant_first_name || '',
+        declarant_middle_initial: property.declarant_middle_initial || '',
         location: property.location || '',
-        land_area: property.land_area || '',
-        land_area_unit: property.land_area_unit || 'sqm',
-        building_area: property.building_area || '',
-        building_area_unit: property.building_area_unit || 'sqm',
+        lot_number: property.lot_number || '',
+        unique_lot_number_identified: property.unique_lot_number_identified || '',
+        area_hectare: property.area_hectare || '',
+        title_number: property.title_number || '',
         assessed_value: property.assessed_value || '',
-        market_value: property.market_value || '',
-        status: property.status || 'active',
-        remarks: property.remarks || ''
+        effectivity_date: property.effectivity_date ? String(new Date(property.effectivity_date).getFullYear()) : '',
+        pin: property.pin || '',
+        address: property.address || '',
+        assessment_date: property.assessment_date ? property.assessment_date.slice(0, 10) : '',
+        kind_of_property: property.kind_of_property || '',
+        gen_class: property.gen_class || '',
+        memoranda: property.memoranda || '',
+        supporting_documents: property.supporting_documents || null
       });
     } else {
       // Reset form for new property
       setFormData({
         tax_declaration_number: '',
-        owner_name: '',
-        owner_address: '',
-        owner_contact: '',
-        property_type: '',
-        property_address: '',
+        previous_tax_declaration_number: '',
+        declarant_last_name: '',
+        declarant_first_name: '',
+        declarant_middle_initial: '',
         location: '',
-        land_area: '',
-        land_area_unit: 'sqm',
-        building_area: '',
-        building_area_unit: 'sqm',
+        lot_number: '',
+        unique_lot_number_identified: '',
+        area_hectare: '',
+        title_number: '',
         assessed_value: '',
-        market_value: '',
-        status: 'active',
-        remarks: ''
+        effectivity_date: '',
+        pin: '',
+        address: '',
+        assessment_date: '',
+        kind_of_property: '',
+        gen_class: '',
+        memoranda: '',
+        supporting_documents: null
       });
     }
-    setErrors({});
-    setSubmitError('');
+    setErrors([]);
   }, [property]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
     // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors.includes(field)) {
+      setErrors(prev => prev.filter(err => err !== field));
     }
   };
 
   const validateForm = () => {
-    const newErrors = {};
+    const errors = [];
 
     if (!formData.tax_declaration_number.trim()) {
-      newErrors.tax_declaration_number = 'Tax declaration number is required';
+      errors.push('Tax Declaration Number is required');
     }
-
-    if (!formData.owner_name.trim()) {
-      newErrors.owner_name = 'Owner name is required';
+    if (!formData.declarant_last_name.trim()) {
+      errors.push('Declarant Last Name is required');
     }
-
-    if (!formData.property_type.trim()) {
-      newErrors.property_type = 'Property type is required';
+    if (!formData.declarant_first_name.trim()) {
+      errors.push('Declarant First Name is required');
     }
-
     if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
+      errors.push('Location is required');
     }
-
-    if (formData.land_area && isNaN(formData.land_area)) {
-      newErrors.land_area = 'Land area must be a valid number';
+    if (!formData.kind_of_property.trim()) {
+      errors.push('Kind of Property is required');
     }
-
-    if (formData.building_area && isNaN(formData.building_area)) {
-      newErrors.building_area = 'Building area must be a valid number';
-    }
-
-    if (formData.assessed_value && isNaN(formData.assessed_value)) {
-      newErrors.assessed_value = 'Assessed value must be a valid number';
-    }
-
-    if (formData.market_value && isNaN(formData.market_value)) {
-      newErrors.market_value = 'Market value must be a valid number';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
     setLoading(true);
-    setSubmitError('');
+    setErrors([]);
 
     try {
-      // Map form fields to API expected fields
-      const apiData = {
-        tax_declaration_number: formData.tax_declaration_number,
-        owner_name: formData.owner_name,
-        owner_address: formData.owner_address,
-        property_location: formData.location, // Map location to property_location
-        property_type: formData.property_type,
-        land_area: formData.land_area || 0,
-        building_area: formData.building_area || 0,
-        assessed_value: formData.assessed_value || 0,
-        market_value: formData.market_value || 0,
-        status: formData.status || 'active'
-      };
+      const supportingDocsString = Array.isArray(formData.supporting_documents)
+        ? formData.supporting_documents
+            .map((doc) => (typeof doc === 'string' ? doc : (doc && doc.name) || ''))
+            .filter(Boolean)
+            .join(', ')
+        : (formData.supporting_documents || '');
 
-      console.log('Sending to API:', apiData);
-      console.log('Form data:', formData);
-      
-      let response;
+      const submitData = {
+        tax_declaration_number: formData.tax_declaration_number,
+        previous_tax_declaration_number: formData.previous_tax_declaration_number,
+        declarant_last_name: formData.declarant_last_name,
+        declarant_first_name: formData.declarant_first_name,
+        declarant_middle_initial: formData.declarant_middle_initial,
+        location: formData.location,
+        lot_number: formData.lot_number,
+        unique_lot_number_identified: formData.unique_lot_number_identified,
+        area_hectare: formData.area_hectare === '' ? '' : Number(formData.area_hectare),
+        title_number: formData.title_number,
+        assessed_value: formData.assessed_value === '' ? '' : Number(formData.assessed_value),
+        effectivity_date: formData.effectivity_date,
+        pin: formData.pin,
+        address: formData.address,
+        assessment_date: formData.assessment_date,
+        kind_of_property: formData.kind_of_property,
+        gen_class: formData.gen_class,
+        memoranda: formData.memoranda,
+        supporting_documents: supportingDocsString
+      };
       
       if (property) {
-        // Update existing property
-        console.log('Updating property:', property.id);
-        response = await apiService.updateProperty(property.id, apiData);
+        await apiService.updateProperty(property.id, submitData);
+        onSave('Property updated successfully');
       } else {
-        // Create new property
-        console.log('Creating new property');
-        response = await apiService.createProperty(apiData);
-      }
-
-      console.log('API response:', response);
-      onSave(response.data || response);
-    } catch (err) {
-      console.error('Property save error:', err);
-      console.error('Error response:', err.response);
-      
-      let errorMessage = 'Failed to save property';
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (err.message) {
-        errorMessage = err.message;
+        await apiService.createProperty(submitData);
+        onSave('Property created successfully');
       }
       
-      setSubmitError(errorMessage);
+      onCancel();
+    } catch (error) {
+      console.error('Error saving property:', error);
+      setErrors([error.response?.data?.message || 'Error saving property']);
     } finally {
       setLoading(false);
     }
   };
 
   const propertyTypes = [
-    'Residential',
-    'Commercial',
-    'Industrial',
-    'Agricultural',
-    'Mixed Use',
-    'Vacant Lot',
-    'Other'
+    'Land',
+    'Building',
+    'Machinery',
+    'Improvements',
+    'Plant/Trees'
   ];
-
-  const areaUnits = ['sqm', 'hectares', 'acres'];
-  const statusOptions = ['active', 'inactive', 'archived', 'pending'];
 
   if (!open) return null;
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <form onSubmit={handleSubmit}>
-        {submitError && (
+        {/* Error Display */}
+        {errors.length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {submitError}
+            {errors.map((error, index) => (
+              <div key={index}>{error}</div>
+            ))}
           </Alert>
         )}
 
@@ -231,20 +220,186 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="Tax Declaration Number *"
                   value={formData.tax_declaration_number}
                   onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
-                  error={!!errors.tax_declaration_number}
-                  helperText={errors.tax_declaration_number}
+                  error={errors.includes('tax_declaration_number')}
+                  helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
                   required
                 />
               </Grid>
               
               <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Previous Tax Declaration Number"
+                  value={formData.previous_tax_declaration_number}
+                  onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
+                  helperText="Optional: Enter the previous tax declaration number to create a historical link"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Declarant Last Name *"
+                  value={formData.declarant_last_name}
+                  onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
+                  error={errors.includes('declarant_last_name')}
+                  helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
+                  required
+                />
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Declarant First Name *"
+                  value={formData.declarant_first_name}
+                  onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
+                  error={errors.includes('declarant_first_name')}
+                  helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Declarant Middle Initial"
+                  value={formData.declarant_middle_initial}
+                  onChange={(e) => handleInputChange('declarant_middle_initial', e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Location *"
+                  value={formData.location}
+                  onChange={(e) => handleInputChange('location', e.target.value)}
+                  error={errors.includes('location')}
+                  helperText={errors.includes('location') ? errors.find(err => err === 'location') : ''}
+                  placeholder="City/Municipality"
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Lot Number"
+                  value={formData.lot_number}
+                  onChange={(e) => handleInputChange('lot_number', e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Unique Lot Number Identified"
+                  value={formData.unique_lot_number_identified}
+                  onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Area (Hectares)"
+                  value={formData.area_hectare}
+                  onChange={(e) => handleInputChange('area_hectare', e.target.value)}
+                  error={errors.includes('area_hectare')}
+                  helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                  type="number"
+                  inputProps={{ min: 0, step: 0.01 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Title Number"
+                  value={formData.title_number}
+                  onChange={(e) => handleInputChange('title_number', e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Assessed Value (₱)"
+                  value={formData.assessed_value}
+                  onChange={(e) => handleInputChange('assessed_value', e.target.value)}
+                  error={errors.includes('assessed_value')}
+                  helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
+                  type="number"
+                  inputProps={{ min: 0, step: 0.01 }}
+                  placeholder="0.00"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Effectivity Year"
+                  value={formData.effectivity_date}
+                  onChange={(e) => handleInputChange('effectivity_date', e.target.value)}
+                  type="number"
+                  inputProps={{ min: 1800, max: 2100 }}
+                  placeholder="YYYY"
+                />
+            </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Assessment Date"
+                  value={formData.assessment_date}
+                  onChange={(e) => handleInputChange('assessment_date', e.target.value)}
+                  type="date"
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="PIN"
+                  value={formData.pin}
+                  onChange={(e) => handleInputChange('pin', e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  multiline
+                  rows={2}
+                  placeholder="Complete address"
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Kind of Property */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Kind of Property
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
-                  <InputLabel>Property Type *</InputLabel>
+                  <InputLabel>Kind of Property *</InputLabel>
                   <Select
-                    value={formData.property_type}
-                    label="Property Type *"
-                    onChange={(e) => handleInputChange('property_type', e.target.value)}
-                    error={!!errors.property_type}
+                    value={formData.kind_of_property}
+                    label="Kind of Property *"
+                    onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
+                    error={errors.includes('kind_of_property')}
                   >
                     {propertyTypes.map(type => (
                       <MenuItem key={type} value={type}>{type}</MenuItem>
@@ -255,212 +410,95 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
 
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
+                  <InputLabel>General Class</InputLabel>
                   <Select
-                    value={formData.status}
-                    label="Status"
-                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    value={formData.gen_class}
+                    label="General Class"
+                    onChange={(e) => handleInputChange('gen_class', e.target.value)}
                   >
-                    {statusOptions.map(status => (
-                      <MenuItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </MenuItem>
-                    ))}
+                    <MenuItem value="Residential">Residential</MenuItem>
+                    <MenuItem value="Commercial">Commercial</MenuItem>
+                    <MenuItem value="Industrial">Industrial</MenuItem>
+                    <MenuItem value="Agricultural">Agricultural</MenuItem>
+                    <MenuItem value="Mixed Use">Mixed Use</MenuItem>
+                    <MenuItem value="Vacant Lot">Vacant Lot</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Location *"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                  error={!!errors.location}
-                  helperText={errors.location}
-                  placeholder="City/Municipality"
-                  required
-                />
-              </Grid>
             </Grid>
           </CardContent>
         </Card>
 
-        {/* Owner Information */}
+        {/* Supporting Documents */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Owner Information
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Owner Name *"
-                  value={formData.owner_name}
-                  onChange={(e) => handleInputChange('owner_name', e.target.value)}
-                  error={!!errors.owner_name}
-                  helperText={errors.owner_name}
-                  required
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Owner Contact"
-                  value={formData.owner_contact}
-                  onChange={(e) => handleInputChange('owner_contact', e.target.value)}
-                  placeholder="Phone/Email"
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Owner Address"
-                  value={formData.owner_address}
-                  onChange={(e) => handleInputChange('owner_address', e.target.value)}
-                  multiline
-                  rows={2}
-                  placeholder="Complete address"
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Property Details */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Property Details
+              Supporting Documents
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Property Address"
-                  value={formData.property_address}
-                  onChange={(e) => handleInputChange('property_address', e.target.value)}
+                  label="Memoranda"
+                  value={formData.memoranda}
+                  onChange={(e) => handleInputChange('memoranda', e.target.value)}
+                  placeholder="Additional notes or memoranda"
                   multiline
-                  rows={2}
-                  placeholder="Complete property address"
+                  rows={3}
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <TextField
+              <Grid item xs={12}>
+                <input
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  id="supporting-documents-upload"
+                  multiple
+                  type="file"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files);
+                    setFormData(prev => ({
+                      ...prev,
+                      supporting_documents: files
+                    }));
+                  }}
+                />
+                <label htmlFor="supporting-documents-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUpload />}
                   fullWidth
-                  label="Land Area"
-                  value={formData.land_area}
-                  onChange={(e) => handleInputChange('land_area', e.target.value)}
-                  error={!!errors.land_area}
-                  helperText={errors.land_area}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth>
-                  <InputLabel>Unit</InputLabel>
-                  <Select
-                    value={formData.land_area_unit}
-                    label="Unit"
-                    onChange={(e) => handleInputChange('land_area_unit', e.target.value)}
+                    sx={{ 
+                      height: 56, 
+                      borderStyle: 'dashed',
+                      borderWidth: 2,
+                      '&:hover': {
+                        borderStyle: 'solid'
+                      }
+                    }}
                   >
-                    {areaUnits.map(unit => (
-                      <MenuItem key={unit} value={unit}>{unit}</MenuItem>
+                    {formData.supporting_documents && formData.supporting_documents.length > 0 
+                      ? `${formData.supporting_documents.length} file(s) selected`
+                      : 'Upload Supporting Documents'
+                    }
+                  </Button>
+                </label>
+                {formData.supporting_documents && formData.supporting_documents.length > 0 && (
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Selected files:
+                    </Typography>
+                    {formData.supporting_documents.map((file, index) => (
+                      <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                        • {file.name}
+                      </Typography>
                     ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Building Area"
-                  value={formData.building_area}
-                  onChange={(e) => handleInputChange('building_area', e.target.value)}
-                  error={!!errors.building_area}
-                  helperText={errors.building_area}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={2}>
-                <FormControl fullWidth>
-                  <InputLabel>Unit</InputLabel>
-                  <Select
-                    value={formData.building_area_unit}
-                    label="Unit"
-                    onChange={(e) => handleInputChange('building_area_unit', e.target.value)}
-                  >
-                    {areaUnits.map(unit => (
-                      <MenuItem key={unit} value={unit}>{unit}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                  </Box>
+                )}
               </Grid>
             </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Valuation */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Valuation
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Assessed Value (₱)"
-                  value={formData.assessed_value}
-                  onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                  error={!!errors.assessed_value}
-                  helperText={errors.assessed_value}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
-                  placeholder="0.00"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Market Value (₱)"
-                  value={formData.market_value}
-                  onChange={(e) => handleInputChange('market_value', e.target.value)}
-                  error={!!errors.market_value}
-                  helperText={errors.market_value}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
-                  placeholder="0.00"
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Remarks */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Additional Information
-            </Typography>
-            <TextField
-              fullWidth
-              label="Remarks"
-              value={formData.remarks}
-              onChange={(e) => handleInputChange('remarks', e.target.value)}
-              multiline
-              rows={3}
-              placeholder="Additional notes or remarks about the property"
-            />
           </CardContent>
         </Card>
 
