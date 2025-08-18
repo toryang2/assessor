@@ -97,7 +97,7 @@ const Settings = () => {
               )}
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>Print Header Details</Typography>
+              <Typography variant="subtitle1" sx={{ mb: 1, textAlign: 'center' }}>Print Header Details</Typography>
               <Table size="small">
                 <TableBody>
                   <TableRow>
