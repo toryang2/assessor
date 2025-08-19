@@ -127,7 +127,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
         <colgroup>
           <col style={{ width: '15%', }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '6%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
@@ -442,7 +442,7 @@ const PropertyTable = () => {
         h1, h2, h3, h4, h5, h6 {
           color: #000 !important;
         }
-        .history-table td { vertical-align: top !important; text-align: center !important; }
+        .history-table td { vertical-align: top !important; text-align: left !important; }
         .history-table td:last-child { text-align: left !important; }
         .history-table th { vertical-align: center !important; }
         .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
