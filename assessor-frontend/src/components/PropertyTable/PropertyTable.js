@@ -265,44 +265,55 @@ const PropertyTable = () => {
     const headerTitle = 'RECORD VERIFICATION DATA FORM';
     const styles = `
       <style>
-        /* Force A4 portrait with explicit dimensions to strongly hint the print preview */
-        @page { size: A4; margin: 12mm 8mm; margin-top: 5mm; margin-bottom: -26mm; }
+        /* Paged.js pagination and margin boxes */
+        @page {
+          size: A4 portrait;
+          margin: 12mm 8mm;
+          @bottom-right {
+            content: counter(page) "/" counter(pages);
+            font-size: 10px;
+            color: #666;
+          }
+        }
         @media print {
-          @page { size: A4; margin: 12mm 8mm; margin-top: 5mm; margin-bottom: -26mm; }
           html, body { width: 210mm; }
-          body { padding: 12mm 8mm; padding-top: 5mm; padding-bottom: -26mm; }
+          body { padding: 0; }
         }
         body { font-family: Arial, sans-serif; }
-        
+
         .header { font-family: Times New Roman, sans-serif; text-align: center; }
         .header img { height: 64px; display: block; margin: 0 auto 8px auto; }
         .header h3 { font-size: 16px; margin: 2px 0; font-weight: 400; }
         .header h4 { font-size: 16px; margin: 2px 0; font-weight: 400; }
         .subheader { margin-top: 8px; font-weight: 700; text-decoration: underline; }
         .info { border: 1px solid #000; border-collapse: separate; border-spacing: 0; margin: 12px auto; }
-        .info td { border: none; padding: 6px 8px; font-size: 12px; vertical-align: top; }
+        .info td { border: none; padding: 6px 8px; font-size: 12px; vertical-align: top; text-align: left; }
         .label { width: 220px; font-weight: 600; }
         .value { font-weight: normal; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th, td { border: 1px solid #ddd; padding: 8px; font-size: 10px; }
-        thead { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        th { background-color: #cccccc !important; text-align: left; vertical-align: center !important; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        td { vertical-align: top !important; }
-        .caption { color: #666; font-size: 11px; }
-        td.memo { white-space: normal; word-break: break-word; }
-        /* Adjust print column widths: 1st narrower, Memoranda wider */
-        thead th:nth-child(1), tbody td:nth-child(1) { width: 70px; }
-        thead th:nth-child(2), tbody td:nth-child(2) { width: 70px; }
-        thead th:nth-child(3), tbody td:nth-child(3) { width: 40px; }
-        thead th:nth-child(4), tbody td:nth-child(4) { width: 40px; }
-        thead th:nth-child(5), tbody td:nth-child(5) { width: 60px; }
-        thead th:nth-child(6), tbody td:nth-child(6) { width: 60px; }
-        thead th:nth-child(7), tbody td:nth-child(7) { width: 50px; }
-        thead th:nth-child(8), tbody td:nth-child(8) { width: 40%; }
 
-        /* Custom footer page numbering */
-        .print-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #666; padding: 2mm 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page-number:after { content: 'Page ' counter(page) ' of ' counter(pages); }
+        /* Table layout and fragmentation with Paged.js */
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; page-break-inside: auto; }
+        thead { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        thead, tfoot { display: table-header-group; }
+        th, td { border: 1px solid #ddd; padding: 4px; font-size: 10px; text-align: center; vertical-align: top; }
+        th { background-color: #cccccc !important; text-align: center; vertical-align: middle !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        td { vertical-align: top !important; break-inside: auto; page-break-inside: auto; }
+        tr { break-inside: auto; page-break-inside: auto; }
+        .caption { color: #666; font-size: 11px; }
+
+        /* Memoranda column: allow splitting across pages */
+        td.memo { white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: auto; }
+        td.memo .memo-content { break-inside: auto; page-break-inside: auto; }
+
+        /* Column widths */
+        thead th:nth-child(1), tbody td:nth-child(1) { width: 100px; }
+        thead th:nth-child(2), tbody td:nth-child(2) { width: 100px; }
+        thead th:nth-child(3), tbody td:nth-child(3) { width: 50px; }
+        thead th:nth-child(4), tbody td:nth-child(4) { width: 70px; }
+        thead th:nth-child(5), tbody td:nth-child(5) { width: 70px; }
+        thead th:nth-child(6), tbody td:nth-child(6) { width: 90px; }
+        thead th:nth-child(7), tbody td:nth-child(7) { width: 70px; }
+        thead th:nth-child(8), tbody td:nth-child(8) { width: 40%; text-align: left; }
       </style>
     `;
     const rows = (printHistory || []).map((item, index) => `
@@ -312,13 +323,13 @@ const PropertyTable = () => {
         </td>
         <td>${item.declarant_name || ''}</td>
         <td>${item.lot_number || ''}</td>
-        <td>${item.area_hectare || ''}</td>
+        <td>${item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
         <td>${item.title_number || ''}</td>
         <td>₱${(item.assessed_value !== undefined && item.assessed_value !== null)
           ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           : '0.00'}</td>
         <td>${item.effectivity_date || ''}</td>
-        <td class="memo">${item.memoranda || ''}</td>
+        <td class="memo"><div class="memo-content">${item.memoranda || ''}</div></td>
       </tr>
     `).join('');
     const html = `
@@ -359,9 +370,9 @@ const PropertyTable = () => {
               <td class="label">GEN. CLASS: <span class="value">${(printHistory[0] && printHistory[0].gen_class) || ''}</span></td>
             </tr>
           </table>
-          <div class="print-footer"><span class="page-number"></span></div>
+          
 
-          <table>
+          <table class="history-table">
             <thead>
               <tr>
                 <th>Tax Declaration Number</th>
@@ -378,27 +389,39 @@ const PropertyTable = () => {
               ${rows}
             </tbody>
           </table>
+          <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
           <script>
             (function(){
               try {
                 var base = (window.opener && window.opener.location) ? window.opener.location.origin : (location.origin || '');
                 if (base) { history.replaceState(null, '', base + '/print'); }
               } catch(e){}
-              function done(){
-                setTimeout(function(){ try { window.focus(); window.print(); } catch(e){} try { window.close(); } catch(e){} }, 100);
+              function printNow(){
+                setTimeout(function(){
+                  try { window.focus(); window.print(); } catch(e){}
+                  try { window.close(); } catch(e){}
+                }, 200);
               }
-              var imgs = Array.prototype.slice.call(document.images || []);
-              if (!imgs.length) { done(); return; }
-              var remaining = imgs.length;
-              var timer = setTimeout(done, 2000);
-              imgs.forEach(function(img){
-                if (img.complete) {
-                  if (--remaining === 0) { clearTimeout(timer); done(); }
+              function setup(){
+                try { document.addEventListener('pagedjs:rendered', function(){ printNow(); }, { once: true }); } catch(e){}
+                // Fallback: if Paged.js fails, attempt to print after images load
+                var imgs = Array.prototype.slice.call(document.images || []);
+                if (!imgs.length) {
+                  setTimeout(printNow, 800);
                 } else {
-                  img.addEventListener('load', function(){ if (--remaining === 0) { clearTimeout(timer); done(); } });
-                  img.addEventListener('error', function(){ if (--remaining === 0) { clearTimeout(timer); done(); } });
+                  var remaining = imgs.length;
+                  var timer = setTimeout(printNow, 3000);
+                  imgs.forEach(function(img){
+                    if (img.complete) { if (--remaining === 0) { clearTimeout(timer); printNow(); } }
+                    else {
+                      img.addEventListener('load', function(){ if (--remaining === 0) { clearTimeout(timer); printNow(); } });
+                      img.addEventListener('error', function(){ if (--remaining === 0) { clearTimeout(timer); printNow(); } });
+                    }
+                  });
                 }
-              });
+              }
+              if (document.readyState === 'complete' || document.readyState === 'interactive') { setup(); }
+              else { document.addEventListener('DOMContentLoaded', setup); }
             })();
           </script>
         </body>

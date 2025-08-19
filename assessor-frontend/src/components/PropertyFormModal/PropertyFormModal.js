@@ -334,7 +334,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   error={errors.includes('area_hectare')}
                   helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
                   type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
+                  inputProps={{ min: 0, step: 0.0001 }}
                 />
               </Grid>
 
