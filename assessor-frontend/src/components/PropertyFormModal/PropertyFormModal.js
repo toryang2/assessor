@@ -39,7 +39,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     kind_of_property: '',
     gen_class: '',
     memoranda: '',
-    supporting_documents: null
+    supporting_documents: []
   });
 
   const [errors, setErrors] = useState([]);
@@ -66,7 +66,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         kind_of_property: property.kind_of_property || '',
         gen_class: property.gen_class || '',
         memoranda: property.memoranda || '',
-        supporting_documents: property.supporting_documents || null
+        supporting_documents: Array.isArray(property.supporting_documents)
+          ? property.supporting_documents
+          : (typeof property.supporting_documents === 'string' && property.supporting_documents.trim() !== ''
+            ? property.supporting_documents.split(',').map(s => s.trim())
+            : [])
       });
     } else {
       // Reset form for new property
@@ -89,7 +93,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         kind_of_property: '',
         gen_class: '',
         memoranda: '',
-        supporting_documents: null
+        supporting_documents: []
       });
     }
     setErrors([]);
@@ -521,14 +525,14 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     }
                   </Button>
                 </label>
-                {formData.supporting_documents && formData.supporting_documents.length > 0 && (
+                {Array.isArray(formData.supporting_documents) && formData.supporting_documents.length > 0 && (
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">
                       Selected files:
                     </Typography>
                     {formData.supporting_documents.map((file, index) => (
                       <Typography key={index} variant="body2" sx={{ ml: 1 }}>
-                        • {file.name}
+                        • {typeof file === 'string' ? file : (file && file.name) ? file.name : String(file)}
                       </Typography>
                     ))}
                   </Box>

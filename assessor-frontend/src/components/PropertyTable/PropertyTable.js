@@ -283,11 +283,11 @@ const PropertyTable = () => {
 
         .header { font-family: Times New Roman, sans-serif; text-align: center; }
         .header img { height: 64px; display: block; margin: 0 auto 8px auto; }
-        .header h3 { font-size: 16px; margin: 2px 0; font-weight: 400; }
+        .header h3 { font-size: 16px; margin: 2px 0; font-weight: 600; }
         .header h4 { font-size: 16px; margin: 2px 0; font-weight: 400; }
         .subheader { margin-top: 8px; font-weight: 700; text-decoration: underline; }
         .info { border: 1px solid #000; border-collapse: separate; border-spacing: 0; margin: 12px auto; }
-        .info td { border: none; padding: 6px 8px; font-size: 12px; vertical-align: top; text-align: left; }
+        .info td { border: none; padding: 2px 8px 2px 8px; font-size: 12px; vertical-align: top; text-align: center; }
         .label { width: 220px; font-weight: 600; }
         .value { font-weight: normal; }
 
@@ -313,7 +313,8 @@ const PropertyTable = () => {
         thead th:nth-child(5), tbody td:nth-child(5) { width: 70px; }
         thead th:nth-child(6), tbody td:nth-child(6) { width: 90px; }
         thead th:nth-child(7), tbody td:nth-child(7) { width: 70px; }
-        thead th:nth-child(8), tbody td:nth-child(8) { width: 40%; text-align: left; }
+        thead th:nth-child(8) { width: 40%; }
+        tbody td:nth-child(8) { text-align: left; }
       </style>
     `;
     const rows = (printHistory || []).map((item, index) => `
@@ -343,7 +344,7 @@ const PropertyTable = () => {
             <img src="${appLogoUrl}" alt="Logo" onerror="this.style.display='none'" />
             <h4>${headerPh}</h4>
             <h4>${headerProvince}</h4>
-            <h3>${headerMunicipality}</h3>
+            <h4>${headerMunicipality}</h3>
             <h3>${headerOffice}</h3>
             <div class="subheader">${headerTitle}</div>
           </div>
