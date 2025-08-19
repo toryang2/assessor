@@ -68,7 +68,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
   const headerTitle = 'RECORD VERIFICATION DATA FORM';
 
   return (
-    <div ref={ref} style={{ width: '210mm' }}>
+    <div ref={ref} className="print-root" style={{ width: '210mm' }}>
       <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
         {appLogoUrl ? (
           <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
@@ -172,6 +172,27 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
         </tfoot>
       </table>
+
+      {/* Spacer to push signature to the bottom of the last page when possible */}
+      <div className="print-bottom-spacer" />
+
+      {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
+      <div className="print-signature" style={{ width: '100%', marginTop: '8mm', paddingBottom: '8mm' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ textAlign: 'center', width: '70mm' }}>
+            <div style={{ height: '18mm' }} />
+            <div style={{ borderTop: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+              {(settings && settings.signatory_name) || '____________________________'}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              {(settings && settings.signatory_title) || 'Municipal Assessor'}
+            </div>
+            <div style={{ fontSize: 10, marginTop: 2 }}>
+              {(settings && settings.signatory_office) || headerOffice}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 });
@@ -374,6 +395,33 @@ const PropertyTable = () => {
   const handlePrint = useReactToPrint({
     content: () => printRef.current,
     removeAfterPrint: true,
+    onBeforeGetContent: () => {
+      try {
+        const root = printRef.current;
+        if (!root) return;
+        const spacer = root.querySelector('.print-bottom-spacer');
+        if (!spacer) return;
+        // Reset spacer first
+        spacer.style.height = '0px';
+        // Convert mm to px (assuming 96 DPI)
+        const pxPerMm = 96 / 25.4;
+        const a4HeightPx = 297 * pxPerMm;
+        const topMarginPx = 12 * pxPerMm;
+        const bottomMarginPx = 16 * pxPerMm;
+        const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
+        // Current total height (with signature present)
+        const totalHeight = root.scrollHeight;
+        const remainder = totalHeight % usablePageHeightPx;
+        const spacerHeight = remainder === 0 ? 0 : (usablePageHeightPx - remainder);
+        spacer.style.height = `${Math.max(0, Math.floor(spacerHeight))}px`;
+      } catch (_) {}
+    },
+    onAfterPrint: () => {
+      const root = printRef.current;
+      if (!root) return;
+      const spacer = root.querySelector('.print-bottom-spacer');
+      if (spacer) spacer.style.height = '0px';
+    },
     pageStyle: `
       @page { size: A4 portrait; margin: 12mm 8mm 16mm 8mm; 
           @bottom-right {
@@ -399,6 +447,10 @@ const PropertyTable = () => {
         .history-table th { vertical-align: center !important; }
         .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
         .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
+        /* Layout helpers to keep the signature at the bottom of the last page when space allows */
+        .print-root { display: flex; flex-direction: column; min-height: calc(297mm - 12mm - 16mm); }
+        .print-bottom-spacer { flex: 1 1 auto; }
+        .print-signature { page-break-inside: avoid; }
       }
       thead { display: table-header-group; }
       tfoot { display: table-footer-group; }
