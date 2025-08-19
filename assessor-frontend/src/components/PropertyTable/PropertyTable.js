@@ -407,7 +407,7 @@ const PropertyTable = () => {
         const pxPerMm = 96 / 25.4;
         const a4HeightPx = 297 * pxPerMm;
         const topMarginPx = 12 * pxPerMm;
-        const bottomMarginPx = 16 * pxPerMm;
+        const bottomMarginPx = 1 * pxPerMm; // 16 Default Change to 1 if super low
         const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
         // Current total height (with signature present)
         const totalHeight = root.scrollHeight;
