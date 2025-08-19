@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import {
   Box,
   Paper,
@@ -44,6 +44,137 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
+import { useReactToPrint } from 'react-to-print';
+
+const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
+  const toFormalCase = (text) => {
+    if (!text) return '';
+    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const words = String(text).toLowerCase().split(/\s+/);
+    return words.map((w, i) => {
+      if (!w) return w;
+      if (i > 0 && small.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  };
+  const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
+  const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
+  const headerPh = 'Republic of the Philippines';
+  const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
+  const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
+  const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
+  const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
+  const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
+  const headerTitle = 'RECORD VERIFICATION DATA FORM';
+
+  return (
+    <div ref={ref} style={{ width: '210mm' }}>
+      <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
+        {appLogoUrl ? (
+          <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        ) : null}
+        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
+        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
+        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
+        <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
+        <div style={{ marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
+      </div>
+
+      <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%' }} className="info">
+        <tbody>
+          <tr>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
+            </td>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>OWNER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].declarant_name) || ''}</span>
+            </td>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>ADDRESS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].address) || ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
+            </td>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
+            </td>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }} />
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].gen_class) || ''}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '15%', }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '6%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '32%' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(printHistory || []).map((item, index) => (
+            <tr key={index}>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <div>{item.tax_declaration_number || ''}</div>
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.declarant_name || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
+                ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : '0.00'}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
+                <div style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan="8" style={{ height: 0, lineHeight: 0, padding: 0, borderTop: '1px solid #ddd' }} />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+});
 
 const PropertyTable = () => {
   const { isAdmin } = useAuth();
@@ -239,202 +370,46 @@ const PropertyTable = () => {
   };
 
   // removed html2pdf
-
-  const handlePrint = async () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const rawLogo = (settings && settings.app_logo_url) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
-    const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
-    const headerPh = 'Republic of the Philippines';
-    // Format helpers
-    const toFormalCase = (text) => {
-      if (!text) return '';
-      const small = new Set(['of','and','the','for','in','on','at','a','an']);
-      const words = String(text).toLowerCase().split(/\s+/);
-      return words.map((w, i) => {
-        if (!w) return w;
-        if (i > 0 && small.has(w)) return w;
-        return w.charAt(0).toUpperCase() + w.slice(1);
-      }).join(' ');
-    };
-    const baseProvince = (settings && settings.header_province) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
-    const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
-    const baseMunicipality = (settings && settings.header_municipality) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
-    const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
-    const headerOffice = (settings && settings.header_office) || (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
-    const headerTitle = 'RECORD VERIFICATION DATA FORM';
-    const styles = `
-      <style>
-        /* Paged.js pagination and margin boxes */
-        @page {
-          size: A4 portrait;
-          margin: 12mm 8mm;
+  const printRef = useRef(null);
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    removeAfterPrint: true,
+    pageStyle: `
+      @page { size: A4 portrait; margin: 12mm 8mm 16mm 8mm; 
           @bottom-right {
             content: counter(page) "/" counter(pages);
+            font-family: 'Arial', sans-serif;
             font-size: 10px;
             color: #666;
           }
+      }
+      @media print {
+        html, body { width: 210mm; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        *,
+        :root,
+        body,
+        div, span, p, strong, em,
+        table, thead, tbody, tfoot, tr, th, td,
+        h1, h2, h3, h4, h5, h6 {
+          color: #000 !important;
         }
-        @media print {
-          html, body { width: 210mm; }
-          body { padding: 0; }
-        }
-        body { font-family: Arial, sans-serif; }
-
-        .header { font-family: Times New Roman, sans-serif; text-align: center; }
-        .header img { height: 64px; display: block; margin: 0 auto 8px auto; }
-        .header h3 { font-size: 16px; margin: 2px 0; font-weight: 600; }
-        .header h4 { font-size: 16px; margin: 2px 0; font-weight: 400; }
-        .subheader { margin-top: 8px; font-weight: 700; text-decoration: underline; }
-        .info { border: 1px solid #000; border-collapse: separate; border-spacing: 0; margin: 12px auto; }
-        .info td { border: none; padding: 2px 8px 2px 8px; font-size: 12px; vertical-align: top; text-align: center; }
-        .label { width: 220px; font-weight: 600; }
-        .value { font-weight: normal; }
-
-        /* Table layout and fragmentation with Paged.js */
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; page-break-inside: auto; }
-        thead { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        thead, tfoot { display: table-header-group; }
-        th, td { border: 1px solid #ddd; padding: 4px; font-size: 10px; text-align: center; vertical-align: top; }
-        th { background-color: #cccccc !important; text-align: center; vertical-align: middle !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        td { vertical-align: top !important; break-inside: auto; page-break-inside: auto; }
-        tr { break-inside: auto; page-break-inside: auto; }
-        .caption { color: #666; font-size: 11px; }
-
-        /* Memoranda column: allow splitting across pages */
-        td.memo { white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: auto; }
-        td.memo .memo-content { break-inside: auto; page-break-inside: auto; }
-
-        /* Column widths */
-        thead th:nth-child(1), tbody td:nth-child(1) { width: 100px; }
-        thead th:nth-child(2), tbody td:nth-child(2) { width: 100px; }
-        thead th:nth-child(3), tbody td:nth-child(3) { width: 50px; }
-        thead th:nth-child(4), tbody td:nth-child(4) { width: 70px; }
-        thead th:nth-child(5), tbody td:nth-child(5) { width: 70px; }
-        thead th:nth-child(6), tbody td:nth-child(6) { width: 90px; }
-        thead th:nth-child(7), tbody td:nth-child(7) { width: 70px; }
-        thead th:nth-child(8) { width: 40%; }
-        tbody td:nth-child(8) { text-align: left; }
-      </style>
-    `;
-    const rows = (printHistory || []).map((item, index) => `
-      <tr>
-        <td>
-          <div>${item.tax_declaration_number || ''}</div>
-        </td>
-        <td>${item.declarant_name || ''}</td>
-        <td>${item.lot_number || ''}</td>
-        <td>${item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
-        <td>${item.title_number || ''}</td>
-        <td>₱${(item.assessed_value !== undefined && item.assessed_value !== null)
-          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : '0.00'}</td>
-        <td>${item.effectivity_date || ''}</td>
-        <td class="memo"><div class="memo-content">${item.memoranda || ''}</div></td>
-      </tr>
-    `).join('');
-    const html = `
-      <html>
-        <head>
-          <title></title>
-          ${styles}
-        </head>
-        <body>
-          <div class="header">
-            <img src="${appLogoUrl}" alt="Logo" onerror="this.style.display='none'" />
-            <h4>${headerPh}</h4>
-            <h4>${headerProvince}</h4>
-            <h4>${headerMunicipality}</h3>
-            <h3>${headerOffice}</h3>
-            <div class="subheader">${headerTitle}</div>
-          </div>
-
-          <table class="info">
-            <tr>
-              <td class="label">TAX DECLARATION NUMBER: <span class="value">${(printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span></td>
-              <td class="label">PIN: <span class="value">${(printHistory[0] && printHistory[0].pin) || ''}</span></td>
-            </tr>
-            <tr>
-              <td class="label">OWNER: <span class="value">${(printHistory[0] && printHistory[0].declarant_name) || ''}</span></td>
-              <td class="label">ADDRESS: <span class="value">${(printHistory[0] && printHistory[0].address) || ''}</span></td>
-            </tr>
-            <tr>
-              <td class="label">LOCATION: <span class="value">${(printHistory[0] && printHistory[0].location) || ''}</span></td>
-              <td class="label">ASSESSMENT DATE: <span class="value">${(printHistory[0] && printHistory[0].assessment_date) || ''}</span></td>
-            </tr>
-            <tr>
-              <td class="label">EFFECTIVITY DATE: <span class="value">${(printHistory[0] && printHistory[0].effectivity_date) || ''}</span></td>
-              <td class="label">KIND OF PROPERTY: <span class="value">${(printHistory[0] && printHistory[0].kind_of_property) || ''}</span></td>
-            </tr>
-            <tr>
-              <td class="label"></td>
-              <td class="label">GEN. CLASS: <span class="value">${(printHistory[0] && printHistory[0].gen_class) || ''}</span></td>
-            </tr>
-          </table>
-          
-
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Tax Declaration Number</th>
-                <th>Declarant</th>
-                <th>Lot Number</th>
-                <th>Area (hectare)</th>
-                <th>Title Number</th>
-                <th>Assessed Value</th>
-                <th>Effectivity</th>
-                <th>Memoranda</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-          <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
-          <script>
-            (function(){
-              try {
-                var base = (window.opener && window.opener.location) ? window.opener.location.origin : (location.origin || '');
-                if (base) { history.replaceState(null, '', base + '/print'); }
-              } catch(e){}
-              function printNow(){
-                setTimeout(function(){
-                  try { window.focus(); window.print(); } catch(e){}
-                  try { window.close(); } catch(e){}
-                }, 200);
-              }
-              function setup(){
-                try { document.addEventListener('pagedjs:rendered', function(){ printNow(); }, { once: true }); } catch(e){}
-                // Fallback: if Paged.js fails, attempt to print after images load
-                var imgs = Array.prototype.slice.call(document.images || []);
-                if (!imgs.length) {
-                  setTimeout(printNow, 800);
-                } else {
-                  var remaining = imgs.length;
-                  var timer = setTimeout(printNow, 3000);
-                  imgs.forEach(function(img){
-                    if (img.complete) { if (--remaining === 0) { clearTimeout(timer); printNow(); } }
-                    else {
-                      img.addEventListener('load', function(){ if (--remaining === 0) { clearTimeout(timer); printNow(); } });
-                      img.addEventListener('error', function(){ if (--remaining === 0) { clearTimeout(timer); printNow(); } });
-                    }
-                  });
-                }
-              }
-              if (document.readyState === 'complete' || document.readyState === 'interactive') { setup(); }
-              else { document.addEventListener('DOMContentLoaded', setup); }
-            })();
-          </script>
-        </body>
-      </html>
-    `;
-
-    // Use HTML2PDF to generate a real PDF for consistent headers/footers/paging
-    // Fallback to simple print popup (html2pdf removed per request)
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
+        .history-table td { vertical-align: top !important; text-align: center !important; }
+        .history-table td:last-child { text-align: left !important; }
+        .history-table th { vertical-align: center !important; }
+        .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
+        .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
+      }
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
+      tfoot td { border: 0; border-top: 1px solid #ddd; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: auto; break-inside: auto; }
+      td { page-break-inside: auto; }
+      /* Allow memoranda content to split */
+      td:last-child { white-space: normal; text-align: left; }
+    `
+  });
 
   // const getStatusColor = (status) => {
   //   return statusColors[status] || statusColors.info;
@@ -467,8 +442,29 @@ const PropertyTable = () => {
       </Box>
     );
   }
+  
+  const toFormalCase = (text) => {
+    if (!text) return '';
+    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const words = String(text).toLowerCase().split(/\s+/);
+    return words.map((w, i) => {
+      if (!w) return w;
+      if (i > 0 && small.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  };
+  const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
+  const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
+  const headerPh = 'Republic of the Philippines';
+  const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
+  const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
+  const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
+  const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
+  const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
+  const headerTitle = 'RECORD VERIFICATION DATA FORM';
 
   return (
+    
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <Typography variant="h4" gutterBottom>
         Property Records
@@ -608,10 +604,10 @@ const PropertyTable = () => {
                     }
                   </TableCell>
                   <TableCell>{property.lot_number}</TableCell>
-                  <TableCell>{property.area_hectare}</TableCell>
+                  <TableCell>{property.area_hectare ? property.area_hectare + (property.area_hectare <= 1 ? ' ha' : ' has') : ''}</TableCell>
                   <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" color="text.primary">
                       ₱{(property.assessed_value !== undefined && property.assessed_value !== null)
                         ? Number(property.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         : '0.00'}
@@ -726,7 +722,7 @@ const PropertyTable = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
+        <DialogTitle sx={{ textAlign: 'center' }}>
           Tax Declaration History
         </DialogTitle>
         <DialogContent>
@@ -736,6 +732,30 @@ const PropertyTable = () => {
             </Box>
           ) : taxHistory.length > 0 ? (
             <TableContainer component={Paper}>
+              <Table size="small" stickyHeader>
+                <TableBody sx={{ '& td': { padding: '4px 8px' } }}>
+                  <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
+                    <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
+                    <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
+                  </TableRow>
+                  <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
+                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
+                    <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
+                  </TableRow>
+                  <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
+                    <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
+                    <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
+                  </TableRow>
+                  <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
+                    <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
+                    <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell></TableCell>
+                    <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
               <Table size="small" stickyHeader>
                 {/* <TableHead>
                   <TableRow>
@@ -748,7 +768,7 @@ const PropertyTable = () => {
                     <TableCell>Effectivity</TableCell>
                   </TableRow>
                 </TableHead> */}
-                <TableBody>
+                <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                   {taxHistory.map((item, index) => (
                     <TableRow key={index} hover>
                       <TableCell>
@@ -761,7 +781,7 @@ const PropertyTable = () => {
                       </TableCell>
                       <TableCell>{item.declarant_name}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
-                      <TableCell>{item.area_hectare || '—'}</TableCell>
+                      <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
                         ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
@@ -787,10 +807,11 @@ const PropertyTable = () => {
       <Dialog 
         open={printModal} 
         onClose={() => setPrintModal(false)}
-        maxWidth="md"
+        maxWidth="xl"
         fullWidth
+        PaperProps={{ sx: { maxWidth: '60vw', height: '90vh' } }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ textAlign: 'center' }}>
           Tax Declaration History (Printable)
         </DialogTitle>
         <DialogContent>
@@ -800,7 +821,51 @@ const PropertyTable = () => {
             </Box>
           ) : printHistory.length > 0 ? (
             <TableContainer component={Paper}>
+              <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
+                {appLogoUrl ? (
+                  <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                ) : null}
+                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
+                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
+                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
+                <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
+                <div style={{ marginTop: 8, marginBottom: 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
+              </div>
               <Table size="small" stickyHeader>
+                <TableBody sx={{ '& td': { borderBottom: 'none', padding: '4px 12px' } }}>
+                  <TableRow sx={{ '& td': { paddingTop: '12px' } }}>
+                    <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
+                    <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
+                    <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
+                    <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
+                    <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property}</TableCell>
+                  </TableRow>
+                  <TableRow sx={{ '& td': { paddingBottom: '12px' } }}>
+                    <TableCell></TableCell>
+                    <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+              <Table size="small" stickyHeader>
+                <colgroup>
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '6%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '32%' }} />
+                </colgroup>
                 <TableHead>
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
@@ -813,11 +878,11 @@ const PropertyTable = () => {
                     <TableCell>Memoranda</TableCell>
                   </TableRow>
                 </TableHead>
-                <TableBody>
+                <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                   {printHistory.map((item, index) => (
                     <TableRow key={index} hover>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600} color="primary">
+                        <Typography variant="body2" fontWeight={600} color="primary"> 
                           {item.tax_declaration_number}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
@@ -826,7 +891,7 @@ const PropertyTable = () => {
                       </TableCell>
                       <TableCell>{item.declarant_name}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
-                      <TableCell>{item.area_hectare || '—'}</TableCell>
+                      <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
                         ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
@@ -855,6 +920,11 @@ const PropertyTable = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Hidden printable content for react-to-print */}
+      <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
+        <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} />
+        <div className="print-page-footer"><span className="pageNumber" /></div>
+      </div>
     </Box>
   );
 };
