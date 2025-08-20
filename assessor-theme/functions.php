@@ -156,6 +156,39 @@ function assessor_enqueue_react_app() {
 }
 add_action('wp_enqueue_scripts', 'assessor_enqueue_react_app');
 
+// Enqueue Arial web font for consistent typography
+function assessor_enqueue_arial_font() {
+    // Add Arial as a web font using Google Fonts fallback
+    wp_enqueue_style(
+        'assessor-arial-font',
+        'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
+        array(),
+        '1.0.0'
+    );
+    
+    // Add inline CSS to set Arial as the primary font family
+    wp_add_inline_style('assessor-arial-font', '
+        * {
+            font-family: "Inter","Roboto","Helvetica","Arial",sans-serif !important;
+        }
+        body, html {
+            font-family: "Inter","Roboto","Helvetica","Arial",sans-serif !important;
+        }
+        .wp-admin, .wp-content, .wp-header, .wp-footer, .wp-sidebar, .wp-main, 
+        .wp-widget, .wp-menu, .wp-submenu, .wp-toolbar, .wp-admin-bar, 
+        .wp-notification, .wp-dashboard, .wp-post, .wp-page, .wp-comment, 
+        .wp-form, .wp-input, .wp-button, .wp-link, .wp-title, .wp-meta, 
+        .wp-excerpt, .wp-content-area, .wp-sidebar-area, .wp-header-area, 
+        .wp-footer-area, #wpadminbar, #adminmenu, #adminmenuback, #adminmenuwrap,
+        #adminmenu li, #adminmenu a, #adminmenu .wp-submenu, #adminmenu .wp-submenu a,
+        .wp-toolbar, .wp-toolbar *, .wp-header *, .wp-content *, .wp-footer * {
+            font-family: "Inter","Roboto","Helvetica","Arial",sans-serif !important;
+        }
+    ');
+}
+add_action('wp_enqueue_scripts', 'assessor_enqueue_arial_font');
+add_action('admin_enqueue_scripts', 'assessor_enqueue_arial_font');
+
 // Add theme support
 function assessor_theme_setup() {
     // Add theme support for various features
@@ -275,7 +308,7 @@ add_action('init', function() {
     // Only apply this for our theme
     if (get_template() === 'assessor-theme') {
         // Only disable redirects for React app routes, not admin
-        if (!is_admin() && !wp_doing_ajax() && !strpos($_SERVER['REQUEST_URI'], '/wp-admin')) {
+        if (!is_admin() && !wp_doing_ajax() && strpos($_SERVER['REQUEST_URI'], '/wp-admin') === false) {
             // Remove WordPress authentication filters that cause redirects
             remove_filter('template_redirect', 'wp_redirect_admin_locations', 1000);
             remove_action('template_redirect', 'wp_redirect_admin_locations');
@@ -297,7 +330,7 @@ add_action('template_redirect', function() {
     // Only apply this for our theme
     if (get_template() === 'assessor-theme') {
         // If this is a frontend request and not admin, and not wp-admin
-        if (!is_admin() && !wp_doing_ajax() && !strpos($_SERVER['REQUEST_URI'], '/wp-admin')) {
+        if (!is_admin() && !wp_doing_ajax() && strpos($_SERVER['REQUEST_URI'], '/wp-admin') === false) {
             // Remove any authentication redirects
             remove_action('template_redirect', 'wp_redirect_admin_locations');
             
@@ -308,24 +341,24 @@ add_action('template_redirect', function() {
 }, 1); // Priority 1 to run early
 
 // DISABLE WordPress authentication requirements for React app ONLY
-add_filter('auth_redirect', function($redirect_to, $requested_redirect_to, $user) {
+// Note: 'auth_redirect' is an action that receives one argument. Use add_action with correct arg count.
+add_action('auth_redirect', function($arg) {
     // Only apply this for our theme
     if (get_template() === 'assessor-theme') {
-        // If this is a React app request, don't redirect
-        if (!is_admin() && !wp_doing_ajax() && !strpos($_SERVER['REQUEST_URI'], '/wp-admin')) {
-            error_log('🔍 Assessor Theme: Auth redirect blocked for React app request');
-            return false; // Don't redirect
+        // If this is a React app request, log and allow
+        if (!is_admin() && !wp_doing_ajax() && strpos($_SERVER['REQUEST_URI'], '/wp-admin') === false) {
+            error_log('🔍 Assessor Theme: Auth redirect encountered on frontend; allowing access');
+            // Can't short-circuit via return here; prevention handled in earlier hooks
         }
     }
-    return $redirect_to;
-}, 10, 3);
+}, 10, 1);
 
 // FINAL: Override WordPress authentication for React app ONLY
 add_action('wp', function() {
     // Only apply this for our theme
     if (get_template() === 'assessor-theme') {
         // If this is a React app request and not admin, and not wp-admin
-        if (!is_admin() && !wp_doing_ajax() && !strpos($_SERVER['REQUEST_URI'], '/wp-admin')) {
+        if (!is_admin() && !wp_doing_ajax() && strpos($_SERVER['REQUEST_URI'], '/wp-admin') === false) {
             // Force WordPress to not require authentication for React app
             if (!defined('WP_USE_THEMES')) {
                 define('WP_USE_THEMES', true);
