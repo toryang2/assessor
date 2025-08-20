@@ -732,24 +732,24 @@ const PropertyTable = () => {
               <Table size="small" stickyHeader>
                 <TableBody sx={{ '& td': { padding: '4px 8px' } }}>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
-                    <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
+                    <TableCell><strong>TAX DECLARATION NUMBER:</strong> {taxHistory[0]?.tax_declaration_number}</TableCell>
+                    <TableCell><strong>PIN:</strong> {taxHistory[0]?.pin}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
-                    <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {taxHistory[0]?.declarant_name}</TableCell>
+                    <TableCell><strong>ADDRESS:</strong> {taxHistory[0]?.address}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
-                    <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
+                    <TableCell><strong>LOCATION:</strong> {taxHistory[0]?.location}</TableCell>
+                    <TableCell><strong>ASSESSMENT DATE:</strong> {taxHistory[0]?.assessment_date}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
-                    <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property}</TableCell>
+                    <TableCell><strong>EFFECTIVITY:</strong> {taxHistory[0]?.effectivity_date}</TableCell>
+                    <TableCell><strong>KIND OF PROPERTY:</strong> {taxHistory[0]?.kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell></TableCell>
-                    <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class}</TableCell>
+                    <TableCell><strong>GEN. CLASS:</strong> {taxHistory[0]?.gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
