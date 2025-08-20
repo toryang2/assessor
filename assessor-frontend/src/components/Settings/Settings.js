@@ -9,7 +9,13 @@ const DEFAULTS = {
   app_logo_url: '',
   header_province: 'BUKIDNON',
   header_municipality: 'KITAOTAO',
-  header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR'
+  header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR',
+  verifier_signatory_name: '',
+  verifier_signatory_title: '',
+  municipal_assessor_name: '',
+  municipal_assessor_license: '',
+  municipal_assessor_title: '',
+  municipal_assessor_suffix: ''
 };
 
 const Settings = () => {
@@ -34,7 +40,13 @@ const Settings = () => {
           app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
           header_province: data.header_province || DEFAULTS.header_province,
           header_municipality: data.header_municipality || DEFAULTS.header_municipality,
-          header_office: data.header_office || DEFAULTS.header_office
+          header_office: data.header_office || DEFAULTS.header_office,
+          verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
+          verifier_signatory_title: data.verifier_signatory_title || DEFAULTS.verifier_signatory_title,
+          municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
+          municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
+          municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
+          municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix
         });
         const [typesRes, classesRes, locationsRes] = await Promise.all([
           apiService.getPropertyTypes(),
@@ -76,7 +88,13 @@ const Settings = () => {
       const payload = {
         header_province: form.header_province,
         header_municipality: form.header_municipality,
-        header_office: form.header_office
+        header_office: form.header_office,
+        verifier_signatory_name: form.verifier_signatory_name,
+        verifier_signatory_title: form.verifier_signatory_title,
+        municipal_assessor_name: form.municipal_assessor_name,
+        municipal_assessor_license: form.municipal_assessor_license,
+        municipal_assessor_title: form.municipal_assessor_title,
+        municipal_assessor_suffix: form.municipal_assessor_suffix
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
@@ -130,6 +148,52 @@ const Settings = () => {
       }
     } finally {
       setDragging({ key: null, from: -1 });
+    }
+  };
+
+  // Add helpers to reuse for Enter key and button clicks
+  const addPropertyType = async () => {
+    if (!newType.code || !newType.name) {
+      setToast({ open: true, message: 'Property Type: Code and Name are required.', severity: 'error' });
+      return;
+    }
+    try {
+      const res = await apiService.savePropertyType({ code: newType.code, name: newType.name, status: 'active' });
+      setPropertyTypes(res?.items || []);
+      setNewType({ code: '', name: '' });
+      setToast({ open: true, message: 'Property type saved.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: 'Failed to save property type.', severity: 'error' });
+    }
+  };
+
+  const addGeneralClass = async () => {
+    if (!newClass.code || !newClass.name) {
+      setToast({ open: true, message: 'General Class: Code and Name are required.', severity: 'error' });
+      return;
+    }
+    try {
+      const res = await apiService.saveGeneralClass({ code: newClass.code, name: newClass.name, status: 'active' });
+      setGeneralClasses(res?.items || []);
+      setNewClass({ code: '', name: '' });
+      setToast({ open: true, message: 'General class saved.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: 'Failed to save general class.', severity: 'error' });
+    }
+  };
+
+  const addLocation = async () => {
+    if (!newLocation.code || !newLocation.name) {
+      setToast({ open: true, message: 'Location: Code and Name are required.', severity: 'error' });
+      return;
+    }
+    try {
+      const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, status: 'active' });
+      setLocations(res?.items || []);
+      setNewLocation({ code: '', name: '' });
+      setToast({ open: true, message: 'Location saved.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: 'Failed to save location.', severity: 'error' });
     }
   };
 
@@ -227,6 +291,67 @@ const Settings = () => {
                     </Grid>
                   </Box>
                 </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>Signatory Details</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Verifier Signatory Name"
+                          value={(form.verifier_signatory_name || '').toUpperCase()}
+                          onChange={(e) => handleChange('verifier_signatory_name', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Verifier Signatory Title"
+                          value={(form.verifier_signatory_title || '').toUpperCase()}
+                          onChange={(e) => handleChange('verifier_signatory_title', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Municipal Assessor Name"
+                          value={(form.municipal_assessor_name || '').toUpperCase()}
+                          onChange={(e) => handleChange('municipal_assessor_name', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Municipal Assessor Title/Suffix (e.g., MMREM, REA, REB, LPT)"
+                          value={(form.municipal_assessor_suffix || '').toUpperCase()}
+                          onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Title(Municipal Assessor / Acting)"
+                          value={(form.municipal_assessor_title || '').toUpperCase()}
+                          onChange={(e) => handleChange('municipal_assessor_title', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Municipal Assessor License Number"
+                          value={(form.municipal_assessor_license || '').toUpperCase()}
+                          onChange={(e) => handleChange('municipal_assessor_license', e.target.value)}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Grid>
               </Grid>
             </Grid>
             <Grid item xs={12} textAlign="right">
@@ -239,26 +364,19 @@ const Settings = () => {
                   <Typography variant="h6">Property Types</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newType.code} onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newType.code}
+                        onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newType.name} onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newType.name}
+                        onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newType.code || !newType.name) {
-                          setToast({ open: true, message: 'Property Type: Code and Name are required.', severity: 'error' });
-                          return;
-                        }
-                        try {
-                          const res = await apiService.savePropertyType({ code: newType.code, name: newType.name, status: 'active' });
-                          setPropertyTypes(res?.items || []);
-                          setNewType({ code: '', name: '' });
-                          setToast({ open: true, message: 'Property type saved.', severity: 'success' });
-                        } catch (err) {
-                          setToast({ open: true, message: 'Failed to save property type.', severity: 'error' });
-                        }
-                      }}>Add</Button>
+                      <Button fullWidth variant="outlined" onClick={addPropertyType}>Add</Button>
                     </Grid>
                   </Grid>
                   <List dense>
@@ -299,26 +417,19 @@ const Settings = () => {
                   <Typography variant="h6">General Classes</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newClass.code} onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newClass.code}
+                        onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newClass.name} onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newClass.name}
+                        onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newClass.code || !newClass.name) {
-                          setToast({ open: true, message: 'General Class: Code and Name are required.', severity: 'error' });
-                          return;
-                        }
-                        try {
-                          const res = await apiService.saveGeneralClass({ code: newClass.code, name: newClass.name, status: 'active' });
-                          setGeneralClasses(res?.items || []);
-                          setNewClass({ code: '', name: '' });
-                          setToast({ open: true, message: 'General class saved.', severity: 'success' });
-                        } catch (err) {
-                          setToast({ open: true, message: 'Failed to save general class.', severity: 'error' });
-                        }
-                      }}>Add</Button>
+                      <Button fullWidth variant="outlined" onClick={addGeneralClass}>Add</Button>
                     </Grid>
                   </Grid>
                   <List dense>
@@ -359,26 +470,19 @@ const Settings = () => {
                   <Typography variant="h6">Locations</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newLocation.code} onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newLocation.code}
+                        onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newLocation.name} onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newLocation.name}
+                        onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+                      />
                     </Grid>
                     <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newLocation.code || !newLocation.name) {
-                          setToast({ open: true, message: 'Location: Code and Name are required.', severity: 'error' });
-                          return;
-                        }
-                        try {
-                          const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, status: 'active' });
-                          setLocations(res?.items || []);
-                          setNewLocation({ code: '', name: '' });
-                          setToast({ open: true, message: 'Location saved.', severity: 'success' });
-                        } catch (err) {
-                          setToast({ open: true, message: 'Failed to save location.', severity: 'error' });
-                        }
-                      }}>Add</Button>
+                      <Button fullWidth variant="outlined" onClick={addLocation}>Add</Button>
                     </Grid>
                   </Grid>
                   <List dense>

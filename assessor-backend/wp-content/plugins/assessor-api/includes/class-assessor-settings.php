@@ -20,7 +20,13 @@ class Assessor_Settings {
 				'app_logo_url' => '',
 				'header_province' => 'Province of Bukidnon',
 				'header_municipality' => 'MUNICIPALITY OF KITAOTAO',
-				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR'
+				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
+				'verifier_signatory_name' => '',
+				'verifier_signatory_title' => '',
+				'municipal_assessor_name' => '',
+				'municipal_assessor_license' => '',
+				'municipal_assessor_title' => '',
+				'municipal_assessor_suffix' => ''
 			);
 		}
 		return $settings;
@@ -32,11 +38,16 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_province','header_municipality','header_office');
+		$allowed_keys = array('app_logo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
+		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$data = array();
 		foreach ($allowed_keys as $key) {
 			if (isset($params[$key])) {
-				$data[$key] = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
+				$val = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
+				if (in_array($key, $uppercase_keys, true)) {
+					$val = strtoupper($val);
+				}
+				$data[$key] = $val;
 			}
 		}
 		if (empty($data)) {

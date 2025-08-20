@@ -193,18 +193,34 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
       <div className="print-bottom-spacer" />
 
       {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
-      <div className="print-signature" style={{ width: '100%', marginTop: '8mm', paddingBottom: '8mm' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div className="print-signature" style={{ width: '100%', marginTop: '8mm', paddingBottom: '8mm', paddingRight: '20mm' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ textAlign: 'center', width: '70mm' }}>
             <div style={{ height: '18mm' }} />
-            <div style={{ borderTop: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
-              {(settings && settings.signatory_name) || '____________________________'}
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+              {(settings && settings.verifier_signatory_name) || '____________________________'}
             </div>
             <div style={{ fontSize: 11 }}>
-              {(settings && settings.signatory_title) || 'Municipal Assessor'}
+              {(settings && settings.verifier_signatory_title) || 'Verifier'}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', width: '70mm' }}>
+            <div style={{ height: '18mm' }} />
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+              {(settings && settings.verifier_signatory_name) || '____________________________'}
+            </div>
+            <div style={{ fontSize: 11, marginBottom: 70 }}>
+              {(settings && settings.verifier_signatory_title) || 'Verifier'}
+            </div>
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+              {(settings && settings.municipal_assessor_name) || '____________________________'}
+              {settings && settings.municipal_assessor_suffix ? `, ${settings.municipal_assessor_suffix}` : ''}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              {(settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
             </div>
             <div style={{ fontSize: 10, marginTop: 2 }}>
-              {(settings && settings.signatory_office) || headerOffice}
+              {(settings && settings.municipal_assessor_license) ? `License No.: ${settings.municipal_assessor_license}` : ''}
             </div>
           </div>
         </div>

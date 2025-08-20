@@ -143,6 +143,12 @@ class Assessor_Database {
             header_province varchar(255) DEFAULT '',
             header_municipality varchar(255) DEFAULT '',
             header_office varchar(255) DEFAULT '',
+            verifier_signatory_name varchar(255) DEFAULT '',
+            verifier_signatory_title varchar(255) DEFAULT '',
+            municipal_assessor_name varchar(255) DEFAULT '',
+            municipal_assessor_suffix varchar(255) DEFAULT '',
+            municipal_assessor_title varchar(255) DEFAULT '',
+            municipal_assessor_license varchar(255) DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
