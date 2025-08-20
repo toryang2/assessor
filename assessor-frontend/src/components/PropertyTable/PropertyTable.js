@@ -528,6 +528,7 @@ const PropertyTable = () => {
               <TextField
                 fullWidth
                 label="Search Properties"
+                size='small'
                 value={searchTerm}
                 onChange={handleSearch}
                 placeholder="Search by TDN, name, lot number, or title number..."

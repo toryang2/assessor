@@ -30,7 +30,8 @@ import {
   Notifications,
   History,
   FileDownload,
-  Archive
+  Archive,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
@@ -129,7 +130,7 @@ const Layout = ({ children }) => {
     },
     {
       text: 'Settings',
-      icon: <AccountCircle />,
+      icon: <SettingsIcon />,
       badge: null
     }
   ];
@@ -227,7 +228,7 @@ const Layout = ({ children }) => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ alignItems: 'center' }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -245,12 +246,13 @@ const Layout = ({ children }) => {
               transition={{ duration: 0.3 }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              {currentPage === 'Dashboard' && <DashboardIcon sx={{ fontSize: 24, color: 'primary.main' }} />}
-              {currentPage === 'Properties' && <Business sx={{ fontSize: 24, color: 'primary.main' }} />}
-              {currentPage === 'Audit Trail' && <History sx={{ fontSize: 24, color: 'primary.main' }} />}
-              {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main' }} />}
-              {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main' }} />}
-              <Typography variant="h6" fontWeight={600}>
+              {currentPage === 'Dashboard' && <DashboardIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Properties' && <Business sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Audit Trail' && <History sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Settings' && <SettingsIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>
                 {currentPage}
               </Typography>
             </motion.div>

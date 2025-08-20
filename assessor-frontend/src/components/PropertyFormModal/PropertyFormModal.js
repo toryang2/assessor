@@ -12,7 +12,8 @@ import {
   Alert,
   Divider,
   Card,
-  CardContent
+  CardContent,
+  Snackbar
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { CloudUpload } from '@mui/icons-material';
@@ -43,6 +44,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   });
 
   const [errors, setErrors] = useState([]);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
   const [generalClassOptions, setGeneralClassOptions] = useState([]);
@@ -258,15 +260,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
       if (property) {
         await apiService.updateProperty(property.id, submitData);
         onSave('Property updated successfully');
+        setToast({ open: true, message: 'Property updated successfully', severity: 'success' });
       } else {
         await apiService.createProperty(submitData);
         onSave('Property created successfully');
+        setToast({ open: true, message: 'Property created successfully', severity: 'success' });
       }
       
       onCancel();
     } catch (error) {
       console.error('Error saving property:', error);
-      setErrors([error.response?.data?.message || 'Error saving property']);
+      const msg = error.response?.data?.message || 'Error saving property';
+      setErrors([msg]);
+      setToast({ open: true, message: msg, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -278,6 +284,16 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
+          {toast.message}
+        </Alert>
+      </Snackbar>
       <form onSubmit={handleSubmit}>
         {/* Error Display */}
         {errors.length > 0 && (

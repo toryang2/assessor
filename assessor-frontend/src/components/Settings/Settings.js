@@ -59,14 +59,19 @@ const Settings = () => {
     try {
       // Upload pending logo first (if any), but only on Save
       if (pendingLogoFile) {
-        const res = await apiService.uploadLogo(pendingLogoFile);
-        setForm(prev => ({ ...prev, app_logo_url: res.app_logo_url }));
-        // clear pending preview
-        if (pendingLogoPreview) {
-          try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) {}
+        try {
+          const res = await apiService.uploadLogo(pendingLogoFile);
+          setForm(prev => ({ ...prev, app_logo_url: res.app_logo_url }));
+          // clear pending preview
+          if (pendingLogoPreview) {
+            try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) {}
+          }
+          setPendingLogoFile(null);
+          setPendingLogoPreview('');
+        } catch (uploadErr) {
+          setToast({ open: true, message: 'Failed to upload logo.', severity: 'error' });
+          return;
         }
-        setPendingLogoFile(null);
-        setPendingLogoPreview('');
       }
       const payload = {
         header_province: form.header_province,
@@ -241,10 +246,18 @@ const Settings = () => {
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newType.code || !newType.name) return;
-                        const res = await apiService.savePropertyType({ code: newType.code, name: newType.name, status: 'active' });
-                        setPropertyTypes(res?.items || []);
-                        setNewType({ code: '', name: '' });
+                        if (!newType.code || !newType.name) {
+                          setToast({ open: true, message: 'Property Type: Code and Name are required.', severity: 'error' });
+                          return;
+                        }
+                        try {
+                          const res = await apiService.savePropertyType({ code: newType.code, name: newType.name, status: 'active' });
+                          setPropertyTypes(res?.items || []);
+                          setNewType({ code: '', name: '' });
+                          setToast({ open: true, message: 'Property type saved.', severity: 'success' });
+                        } catch (err) {
+                          setToast({ open: true, message: 'Failed to save property type.', severity: 'error' });
+                        }
                       }}>Add</Button>
                     </Grid>
                   </Grid>
@@ -252,9 +265,14 @@ const Settings = () => {
                     {(propertyTypes || []).map((t, index) => (
                       <ListItem key={t.id} draggable onDragStart={() => handleDragStart('propertyTypes', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('propertyTypes', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          await apiService.deletePropertyType(t.id);
-                          const res = await apiService.getPropertyTypes();
-                          setPropertyTypes(res?.items || []);
+                          try {
+                            await apiService.deletePropertyType(t.id);
+                            const res = await apiService.getPropertyTypes();
+                            setPropertyTypes(res?.items || []);
+                            setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
+                          }
                         }}>
                           <DeleteIcon />
                         </IconButton>
@@ -264,8 +282,13 @@ const Settings = () => {
                         </ListItemIcon>
                         <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={t.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={t.status === 'active'} onChange={async (e) => {
-                          const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
-                          setPropertyTypes(updated?.items || []);
+                          try {
+                            const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
+                            setPropertyTypes(updated?.items || []);
+                            setToast({ open: true, message: 'Property type updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
+                          }
                         }} />} label={t.status === 'active' ? 'Active' : 'Disabled'} />
                       </ListItem>
                     ))}
@@ -283,10 +306,18 @@ const Settings = () => {
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newClass.code || !newClass.name) return;
-                        const res = await apiService.saveGeneralClass({ code: newClass.code, name: newClass.name, status: 'active' });
-                        setGeneralClasses(res?.items || []);
-                        setNewClass({ code: '', name: '' });
+                        if (!newClass.code || !newClass.name) {
+                          setToast({ open: true, message: 'General Class: Code and Name are required.', severity: 'error' });
+                          return;
+                        }
+                        try {
+                          const res = await apiService.saveGeneralClass({ code: newClass.code, name: newClass.name, status: 'active' });
+                          setGeneralClasses(res?.items || []);
+                          setNewClass({ code: '', name: '' });
+                          setToast({ open: true, message: 'General class saved.', severity: 'success' });
+                        } catch (err) {
+                          setToast({ open: true, message: 'Failed to save general class.', severity: 'error' });
+                        }
                       }}>Add</Button>
                     </Grid>
                   </Grid>
@@ -294,9 +325,14 @@ const Settings = () => {
                     {(generalClasses || []).map((c, index) => (
                       <ListItem key={c.id} draggable onDragStart={() => handleDragStart('generalClasses', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('generalClasses', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          await apiService.deleteGeneralClass(c.id);
-                          const res = await apiService.getGeneralClasses();
-                          setGeneralClasses(res?.items || []);
+                          try {
+                            await apiService.deleteGeneralClass(c.id);
+                            const res = await apiService.getGeneralClasses();
+                            setGeneralClasses(res?.items || []);
+                            setToast({ open: true, message: 'General class deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
+                          }
                         }}>
                           <DeleteIcon />
                         </IconButton>
@@ -306,8 +342,13 @@ const Settings = () => {
                         </ListItemIcon>
                         <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={c.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={c.status === 'active'} onChange={async (e) => {
-                          const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
-                          setGeneralClasses(updated?.items || []);
+                          try {
+                            const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
+                            setGeneralClasses(updated?.items || []);
+                            setToast({ open: true, message: 'General class updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                          }
                         }} />} label={c.status === 'active' ? 'Active' : 'Disabled'} />
                       </ListItem>
                     ))}
@@ -325,10 +366,18 @@ const Settings = () => {
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
-                        if (!newLocation.code || !newLocation.name) return;
-                        const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, status: 'active' });
-                        setLocations(res?.items || []);
-                        setNewLocation({ code: '', name: '' });
+                        if (!newLocation.code || !newLocation.name) {
+                          setToast({ open: true, message: 'Location: Code and Name are required.', severity: 'error' });
+                          return;
+                        }
+                        try {
+                          const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, status: 'active' });
+                          setLocations(res?.items || []);
+                          setNewLocation({ code: '', name: '' });
+                          setToast({ open: true, message: 'Location saved.', severity: 'success' });
+                        } catch (err) {
+                          setToast({ open: true, message: 'Failed to save location.', severity: 'error' });
+                        }
                       }}>Add</Button>
                     </Grid>
                   </Grid>
@@ -336,9 +385,14 @@ const Settings = () => {
                     {(locations || []).map((l, index) => (
                       <ListItem key={l.id} draggable onDragStart={() => handleDragStart('locations', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('locations', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          await apiService.deleteLocation(l.id);
-                          const res = await apiService.getLocations();
-                          setLocations(res?.items || []);
+                          try {
+                            await apiService.deleteLocation(l.id);
+                            const res = await apiService.getLocations();
+                            setLocations(res?.items || []);
+                            setToast({ open: true, message: 'Location deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete location.', severity: 'error' });
+                          }
                         }}>
                           <DeleteIcon />
                         </IconButton>
@@ -348,8 +402,13 @@ const Settings = () => {
                         </ListItemIcon>
                         <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
-                          const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
-                          setLocations(updated?.items || []);
+                          try {
+                            const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                            setLocations(updated?.items || []);
+                            setToast({ open: true, message: 'Location updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update location.', severity: 'error' });
+                          }
                         }} />} label={l.status === 'active' ? 'Active' : 'Disabled'} />
                       </ListItem>
                     ))}
