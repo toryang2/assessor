@@ -182,6 +182,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
       'declarant_last_name',
       'declarant_first_name',
       'declarant_middle_initial',
+      'business_name',
       'location',
       'lot_number',
       'unique_lot_number_identified',
@@ -324,7 +325,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   error={errors.includes('tax_declaration_number')}
                   helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
                   required
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 1 }}
                 />
               </Grid>
               
@@ -335,7 +336,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   value={formData.previous_tax_declaration_number}
                   onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
                   helperText="Optional: Enter the previous tax declaration number to create a historical link"
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 2 }}
                 />
               </Grid>
 
@@ -348,7 +349,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   error={errors.includes('declarant_last_name')}
                   helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
                   // required
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 3 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Title Number"
+                  value={formData.title_number}
+                  onChange={(e) => handleInputChange('title_number', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 10 }}
                 />
               </Grid>
               
@@ -361,96 +372,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   error={errors.includes('declarant_first_name')}
                   helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
                   // required
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Declarant Middle Initial"
-                  value={formData.declarant_middle_initial}
-                  onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
-                  inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Business Name"
-                  value={formData.business_name}
-                  onChange={(e) => handleInputChange('business_name', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
-                  placeholder="Enter business name (optional)"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Location</InputLabel>
-                  <Select
-                    value={formData.location}
-                    label="Location"
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                    error={errors.includes('location')}
-                  >
-                    {locationOptions.map(loc => (
-                      <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Lot Number"
-                  value={formData.lot_number}
-                  onChange={(e) => handleInputChange('lot_number', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Unique Lot Number Identified"
-                  value={formData.unique_lot_number_identified}
-                  onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Area (Hectares)"
-                  value={formData.area_hectare}
-                  onChange={(e) => handleInputChange('area_hectare', e.target.value)}
-                  error={errors.includes('area_hectare')}
-                  helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.0001 }}
-                  placeholder="0.0000"
-                  onBlur={() => {
-                    const v = formData.area_hectare;
-                    if (v === '' || v === null || v === undefined) return;
-                    const n = Number(v);
-                    if (!isNaN(n)) {
-                      handleInputChange('area_hectare', n.toFixed(4));
-                    }
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Title Number"
-                  value={formData.title_number}
-                  onChange={(e) => handleInputChange('title_number', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 4}}
                 />
               </Grid>
 
@@ -463,7 +385,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   error={errors.includes('assessed_value')}
                   helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
                   type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
+                  inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
                   placeholder="0.00"
                   onBlur={() => {
                     const v = formData.assessed_value;
@@ -479,14 +401,36 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
+                  label="Declarant Middle Initial"
+                  value={formData.declarant_middle_initial}
+                  onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
+                  inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1, tabIndex: 5 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
                   label="Effectivity Year"
                   value={formData.effectivity_date}
                   onChange={(e) => handleInputChange('effectivity_date', e.target.value)}
                   type="number"
-                  inputProps={{ min: 1800, max: 2100 }}
+                  inputProps={{ min: 1800, max: 2100, tabIndex: 12 }}
                   placeholder="YYYY"
                 />
-            </Grid>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Business Name"
+                  InputLabelProps={{ sx: { color: 'primary.main' } }}
+                  value={formData.business_name}
+                  onChange={(e) => handleInputChange('business_name', e.target.value)}
+                  inputProps={{ sx: { color: 'primary.main' }, style: { textTransform: 'uppercase' }, tabIndex: 6 }}
+                  placeholder="Enter business name (optional)"
+                />
+              </Grid>
 
               <Grid item xs={12} md={6}>
                 <TextField
@@ -498,7 +442,25 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   InputLabelProps={{
                     shrink: true,
                   }}
+                  inputProps={{ tabIndex: 13 }}
                 />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Location</InputLabel>
+                  <Select
+                    value={formData.location}
+                    label="Location"
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    error={errors.includes('location')}
+                    inputProps={{ tabIndex: 7 }}
+                  >
+                    {locationOptions.map(loc => (
+                      <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
 
               <Grid item xs={12} md={6}>
@@ -507,20 +469,60 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   label="PIN"
                   value={formData.pin}
                   onChange={(e) => handleInputChange('pin', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 14 }}
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Lot Number"
+                  value={formData.lot_number}
+                  onChange={(e) => handleInputChange('lot_number', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 8 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Unique Lot Number Identified"
+                  value={formData.unique_lot_number_identified}
+                  onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Area (Hectares)"
+                  value={formData.area_hectare}
+                  onChange={(e) => handleInputChange('area_hectare', e.target.value)}
+                  error={errors.includes('area_hectare')}
+                  helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                  type="number"
+                  inputProps={{ min: 0, step: 0.0001, tabIndex: 9 }}
+                  placeholder="0.0000"
+                  onBlur={() => {
+                    const v = formData.area_hectare;
+                    if (v === '' || v === null || v === undefined) return;
+                    const n = Number(v);
+                    if (!isNaN(n)) {
+                      handleInputChange('area_hectare', n.toFixed(4));
+                    }
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Address"
                   value={formData.address}
                   onChange={(e) => handleInputChange('address', e.target.value)}
-                  multiline
-                  rows={2}
                   placeholder="Complete address"
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 16 }}
                 />
               </Grid>
             </Grid>
@@ -542,6 +544,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     label="Kind of Property"
                     onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                     error={errors.includes('kind_of_property')}
+                    inputProps={{ tabIndex: 17 }}
                   >
                     {propertyTypeOptions.map(pt => (
                       <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
@@ -557,6 +560,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     value={formData.gen_class}
                     label="General Class"
                     onChange={(e) => handleInputChange('gen_class', e.target.value)}
+                    inputProps={{ tabIndex: 18 }}
                   >
                     {generalClassOptions.map(gc => (
                       <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
@@ -584,6 +588,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   placeholder="Additional notes or memoranda"
                   multiline
                   rows={3}
+                  inputProps={{ tabIndex: 19 }}
                 />
               </Grid>
 
@@ -601,6 +606,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                       supporting_documents: files
                     }));
                   }}
+                  inputProps={{ tabIndex: 20 }}
                 />
                 <label htmlFor="supporting-documents-upload">
                   <Button

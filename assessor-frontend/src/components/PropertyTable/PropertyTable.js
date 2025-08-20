@@ -324,6 +324,18 @@ const PropertyTable = () => {
     setPage(0);
   };
 
+  const handleSearchKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const list = safeProperties || [];
+      if (!list.length) return;
+      // Prefer exact TDN match on current page; otherwise open the first visible row
+      const exact = list.find(p => String(p.tax_declaration_number || '').toUpperCase() === String(searchTerm || '').toUpperCase());
+      const target = exact || list[0];
+      if (target && target.tax_declaration_number) handleViewPrintableHistory(target.tax_declaration_number);
+    }
+  };
+
   // No additional filters
   const handleFilterChange = () => {};
 
@@ -553,6 +565,7 @@ const PropertyTable = () => {
                 size='small'
                 value={searchTerm}
                 onChange={handleSearch}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Search by TDN, name, lot number, or title number..."
                 inputProps={{ style: { textTransform: 'uppercase' } }}
                 helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"

@@ -21,7 +21,7 @@ class Assessor_Properties {
         // Unified free-text search across common fields
         if (!empty($params['q'])) {
             $q = '%' . $wpdb->esc_like($params['q']) . '%';
-            $or_conditions = array(
+            $or_sql = array(
                 "p.tax_declaration_number LIKE %s",
                 "p.declarant_last_name LIKE %s",
                 "p.declarant_first_name LIKE %s",
@@ -29,9 +29,17 @@ class Assessor_Properties {
                 "p.title_number LIKE %s",
                 "p.business LIKE %s"
             );
-            $where_conditions[] = '(' . implode(' OR ', $or_conditions) . ')';
-            // push same value for each placeholder
-            array_push($where_values, $q, $q, $q, $q, $q, $q, $q);
+            $or_vals = array_fill(0, count($or_sql), $q);
+
+            // Also match numeric-only searches against TDN without hyphens/spaces (e.g., '12312' matches '22-010-0001-12312')
+            $q_digits_raw = preg_replace('/[^0-9]/', '', $params['q']);
+            if ($q_digits_raw !== '') {
+                $or_sql[] = "REPLACE(REPLACE(p.tax_declaration_number, '-', ''), ' ', '') LIKE %s";
+                $or_vals[] = '%' . $wpdb->esc_like($q_digits_raw) . '%';
+            }
+
+            $where_conditions[] = '(' . implode(' OR ', $or_sql) . ')';
+            $where_values = array_merge($where_values, $or_vals);
         }
 
         if (!empty($params['tax_declaration_number'])) {
@@ -63,9 +71,9 @@ class Assessor_Properties {
             $where_conditions[] = "p.title_number LIKE %s";
             $where_values[] = '%' . $wpdb->esc_like($params['title_number']) . '%';
         }
-        if (!empty($params['business_name'])) {
+        if (!empty($params['business'])) {
             $where_conditions[] = "p.business LIKE %s";
-            $where_values[] = '%' . $wpdb->esc_like($params['business_name']) . '%';
+            $where_values[] = '%' . $wpdb->esc_like($params['business']) . '%';
         }
         
         if (!empty($params['status'])) {
