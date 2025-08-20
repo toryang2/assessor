@@ -26,11 +26,12 @@ class Assessor_Properties {
                 "p.declarant_last_name LIKE %s",
                 "p.declarant_first_name LIKE %s",
                 "p.lot_number LIKE %s",
-                "p.title_number LIKE %s"
+                "p.title_number LIKE %s",
+                "p.business LIKE %s"
             );
             $where_conditions[] = '(' . implode(' OR ', $or_conditions) . ')';
             // push same value for each placeholder
-            array_push($where_values, $q, $q, $q, $q, $q);
+            array_push($where_values, $q, $q, $q, $q, $q, $q, $q);
         }
 
         if (!empty($params['tax_declaration_number'])) {
@@ -61,6 +62,10 @@ class Assessor_Properties {
         if (!empty($params['title_number'])) {
             $where_conditions[] = "p.title_number LIKE %s";
             $where_values[] = '%' . $wpdb->esc_like($params['title_number']) . '%';
+        }
+        if (!empty($params['business_name'])) {
+            $where_conditions[] = "p.business LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['business_name']) . '%';
         }
         
         if (!empty($params['status'])) {

@@ -148,20 +148,6 @@ class Assessor_Database {
             PRIMARY KEY (id)
         ) $charset_collate;";
 
-        // Businesses table
-        $table_businesses = $wpdb->prefix . 'assessor_businesses';
-        $sql_businesses = "CREATE TABLE $table_businesses (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            property_id mediumint(9) NOT NULL,
-            name varchar(200) NOT NULL,
-            status varchar(20) NOT NULL DEFAULT 'active',
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY property_id (property_id),
-            KEY status (status)
-        ) $charset_collate;";
-
         // Property types table
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $sql_property_types = "CREATE TABLE $table_property_types (
@@ -217,7 +203,6 @@ class Assessor_Database {
         dbDelta($sql_properties);
         dbDelta($sql_versions);
         dbDelta($sql_documents);
-        dbDelta($sql_businesses);
         dbDelta($sql_audit);
         dbDelta($sql_settings);
         dbDelta($sql_property_types);
@@ -240,16 +225,12 @@ class Assessor_Database {
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $table_documents = $wpdb->prefix . 'assessor_documents';
-        $table_businesses = $wpdb->prefix . 'assessor_businesses';
         
         // Add foreign key for property_versions table
         $wpdb->query("ALTER TABLE $table_versions ADD CONSTRAINT fk_property_versions_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
         
         // Add foreign key for documents table
         $wpdb->query("ALTER TABLE $table_documents ADD CONSTRAINT fk_documents_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
-
-        // Add foreign key for businesses table
-        $wpdb->query("ALTER TABLE $table_businesses ADD CONSTRAINT fk_businesses_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
     }
     
     private function insert_default_admin() {
@@ -298,12 +279,13 @@ class Assessor_Database {
         if ($classes_count === 0) {
             $default_classes = array(
                 array('code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1),
-                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 2),
-                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 3),
-                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 4),
-                array('code' => 'MIXED_USE', 'name' => 'MIXED USE', 'sort_order' => 5),
-                array('code' => 'VACANT_LOT', 'name' => 'VACANT LOT', 'sort_order' => 6),
-                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 7)
+                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 2),
+                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 3),
+                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 4),
+                array('code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5),
+                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6),
+                array('code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7),
+                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8)
             );
             foreach ($default_classes as $row) {
                 $wpdb->insert($table_general_classes, $row, array('%s','%s','%d'));
@@ -314,8 +296,7 @@ class Assessor_Database {
         $locations_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_locations"));
         if ($locations_count === 0) {
             $default_locations = array(
-                array('code' => 'KITAOTAO', 'name' => 'KITAOTAO', 'sort_order' => 1),
-                array('code' => 'VALENCIA', 'name' => 'VALENCIA', 'sort_order' => 2)
+                array('code' => 'BARANGAY', 'name' => 'BARANGAY', 'sort_order' => 1)
             );
             foreach ($default_locations as $row) {
                 $wpdb->insert($table_locations, $row, array('%s','%s','%d'));
