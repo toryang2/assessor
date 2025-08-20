@@ -115,7 +115,7 @@ class Assessor_Settings {
 	public function get_property_types() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
-		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY name ASC", ARRAY_A);
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
 		return array('items' => $rows);
 	}
 

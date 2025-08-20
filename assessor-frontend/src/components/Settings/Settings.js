@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar } from '@mui/material';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon } from '@mui/material';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
@@ -23,6 +24,7 @@ const Settings = () => {
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
   const [pendingLogoFile, setPendingLogoFile] = useState(null);
   const [pendingLogoPreview, setPendingLogoPreview] = useState('');
+  const [dragging, setDragging] = useState({ key: null, from: -1 });
 
   useEffect(() => {
     const load = async () => {
@@ -89,6 +91,41 @@ const Settings = () => {
     const previewUrl = URL.createObjectURL(file);
     setPendingLogoFile(file);
     setPendingLogoPreview(previewUrl);
+  };
+
+  // Drag & Drop sorting helpers
+  const handleDragStart = (key, fromIndex) => {
+    setDragging({ key, from: fromIndex });
+  };
+
+  const handleDrop = async (key, toIndex) => {
+    if (dragging.key !== key || dragging.from === -1 || dragging.from === toIndex) {
+      setDragging({ key: null, from: -1 });
+      return;
+    }
+    const reorder = (arr) => {
+      const next = arr.slice();
+      const [moved] = next.splice(dragging.from, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    };
+    try {
+      if (key === 'propertyTypes') {
+        const next = reorder(propertyTypes);
+        setPropertyTypes(next);
+        await Promise.all(next.map((item, idx) => apiService.savePropertyType({ id: item.id, code: item.code, name: item.name, status: item.status, sort_order: idx + 1 })));
+      } else if (key === 'generalClasses') {
+        const next = reorder(generalClasses);
+        setGeneralClasses(next);
+        await Promise.all(next.map((item, idx) => apiService.saveGeneralClass({ id: item.id, code: item.code, name: item.name, status: item.status, sort_order: idx + 1 })));
+      } else if (key === 'locations') {
+        const next = reorder(locations);
+        setLocations(next);
+        await Promise.all(next.map((item, idx) => apiService.saveLocation({ id: item.id, code: item.code, name: item.name, status: item.status, sort_order: idx + 1 })));
+      }
+    } finally {
+      setDragging({ key: null, from: -1 });
+    }
   };
 
   return (
@@ -197,10 +234,10 @@ const Settings = () => {
                   <Typography variant="h6">Property Types</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" value={newType.code} onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newType.code} onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" value={newType.name} onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newType.name} onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
@@ -212,8 +249,8 @@ const Settings = () => {
                     </Grid>
                   </Grid>
                   <List dense>
-                    {(propertyTypes || []).map((t) => (
-                      <ListItem key={t.id} secondaryAction={
+                    {(propertyTypes || []).map((t, index) => (
+                      <ListItem key={t.id} draggable onDragStart={() => handleDragStart('propertyTypes', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('propertyTypes', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
                           await apiService.deletePropertyType(t.id);
                           const res = await apiService.getPropertyTypes();
@@ -222,7 +259,10 @@ const Settings = () => {
                           <DeleteIcon />
                         </IconButton>
                       }>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={`${t.code} — ${t.name}`} />
+                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                          <DragIndicatorIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={t.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={t.status === 'active'} onChange={async (e) => {
                           const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
                           setPropertyTypes(updated?.items || []);
@@ -236,10 +276,10 @@ const Settings = () => {
                   <Typography variant="h6">General Classes</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" value={newClass.code} onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newClass.code} onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" value={newClass.name} onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newClass.name} onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
@@ -251,8 +291,8 @@ const Settings = () => {
                     </Grid>
                   </Grid>
                   <List dense>
-                    {(generalClasses || []).map((c) => (
-                      <ListItem key={c.id} secondaryAction={
+                    {(generalClasses || []).map((c, index) => (
+                      <ListItem key={c.id} draggable onDragStart={() => handleDragStart('generalClasses', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('generalClasses', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
                           await apiService.deleteGeneralClass(c.id);
                           const res = await apiService.getGeneralClasses();
@@ -261,7 +301,10 @@ const Settings = () => {
                           <DeleteIcon />
                         </IconButton>
                       }>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={`${c.code} — ${c.name}`} />
+                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                          <DragIndicatorIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={c.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={c.status === 'active'} onChange={async (e) => {
                           const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
                           setGeneralClasses(updated?.items || []);
@@ -275,10 +318,10 @@ const Settings = () => {
                   <Typography variant="h6">Locations</Typography>
                   <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" value={newLocation.code} onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Code" required value={newLocation.code} onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" value={newLocation.name} onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })} />
+                      <TextField fullWidth size="small" label="Name" required value={newLocation.name} onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })} />
                     </Grid>
                     <Grid item xs={12}>
                       <Button fullWidth variant="outlined" onClick={async () => {
@@ -290,8 +333,8 @@ const Settings = () => {
                     </Grid>
                   </Grid>
                   <List dense>
-                    {(locations || []).map((l) => (
-                      <ListItem key={l.id} secondaryAction={
+                    {(locations || []).map((l, index) => (
+                      <ListItem key={l.id} draggable onDragStart={() => handleDragStart('locations', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('locations', index)} secondaryAction={
                         <IconButton edge="end" aria-label="delete" onClick={async () => {
                           await apiService.deleteLocation(l.id);
                           const res = await apiService.getLocations();
@@ -300,7 +343,10 @@ const Settings = () => {
                           <DeleteIcon />
                         </IconButton>
                       }>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={`${l.code} — ${l.name}`} />
+                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                          <DragIndicatorIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} />
                         <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
                           const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
                           setLocations(updated?.items || []);
