@@ -193,18 +193,53 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
       <div className="print-bottom-spacer" />
 
       {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
-      <div className="print-signature" style={{ width: '100%', marginTop: '8mm', paddingBottom: '8mm', paddingRight: '20mm' }}>
+      <div className="print-signature" style={{ fontFamily: 'Arial, sans serif', width: '100%', marginTop: '8mm', paddingBottom: '0mm', paddingRight: '10mm', paddingLeft: '10mm' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ textAlign: 'center', width: '70mm' }}>
+
+          <div style={{ textAlign: 'left', width: '100mm' }}>
+            {/* Spacer */}
             <div style={{ height: '18mm' }} />
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
-              {(settings && settings.verifier_signatory_name) || '____________________________'}
+
+            {/* Encoded Info (side by side) */}
+            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 8 }}>
+              {/* Labels */}
+              <div style={{ width: '25mm', fontSize: 12, fontWeight: 400 }}>
+                <div>{'Encoded by:'}</div>
+                <div>{'Date and Time:'}</div>
+              </div>
+
+              {/* Values */}
+              <div style={{ fontSize: 12, fontWeight: 400 }}>
+                <div>{'Juan Dela Cruz'}</div>
+                <div>{'2025/08/21 14:32'}</div>
+              </div>
             </div>
-            <div style={{ fontSize: 11 }}>
-              {(settings && settings.verifier_signatory_title) || 'Verifier'}
+
+            {/* Receipt Info (side by side) */}
+            <div style={{ display: 'flex', flexDirection: 'row', marginTop: 8 }}>
+              {/* Labels */}
+              <div style={{ width: '14mm', fontSize: 8, fontWeight: 400 }}>
+                <div style={{ paddingTop: 50 }}>
+                  {'Amount Paid: '}
+                </div>
+                <div>{'Receipt No.: '}</div>
+                <div>{'Date Issued: '}</div>
+                <div>{'Place Issued: '}</div>
+                <div>{'Prepared by: '}</div>
+              </div>
+
+              {/* Data Values */}
+              <div style={{ fontSize: 8, fontWeight: 400 }}>
+                <div style={{ paddingTop: 50 }}>{'₱'}</div>
+                <div>{'123123'}</div>
+                <div>{'2025/05/21'}</div>
+                <div>{'MTO Kitaotao'}</div>
+                <div>{'Jomari R. Caina'}</div>
+              </div>
             </div>
           </div>
-          <div style={{ textAlign: 'center', width: '70mm' }}>
+          
+          <div style={{ textAlign: 'center', width: '80mm' }}>
             <div style={{ height: '18mm' }} />
             <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
               {(settings && settings.verifier_signatory_name) || '____________________________'}
@@ -219,7 +254,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
             <div style={{ fontSize: 11 }}>
               {(settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
             </div>
-            <div style={{ fontSize: 10, marginTop: 2 }}>
+            <div style={{ fontSize: 10 }}>
               {(settings && settings.municipal_assessor_license) ? `License No.: ${settings.municipal_assessor_license}` : ''}
             </div>
           </div>
