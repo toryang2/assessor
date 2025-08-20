@@ -145,6 +145,54 @@ class Assessor_Database {
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         ) $charset_collate;";
+
+        // Property types table
+        $table_property_types = $wpdb->prefix . 'assessor_property_types';
+        $sql_property_types = "CREATE TABLE $table_property_types (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            code varchar(50) NOT NULL,
+            name varchar(100) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY code (code),
+            KEY status (status),
+            KEY sort_order (sort_order)
+        ) $charset_collate;";
+
+        // General classes table
+        $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+        $sql_general_classes = "CREATE TABLE $table_general_classes (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            code varchar(50) NOT NULL,
+            name varchar(100) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY code (code),
+            KEY status (status),
+            KEY sort_order (sort_order)
+        ) $charset_collate;";
+
+        // Locations table
+        $table_locations = $wpdb->prefix . 'assessor_locations';
+        $sql_locations = "CREATE TABLE $table_locations (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            code varchar(100) NOT NULL,
+            name varchar(150) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY code (code),
+            KEY status (status),
+            KEY sort_order (sort_order)
+        ) $charset_collate;";
         
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -155,12 +203,18 @@ class Assessor_Database {
         dbDelta($sql_documents);
         dbDelta($sql_audit);
         dbDelta($sql_settings);
+        dbDelta($sql_property_types);
+        dbDelta($sql_general_classes);
+        dbDelta($sql_locations);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();
         
         // Insert default admin user if table is empty
         $this->insert_default_admin();
+
+        // Seed initial settings data
+        $this->seed_default_settings();
     }
     
     private function add_foreign_keys() {
@@ -196,6 +250,55 @@ class Assessor_Database {
                 ),
                 array('%s', '%s', '%s', '%s', '%s', '%s')
             );
+        }
+    }
+
+    private function seed_default_settings() {
+        global $wpdb;
+
+        $table_property_types = $wpdb->prefix . 'assessor_property_types';
+        $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+
+        $types_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_property_types"));
+        if ($types_count === 0) {
+            $default_types = array(
+                array('code' => 'LAND', 'name' => 'LAND', 'sort_order' => 1),
+                array('code' => 'BUILDING', 'name' => 'BUILDING', 'sort_order' => 2),
+                array('code' => 'MACHINERY', 'name' => 'MACHINERY', 'sort_order' => 3),
+                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 4),
+                array('code' => 'PLANT_TREES', 'name' => 'PLANT/TREES', 'sort_order' => 5)
+            );
+            foreach ($default_types as $row) {
+                $wpdb->insert($table_property_types, $row, array('%s','%s','%d'));
+            }
+        }
+
+        $classes_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_general_classes"));
+        if ($classes_count === 0) {
+            $default_classes = array(
+                array('code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1),
+                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 2),
+                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 3),
+                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 4),
+                array('code' => 'MIXED_USE', 'name' => 'MIXED USE', 'sort_order' => 5),
+                array('code' => 'VACANT_LOT', 'name' => 'VACANT LOT', 'sort_order' => 6),
+                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 7)
+            );
+            foreach ($default_classes as $row) {
+                $wpdb->insert($table_general_classes, $row, array('%s','%s','%d'));
+            }
+        }
+
+        $table_locations = $wpdb->prefix . 'assessor_locations';
+        $locations_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_locations"));
+        if ($locations_count === 0) {
+            $default_locations = array(
+                array('code' => 'KITAOTAO', 'name' => 'KITAOTAO', 'sort_order' => 1),
+                array('code' => 'VALENCIA', 'name' => 'VALENCIA', 'sort_order' => 2)
+            );
+            foreach ($default_locations as $row) {
+                $wpdb->insert($table_locations, $row, array('%s','%s','%d'));
+            }
         }
     }
 }

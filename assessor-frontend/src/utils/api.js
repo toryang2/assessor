@@ -73,6 +73,7 @@ export const endpoints = {
   settingsLogo: '/settings/logo',
   propertyTypes: '/settings/property-types',
   generalClasses: '/settings/general-classes',
+  locations: '/settings/locations',
   
   // Export
   export: '/export',
@@ -214,6 +215,30 @@ export const apiService = {
       throw handleApiError(error);
     }
   },
+  getPropertyTypes: async () => {
+    try {
+      const response = await api.get(endpoints.propertyTypes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getGeneralClasses: async () => {
+    try {
+      const response = await api.get(endpoints.generalClasses);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getLocations: async () => {
+    try {
+      const response = await api.get(endpoints.locations);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
   saveSettings: async (settings) => {
     try {
       const response = await api.post(endpoints.settings, settings);
@@ -267,6 +292,24 @@ export const apiService = {
   deleteGeneralClass: async (id) => {
     try {
       const response = await api.post(endpoints.generalClasses + '/delete', { id });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  saveLocation: async (location) => {
+    try {
+      const response = await api.post(endpoints.locations, location);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deleteLocation: async (id) => {
+    try {
+      const response = await api.post(endpoints.locations + '/delete', { id });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

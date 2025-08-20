@@ -88,7 +88,9 @@ class Assessor_Settings {
 		$url = $base_url . '/' . $filename;
 
 		// Remove previously saved logo if it exists and is inside our settings folder
-		$old_url = get_option('assessor_app_logo_url', '');
+		global $wpdb;
+		$settings_table = $wpdb->prefix . 'assessor_settings';
+		$old_url = $wpdb->get_var("SELECT app_logo_url FROM $settings_table ORDER BY id DESC LIMIT 1");
 		if (!empty($old_url) && $old_url !== $url) {
 			$old_path = str_replace($this->upload_dir['baseurl'], $this->upload_dir['basedir'], $old_url);
 			$old_path = wp_normalize_path($old_path);
@@ -99,7 +101,6 @@ class Assessor_Settings {
 		}
 
 		// Persist to settings table
-		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_settings';
 		$existing_id = $wpdb->get_var("SELECT id FROM $table ORDER BY id DESC LIMIT 1");
 		if ($existing_id) {
@@ -109,6 +110,150 @@ class Assessor_Settings {
 		}
 
 		return array('app_logo_url' => $url);
+	}
+
+	public function get_property_types() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_property_types';
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY name ASC", ARRAY_A);
+		return array('items' => $rows);
+	}
+
+	public function save_property_type($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$code = isset($params['code']) ? sanitize_text_field($params['code']) : '';
+		$name = isset($params['name']) ? sanitize_text_field($params['name']) : '';
+		$sort_order = isset($params['sort_order']) ? intval($params['sort_order']) : 0;
+		$status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
+		if (!in_array($status, array('active','disabled'), true)) {
+			$status = 'active';
+		}
+		if ($code === '' || $name === '') {
+			return new WP_Error('invalid_input', 'Code and name are required', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_property_types';
+		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($existing_id > 0) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%d'));
+		} else {
+			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
+		}
+		return $this->get_property_types();
+	}
+
+	public function delete_property_type($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_property_types';
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		return array('success' => true);
+	}
+
+	public function get_general_classes() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_general_classes';
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
+		return array('items' => $rows);
+	}
+
+	public function save_general_class($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$code = isset($params['code']) ? sanitize_text_field($params['code']) : '';
+		$name = isset($params['name']) ? sanitize_text_field($params['name']) : '';
+		$sort_order = isset($params['sort_order']) ? intval($params['sort_order']) : 0;
+		$status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
+		if (!in_array($status, array('active','disabled'), true)) {
+			$status = 'active';
+		}
+		if ($code === '' || $name === '') {
+			return new WP_Error('invalid_input', 'Code and name are required', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_general_classes';
+		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($existing_id > 0) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%d'));
+		} else {
+			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
+		}
+		return $this->get_general_classes();
+	}
+
+	public function delete_general_class($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_general_classes';
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		return array('success' => true);
+	}
+
+	public function get_locations() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_locations';
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
+		return array('items' => $rows);
+	}
+
+	public function save_location($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$code = isset($params['code']) ? sanitize_text_field($params['code']) : '';
+		$name = isset($params['name']) ? sanitize_text_field($params['name']) : '';
+		$sort_order = isset($params['sort_order']) ? intval($params['sort_order']) : 0;
+		$status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
+		if (!in_array($status, array('active','disabled'), true)) {
+			$status = 'active';
+		}
+		if ($code === '' || $name === '') {
+			return new WP_Error('invalid_input', 'Code and name are required', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_locations';
+		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($existing_id > 0) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%d'));
+		} else {
+			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
+		}
+		return $this->get_locations();
+	}
+
+	public function delete_location($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_locations';
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		return array('success' => true);
 	}
 }
 

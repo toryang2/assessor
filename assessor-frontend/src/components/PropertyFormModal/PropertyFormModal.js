@@ -36,7 +36,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     pin: '',
     address: '',
     assessment_date: '',
-    kind_of_property: 'LAND',
+    kind_of_property: '',
     gen_class: '',
     memoranda: '',
     supporting_documents: []
@@ -44,6 +44,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
 
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
+  const [generalClassOptions, setGeneralClassOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
 
   useEffect(() => {
     if (property) {
@@ -90,14 +93,62 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
          pin: '',
          address: '',
          assessment_date: '',
-         kind_of_property: 'LAND',
-         gen_class: 'RESIDENTIAL',
+         kind_of_property: '',
+         gen_class: '',
          memoranda: '',
          supporting_documents: []
        });
     }
     setErrors([]);
   }, [property]);
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [typesRes, classesRes, locationsRes] = await Promise.all([
+          apiService.getPropertyTypes(),
+          apiService.getGeneralClasses(),
+          apiService.getLocations()
+        ]);
+        const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
+        const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
+        const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+        setPropertyTypeOptions(types);
+        setGeneralClassOptions(classes);
+        setLocationOptions(locations);
+      } catch (e) {
+        // fallback to defaults if API fails
+        setPropertyTypeOptions([
+          { code: 'LAND', name: 'LAND' },
+          { code: 'BUILDING', name: 'BUILDING' },
+          { code: 'MACHINERY', name: 'MACHINERY' },
+          { code: 'IMPROVEMENTS', name: 'IMPROVEMENTS' },
+          { code: 'PLANT_TREES', name: 'PLANT/TREES' }
+        ]);
+        setGeneralClassOptions([
+          { code: 'RESIDENTIAL', name: 'RESIDENTIAL' },
+          { code: 'COMMERCIAL', name: 'COMMERCIAL' },
+          { code: 'INDUSTRIAL', name: 'INDUSTRIAL' },
+          { code: 'AGRICULTURAL', name: 'AGRICULTURAL' },
+          { code: 'MIXED_USE', name: 'MIXED USE' },
+          { code: 'VACANT_LOT', name: 'VACANT LOT' },
+          { code: 'SPECIAL', name: 'SPECIAL' }
+        ]);
+      }
+    };
+    loadOptions();
+  }, []);
+
+  useEffect(() => {
+    if (!property) {
+      setFormData(prev => ({
+        ...prev,
+        kind_of_property: prev.kind_of_property || (propertyTypeOptions[0]?.code || ''),
+        gen_class: prev.gen_class || (generalClassOptions[0]?.code || ''),
+        location: prev.location || (locationOptions[0]?.name || '')
+      }));
+    }
+  }, [property, propertyTypeOptions, generalClassOptions, locationOptions]);
 
   // Helper function to format currency
   const formatCurrency = (value) => {
@@ -151,12 +202,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     if (!formData.tax_declaration_number.trim()) {
       errors.push('Tax Declaration Number is required');
     }
-    if (!formData.declarant_last_name.trim()) {
-      errors.push('Declarant Last Name is required');
-    }
-    if (!formData.declarant_first_name.trim()) {
-      errors.push('Declarant First Name is required');
-    }
+    // Declarant name is optional
     if (!formData.location.trim()) {
       errors.push('Location is required');
     }
@@ -226,13 +272,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     }
   };
 
-  const propertyTypes = [
-    'LAND',
-    'BUILDING',
-    'MACHINERY',
-    'IMPROVEMENTS',
-    'PLANT/TREES'
-  ];
+  const propertyTypes = propertyTypeOptions.map(o => o.code);
 
   if (!open) return null;
 
@@ -287,7 +327,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
                   error={errors.includes('declarant_last_name')}
                   helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
-                  required
+                  // required
                   inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
@@ -300,7 +340,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
                   error={errors.includes('declarant_first_name')}
                   helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
-                  required
+                  // required
                   inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
@@ -316,17 +356,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Location"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                  error={errors.includes('location')}
-                  helperText={errors.includes('location') ? errors.find(err => err === 'location') : ''}
-                  placeholder="City/Municipality"
-                  required
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
-                />
+                <FormControl fullWidth required>
+                  <InputLabel>Location</InputLabel>
+                  <Select
+                    value={formData.location}
+                    label="Location"
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    error={errors.includes('location')}
+                  >
+                    {locationOptions.map(loc => (
+                      <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
 
               <Grid item xs={12} md={6}>
@@ -470,8 +512,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                     error={errors.includes('kind_of_property')}
                   >
-                    {propertyTypes.map(type => (
-                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    {propertyTypeOptions.map(pt => (
+                      <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -485,14 +527,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     label="General Class"
                     onChange={(e) => handleInputChange('gen_class', e.target.value)}
                   >
-                    <MenuItem value="RESIDENTIAL">RESIDENTIAL</MenuItem>
-                    <MenuItem value="COMMERCIAL">COMMERCIAL</MenuItem>
-                    <MenuItem value="INDUSTRIAL">INDUSTRIAL</MenuItem>
-                    <MenuItem value="AGRICULTURAL">MINERAL</MenuItem>
-                    <MenuItem value="MIXED USE">SPECIAL</MenuItem>
-                    <MenuItem value="VACANT LOT">TIMBERLAND/FORESTAL</MenuItem>
-                    <MenuItem value="OTHER">SPECIAL</MenuItem>
-                    <MenuItem value="OTHER">IMPROVEMENTS</MenuItem>
+                    {generalClassOptions.map(gc => (
+                      <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>

@@ -157,6 +157,54 @@ class Assessor_API {
             'callback' => array($this, 'upload_logo'),
             'permission_callback' => array($this, 'check_auth')
         ));
+        // Property types
+        register_rest_route('assessor/v1', '/settings/property-types', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_property_types'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/property-types', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_property_type'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/property-types/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_property_type'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        // General classes
+        register_rest_route('assessor/v1', '/settings/general-classes', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_general_classes'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/general-classes', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_general_class'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/general-classes/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_general_class'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        // Locations
+        register_rest_route('assessor/v1', '/settings/locations', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_locations'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/locations', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_location'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/locations/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_location'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         error_log('🔍 Assessor API: Settings routes registered');
         
         // Audit trail routes
@@ -302,6 +350,51 @@ class Assessor_API {
     public function upload_logo($request) {
         $settings = new Assessor_Settings();
         return $settings->upload_logo($request);
+    }
+
+    public function get_property_types($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_property_types();
+    }
+
+    public function save_property_type($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_property_type($request);
+    }
+
+    public function delete_property_type($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_property_type($request);
+    }
+
+    public function get_general_classes($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_general_classes();
+    }
+
+    public function save_general_class($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_general_class($request);
+    }
+
+    public function delete_general_class($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_general_class($request);
+    }
+
+    public function get_locations($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_locations();
+    }
+
+    public function save_location($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_location($request);
+    }
+
+    public function delete_location($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_location($request);
     }
     
     public function get_audit_trail($request) {

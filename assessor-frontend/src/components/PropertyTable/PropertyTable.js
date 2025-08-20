@@ -560,11 +560,11 @@ const PropertyTable = () => {
             <colgroup>
               <col style={{ width: '200px' }} />
               <col style={{ width: '200px' }} />
-              <col style={{ width: '90px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '90px' }} />
               <col style={{ width: '120px' }} />
-              <col style={{ width: '90px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '150px' }} />
+              <col style={{ width: '120px' }} />
               <col />
               <col style={{ width: '140px' }} />
             </colgroup>

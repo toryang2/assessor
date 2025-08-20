@@ -159,7 +159,7 @@ class Assessor_Properties {
         $user_id = $this->get_user_id_from_request($request);
         
         // Validate required fields
-        $required_fields = array('tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 'location', 'kind_of_property');
+        $required_fields = array('tax_declaration_number', 'location', 'kind_of_property');
         foreach ($required_fields as $field) {
             if (empty($params[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
