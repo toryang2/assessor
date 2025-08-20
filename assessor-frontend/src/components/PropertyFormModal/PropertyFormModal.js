@@ -27,6 +27,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     declarant_last_name: '',
     declarant_first_name: '',
     declarant_middle_initial: '',
+    business_name: '',
     location: '',
     lot_number: '',
     unique_lot_number_identified: '',
@@ -58,6 +59,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         declarant_last_name: property.declarant_last_name || '',
         declarant_first_name: property.declarant_first_name || '',
         declarant_middle_initial: property.declarant_middle_initial || '',
+        business_name: property.business_name || '',
         location: property.location || '',
         lot_number: property.lot_number || '',
         unique_lot_number_identified: property.unique_lot_number_identified || '',
@@ -85,6 +87,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
          declarant_last_name: '',
          declarant_first_name: '',
          declarant_middle_initial: '',
+         business_name: '',
          location: '',
          lot_number: '',
          unique_lot_number_identified: '',
@@ -241,6 +244,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         declarant_last_name: formData.declarant_last_name,
         declarant_first_name: formData.declarant_first_name,
         declarant_middle_initial: formData.declarant_middle_initial,
+        business_name: formData.business_name,
         location: formData.location,
         lot_number: formData.lot_number,
         unique_lot_number_identified: formData.unique_lot_number_identified,
@@ -366,8 +370,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   fullWidth
                   label="Declarant Middle Initial"
                   value={formData.declarant_middle_initial}
-                  onChange={(e) => handleInputChange('declarant_middle_initial', e.target.value)}
+                  onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
+                  inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Business Name"
+                  value={formData.business_name}
+                  onChange={(e) => handleInputChange('business_name', e.target.value)}
                   inputProps={{ style: { textTransform: 'uppercase' } }}
+                  placeholder="Enter business name (optional)"
                 />
               </Grid>
 

@@ -104,7 +104,8 @@ class Assessor_Properties {
         $query = "
             SELECT p.*, 
                    c.full_name as created_by_name,
-                   u.full_name as updated_by_name
+                   u.full_name as updated_by_name,
+                   p.business as business_name
             FROM $table_properties p
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id
@@ -136,7 +137,8 @@ class Assessor_Properties {
         $query = "
             SELECT p.*, 
                    c.full_name as created_by_name,
-                   u.full_name as updated_by_name
+                   u.full_name as updated_by_name,
+                   p.business as business_name
             FROM $table_properties p
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id
@@ -186,6 +188,7 @@ class Assessor_Properties {
                 'declarant_last_name' => sanitize_text_field($params['declarant_last_name']),
                 'declarant_first_name' => sanitize_text_field($params['declarant_first_name']),
                 'declarant_middle_initial' => sanitize_text_field($params['declarant_middle_initial']),
+                'business' => sanitize_text_field($params['business_name']),
                 'location' => sanitize_textarea_field($params['location']),
                 'lot_number' => sanitize_text_field($params['lot_number']),
                 'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified']),
@@ -204,7 +207,7 @@ class Assessor_Properties {
                 'created_by' => $user_id,
                 'updated_by' => $user_id
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result === false) {
@@ -213,6 +216,9 @@ class Assessor_Properties {
         
         $property_id = $wpdb->insert_id;
         
+        // Insert business name if provided
+        // Business is stored on properties table; no separate insert needed
+
         // Log audit trail
         $this->log_audit($user_id, 'create', 'assessor_properties', $property_id);
         
@@ -256,13 +262,19 @@ class Assessor_Properties {
         
         $allowed_fields = array(
             'tax_declaration_number', 'previous_tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 
-            'declarant_middle_initial', 'location', 'lot_number', 'unique_lot_number_identified',
+            'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified',
             'area_hectare', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
             'supporting_documents', 'status'
         );
         
         foreach ($allowed_fields as $field) {
+            if ($field === 'business') {
+                if (isset($params['business_name'])) {
+                    $update_data['business'] = sanitize_text_field($params['business_name']);
+                }
+                continue;
+            }
             if (isset($params[$field])) {
                 if (in_array($field, array('area_hectare', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
@@ -283,6 +295,8 @@ class Assessor_Properties {
         if ($result === false) {
             return new WP_Error('update_failed', 'Failed to update property', array('status' => 500));
         }
+        
+        // Business is stored on properties table directly
         
         // Log audit trail
         $this->log_audit($user_id, 'update', 'assessor_properties', $id);
@@ -367,6 +381,7 @@ class Assessor_Properties {
             $property = $wpdb->get_row($wpdb->prepare(
                 "SELECT id, tax_declaration_number, previous_tax_declaration_number, 
                         declarant_last_name, declarant_first_name, declarant_middle_initial,
+                        business,
                         location, lot_number, area_hectare, title_number, effectivity_date,
                         assessed_value, kind_of_property, memoranda, pin, address, assessment_date, gen_class, created_at
                  FROM $table_properties 
@@ -389,12 +404,16 @@ class Assessor_Properties {
                 ));
             }
 
+            // Business is now stored directly on properties table
+            $business_name = $property->business;
+
             $history[] = array(
                 'id' => $property->id,
                 'tax_declaration_number' => $property->tax_declaration_number,
                 'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
                 'declarant_name' => trim($property->declarant_last_name . ', ' . $property->declarant_first_name . 
                                        ($property->declarant_middle_initial ? ' ' . $property->declarant_middle_initial . '.' : '')),
+                'business_name' => $business_name,
                 'location' => $property->location,
                 'lot_number' => $property->lot_number,
                 'area_hectare' => $property->area_hectare,
@@ -426,7 +445,8 @@ class Assessor_Properties {
         $query = "
             SELECT p.*, 
                    c.full_name as created_by_name,
-                   u.full_name as updated_by_name
+                   u.full_name as updated_by_name,
+                   p.business as business_name
             FROM $table_properties p
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id

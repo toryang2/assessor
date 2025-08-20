@@ -33,6 +33,7 @@ class Assessor_Database {
             declarant_last_name varchar(100) NOT NULL,
             declarant_first_name varchar(100) NOT NULL,
             declarant_middle_initial varchar(10),
+            business varchar(200),
             location text NOT NULL,
             lot_number varchar(100),
             unique_lot_number_identified varchar(100),
@@ -72,6 +73,7 @@ class Assessor_Database {
             declarant_last_name varchar(100) NOT NULL,
             declarant_first_name varchar(100) NOT NULL,
             declarant_middle_initial varchar(10),
+            business varchar(200),
             location text NOT NULL,
             lot_number varchar(100),
             unique_lot_number_identified varchar(100),
@@ -146,6 +148,20 @@ class Assessor_Database {
             PRIMARY KEY (id)
         ) $charset_collate;";
 
+        // Businesses table
+        $table_businesses = $wpdb->prefix . 'assessor_businesses';
+        $sql_businesses = "CREATE TABLE $table_businesses (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            property_id mediumint(9) NOT NULL,
+            name varchar(200) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY property_id (property_id),
+            KEY status (status)
+        ) $charset_collate;";
+
         // Property types table
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $sql_property_types = "CREATE TABLE $table_property_types (
@@ -201,6 +217,7 @@ class Assessor_Database {
         dbDelta($sql_properties);
         dbDelta($sql_versions);
         dbDelta($sql_documents);
+        dbDelta($sql_businesses);
         dbDelta($sql_audit);
         dbDelta($sql_settings);
         dbDelta($sql_property_types);
@@ -223,12 +240,16 @@ class Assessor_Database {
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $table_documents = $wpdb->prefix . 'assessor_documents';
+        $table_businesses = $wpdb->prefix . 'assessor_businesses';
         
         // Add foreign key for property_versions table
         $wpdb->query("ALTER TABLE $table_versions ADD CONSTRAINT fk_property_versions_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
         
         // Add foreign key for documents table
         $wpdb->query("ALTER TABLE $table_documents ADD CONSTRAINT fk_documents_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
+
+        // Add foreign key for businesses table
+        $wpdb->query("ALTER TABLE $table_businesses ADD CONSTRAINT fk_businesses_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
     }
     
     private function insert_default_admin() {

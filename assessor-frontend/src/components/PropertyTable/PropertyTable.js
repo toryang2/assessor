@@ -86,7 +86,18 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].declarant_name) || ''}</span>
+              <strong>OWNER:</strong> <span>{(() => {
+                const sanitizeDeclarant = (name) => {
+                  const s = String(name || '').trim();
+                  if (!s) return '';
+                  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                  if (out === ',') out = '';
+                  return out;
+                };
+                const d = sanitizeDeclarant(printHistory && printHistory[0] && printHistory[0].declarant_name);
+                const b = (printHistory && printHistory[0] && printHistory[0].business_name) ? String(printHistory[0].business_name).replace(/,\s*/g, ' ') : '';
+                return d && b ? `${d} / ${b}` : (d || b || '');
+              })()}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ADDRESS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].address) || ''}</span>
@@ -146,7 +157,18 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
                 <div>{item.tax_declaration_number || ''}</div>
               </td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.declarant_name || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
+                const sanitizeDeclarant = (name) => {
+                  const s = String(name || '').trim();
+                  if (!s) return '';
+                  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                  if (out === ',') out = '';
+                  return out;
+                };
+                const d = sanitizeDeclarant(item.declarant_name);
+                const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
+                return d && b ? `${d} / ${b}` : (d || b || '—');
+              })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
@@ -595,10 +617,15 @@ const PropertyTable = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {property.declarant_last_name && property.declarant_first_name 
-                      ? `${property.declarant_last_name}, ${property.declarant_first_name}${property.declarant_middle_initial ? ` ${property.declarant_middle_initial}.` : ''}`
-                      : property.declarant || 'N/A'
-                    }
+                    {(() => {
+                      const hasNames = !!(property.declarant_last_name || property.declarant_first_name);
+                      const declarant = hasNames
+                        ? `${property.declarant_last_name || ''}${hasNames && property.declarant_first_name ? ', ' : ''}${property.declarant_first_name || ''}${property.declarant_middle_initial ? ` ${property.declarant_middle_initial}.` : ''}`
+                        : '';
+                      const business = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ') : '';
+                      if (declarant && business) return `${declarant} / ${business}`;
+                      return declarant || business || 'N/A';
+                    })()}
                   </TableCell>
                   <TableCell>{property.lot_number}</TableCell>
                   <TableCell>{property.area_hectare ? property.area_hectare + (property.area_hectare <= 1 ? ' ha' : ' has') : ''}</TableCell>
@@ -736,7 +763,20 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {taxHistory[0]?.pin}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>OWNER:</strong> {taxHistory[0]?.declarant_name}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {(() => {
+                      const sanitizeDeclarant = (name) => {
+                        const s = String(name || '').trim();
+                        if (!s) return '';
+                        // normalize spaces around commas, then strip leading/trailing commas/spaces
+                        let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                        // if only a comma remains after normalization, drop it
+                        if (out === ',') out = '';
+                        return out;
+                      };
+                      const d = sanitizeDeclarant(taxHistory[0]?.declarant_name);
+                      const b = taxHistory[0]?.business_name ? String(taxHistory[0].business_name).replace(/,\s*/g, ' ') : '';
+                      return d && b ? `${d} / ${b}` : (d || b || '');
+                    })()}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {taxHistory[0]?.address}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
@@ -776,7 +816,18 @@ const PropertyTable = () => {
                           {index === 0 ? 'Current' : 'Previous'}
                         </Typography>
                       </TableCell>
-                      <TableCell>{item.declarant_name}</TableCell>
+                      <TableCell>{(() => {
+                        const sanitizeDeclarant = (name) => {
+                          const s = String(name || '').trim();
+                          if (!s) return '';
+                          let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                          if (out === ',') out = '';
+                          return out;
+                        };
+                        const d = sanitizeDeclarant(item.declarant_name);
+                        const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
+                        return d && b ? `${d} / ${b}` : (d || b || '—');
+                      })()}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
                       <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
@@ -835,7 +886,20 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {(() => {
+                      const sanitizeDeclarant = (name) => {
+                        const s = String(name || '').trim();
+                        if (!s) return '';
+                        // normalize spaces around commas, then strip leading/trailing commas/spaces
+                        let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                        // if only a comma remains after normalization, drop it
+                        if (out === ',') out = '';
+                        return out;
+                      };
+                      const d = sanitizeDeclarant(printHistory[0]?.declarant_name);
+                      const b = printHistory[0]?.business_name ? String(printHistory[0].business_name).replace(/,\s*/g, ' ') : '';
+                      return d && b ? `${d} / ${b}` : (d || b || '');
+                    })()}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -861,7 +925,7 @@ const PropertyTable = () => {
                   <col style={{ width: '9%' }} />
                   <col style={{ width: '11%' }} />
                   <col style={{ width: '9%' }} />
-                  <col style={{ width: '32%' }} />
+                  <col style={{ width: '28%' }} />
                 </colgroup>
                 <TableHead>
                   <TableRow>
@@ -886,7 +950,18 @@ const PropertyTable = () => {
                           {index === 0 ? 'Current' : 'Previous'}
                         </Typography>
                       </TableCell>
-                      <TableCell>{item.declarant_name}</TableCell>
+                      <TableCell>{(() => {
+                        const sanitizeDeclarant = (name) => {
+                          const s = String(name || '').trim();
+                          if (!s) return '';
+                          let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+                          if (out === ',') out = '';
+                          return out;
+                        };
+                        const d = sanitizeDeclarant(item.declarant_name);
+                        const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
+                        return d && b ? `${d} / ${b}` : (d || b || '—');
+                      })()}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
                       <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
