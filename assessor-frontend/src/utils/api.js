@@ -71,6 +71,8 @@ export const endpoints = {
   // Settings
   settings: '/settings',
   settingsLogo: '/settings/logo',
+  propertyTypes: '/settings/property-types',
+  generalClasses: '/settings/general-classes',
   
   // Export
   export: '/export',
@@ -227,6 +229,44 @@ export const apiService = {
       const response = await api.post(endpoints.settingsLogo, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Property Types
+  savePropertyType: async (propertyType) => {
+    try {
+      const response = await api.post(endpoints.propertyTypes, propertyType);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deletePropertyType: async (id) => {
+    try {
+      const response = await api.post(endpoints.propertyTypes + '/delete', { id });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // General Classes
+  saveGeneralClass: async (generalClass) => {
+    try {
+      const response = await api.post(endpoints.generalClasses, generalClass);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deleteGeneralClass: async (id) => {
+    try {
+      const response = await api.post(endpoints.generalClasses + '/delete', { id });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

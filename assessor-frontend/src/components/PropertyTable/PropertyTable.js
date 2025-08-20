@@ -71,7 +71,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
     <div ref={ref} className="print-root" style={{ width: '210mm' }}>
       <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
         {appLogoUrl ? (
-          <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '5mm auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : null}
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
@@ -407,7 +407,7 @@ const PropertyTable = () => {
         const pxPerMm = 96 / 25.4;
         const a4HeightPx = 297 * pxPerMm;
         const topMarginPx = 12 * pxPerMm;
-        const bottomMarginPx = 1 * pxPerMm; // 16 Default Change to 1 if super low
+        const bottomMarginPx = 5 * pxPerMm; // 16 Default Change to 1 if super low
         const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
         // Current total height (with signature present)
         const totalHeight = root.scrollHeight;
@@ -432,6 +432,13 @@ const PropertyTable = () => {
           }
       }
       @media print {
+        @page :first {
+          margin-top: 5mm;
+        }
+        @page {
+          margin-top: 5mm;
+          padding-top: 5mm;
+        }
         html, body { width: 210mm; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         *,

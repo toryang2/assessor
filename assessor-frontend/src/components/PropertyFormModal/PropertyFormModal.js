@@ -36,7 +36,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     pin: '',
     address: '',
     assessment_date: '',
-    kind_of_property: '',
+    kind_of_property: 'LAND',
     gen_class: '',
     memoranda: '',
     supporting_documents: []
@@ -73,31 +73,51 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
             : [])
       });
     } else {
-      // Reset form for new property
-      setFormData({
-        tax_declaration_number: '',
-        previous_tax_declaration_number: '',
-        declarant_last_name: '',
-        declarant_first_name: '',
-        declarant_middle_initial: '',
-        location: '',
-        lot_number: '',
-        unique_lot_number_identified: '',
-        area_hectare: '',
-        title_number: '',
-        assessed_value: '',
-        effectivity_date: '',
-        pin: '',
-        address: '',
-        assessment_date: '',
-        kind_of_property: '',
-        gen_class: '',
-        memoranda: '',
-        supporting_documents: []
-      });
+             // Reset form for new property
+       setFormData({
+         tax_declaration_number: '',
+         previous_tax_declaration_number: '',
+         declarant_last_name: '',
+         declarant_first_name: '',
+         declarant_middle_initial: '',
+         location: '',
+         lot_number: '',
+         unique_lot_number_identified: '',
+         area_hectare: '',
+         title_number: '',
+         assessed_value: '',
+         effectivity_date: '',
+         pin: '',
+         address: '',
+         assessment_date: '',
+         kind_of_property: 'LAND',
+         gen_class: 'RESIDENTIAL',
+         memoranda: '',
+         supporting_documents: []
+       });
     }
     setErrors([]);
   }, [property]);
+
+  // Helper function to format currency
+  const formatCurrency = (value) => {
+    if (!value || value === '') return '';
+    const num = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : value;
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num);
+  };
+
+  // Helper function to parse currency input
+  const parseCurrencyInput = (value) => {
+    if (!value || value === '') return '';
+    const num = parseFloat(value.replace(/[^\d.-]/g, ''));
+    return isNaN(num) ? '' : num;
+  };
 
   const handleInputChange = (field, value) => {
     const uppercaseFields = new Set([
@@ -207,11 +227,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   };
 
   const propertyTypes = [
-    'Land',
-    'Building',
-    'Machinery',
-    'Improvements',
-    'Plant/Trees'
+    'LAND',
+    'BUILDING',
+    'MACHINERY',
+    'IMPROVEMENTS',
+    'PLANT/TREES'
   ];
 
   if (!open) return null;
@@ -339,6 +359,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                   helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
                   type="number"
                   inputProps={{ min: 0, step: 0.0001 }}
+                  placeholder="0.0000"
+                  onBlur={() => {
+                    const v = formData.area_hectare;
+                    if (v === '' || v === null || v === undefined) return;
+                    const n = Number(v);
+                    if (!isNaN(n)) {
+                      handleInputChange('area_hectare', n.toFixed(4));
+                    }
+                  }}
                 />
               </Grid>
 
@@ -456,13 +485,14 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                     label="General Class"
                     onChange={(e) => handleInputChange('gen_class', e.target.value)}
                   >
-                    <MenuItem value="Residential">Residential</MenuItem>
-                    <MenuItem value="Commercial">Commercial</MenuItem>
-                    <MenuItem value="Industrial">Industrial</MenuItem>
-                    <MenuItem value="Agricultural">Agricultural</MenuItem>
-                    <MenuItem value="Mixed Use">Mixed Use</MenuItem>
-                    <MenuItem value="Vacant Lot">Vacant Lot</MenuItem>
-                    <MenuItem value="Other">Other</MenuItem>
+                    <MenuItem value="RESIDENTIAL">RESIDENTIAL</MenuItem>
+                    <MenuItem value="COMMERCIAL">COMMERCIAL</MenuItem>
+                    <MenuItem value="INDUSTRIAL">INDUSTRIAL</MenuItem>
+                    <MenuItem value="AGRICULTURAL">MINERAL</MenuItem>
+                    <MenuItem value="MIXED USE">SPECIAL</MenuItem>
+                    <MenuItem value="VACANT LOT">TIMBERLAND/FORESTAL</MenuItem>
+                    <MenuItem value="OTHER">SPECIAL</MenuItem>
+                    <MenuItem value="OTHER">IMPROVEMENTS</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

@@ -5,8 +5,8 @@ import { apiService } from '../../utils/api';
 
 const DEFAULTS = {
   app_logo_url: '',
-  header_province: 'Province of Bukidnon',
-  header_municipality: 'MUNICIPALITY OF KITAOTAO',
+  header_province: 'BUKIDNON',
+  header_municipality: 'KITAOTAO',
   header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR'
 };
 
