@@ -18,6 +18,21 @@ class Assessor_Properties {
         $where_conditions = array();
         $where_values = array();
         
+        // Unified free-text search across common fields
+        if (!empty($params['q'])) {
+            $q = '%' . $wpdb->esc_like($params['q']) . '%';
+            $or_conditions = array(
+                "p.tax_declaration_number LIKE %s",
+                "p.declarant_last_name LIKE %s",
+                "p.declarant_first_name LIKE %s",
+                "p.lot_number LIKE %s",
+                "p.title_number LIKE %s"
+            );
+            $where_conditions[] = '(' . implode(' OR ', $or_conditions) . ')';
+            // push same value for each placeholder
+            array_push($where_values, $q, $q, $q, $q, $q);
+        }
+
         if (!empty($params['tax_declaration_number'])) {
             $where_conditions[] = "p.tax_declaration_number LIKE %s";
             $where_values[] = '%' . $wpdb->esc_like($params['tax_declaration_number']) . '%';
@@ -36,6 +51,16 @@ class Assessor_Properties {
         if (!empty($params['location'])) {
             $where_conditions[] = "p.location LIKE %s";
             $where_values[] = '%' . $wpdb->esc_like($params['location']) . '%';
+        }
+        
+        // Added support for lot_number and title_number in search
+        if (!empty($params['lot_number'])) {
+            $where_conditions[] = "p.lot_number LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['lot_number']) . '%';
+        }
+        if (!empty($params['title_number'])) {
+            $where_conditions[] = "p.title_number LIKE %s";
+            $where_values[] = '%' . $wpdb->esc_like($params['title_number']) . '%';
         }
         
         if (!empty($params['status'])) {

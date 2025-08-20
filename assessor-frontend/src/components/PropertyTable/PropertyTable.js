@@ -16,10 +16,6 @@ import {
   Grid,
   Card,
   CardContent,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -31,13 +27,11 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilterList as FilterIcon,
   Visibility as VisibilityIcon,
   Print as PrintIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { format } from 'date-fns';
+ 
 // We'll load html2pdf.js from CDN at runtime to avoid webpack sourcemap warnings
 
 import { apiService } from '../../utils/api';
@@ -201,22 +195,17 @@ const PropertyTable = () => {
   const { isAdmin } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   
   // Safety check - ensure properties is always an array
   const safeProperties = properties || [];
   
-  // Search and filter states
+  // Search state
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
-    status: '',
-    location: '',
-    dateFrom: null,
-    dateTo: null
-  });
   
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
@@ -244,7 +233,7 @@ const PropertyTable = () => {
   useEffect(() => {
     fetchProperties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, searchTerm, filters]);
+  }, [page, rowsPerPage, searchTerm]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -262,7 +251,9 @@ const PropertyTable = () => {
     loadSettings();
   }, []);
 
+  const fetchSeqRef = useRef(0);
   const fetchProperties = async () => {
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
       setError(''); // Clear previous errors
@@ -270,31 +261,20 @@ const PropertyTable = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        // Map search term to the fields the API expects
-        tax_declaration_number: searchTerm || '',
-        declarant_last_name: searchTerm || '',
-        declarant_first_name: searchTerm || '',
-        location: filters.location || '',
-        status: filters.status || '',
-        date_from: filters.dateFrom ? format(filters.dateFrom, 'yyyy-MM-dd') : '',
-        date_to: filters.dateTo ? format(filters.dateTo, 'yyyy-MM-dd') : ''
+        q: searchTerm || ''
       };
       
-      console.log('Fetching properties with params:', params);
-      console.log('API endpoint:', '/wp-json/assessor/v1/properties');
-      
       const response = await apiService.getProperties(params);
-      console.log('API response:', response);
+      // Ignore if a newer request has started
+      if (seq !== fetchSeqRef.current) return;
       
       if (response && response.properties) {
         setProperties(response.properties);
         setTotalCount(response.pagination ? response.pagination.total : response.properties.length);
-        console.log('Properties loaded:', response.properties.length);
       } else if (response && response.data) {
         // Fallback for different response format
         setProperties(response.data);
         setTotalCount(response.total || response.data.length);
-        console.log('Properties loaded (fallback):', response.data.length);
       } else {
         console.warn('Unexpected API response format:', response);
         setProperties([]);
@@ -306,19 +286,24 @@ const PropertyTable = () => {
       setProperties([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      // Only clear loading for the latest request
+      if (seq === fetchSeqRef.current) setLoading(false);
+      setInitialLoad(false);
     }
   };
 
   const handleSearch = (event) => {
-    setSearchTerm(event.target.value);
+    const raw = event.target.value || '';
+    const normalized = raw
+      .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
+      .replace(/\s*-\s*/g, '-')        // collapse spaces around hyphen
+      .toUpperCase();
+    setSearchTerm(normalized);
     setPage(0);
   };
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
-    setPage(0);
-  };
+  // No additional filters
+  const handleFilterChange = () => {};
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
@@ -475,17 +460,11 @@ const PropertyTable = () => {
   // };
 
   const clearFilters = () => {
-    setFilters({
-      status: '',
-      location: '',
-      dateFrom: null,
-      dateTo: null
-    });
     setSearchTerm('');
     setPage(0);
   };
 
-  if (loading && (!safeProperties || safeProperties.length === 0)) {
+  if (initialLoad && loading && (!safeProperties || safeProperties.length === 0)) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>Loading properties...</Typography>
@@ -525,94 +504,40 @@ const PropertyTable = () => {
   return (
     
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
-        Property Records
-      </Typography>
+      <Box sx={{ position: 'sticky', top: { xs: 56, md: 64 }, marginTop: -3, paddingTop: 1, zIndex: 1000, pb: 0 }}>
+        <Typography variant="h4" gutterBottom>
+          Property Records
+        </Typography>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          <Typography variant="body2">
-            {error}
-          </Typography>
-          <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-            Check the browser console for more details.
-          </Typography>
-        </Alert>
-      )}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            <Typography variant="body2">
+              {error}
+            </Typography>
+            <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+              Check the browser console for more details.
+            </Typography>
+          </Alert>
+        )}
 
-      {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
+        {/* Search and Filters */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 label="Search Properties"
                 value={searchTerm}
                 onChange={handleSearch}
-                placeholder="Search by tax declaration number or declarant..."
-                InputProps={{
+                placeholder="Search by TDN, name, lot number, or title number..."
+                inputProps={{ style: { textTransform: 'uppercase' } }}
+                helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
+                InputProps={{ 
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filters.status}
-                  label="Status"
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="inactive">Inactive</MenuItem>
-                  <MenuItem value="archived">Archived</MenuItem>
-                  <MenuItem value="pending">Pending</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                label="Location"
-                value={filters.location}
-                onChange={(e) => handleFilterChange('location', e.target.value)}
-                placeholder="City/Municipality"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={2}>
-              <DatePicker
-                label="From Date"
-                value={filters.dateFrom}
-                onChange={(date) => handleFilterChange('dateFrom', date)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={2}>
-              <DatePicker
-                label="To Date"
-                value={filters.dateTo}
-                onChange={(date) => handleFilterChange('dateTo', date)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Button
-                variant="outlined"
-                startIcon={<FilterIcon />}
-                onClick={clearFilters}
-                sx={{ mr: 1 }}
-              >
-                Clear Filters
-              </Button>
-            </Grid>
-
             <Grid item xs={12} md={6} textAlign="right">
               <Button
                 variant="contained"
@@ -624,13 +549,25 @@ const PropertyTable = () => {
               </Button>
             </Grid>
           </Grid>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Box>
 
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table stickyHeader>
+        <TableContainer sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '200px' }} />
+              <col style={{ width: '200px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '90px' }} />
+              <col />
+              <col style={{ width: '140px' }} />
+            </colgroup>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: 150 }}>Tax Declaration Number</TableCell>
@@ -727,7 +664,7 @@ const PropertyTable = () => {
         </TableContainer>
         
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
+          rowsPerPageOptions={[10, 25, 50, 75, 100]}
           component="div"
           count={totalCount}
           rowsPerPage={rowsPerPage}
