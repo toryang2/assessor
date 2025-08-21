@@ -92,8 +92,9 @@ const UserManagement = () => {
       };
       
       const response = await apiService.getUsers(params);
-      setUsers(response.data || []);
-      setTotalCount(response.total || response.data.length);
+      const list = response.users || response.data || [];
+      setUsers(list);
+      setTotalCount(response.total || list.length);
     } catch (err) {
       setError('Failed to fetch users');
       console.error('Error fetching users:', err);
@@ -426,12 +427,94 @@ const UserManagement = () => {
           {selectedUser ? 'Edit User' : 'Add New User'}
         </DialogTitle>
         <DialogContent>
-          {/* UserFormModal component will be implemented here */}
-          <Typography>User form will be implemented here</Typography>
+          <Grid container spacing={2} sx={{ mt: 0 }}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={selectedUser?.username || ''}
+                onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), username: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={selectedUser?.email || ''}
+                onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), email: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Full Name"
+                value={selectedUser?.full_name || ''}
+                onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), full_name: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={selectedUser?.role || 'assessor'}
+                  label="Role"
+                  onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), role: e.target.value }))}
+                >
+                  <MenuItem value="admin">Administrator</MenuItem>
+                  <MenuItem value="assessor">Property Assessor</MenuItem>
+                  <MenuItem value="viewer">View Only</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label={selectedUser && selectedUser.id ? 'New Password (optional)' : 'Password'}
+                type="password"
+                value={selectedUser?.password || ''}
+                onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), password: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={selectedUser?.status || 'active'}
+                  label="Status"
+                  onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), status: e.target.value }))}
+                >
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setUserModal(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleUserSaved}>
+          <Button variant="contained" onClick={async () => {
+            try {
+              const payload = {
+                username: selectedUser?.username || '',
+                email: selectedUser?.email || '',
+                full_name: selectedUser?.full_name || '',
+                role: selectedUser?.role || 'assessor',
+                status: selectedUser?.status || 'active',
+              };
+              if (!selectedUser?.id || selectedUser?.password) {
+                payload.password = selectedUser?.password || '';
+              }
+              if (selectedUser?.id) {
+                await apiService.updateUser(selectedUser.id, payload);
+              } else {
+                await apiService.createUser(payload);
+              }
+              handleUserSaved();
+            } catch (e) {
+              setError(e.message || 'Failed to save user');
+            }
+          }}>
             Save
           </Button>
         </DialogActions>

@@ -83,6 +83,7 @@ export const endpoints = {
   
   // Users
   users: '/users',
+  user: (id) => `/users/${id}`,
 };
 
 // API functions
@@ -370,9 +371,33 @@ export const apiService = {
   },
 
   // Users
-  getUsers: async () => {
+  getUsers: async (params = {}) => {
     try {
-      const response = await api.get(endpoints.users);
+      const response = await api.get(endpoints.users, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  createUser: async (user) => {
+    try {
+      const response = await api.post(endpoints.users, user);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  updateUser: async (id, user) => {
+    try {
+      const response = await api.put(endpoints.user(id), user);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  deleteUser: async (id) => {
+    try {
+      const response = await api.delete(endpoints.user(id));
       return response.data;
     } catch (error) {
       throw handleApiError(error);

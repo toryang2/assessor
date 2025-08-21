@@ -220,6 +220,24 @@ class Assessor_API {
             'callback' => array($this, 'get_users'),
             'permission_callback' => array($this, 'check_admin')
         ));
+        // Create user (public as requested)
+        register_rest_route('assessor/v1', '/users', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'create_user'),
+            'permission_callback' => '__return_true'
+        ));
+        // Update user (public as requested)
+        register_rest_route('assessor/v1', '/users/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'update_user'),
+            'permission_callback' => '__return_true'
+        ));
+        // Delete user (public as requested)
+        register_rest_route('assessor/v1', '/users/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'delete_user'),
+            'permission_callback' => '__return_true'
+        ));
         
         // Test route (no authentication required)
         register_rest_route('assessor/v1', '/test', array(
@@ -405,6 +423,18 @@ class Assessor_API {
     public function get_users($request) {
         $auth = new Assessor_Auth();
         return $auth->get_users();
+    }
+    public function create_user($request) {
+        $auth = new Assessor_Auth();
+        return $auth->create_user($request);
+    }
+    public function update_user($request) {
+        $auth = new Assessor_Auth();
+        return $auth->update_user($request['id'], $request);
+    }
+    public function delete_user($request) {
+        $auth = new Assessor_Auth();
+        return $auth->delete_user($request['id']);
     }
     
     public function test_endpoint($request) {

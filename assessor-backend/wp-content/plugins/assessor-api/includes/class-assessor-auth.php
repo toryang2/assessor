@@ -216,6 +216,134 @@ class Assessor_Auth {
         
         return array('users' => $users);
     }
+
+    public function create_user($request) {
+        global $wpdb;
+        $params = $request->get_params();
+
+        $required = array('username','email','full_name','role','password');
+        foreach ($required as $field) {
+            if (empty($params[$field])) {
+                return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
+            }
+        }
+
+        $username = sanitize_text_field($params['username']);
+        $email = sanitize_email($params['email']);
+        $full_name = sanitize_text_field($params['full_name']);
+        $role = sanitize_text_field($params['role']);
+        $password = $params['password'];
+        $status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
+
+        if (!in_array($role, array('admin','assessor','viewer'), true)) {
+            return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
+        }
+
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $exists_user = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s", $username));
+        if ($exists_user) {
+            return new WP_Error('duplicate_username', 'Username already exists', array('status' => 409));
+        }
+        $exists_email = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s", $email));
+        if ($exists_email) {
+            return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+        }
+
+        $hash = wp_hash_password($password);
+
+        $result = $wpdb->insert($table_users, array(
+            'username' => $username,
+            'password' => $hash,
+            'email' => $email,
+            'full_name' => $full_name,
+            'role' => $role,
+            'status' => $status,
+        ), array('%s','%s','%s','%s','%s','%s'));
+
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to create user', array('status' => 500));
+        }
+
+        $new_id = $wpdb->insert_id;
+        // Audit with user_id = 0 since public creation
+        $this->log_audit(0, 'create', 'assessor_users', $new_id);
+        return array('success' => true, 'id' => $new_id);
+    }
+
+    public function update_user($id, $request) {
+        global $wpdb;
+        $params = $request->get_params();
+        $table_users = $wpdb->prefix . 'assessor_users';
+
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $id));
+        if (!$user) {
+            return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+        }
+
+        $data = array();
+        $formats = array();
+        if (isset($params['username'])) {
+            $username = sanitize_text_field($params['username']);
+            if ($username !== $user->username) {
+                $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s AND id != %d", $username, $id));
+                if ($exists) return new WP_Error('duplicate_username', 'Username already exists', array('status' => 409));
+            }
+            $data['username'] = $username; $formats[] = '%s';
+        }
+        if (isset($params['email'])) {
+            $email = sanitize_email($params['email']);
+            if ($email !== $user->email) {
+                $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %d", $email, $id));
+                if ($exists) return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+            }
+            $data['email'] = $email; $formats[] = '%s';
+        }
+        if (isset($params['full_name'])) { $data['full_name'] = sanitize_text_field($params['full_name']); $formats[] = '%s'; }
+        if (isset($params['role'])) {
+            $role = sanitize_text_field($params['role']);
+            if (!in_array($role, array('admin','assessor','viewer'), true)) {
+                return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
+            }
+            $data['role'] = $role; $formats[] = '%s';
+        }
+        if (isset($params['status'])) { $data['status'] = sanitize_text_field($params['status']); $formats[] = '%s'; }
+        if (!empty($params['password'])) {
+            $data['password'] = wp_hash_password($params['password']); $formats[] = '%s';
+        }
+
+        if (empty($data)) {
+            return array('success' => true, 'message' => 'No changes');
+        }
+
+        $result = $wpdb->update($table_users, $data, array('id' => $id), $formats, array('%d'));
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update user', array('status' => 500));
+        }
+        $this->log_audit(0, 'update', 'assessor_users', $id);
+        return array('success' => true);
+    }
+
+    public function delete_user($id) {
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $id));
+        if (!$user) {
+            return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+        }
+        // prevent deleting last admin
+        if ($user->role === 'admin') {
+            $admin_count = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_users WHERE role = 'admin'");
+            if ($admin_count <= 1) {
+                return new WP_Error('forbidden', 'Cannot delete the last admin user', array('status' => 403));
+            }
+        }
+        $result = $wpdb->delete($table_users, array('id' => $id), array('%d'));
+        if ($result === false) {
+            return new WP_Error('delete_failed', 'Failed to delete user', array('status' => 500));
+        }
+        $this->log_audit(0, 'delete', 'assessor_users', $id);
+        return array('success' => true);
+    }
     
     private function generate_token($user) {
         $header = json_encode(array('typ' => 'JWT', 'alg' => $this->algorithm));
