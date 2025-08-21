@@ -331,7 +331,7 @@ class Assessor_API {
     
     public function delete_property($request) {
         $properties = new Assessor_Properties();
-        return $properties->delete_property($request['id']);
+        return $properties->delete_property($request['id'], $request);
     }
     
     public function get_tax_declaration_history($request) {

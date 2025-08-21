@@ -324,7 +324,7 @@ class Assessor_Properties {
         return $this->get_property($id);
     }
     
-    public function delete_property($id) {
+    public function delete_property($id, $request) {
         global $wpdb;
         
         $user_id = $this->get_user_id_from_request($request);
@@ -371,6 +371,8 @@ class Assessor_Properties {
         global $wpdb;
         
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $history = array();
 
         // 1) Resolve to the latest (head) tax declaration in the chain starting from the given number
@@ -399,16 +401,19 @@ class Assessor_Properties {
             $visited_backward[] = $current_number;
 
             $property = $wpdb->get_row($wpdb->prepare(
-                "SELECT id, tax_declaration_number, previous_tax_declaration_number, 
-                        declarant_last_name, declarant_first_name, declarant_middle_initial,
-                        business,
-                        location, lot_number, area_hectare, title_number, effectivity_date,
-                        assessed_value, kind_of_property, memoranda, pin, address, assessment_date, gen_class, created_at,
-                        verifier_signatory_name, verifier_signatory_title,
-                        municipal_assessor_name, municipal_assessor_suffix, municipal_assessor_title, municipal_assessor_license
-                 FROM $table_properties 
-                 WHERE tax_declaration_number = %s AND status != 'deleted'
-                 ORDER BY created_at DESC
+                "SELECT 
+                        p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
+                        p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
+                        p.business,
+                        p.location, p.lot_number, p.area_hectare, p.title_number, p.effectivity_date,
+                        p.assessed_value, p.kind_of_property, p.memoranda, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
+                        p.verifier_signatory_name, p.verifier_signatory_title,
+                        p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
+                        c.full_name AS created_by_name
+                 FROM $table_properties p
+                 LEFT JOIN $table_users c ON p.created_by = c.id
+                 WHERE p.tax_declaration_number = %s AND p.status != 'deleted' 
+                 ORDER BY p.created_at DESC 
                  LIMIT 1",
                 $current_number
             ));
@@ -454,7 +459,8 @@ class Assessor_Properties {
                 'municipal_assessor_suffix' => $property->municipal_assessor_suffix,
                 'municipal_assessor_title' => $property->municipal_assessor_title,
                 'municipal_assessor_license' => $property->municipal_assessor_license,
-                'created_at' => $property->created_at
+                'created_at' => $property->created_at,
+                'created_by_name' => $property->created_by_name
             );
             
             // Move to the previous declaration number

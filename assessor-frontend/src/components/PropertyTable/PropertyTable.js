@@ -210,8 +210,28 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
 
               {/* Values */}
               <div style={{ fontSize: 12, fontWeight: 400 }}>
-                <div>{'Juan Dela Cruz'}</div>
-                <div>{'2025/08/21 14:32'}</div>
+                <div>{(printHistory && printHistory[0] && (printHistory[0].created_by_name || printHistory[0].updated_by_name)) || ''}</div>
+                <div>{(() => {
+                  const dt = (printHistory && printHistory[0] && printHistory[0].created_at) || '';
+                  if (!dt) return '';
+                  try {
+                    const d = new Date(dt);
+                    if (isNaN(d.getTime())) return String(dt);
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    const mm = pad(d.getMonth() + 1);
+                    const dd = pad(d.getDate());
+                    let hours = d.getHours();
+                    const minutes = pad(d.getMinutes());
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12;
+                    hours = hours ? hours : 12; // 0 -> 12
+                    const hh12 = pad(hours);
+                    return `${yyyy}/${mm}/${dd} ${hh12}:${minutes} ${ampm}`;
+                  } catch (_) {
+                    return String(dt);
+                  }
+                })()}</div>
               </div>
             </div>
 
@@ -251,7 +271,13 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
               {(() => {
                 const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
                 const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
-                return (name || '____________________________') + (suffix ? `, ${suffix}` : '');
+                const base = (name || '____________________________');
+                return (
+                  <span>
+                    {base}
+                    {suffix ? <span style={{ fontSize: 11, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
+                  </span>
+                );
               })()}
             </div>
             <div style={{ fontSize: 11 }}>
@@ -469,7 +495,7 @@ const PropertyTable = () => {
   // removed html2pdf
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     removeAfterPrint: true,
     onBeforeGetContent: () => {
       try {
@@ -1055,7 +1081,7 @@ const PropertyTable = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPrintModal(false)}>Close</Button>
-          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained">
+          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained" disabled={!printHistory.length || !printRef.current}>
             Print
           </Button>
         </DialogActions>

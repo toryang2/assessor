@@ -462,7 +462,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                 <FormControl fullWidth required>
                   <InputLabel>Location</InputLabel>
                   <Select
-                    value={formData.location}
+                    value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
                     label="Location"
                     onChange={(e) => handleInputChange('location', e.target.value)}
                     error={errors.includes('location')}
@@ -552,7 +552,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                 <FormControl fullWidth required>
                   <InputLabel>Kind of Property</InputLabel>
                   <Select
-                    value={formData.kind_of_property}
+                    value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
                     label="Kind of Property"
                     onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                     error={errors.includes('kind_of_property')}
@@ -569,7 +569,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                 <FormControl fullWidth>
                   <InputLabel>General Class</InputLabel>
                   <Select
-                    value={formData.gen_class}
+                    value={generalClassOptions.some(gc => gc.code === formData.gen_class) ? formData.gen_class : ''}
                     label="General Class"
                     onChange={(e) => handleInputChange('gen_class', e.target.value)}
                     inputProps={{ tabIndex: 18 }}
@@ -618,7 +618,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                       supporting_documents: files
                     }));
                   }}
-                  inputProps={{ tabIndex: 20 }}
+                  tabIndex={20}
                 />
                 <label htmlFor="supporting-documents-upload">
                   <Button
