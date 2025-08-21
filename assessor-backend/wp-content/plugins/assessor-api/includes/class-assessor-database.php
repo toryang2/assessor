@@ -13,7 +13,7 @@ class Assessor_Database {
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             username varchar(100) NOT NULL,
             password varchar(255) NOT NULL,
-            email varchar(100) NOT NULL,
+            email varchar(100) DEFAULT NULL,
             full_name varchar(200) NOT NULL,
             role varchar(50) NOT NULL DEFAULT 'assessor',
             status varchar(20) NOT NULL DEFAULT 'active',

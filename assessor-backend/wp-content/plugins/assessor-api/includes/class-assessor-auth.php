@@ -182,7 +182,7 @@ class Assessor_Auth {
         
         try {
             $payload = $this->verify_token_signature($token);
-            if ($payload && isset($payload->role) && $payload->role === 'admin') {
+            if ($payload && isset($payload->role) && in_array($payload->role, array('administrator','admin'), true)) {
                 return true;
             }
             return false;
@@ -221,7 +221,7 @@ class Assessor_Auth {
         global $wpdb;
         $params = $request->get_params();
 
-        $required = array('username','email','full_name','role','password');
+        $required = array('username','full_name','role','password');
         foreach ($required as $field) {
             if (empty($params[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
@@ -229,14 +229,18 @@ class Assessor_Auth {
         }
 
         $username = sanitize_text_field($params['username']);
-        $email = sanitize_email($params['email']);
+        $email = isset($params['email']) ? sanitize_email($params['email']) : '';
         $full_name = sanitize_text_field($params['full_name']);
         $role = sanitize_text_field($params['role']);
         $password = $params['password'];
         $status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
 
-        if (!in_array($role, array('admin','assessor','viewer'), true)) {
+        if (!in_array($role, array('admin','assessor','verifier','editor','viewer'), true)) {
             return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
+        }
+
+        if (isset($params['password_confirm']) && $params['password_confirm'] !== $params['password']) {
+            return new WP_Error('password_mismatch', 'Password confirmation does not match', array('status' => 422));
         }
 
         $table_users = $wpdb->prefix . 'assessor_users';
@@ -244,9 +248,11 @@ class Assessor_Auth {
         if ($exists_user) {
             return new WP_Error('duplicate_username', 'Username already exists', array('status' => 409));
         }
-        $exists_email = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s", $email));
-        if ($exists_email) {
-            return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+        if ($email !== '') {
+            $exists_email = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s", $email));
+            if ($exists_email) {
+                return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+            }
         }
 
         $hash = wp_hash_password($password);
@@ -290,9 +296,9 @@ class Assessor_Auth {
             }
             $data['username'] = $username; $formats[] = '%s';
         }
-        if (isset($params['email'])) {
-            $email = sanitize_email($params['email']);
-            if ($email !== $user->email) {
+        if (array_key_exists('email', $params)) {
+            $email = $params['email'] !== '' ? sanitize_email($params['email']) : '';
+            if ($email !== '' && $email !== $user->email) {
                 $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %d", $email, $id));
                 if ($exists) return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
             }
@@ -301,13 +307,16 @@ class Assessor_Auth {
         if (isset($params['full_name'])) { $data['full_name'] = sanitize_text_field($params['full_name']); $formats[] = '%s'; }
         if (isset($params['role'])) {
             $role = sanitize_text_field($params['role']);
-            if (!in_array($role, array('admin','assessor','viewer'), true)) {
+            if (!in_array($role, array('admin','assessor','verifier','editor','viewer'), true)) {
                 return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
             }
             $data['role'] = $role; $formats[] = '%s';
         }
         if (isset($params['status'])) { $data['status'] = sanitize_text_field($params['status']); $formats[] = '%s'; }
         if (!empty($params['password'])) {
+            if (isset($params['password_confirm']) && $params['password_confirm'] !== $params['password']) {
+                return new WP_Error('password_mismatch', 'Password confirmation does not match', array('status' => 422));
+            }
             $data['password'] = wp_hash_password($params['password']); $formats[] = '%s';
         }
 

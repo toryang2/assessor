@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  Snackbar,
   List,
   ListItem,
   ListItemText,
@@ -56,6 +57,7 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
@@ -95,6 +97,7 @@ const UserManagement = () => {
       const list = response.users || response.data || [];
       setUsers(list);
       setTotalCount(response.total || list.length);
+      setError('');
     } catch (err) {
       setError('Failed to fetch users');
       console.error('Error fetching users:', err);
@@ -148,8 +151,10 @@ const UserManagement = () => {
       setDeleteDialog(false);
       setUserToDelete(null);
       fetchUsers();
+      setToast({ open: true, message: 'User deleted successfully', severity: 'success' });
     } catch (err) {
       setError('Failed to delete user');
+      setToast({ open: true, message: 'Failed to delete user', severity: 'error' });
     }
   };
 
@@ -160,8 +165,10 @@ const UserManagement = () => {
       setStatusDialog(false);
       setUserToToggle(null);
       fetchUsers();
+      setToast({ open: true, message: `User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`, severity: 'success' });
     } catch (err) {
       setError('Failed to update user status');
+      setToast({ open: true, message: 'Failed to update user status', severity: 'error' });
     }
   };
 
@@ -177,6 +184,10 @@ const UserManagement = () => {
         return 'error';
       case 'assessor':
         return 'primary';
+      case 'verifier':
+        return 'primary';
+      case 'editor':
+        return 'secondary';
       case 'viewer':
         return 'info';
       default:
@@ -191,7 +202,9 @@ const UserManagement = () => {
   const getRoleDisplayName = (role) => {
     const roleNames = {
       'admin': 'Administrator',
-      'assessor': 'Property Assessor',
+      'assessor': 'Municipal Assessor',
+      'verifier': 'Verifier',
+      'editor': 'Editor',
       'viewer': 'View Only'
     };
     return roleNames[role] || role;
@@ -230,11 +243,26 @@ const UserManagement = () => {
         User Management
       </Typography>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+      <Snackbar
+        open={!!error}
+        autoHideDuration={4000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
           {error}
         </Alert>
-      )}
+      </Snackbar>
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
+          {toast.message}
+        </Alert>
+      </Snackbar>
 
       {/* Search and Filters */}
       <Card sx={{ mb: 3 }}>
@@ -462,7 +490,9 @@ const UserManagement = () => {
                   onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), role: e.target.value }))}
                 >
                   <MenuItem value="admin">Administrator</MenuItem>
-                  <MenuItem value="assessor">Property Assessor</MenuItem>
+                  <MenuItem value="assessor">Municipal Assessor</MenuItem>
+                  <MenuItem value="verifier">Verifier</MenuItem>
+                  <MenuItem value="editor">Editor</MenuItem>
                   <MenuItem value="viewer">View Only</MenuItem>
                 </Select>
               </FormControl>
@@ -474,6 +504,15 @@ const UserManagement = () => {
                 type="password"
                 value={selectedUser?.password || ''}
                 onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), password: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label={selectedUser && selectedUser.id ? 'Confirm New Password' : 'Confirm Password'}
+                type="password"
+                value={selectedUser?.password_confirm || ''}
+                onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), password_confirm: e.target.value }))}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -499,20 +538,26 @@ const UserManagement = () => {
                 username: selectedUser?.username || '',
                 email: selectedUser?.email || '',
                 full_name: selectedUser?.full_name || '',
-                role: selectedUser?.role || 'assessor',
+                role: selectedUser?.role || 'verifier',
                 status: selectedUser?.status || 'active',
               };
               if (!selectedUser?.id || selectedUser?.password) {
                 payload.password = selectedUser?.password || '';
+                payload.password_confirm = selectedUser?.password_confirm || '';
               }
               if (selectedUser?.id) {
                 await apiService.updateUser(selectedUser.id, payload);
+                setError('');
+                setToast({ open: true, message: 'User updated successfully', severity: 'success' });
               } else {
                 await apiService.createUser(payload);
+                setError('');
+                setToast({ open: true, message: 'User created successfully', severity: 'success' });
               }
               handleUserSaved();
             } catch (e) {
               setError(e.message || 'Failed to save user');
+              setToast({ open: true, message: e.message || 'Failed to save user', severity: 'error' });
             }
           }}>
             Save
