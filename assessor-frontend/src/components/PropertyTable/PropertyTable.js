@@ -271,7 +271,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
 });
 
 const PropertyTable = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -733,7 +733,7 @@ const PropertyTable = () => {
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      {isAdmin && (
+                      {(isAdmin || isSuperAdmin) && (
                         <IconButton
                           onClick={() => handleDeleteProperty(property)}
                           color="error"
