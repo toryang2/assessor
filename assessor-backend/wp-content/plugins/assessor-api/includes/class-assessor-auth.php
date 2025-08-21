@@ -66,6 +66,9 @@ class Assessor_Auth {
             return new WP_Error('invalid_credentials', 'Invalid username or password', array('status' => 401));
         }
         
+        // Update last_login timestamp
+        $wpdb->update($table_users, array('last_login' => current_time('mysql')), array('id' => $user->id), array('%s'), array('%d'));
+
         // Generate JWT token
         $token = $this->generate_token($user);
         
@@ -182,8 +185,28 @@ class Assessor_Auth {
         
         try {
             $payload = $this->verify_token_signature($token);
-            if ($payload && isset($payload->role) && in_array($payload->role, array('administrator','admin'), true)) {
+            if ($payload && isset($payload->role) && in_array($payload->role, array('superadmin','administrator','admin'), true)) {
                 return true;
+            }
+            return false;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    public function verify_manager($request) {
+        $token = $this->get_token_from_request($request);
+        if (!$token) {
+            return false;
+        }
+        try {
+            $payload = $this->verify_token_signature($token);
+            if ($payload && isset($payload->role)) {
+                $role = strtolower($payload->role);
+                // Allow administrators and municipal assessors
+                if (in_array($role, array('superadmin','admin','administrator','assessor','municipal assessor'), true)) {
+                    return true;
+                }
             }
             return false;
         } catch (Exception $e) {
@@ -206,15 +229,55 @@ class Assessor_Auth {
         }
     }
     
-    public function get_users() {
+    public function get_users($request) {
         global $wpdb;
-        
+        $params = $request->get_params();
+        $page = isset($params['page']) ? max(1, intval($params['page'])) : 1;
+        $per_page = isset($params['per_page']) ? min(100, max(1, intval($params['per_page']))) : 20;
+        $offset = ($page - 1) * $per_page;
+
         $table_users = $wpdb->prefix . 'assessor_users';
-        $users = $wpdb->get_results(
-            "SELECT id, username, email, full_name, role, status, created_at FROM $table_users ORDER BY created_at DESC"
+        $where = [];
+        $vals = [];
+
+        if (!empty($params['search'])) {
+            $s = '%' . $wpdb->esc_like($params['search']) . '%';
+            $where[] = '(username LIKE %s OR email LIKE %s OR full_name LIKE %s)';
+            $vals = array_merge($vals, [$s, $s, $s]);
+        }
+        if (!empty($params['role'])) {
+            $where[] = 'role = %s';
+            $vals[] = sanitize_text_field($params['role']);
+        }
+        if (!empty($params['status'])) {
+            $where[] = 'status = %s';
+            $vals[] = sanitize_text_field($params['status']);
+        }
+
+        $where_sql = '';
+        if (!empty($where)) {
+            $where_sql = 'WHERE ' . implode(' AND ', $where);
+        }
+
+        $count_sql = "SELECT COUNT(*) FROM $table_users $where_sql";
+        $total = !empty($vals) ? (int)$wpdb->get_var($wpdb->prepare($count_sql, $vals)) : (int)$wpdb->get_var($count_sql);
+
+        $query = "SELECT id, username, email, full_name, role, status, last_login, created_at
+                  FROM $table_users
+                  $where_sql
+                  ORDER BY created_at DESC
+                  LIMIT %d OFFSET %d";
+        $users = $wpdb->get_results($wpdb->prepare($query, array_merge($vals, [$per_page, $offset])));
+
+        return array(
+            'users' => $users,
+            'pagination' => array(
+                'page' => $page,
+                'per_page' => $per_page,
+                'total' => $total,
+                'total_pages' => ceil($total / $per_page)
+            )
         );
-        
-        return array('users' => $users);
     }
 
     public function create_user($request) {
@@ -230,25 +293,26 @@ class Assessor_Auth {
 
         $username = sanitize_text_field($params['username']);
         $email = isset($params['email']) ? sanitize_email($params['email']) : '';
+        $email = ($email === '') ? null : $email;
         $full_name = sanitize_text_field($params['full_name']);
         $role = sanitize_text_field($params['role']);
         $password = $params['password'];
         $status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
 
-        if (!in_array($role, array('admin','assessor','verifier','editor','viewer'), true)) {
+        if (!in_array($role, array('superadmin','admin','assessor','verifier','editor','viewer'), true)) {
             return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
         }
 
-        if (isset($params['password_confirm']) && $params['password_confirm'] !== $params['password']) {
+        if (isset($params['password_confirm']) && $params['password_confirm'] !== '' && $params['password_confirm'] !== $params['password']) {
             return new WP_Error('password_mismatch', 'Password confirmation does not match', array('status' => 422));
         }
-
+        
         $table_users = $wpdb->prefix . 'assessor_users';
         $exists_user = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s", $username));
         if ($exists_user) {
             return new WP_Error('duplicate_username', 'Username already exists', array('status' => 409));
         }
-        if ($email !== '') {
+        if (!is_null($email)) {
             $exists_email = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s", $email));
             if ($exists_email) {
                 return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
@@ -257,14 +321,16 @@ class Assessor_Auth {
 
         $hash = wp_hash_password($password);
 
-        $result = $wpdb->insert($table_users, array(
+        $data = array(
             'username' => $username,
             'password' => $hash,
-            'email' => $email,
             'full_name' => $full_name,
             'role' => $role,
             'status' => $status,
-        ), array('%s','%s','%s','%s','%s','%s'));
+        );
+        $formats = array('%s','%s','%s','%s','%s');
+        if (!is_null($email)) { $data['email'] = $email; $formats[] = '%s'; }
+        $result = $wpdb->insert($table_users, $data, $formats);
 
         if ($result === false) {
             return new WP_Error('insert_failed', 'Failed to create user', array('status' => 500));
@@ -286,6 +352,21 @@ class Assessor_Auth {
             return new WP_Error('user_not_found', 'User not found', array('status' => 404));
         }
 
+        // Prevent editing SUPERADMIN unless requester is SUPERADMIN
+        if (isset($user->role) && strtolower($user->role) === 'superadmin') {
+            $token = $this->get_token_from_request($request);
+            $requester_is_super = false;
+            if ($token) {
+                try {
+                    $payload = $this->verify_token_signature($token);
+                    $requester_is_super = $payload && isset($payload->role) && strtolower($payload->role) === 'superadmin';
+                } catch (Exception $e) {}
+            }
+            if (!$requester_is_super) {
+                return new WP_Error('forbidden', 'You cannot modify the superadmin user', array('status' => 403));
+            }
+        }
+
         $data = array();
         $formats = array();
         if (isset($params['username'])) {
@@ -297,24 +378,30 @@ class Assessor_Auth {
             $data['username'] = $username; $formats[] = '%s';
         }
         if (array_key_exists('email', $params)) {
-            $email = $params['email'] !== '' ? sanitize_email($params['email']) : '';
-            if ($email !== '' && $email !== $user->email) {
-                $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %d", $email, $id));
-                if ($exists) return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+            $incoming = $params['email'];
+            if ($incoming === '') {
+                // Set email to NULL explicitly
+                $wpdb->query($wpdb->prepare("UPDATE $table_users SET email = NULL WHERE id = %d", $id));
+            } else {
+                $email = sanitize_email($incoming);
+                if ($email !== $user->email) {
+                    $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %d", $email, $id));
+                    if ($exists) return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
+                }
+                $data['email'] = $email; $formats[] = '%s';
             }
-            $data['email'] = $email; $formats[] = '%s';
         }
         if (isset($params['full_name'])) { $data['full_name'] = sanitize_text_field($params['full_name']); $formats[] = '%s'; }
         if (isset($params['role'])) {
             $role = sanitize_text_field($params['role']);
-            if (!in_array($role, array('admin','assessor','verifier','editor','viewer'), true)) {
+            if (!in_array($role, array('superadmin','admin','assessor','verifier','editor','viewer'), true)) {
                 return new WP_Error('invalid_role', 'Invalid role', array('status' => 422));
             }
             $data['role'] = $role; $formats[] = '%s';
         }
         if (isset($params['status'])) { $data['status'] = sanitize_text_field($params['status']); $formats[] = '%s'; }
         if (!empty($params['password'])) {
-            if (isset($params['password_confirm']) && $params['password_confirm'] !== $params['password']) {
+            if (isset($params['password_confirm']) && $params['password_confirm'] !== '' && $params['password_confirm'] !== $params['password']) {
                 return new WP_Error('password_mismatch', 'Password confirmation does not match', array('status' => 422));
             }
             $data['password'] = wp_hash_password($params['password']); $formats[] = '%s';
@@ -339,11 +426,35 @@ class Assessor_Auth {
         if (!$user) {
             return new WP_Error('user_not_found', 'User not found', array('status' => 404));
         }
-        // prevent deleting last admin
+        // Prevent deleting SUPERADMIN unless requester is SUPERADMIN
+        if (isset($user->role) && strtolower($user->role) === 'superadmin') {
+            $token = func_num_args() > 1 ? $this->get_token_from_request(func_get_arg(1)) : null;
+            $requester_is_super = false;
+            if ($token) {
+                try {
+                    $payload = $this->verify_token_signature($token);
+                    $requester_is_super = $payload && isset($payload->role) && strtolower($payload->role) === 'superadmin';
+                } catch (Exception $e) {}
+            }
+            if (!$requester_is_super) {
+                return new WP_Error('forbidden', 'You cannot delete the superadmin user', array('status' => 403));
+            }
+        }
+        // prevent deleting last admin unless requester is superadmin
         if ($user->role === 'admin') {
+            $canDeleteAdmin = false;
+            $token = $this->get_token_from_request($request ?? null);
+            if ($token) {
+                try {
+                    $payload = $this->verify_token_signature($token);
+                    if ($payload && isset($payload->role) && strtolower($payload->role) === 'superadmin') {
+                        $canDeleteAdmin = true;
+                    }
+                } catch (Exception $e) {}
+            }
             $admin_count = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_users WHERE role = 'admin'");
-            if ($admin_count <= 1) {
-                return new WP_Error('forbidden', 'Cannot delete the last admin user', array('status' => 403));
+            if (!$canDeleteAdmin || $admin_count <= 1) {
+                return new WP_Error('forbidden', 'Cannot delete admin user', array('status' => 403));
             }
         }
         $result = $wpdb->delete($table_users, array('id' => $id), array('%d'));

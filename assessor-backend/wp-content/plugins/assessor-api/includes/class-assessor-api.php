@@ -8,6 +8,8 @@ class Assessor_API {
         error_log('🔍 Assessor API Class: rest_api_init action added!');
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('init', array($this, 'handle_cors'));
+        // Add minimal CORS for our REST namespace only
+        add_action('rest_api_init', array($this, 'attach_assessor_cors_headers'));
         error_log('🔍 Assessor API Class: init method completed!');
     }
     
@@ -28,6 +30,26 @@ class Assessor_API {
             }
             exit(0);
         }
+    }
+
+    public function attach_assessor_cors_headers() {
+        add_filter('rest_send_cors_headers', array($this, 'assessor_cors_headers'), 100, 2);
+    }
+
+    public function assessor_cors_headers($headers, $request) {
+        // Only apply to our namespace
+        $route = method_exists($request, 'get_route') ? $request->get_route() : '';
+        if (is_string($route) && strpos($route, '/assessor/v1/') === 0) {
+            $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+            if (!empty($origin)) {
+                $headers['Access-Control-Allow-Origin'] = $origin;
+                $headers['Vary'] = 'Origin';
+            }
+            $headers['Access-Control-Allow-Credentials'] = 'true';
+            $headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+            $headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With';
+        }
+        return $headers;
     }
     
     public function register_routes() {
@@ -218,7 +240,7 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/users', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_users'),
-            'permission_callback' => array($this, 'check_admin')
+            'permission_callback' => array($this, 'check_manager')
         ));
         // Create user (public as requested)
         register_rest_route('assessor/v1', '/users', array(
@@ -265,6 +287,10 @@ class Assessor_API {
     public function check_admin($request) {
         $auth = new Assessor_Auth();
         return $auth->verify_admin($request);
+    }
+    public function check_manager($request) {
+        $auth = new Assessor_Auth();
+        return $auth->verify_manager($request);
     }
     
     // Route handlers
@@ -422,7 +448,7 @@ class Assessor_API {
     
     public function get_users($request) {
         $auth = new Assessor_Auth();
-        return $auth->get_users();
+        return $auth->get_users($request);
     }
     public function create_user($request) {
         $auth = new Assessor_Auth();
@@ -434,7 +460,8 @@ class Assessor_API {
     }
     public function delete_user($request) {
         $auth = new Assessor_Auth();
-        return $auth->delete_user($request['id']);
+        // pass request to allow role-based delete protection
+        return $auth->delete_user($request['id'], $request);
     }
     
     public function test_endpoint($request) {

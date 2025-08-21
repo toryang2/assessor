@@ -135,7 +135,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isAuthenticated = !!token && !!user;
+  const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
+  const isAssessor = user?.role === 'assessor' || user?.role === 'municipal assessor';
+  const canManage = !!(isSuperAdmin || isAdmin || isAssessor);
 
   const value = {
     user,
@@ -143,7 +146,10 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     isAuthenticated,
+    isSuperAdmin,
     isAdmin,
+    isAssessor,
+    canManage,
     login,
     logout,
     clearError,

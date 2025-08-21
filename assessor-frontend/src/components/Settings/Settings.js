@@ -4,6 +4,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const DEFAULTS = {
   app_logo_url: '',
@@ -19,6 +20,7 @@ const DEFAULTS = {
 };
 
 const Settings = () => {
+  const { canManage } = useAuth();
   const [form, setForm] = useState(DEFAULTS);
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
@@ -62,6 +64,16 @@ const Settings = () => {
     };
     load();
   }, []);
+
+  if (!canManage) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Typography variant="h6" color="error">
+          Access Denied: Only Administrators and Municipal Assessors can access this page
+        </Typography>
+      </Box>
+    );
+  }
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));

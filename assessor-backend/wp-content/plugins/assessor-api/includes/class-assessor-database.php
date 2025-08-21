@@ -17,11 +17,12 @@ class Assessor_Database {
             full_name varchar(200) NOT NULL,
             role varchar(50) NOT NULL DEFAULT 'assessor',
             status varchar(20) NOT NULL DEFAULT 'active',
+            last_login datetime NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY username (username),
-            UNIQUE KEY email (email)
+            KEY email (email)
         ) $charset_collate;";
         
         // Properties table
@@ -235,6 +236,11 @@ class Assessor_Database {
 
         // Seed initial settings data
         $this->seed_default_settings();
+
+        // Adjust users table: make email nullable and non-unique to allow multiple NULL emails
+        $this->adjust_users_email_column_and_index();
+        // Ensure last_login column exists
+        $this->ensure_users_last_login_column();
     }
     
     private function add_foreign_keys() {
@@ -266,6 +272,35 @@ class Assessor_Database {
                     'email' => 'admin@localgov.ph',
                     'full_name' => 'System Administrator',
                     'role' => 'admin',
+                    'status' => 'active'
+                ),
+                array('%s', '%s', '%s', '%s', '%s', '%s')
+            );
+            // Create default superadmin as requested
+            $wpdb->insert(
+                $table_users,
+                array(
+                    'username' => 'super',
+                    'password' => wp_hash_password('super'),
+                    'email' => 'superadmin@localgov.ph',
+                    'full_name' => 'Super Administrator',
+                    'role' => 'superadmin',
+                    'status' => 'active'
+                ),
+                array('%s', '%s', '%s', '%s', '%s', '%s')
+            );
+        }
+        // If table already has users, ensure superadmin exists
+        $exists_super = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s", 'super'));
+        if (!$exists_super) {
+            $wpdb->insert(
+                $table_users,
+                array(
+                    'username' => 'super',
+                    'password' => wp_hash_password('super'),
+                    'email' => 'superadmin@localgov.ph',
+                    'full_name' => 'Super Administrator',
+                    'role' => 'superadmin',
                     'status' => 'active'
                 ),
                 array('%s', '%s', '%s', '%s', '%s', '%s')
@@ -319,6 +354,33 @@ class Assessor_Database {
             foreach ($default_locations as $row) {
                 $wpdb->insert($table_locations, $row, array('%s','%s','%d'));
             }
+        }
+    }
+
+    private function adjust_users_email_column_and_index() {
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'assessor_users';
+
+        // Ensure email column allows NULL
+        // Some environments may not update nullability via dbDelta reliably
+        $wpdb->query("ALTER TABLE $table_users MODIFY email varchar(100) NULL DEFAULT NULL");
+
+        // Drop UNIQUE index on email if it exists, then add a normal (non-unique) index
+        $index = $wpdb->get_row($wpdb->prepare("SHOW INDEX FROM $table_users WHERE Key_name = %s", 'email'));
+        if ($index && intval($index->Non_unique) === 0) {
+            // It is a unique index; drop it
+            $wpdb->query("ALTER TABLE $table_users DROP INDEX email");
+            // Re-add as non-unique index for lookup performance
+            $wpdb->query("ALTER TABLE $table_users ADD INDEX email (email)");
+        }
+    }
+
+    private function ensure_users_last_login_column() {
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'last_login'", $table_users));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_users ADD COLUMN last_login datetime NULL AFTER status");
         }
     }
 }

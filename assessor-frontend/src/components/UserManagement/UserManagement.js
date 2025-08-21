@@ -51,9 +51,30 @@ import { format } from 'date-fns';
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { keyframes } from '@mui/system';
+
+const glow = keyframes`
+  0% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
+  50% { filter: drop-shadow(0 0 10px rgba(156, 39, 176, 0.75)) drop-shadow(0 0 4px rgba(255,255,255,0.45)); }
+  100% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
+`;
+
+const sweep = keyframes`
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+`;
 
 const UserManagement = () => {
-  const { isAdmin } = useAuth();
+  const { canManage, isSuperAdmin } = useAuth();
+  const effectiveIsSuperAdmin = (() => {
+    if (isSuperAdmin) return true;
+    try {
+      const raw = localStorage.getItem('assessor_user');
+      if (!raw) return false;
+      const u = JSON.parse(raw);
+      return String(u?.role || '').toLowerCase() === 'superadmin';
+    } catch (_) { return false; }
+  })();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,10 +99,10 @@ const UserManagement = () => {
   const [userToToggle, setUserToToggle] = useState(null);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (canManage) {
       fetchUsers();
     }
-  }, [isAdmin, page, rowsPerPage, searchTerm, filters]);
+  }, [canManage, page, rowsPerPage, searchTerm, filters]);
 
   const fetchUsers = async () => {
     try {
@@ -89,14 +110,16 @@ const UserManagement = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        search: searchTerm,
-        ...filters
+        search: (searchTerm || '').trim(),
+        role: (filters.role || '').trim(),
+        status: (filters.status || '').trim(),
       };
       
       const response = await apiService.getUsers(params);
       const list = response.users || response.data || [];
       setUsers(list);
-      setTotalCount(response.total || list.length);
+      const total = (response.pagination && response.pagination.total) || response.total || list.length;
+      setTotalCount(total);
       setError('');
     } catch (err) {
       setError('Failed to fetch users');
@@ -180,6 +203,9 @@ const UserManagement = () => {
 
   const getRoleColor = (role) => {
     switch (role) {
+      // For custom gold styles we return default color and style via sx
+      case 'superadmin':
+        return 'default';
       case 'admin':
         return 'error';
       case 'assessor':
@@ -195,12 +221,86 @@ const UserManagement = () => {
     }
   };
 
+  const getRoleChipProps = (role) => {
+    // Default props
+    const base = { color: getRoleColor(role), sx: {}, icon: null };
+    if (role === 'superadmin') {
+      return {
+        ...base,
+        color: 'default',
+        icon: <AdminIcon />,
+        sx: {
+          backgroundImage: 'linear-gradient(135deg, #E1BEE7 0%, #CE93D8 40%, #BA68C8 70%, #9C27B0 100%)',
+          animation: `${glow} 2.2s ease-in-out infinite`,
+          color: '#fff',
+          fontWeight: 700,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6)',
+          position: 'relative',
+          overflow: 'hidden',
+          willChange: 'filter',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: '-20%',
+            left: '-50%',
+            width: '200%',
+            height: '140%',
+            background: 'linear-gradient(120deg, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0.0) 55%)',
+            animation: `${sweep} 2.4s ease-in-out infinite`,
+            pointerEvents: 'none',
+          },
+          '& .MuiChip-icon': { color: '#fff' },
+        },
+      };
+    }
+    if (role === 'admin') {
+      return { 
+        ...base, 
+        color: getRoleColor(role), 
+        icon: <AdminIcon />,
+        sx: {
+          position: 'relative',
+          overflow: 'hidden',
+          // Glass gradient overlay
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 35%, rgba(255,255,255,0.0) 60%)',
+            pointerEvents: 'none',
+          },
+          // Moving highlight sweep
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: '-20%',
+            left: '-50%',
+            width: '200%',
+            height: '140%',
+            background: 'linear-gradient(120deg, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.0) 55%)',
+            animation: `${sweep} 2.8s ease-in-out infinite`,
+            pointerEvents: 'none',
+          },
+          '& .MuiChip-icon': { color: 'inherit' },
+        }
+      };
+    }
+    if (role === 'editor') {
+      return { ...base, icon: <SecurityIcon /> };
+    }
+    if (role === 'assessor' || role === 'verifier' || role === 'viewer') {
+      return { ...base, icon: <SecurityIcon /> };
+    }
+    return base;
+  };
+
   const getStatusColor = (status) => {
     return status === 'active' ? 'success' : 'warning';
   };
 
   const getRoleDisplayName = (role) => {
     const roleNames = {
+      'superadmin': 'Super Administrator',
       'admin': 'Administrator',
       'assessor': 'Municipal Assessor',
       'verifier': 'Verifier',
@@ -219,11 +319,11 @@ const UserManagement = () => {
     setPage(0);
   };
 
-  if (!isAdmin) {
+  if (!canManage) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography variant="h6" color="error">
-          Access Denied: Admin privileges required
+          Access Denied: Only Administrators and Municipal Assessors can access this page
         </Typography>
       </Box>
     );
@@ -321,12 +421,7 @@ const UserManagement = () => {
             </Grid>
 
             <Grid item xs={12} md={2} textAlign="right">
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddUser}
-                color="primary"
-              >
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddUser} color="primary">
                 Add User
               </Button>
             </Grid>
@@ -355,27 +450,33 @@ const UserManagement = () => {
                     <Box display="flex" alignItems="center">
                       <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
                       <Box>
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography variant="body2" fontWeight={700}>
                           {user.username}
+                          {user.full_name ? (
+                            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1, fontWeight: 400 }}>
+                              ({user.full_name})
+                            </Typography>
+                          ) : null}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {user.email}
-                        </Typography>
-                        {user.first_name && user.last_name && (
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {user.first_name} {user.last_name}
+                          {user.email || ''}
                           </Typography>
-                        )}
                       </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const chip = getRoleChipProps(user.role);
+                      return (
                     <Chip
                       label={getRoleDisplayName(user.role)}
                       size="small"
-                      color={getRoleColor(user.role)}
-                      icon={user.role === 'admin' ? <AdminIcon /> : <SecurityIcon />}
+                          color={chip.color}
+                          icon={chip.icon}
+                          sx={chip.sx}
                     />
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -388,22 +489,24 @@ const UserManagement = () => {
                   <TableCell>
                     <Typography variant="body2">
                       {user.last_login 
-                        ? format(new Date(user.last_login), 'MMM dd, yyyy HH:mm')
+                        ? format(new Date(user.last_login), 'MMM dd, yyyy HH:mm a')
                         : 'Never'
                       }
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {format(new Date(user.created_at), 'MMM dd, yyyy')}
+                      {format(new Date(user.created_at), 'MMM dd, yyyy HH:mm a')}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Box display="flex" gap={1}>
+                      {/* Disable edit/status/delete for superadmin unless current user is superadmin */}
                       <IconButton
                         size="small"
                         onClick={() => handleEditUser(user)}
                         color="primary"
+                        disabled={user.role === 'superadmin'}
                       >
                         <EditIcon />
                       </IconButton>
@@ -412,11 +515,12 @@ const UserManagement = () => {
                         size="small"
                         onClick={() => handleToggleStatus(user)}
                         color={user.status === 'active' ? 'warning' : 'success'}
+                        disabled={user.role === 'superadmin'}
                       >
                         {user.status === 'active' ? <LockIcon /> : <LockOpenIcon />}
                       </IconButton>
                       
-                      {user.role !== 'admin' && (
+                      {(user.role !== 'superadmin') && (effectiveIsSuperAdmin || user.role !== 'admin') && (
                         <IconButton
                           size="small"
                           onClick={() => handleDeleteUser(user)}
@@ -606,7 +710,3 @@ const UserManagement = () => {
 };
 
 export default UserManagement;
-
-
-
-
