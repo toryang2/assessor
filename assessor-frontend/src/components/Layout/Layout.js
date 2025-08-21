@@ -63,7 +63,15 @@ const Layout = ({ children }) => {
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [currentPage, setCurrentPage] = useState('Dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    // Try to restore the last visited page from localStorage
+    try {
+      const savedPage = localStorage.getItem('assessor_current_page');
+      return savedPage || 'Dashboard';
+    } catch (_) {
+      return 'Dashboard';
+    }
+  });
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -78,12 +86,24 @@ const Layout = ({ children }) => {
   };
 
   const handleLogout = async () => {
+    // Clear the current page from localStorage when logging out
+    try {
+      localStorage.removeItem('assessor_current_page');
+    } catch (_) {
+      // Ignore localStorage errors
+    }
     await logout();
   };
 
   const handleNavigation = (page) => {
     setCurrentPage(page);
     setMobileOpen(false);
+    // Save the current page to localStorage for persistence across refreshes
+    try {
+      localStorage.setItem('assessor_current_page', page);
+    } catch (_) {
+      // Ignore localStorage errors
+    }
   };
 
   useEffect(() => {
@@ -101,6 +121,18 @@ const Layout = ({ children }) => {
     };
     loadSettings();
   }, []);
+
+  // Reset current page to Dashboard when user logs out
+  useEffect(() => {
+    if (!user) {
+      setCurrentPage('Dashboard');
+      try {
+        localStorage.removeItem('assessor_current_page');
+      } catch (_) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [user]);
 
   const navigationItems = [
     {
