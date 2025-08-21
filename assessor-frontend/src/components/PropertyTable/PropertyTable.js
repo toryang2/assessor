@@ -322,7 +322,9 @@ const PropertyTable = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [printModal, setPrintModal] = useState(false);
   const [printHistory, setPrintHistory] = useState([]);
+  const [printDocuments, setPrintDocuments] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
+  const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -484,9 +486,25 @@ const PropertyTable = () => {
       setPrintModal(true);
       const response = await apiService.getTaxDeclarationHistory(taxDeclarationNumber);
       setPrintHistory(response || []);
+      // Load documents for the current (latest) property for preview
+      try {
+        const current = Array.isArray(response) && response.length > 0 ? response[0] : null;
+        const propertyId = current && current.id;
+        if (propertyId) {
+          const docsRes = await apiService.getPropertyDocuments(propertyId);
+          const docs = (docsRes && docsRes.documents) ? docsRes.documents : (Array.isArray(docsRes) ? docsRes : []);
+          setPrintDocuments(docs);
+        } else {
+          setPrintDocuments([]);
+        }
+      } catch (e) {
+        console.error('Error fetching property documents:', e);
+        setPrintDocuments([]);
+      }
     } catch (err) {
       console.error('Error fetching printable history:', err);
       setPrintHistory([]);
+      setPrintDocuments([]);
     } finally {
       setPrintLoading(false);
     }
@@ -815,6 +833,29 @@ const PropertyTable = () => {
           />
         </DialogContent>
       </Dialog>
+      {/* Preview: Document Viewer */}
+      <Dialog open={printDocPreview.open} onClose={() => setPrintDocPreview({ open: false, src: '', filename: '', type: '' })} maxWidth="md" fullWidth>
+        <DialogTitle>{printDocPreview.filename}</DialogTitle>
+        <DialogContent>
+          {(() => {
+            const t = (printDocPreview.type || '').toLowerCase();
+            if (['jpg','jpeg','png','gif'].includes(t)) {
+              return (
+                <img src={printDocPreview.src} alt={printDocPreview.filename} style={{ width: '100%', height: 'auto' }} />
+              );
+            }
+            if (t === 'pdf') {
+              return (
+                <iframe src={printDocPreview.src} title={printDocPreview.filename} style={{ width: '100%', height: '80vh', border: 'none' }} />
+              );
+            }
+            // Fallback: render link
+            return (
+              <Button variant="outlined" onClick={() => window.open(printDocPreview.src, '_blank')}>Open File</Button>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
@@ -956,13 +997,15 @@ const PropertyTable = () => {
         <DialogTitle sx={{ textAlign: 'center' }}>
           Tax Declaration History (Printable)
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}>
           {printLoading ? (
             <Box display="flex" justifyContent="center" p={3}>
               <Typography>Loading history...</Typography>
             </Box>
           ) : printHistory.length > 0 ? (
-            <TableContainer component={Paper}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <TableContainer component={Paper} sx={{ paddingBottom: Array.isArray(printDocuments) && printDocuments.length > 0 ? '200px' : '0px' }}>
               <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
                 {appLogoUrl ? (
                   <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
@@ -1075,6 +1118,49 @@ const PropertyTable = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+            </Box>
+            {/* Attached Documents Section (Preview Only, sticky at bottom; reserved space above to avoid overlap) */}
+            {Array.isArray(printDocuments) && printDocuments.length > 0 && (
+              <Box sx={{ 
+                p: 2, 
+                position: 'sticky', 
+                bottom: 0, 
+                backgroundColor: 'background.paper', 
+                borderTop: '1px solid #eee',
+                zIndex: 1,
+                marginTop: 'auto'
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  Attached Documents
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  {printDocuments.map((doc) => {
+                    const ext = String(doc.file_type || '').toLowerCase();
+                    const isImage = ['jpg','jpeg','png','gif'].includes(ext);
+                    return (
+                      <Box key={doc.id} sx={{ width: isImage ? 160 : 'auto' }}>
+                        {isImage ? (
+                          <img
+                            src={doc.file_url}
+                            alt={doc.original_filename || doc.filename}
+                            style={{ width: 160, height: 120, objectFit: 'cover', border: '1px solid #ddd', cursor: 'pointer' }}
+                            onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
+                          />
+                        ) : (
+                          <Button size="small" onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}>
+                            {doc.original_filename || doc.filename}
+                          </Button>
+                        )}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 160 }}>
+                          {doc.description || ''}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            )}
+            </Box>
           ) : (
             <Typography>No history found for this tax declaration number.</Typography>
           )}

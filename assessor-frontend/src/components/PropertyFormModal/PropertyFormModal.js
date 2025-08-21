@@ -13,12 +13,15 @@ import {
   Divider,
   Card,
   CardContent,
-  Snackbar
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { CloudUpload } from '@mui/icons-material';
 
-import { apiService } from '../../utils/api';
+import { apiService, uploadFile } from '../../utils/api';
 
 const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   const [formData, setFormData] = useState({
@@ -50,6 +53,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
   const [generalClassOptions, setGeneralClassOptions] = useState([]);
   const [locationOptions, setLocationOptions] = useState([]);
+  const [existingDocuments, setExistingDocuments] = useState([]);
+  const [docPreview, setDocPreview] = useState({ open: false, src: '', filename: '' });
+  const [pendingUploads, setPendingUploads] = useState([]);
 
   useEffect(() => {
     if (property) {
@@ -73,11 +79,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         kind_of_property: property.kind_of_property || '',
         gen_class: property.gen_class || '',
         memoranda: property.memoranda || '',
-        supporting_documents: Array.isArray(property.supporting_documents)
-          ? property.supporting_documents
-          : (typeof property.supporting_documents === 'string' && property.supporting_documents.trim() !== ''
-            ? property.supporting_documents.split(',').map(s => s.trim())
-            : [])
+        supporting_documents: []
       });
     } else {
              // Reset form for new property
@@ -105,6 +107,22 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
        });
     }
     setErrors([]);
+    // Load existing documents for edit mode
+    const loadDocs = async () => {
+      try {
+        if (property && property.id) {
+          const res = await apiService.getPropertyDocuments(property.id);
+          const docs = (res && res.documents) ? res.documents : [];
+          setExistingDocuments(docs);
+        } else {
+          setExistingDocuments([]);
+        }
+      } catch (_) {
+        setExistingDocuments([]);
+      }
+    };
+    loadDocs();
+    setPendingUploads([]);
   }, [property]);
 
   useEffect(() => {
@@ -274,16 +292,32 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         municipal_assessor_license: settings?.municipal_assessor_license || ''
       };
       
+      let saved;
       if (property) {
-        await apiService.updateProperty(property.id, submitData);
-        onSave('Property updated successfully');
-        setToast({ open: true, message: 'Property updated successfully', severity: 'success' });
+        saved = await apiService.updateProperty(property.id, submitData);
       } else {
-        await apiService.createProperty(submitData);
-        onSave('Property created successfully');
-        setToast({ open: true, message: 'Property created successfully', severity: 'success' });
+        saved = await apiService.createProperty(submitData);
       }
-      
+
+      const propertyId = (saved && saved.id) ? saved.id : (property && property.id);
+
+      // Upload supporting documents (actual files only)
+      const files = Array.isArray(pendingUploads) ? pendingUploads : [];
+      const fileObjects = files.filter((doc) => doc && (doc.name));
+      if (propertyId && fileObjects.length > 0) {
+        try {
+          await Promise.all(
+            fileObjects.map((file) => uploadFile(file, propertyId))
+          );
+        } catch (e) {
+          console.error('Error uploading supporting documents:', e);
+          // Proceed but notify user that some uploads failed
+          setToast({ open: true, message: 'Some documents failed to upload', severity: 'warning' });
+        }
+      }
+
+      onSave(property ? 'Property updated successfully' : 'Property created successfully');
+      setToast({ open: true, message: property ? 'Property updated successfully' : 'Property created successfully', severity: 'success' });
       onCancel();
     } catch (error) {
       console.error('Error saving property:', error);
@@ -617,6 +651,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                       ...prev,
                       supporting_documents: files
                     }));
+                    setPendingUploads(files);
                   }}
                   tabIndex={20}
                 />
@@ -635,22 +670,72 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                       }
                     }}
                   >
-                    {formData.supporting_documents && formData.supporting_documents.length > 0 
-                      ? `${formData.supporting_documents.length} file(s) selected`
+                    {pendingUploads && pendingUploads.length > 0 
+                      ? `${pendingUploads.length} file(s) selected`
                       : 'Upload Supporting Documents'
                     }
                   </Button>
                 </label>
-                {Array.isArray(formData.supporting_documents) && formData.supporting_documents.length > 0 && (
+                {(Array.isArray(pendingUploads) && pendingUploads.length > 0) && (
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">
-                      Selected files:
+                      Selected (to be uploaded upon save):
                     </Typography>
-                    {formData.supporting_documents.map((file, index) => (
+                    {pendingUploads.map((file, index) => (
                       <Typography key={index} variant="body2" sx={{ ml: 1 }}>
-                        • {typeof file === 'string' ? file : (file && file.name) ? file.name : String(file)}
+                        • {(file && file.name) ? file.name : String(file)}
                       </Typography>
                     ))}
+                  </Box>
+                )}
+
+                {/* Existing documents (edit mode) */}
+                {Array.isArray(existingDocuments) && existingDocuments.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Existing Documents</Typography>
+                    <Grid container spacing={1.5}>
+                      {existingDocuments.map((doc) => {
+                        const ext = String(doc.file_type || '').toLowerCase();
+                        const isImage = ['jpg','jpeg','png','gif'].includes(ext);
+                        return (
+                          <Grid item key={doc.id} xs={12} sm={6} md={4} lg={3}>
+                            <Box sx={{ border: '1px solid #eee', p: 1, borderRadius: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.original_filename || doc.filename}>
+                                  {doc.original_filename || doc.filename}
+                                </Typography>
+                                <Button size="small" color="error" onClick={async () => {
+                                  try {
+                                    if (!property || !property.id) return;
+                                    await apiService.deletePropertyDocument(property.id, doc.id);
+                                    setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
+                                  } catch (e) {
+                                    setToast({ open: true, message: 'Failed to delete document', severity: 'error' });
+                                  }
+                                }}>Delete</Button>
+                              </Box>
+                              <Box sx={{ mt: 1 }}>
+                                {isImage ? (
+                                  <img
+                                    src={doc.file_url}
+                                    alt={doc.original_filename || doc.filename}
+                                    style={{ width: '100%', height: 140, objectFit: 'cover', cursor: 'pointer' }}
+                                    onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
+                                  />
+                                ) : (
+                                  <Button size="small" onClick={() => window.open(doc.file_url, '_blank')}>View File</Button>
+                                )}
+                              </Box>
+                              {doc.description && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  {doc.description}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
                   </Box>
                 )}
               </Grid>
@@ -676,6 +761,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
           </Button>
         </Box>
       </form>
+      {/* Image Preview Dialog */}
+      <Dialog open={docPreview.open} onClose={() => setDocPreview({ open: false, src: '', filename: '' })} maxWidth="md" fullWidth>
+        <DialogTitle>{docPreview.filename}</DialogTitle>
+        <DialogContent>
+          {docPreview.src ? (
+            <img src={docPreview.src} alt={docPreview.filename} style={{ width: '100%', height: 'auto' }} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

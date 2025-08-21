@@ -147,6 +147,12 @@ class Assessor_API {
             'callback' => array($this, 'upload_document'),
             'permission_callback' => array($this, 'check_auth')
         ));
+
+        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/documents/(?P<doc_id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'delete_document'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         
         // Dashboard routes
         register_rest_route('assessor/v1', '/dashboard', array(
@@ -357,6 +363,11 @@ class Assessor_API {
     public function upload_document($request) {
         $documents = new Assessor_Documents();
         return $documents->upload_document($request);
+    }
+
+    public function delete_document($request) {
+        $documents = new Assessor_Documents();
+        return $documents->delete_document($request['doc_id']);
     }
     
     public function get_dashboard_data($request) {

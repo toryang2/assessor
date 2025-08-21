@@ -62,6 +62,7 @@ export const endpoints = {
   property: (id) => `/properties/${id}`,
   propertyVersions: (id) => `/properties/${id}/versions`,
   propertyDocuments: (id) => `/properties/${id}/documents`,
+  propertyDocument: (id, docId) => `/properties/${id}/documents/${docId}`,
   taxDeclarationHistory: (taxNumber) => `/tax-declaration-history/${taxNumber}`,
   propertyByTaxNumber: (taxNumber) => `/properties/by-tax-number/${taxNumber}`,
   
@@ -201,6 +202,15 @@ export const apiService = {
   getPropertyDocuments: async (propertyId) => {
     try {
       const response = await api.get(endpoints.propertyDocuments(propertyId));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deletePropertyDocument: async (propertyId, docId) => {
+    try {
+      const response = await api.delete(endpoints.propertyDocument(propertyId, docId));
       return response.data;
     } catch (error) {
       throw handleApiError(error);

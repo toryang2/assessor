@@ -26,10 +26,10 @@ class Assessor_Documents {
         
         $documents = $wpdb->get_results($wpdb->prepare($query, $property_id));
         
-        // Add public URL for each document for client consumption
+        // Add public URL for each document based on stored file path (backward/forward compatible)
         if (is_array($documents)) {
             foreach ($documents as $doc) {
-                $doc->file_url = $this->upload_dir['baseurl'] . '/assessor-documents/' . $doc->property_id . '/' . $doc->filename;
+                $doc->file_url = $this->path_to_url($doc->file_path);
             }
         }
         
@@ -63,8 +63,8 @@ class Assessor_Documents {
             return $validation;
         }
         
-        // Create upload directory
-        $upload_path = $this->create_upload_directory($property_id);
+        // Create upload directory named after Tax Declaration Number
+        $upload_path = $this->create_upload_directory($property);
         if (is_wp_error($upload_path)) {
             return $upload_path;
         }
@@ -169,7 +169,7 @@ class Assessor_Documents {
         }
         
         // Add public URL for client consumption
-        $document->file_url = $this->upload_dir['baseurl'] . '/assessor-documents/' . $document->property_id . '/' . $document->filename;
+        $document->file_url = $this->path_to_url($document->file_path);
         
         return $document;
     }
@@ -208,9 +208,16 @@ class Assessor_Documents {
         return true;
     }
     
-    private function create_upload_directory($property_id) {
+    private function create_upload_directory($property) {
         $base_dir = $this->upload_dir['basedir'] . '/assessor-documents';
-        $property_dir = $base_dir . '/' . $property_id;
+        // Use Tax Declaration Number as folder name; sanitize to safe folder string
+        $tdn_raw = isset($property->tax_declaration_number) ? $property->tax_declaration_number : '';
+        $tdn_safe = preg_replace('/[^A-Za-z0-9_.\-]/', '_', $tdn_raw);
+        if (empty($tdn_safe)) {
+            // Fallback to property id if TDN missing
+            $tdn_safe = isset($property->id) ? (string)$property->id : 'unknown';
+        }
+        $property_dir = $base_dir . '/' . $tdn_safe;
         
         // Create base directory if it doesn't exist
         if (!file_exists($base_dir)) {
@@ -227,6 +234,18 @@ class Assessor_Documents {
         }
         
         return $property_dir;
+    }
+
+    private function path_to_url($absolute_path) {
+        // Convert absolute path under uploads dir to a public URL
+        $basedir = rtrim($this->upload_dir['basedir'], '/');
+        $baseurl = rtrim($this->upload_dir['baseurl'], '/');
+        if (strpos($absolute_path, $basedir) === 0) {
+            $relative = substr($absolute_path, strlen($basedir));
+            return $baseurl . $relative;
+        }
+        // If stored path is not under uploads (unexpected), return as-is
+        return $absolute_path;
     }
 }
 
