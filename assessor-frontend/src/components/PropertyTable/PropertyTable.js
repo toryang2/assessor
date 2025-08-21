@@ -242,20 +242,26 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           <div style={{ textAlign: 'center', width: '80mm' }}>
             <div style={{ height: '18mm' }} />
             <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
-              {(settings && settings.verifier_signatory_name) || '____________________________'}
+              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '____________________________'}
             </div>
             <div style={{ fontSize: 11, marginBottom: 70 }}>
-              {(settings && settings.verifier_signatory_title) || 'Verifier'}
+              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'Verifier'}
             </div>
             <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
-              {(settings && settings.municipal_assessor_name) || '____________________________'}
-              {settings && settings.municipal_assessor_suffix ? `, ${settings.municipal_assessor_suffix}` : ''}
+              {(() => {
+                const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
+                const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
+                return (name || '____________________________') + (suffix ? `, ${suffix}` : '');
+              })()}
             </div>
             <div style={{ fontSize: 11 }}>
-              {(settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
+              {(printHistory && printHistory[0] && printHistory[0].municipal_assessor_title) || (settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
             </div>
             <div style={{ fontSize: 10 }}>
-              {(settings && settings.municipal_assessor_license) ? `License No.: ${settings.municipal_assessor_license}` : ''}
+              {(() => {
+                const lic = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_license) || (settings && settings.municipal_assessor_license) || '';
+                return lic ? `License No.: ${lic}` : '';
+              })()}
             </div>
           </div>
         </div>

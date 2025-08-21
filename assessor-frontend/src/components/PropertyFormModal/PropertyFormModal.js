@@ -239,6 +239,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
             .join(', ')
         : (formData.supporting_documents || '');
 
+      // Pull signatories from settings to store on the property record
+      let settings = null;
+      try {
+        settings = await apiService.getSettings();
+      } catch (_) {}
+
       const submitData = {
         tax_declaration_number: formData.tax_declaration_number,
         previous_tax_declaration_number: formData.previous_tax_declaration_number,
@@ -259,7 +265,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         kind_of_property: formData.kind_of_property,
         gen_class: formData.gen_class,
         memoranda: formData.memoranda,
-        supporting_documents: supportingDocsString
+        supporting_documents: supportingDocsString,
+        verifier_signatory_name: settings?.verifier_signatory_name || '',
+        verifier_signatory_title: settings?.verifier_signatory_title || '',
+        municipal_assessor_name: settings?.municipal_assessor_name || '',
+        municipal_assessor_suffix: settings?.municipal_assessor_suffix || '',
+        municipal_assessor_title: settings?.municipal_assessor_title || '',
+        municipal_assessor_license: settings?.municipal_assessor_license || ''
       };
       
       if (property) {
