@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -77,17 +77,19 @@ const UserManagement = () => {
   })();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+  const fetchSeqRef = useRef(0);
   
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
-    role: '',
-    status: ''
+    role: 'all',
+    status: 'all'
   });
   
   // Modal states
@@ -105,27 +107,46 @@ const UserManagement = () => {
   }, [canManage, page, rowsPerPage, searchTerm, filters]);
 
   const fetchUsers = async () => {
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
         search: (searchTerm || '').trim(),
-        role: (filters.role || '').trim(),
-        status: (filters.status || '').trim(),
+        role: filters.role === 'all' ? '' : String(filters.role || '').trim(),
+        status: filters.status === 'all' ? '' : String(filters.status || '').trim(),
       };
-      
       const response = await apiService.getUsers(params);
+      if (seq !== fetchSeqRef.current) return;
       const list = response.users || response.data || [];
-      setUsers(list);
+      const roleRank = (role) => {
+        const r = String(role || '').toLowerCase();
+        if (r === 'superadmin') return 2;
+        if (r === 'admin') return 1;
+        return 0;
+      };
+      const parseTs = (val) => {
+        const t = Date.parse(val);
+        return isNaN(t) ? 0 : t;
+      };
+      const sorted = [...list].sort((a, b) => {
+        const diff = roleRank(b.role) - roleRank(a.role);
+        if (diff !== 0) return diff;
+        // Within the same rank, sort by creation date desc
+        return parseTs(b.created_at) - parseTs(a.created_at);
+      });
+      setUsers(sorted);
       const total = (response.pagination && response.pagination.total) || response.total || list.length;
       setTotalCount(total);
       setError('');
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       setError('Failed to fetch users');
       console.error('Error fetching users:', err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
+      setInitialLoad(false);
     }
   };
 
@@ -312,8 +333,8 @@ const UserManagement = () => {
 
   const clearFilters = () => {
     setFilters({
-      role: '',
-      status: ''
+      role: 'all',
+      status: 'all'
     });
     setSearchTerm('');
     setPage(0);
@@ -329,7 +350,7 @@ const UserManagement = () => {
     );
   }
 
-  if (loading && users.length === 0) {
+  if (initialLoad && loading && users.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>Loading users...</Typography>
@@ -380,15 +401,21 @@ const UserManagement = () => {
             
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
-                <InputLabel>Role</InputLabel>
+                <InputLabel shrink>Role</InputLabel>
                 <Select
                   value={filters.role}
                   label="Role"
                   onChange={(e) => handleFilterChange('role', e.target.value)}
+                  displayEmpty
+                  renderValue={(selected) => (selected && selected !== 'all' ? getRoleDisplayName(selected) : 'All')}
                 >
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="admin">Administrator</MenuItem>
-                  <MenuItem value="assessor">Property Assessor</MenuItem>
+                  <MenuItem value="all">All</MenuItem>
+                  {(effectiveIsSuperAdmin) && (
+                    <MenuItem value="admin">Administrator</MenuItem>
+                  )}
+                  <MenuItem value="assessor">Municipal Assessor</MenuItem>
+                  <MenuItem value="verifier">Verifier</MenuItem>
+                  <MenuItem value="editor">Editor</MenuItem>
                   <MenuItem value="viewer">View Only</MenuItem>
                 </Select>
               </FormControl>
@@ -396,13 +423,15 @@ const UserManagement = () => {
 
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
+                <InputLabel shrink>Status</InputLabel>
                 <Select
                   value={filters.status}
                   label="Status"
                   onChange={(e) => handleFilterChange('status', e.target.value)}
+                  displayEmpty
+                  renderValue={(selected) => (selected && selected !== 'all' ? selected.charAt(0).toUpperCase() + selected.slice(1) : 'All')}
                 >
-                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="all">All</MenuItem>
                   <MenuItem value="active">Active</MenuItem>
                   <MenuItem value="inactive">Inactive</MenuItem>
                 </Select>
@@ -431,22 +460,30 @@ const UserManagement = () => {
 
       {/* Users Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table stickyHeader>
+        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '300px' }} />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '180px' }} />
+              <col style={{ width: '180px' }} />
+              <col style={{ width: '140px' }} />
+            </colgroup>
             <TableHead>
               <TableRow>
-                <TableCell>User</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Last Login</TableCell>
-                <TableCell>Created</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell sx={{ width: 300 }}>User</TableCell>
+                <TableCell sx={{ width: 160 }}>Role</TableCell>
+                <TableCell sx={{ width: 120 }}>Status</TableCell>
+                <TableCell sx={{ width: 180 }}>Last Login</TableCell>
+                <TableCell sx={{ width: 180 }}>Created</TableCell>
+                <TableCell sx={{ width: 140 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((user) => (
+              {users && users.length > 0 ? users.map((user) => (
                 <TableRow key={user.id} hover>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <Box display="flex" alignItems="center">
                       <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
                       <Box>
@@ -464,7 +501,7 @@ const UserManagement = () => {
                       </Box>
                     </Box>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     {(() => {
                       const chip = getRoleChipProps(user.role);
                       return (
@@ -478,7 +515,7 @@ const UserManagement = () => {
                       );
                     })()}
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <Chip
                       label={user.status}
                       size="small"
@@ -486,7 +523,7 @@ const UserManagement = () => {
                       icon={user.status === 'active' ? <LockOpenIcon /> : <LockIcon />}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <Typography variant="body2">
                       {user.last_login 
                         ? format(new Date(user.last_login), 'MMM dd, yyyy HH:mm a')
@@ -494,12 +531,12 @@ const UserManagement = () => {
                       }
                     </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <Typography variant="body2">
                       {format(new Date(user.created_at), 'MMM dd, yyyy HH:mm a')}
                     </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <Box display="flex" gap={1}>
                       {/* Disable edit/status/delete for superadmin unless current user is superadmin */}
                       <IconButton
@@ -532,7 +569,15 @@ const UserManagement = () => {
                     </Box>
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography variant="body2" color="text.secondary">
+                      {loading ? 'Loading users...' : 'No users found'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -593,7 +638,11 @@ const UserManagement = () => {
                   label="Role"
                   onChange={(e) => setSelectedUser(prev => ({ ...(prev||{}), role: e.target.value }))}
                 >
-                  <MenuItem value="admin">Administrator</MenuItem>
+                  {(effectiveIsSuperAdmin || (selectedUser && selectedUser.role === 'admin')) && (
+                    <MenuItem value="admin" disabled={!effectiveIsSuperAdmin && selectedUser && selectedUser.role === 'admin'}>
+                      Administrator
+                    </MenuItem>
+                  )}
                   <MenuItem value="assessor">Municipal Assessor</MenuItem>
                   <MenuItem value="verifier">Verifier</MenuItem>
                   <MenuItem value="editor">Editor</MenuItem>
@@ -642,7 +691,7 @@ const UserManagement = () => {
                 username: selectedUser?.username || '',
                 email: selectedUser?.email || '',
                 full_name: selectedUser?.full_name || '',
-                role: selectedUser?.role || 'verifier',
+                role: selectedUser?.role || 'assessor',
                 status: selectedUser?.status || 'active',
               };
               if (!selectedUser?.id || selectedUser?.password) {

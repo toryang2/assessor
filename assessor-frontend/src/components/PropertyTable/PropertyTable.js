@@ -595,7 +595,6 @@ const PropertyTable = () => {
   return (
     
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Box sx={{ position: 'sticky', top: { xs: 56, md: 64 }, marginTop: -3, paddingTop: 1, zIndex: 1000, pb: 0 }}>
         <Typography variant="h4" gutterBottom>
           Property Records
         </Typography>
@@ -644,11 +643,10 @@ const PropertyTable = () => {
           </Grid>
           </CardContent>
         </Card>
-      </Box>
 
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
           <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '200px' }} />

@@ -362,16 +362,19 @@ class Assessor_API {
     public function get_dashboard_data($request) {
         // Get real dashboard data
         $properties = new Assessor_Properties();
-        $auth = new Assessor_Auth();
         
         $total_properties = $properties->get_total_count();
         $version_counts = $properties->get_version_counts();
-        $users = $auth->get_users();
+        
+        // Avoid calling get_users() without a request; query DB directly for count
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $total_users = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_users");
         
         return array(
             'total_properties' => $total_properties,
             'total_versions' => $version_counts,
-            'total_users' => count($users['users']),
+            'total_users' => $total_users,
             'recent_activity' => array() // Will be populated by audit trail
         );
     }

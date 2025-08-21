@@ -443,7 +443,9 @@ class Assessor_Auth {
         // prevent deleting last admin unless requester is superadmin
         if ($user->role === 'admin') {
             $canDeleteAdmin = false;
-            $token = $this->get_token_from_request($request ?? null);
+            // Safely retrieve the original request object if provided by caller
+            $request_obj = func_num_args() > 1 ? func_get_arg(1) : null;
+            $token = $request_obj ? $this->get_token_from_request($request_obj) : null;
             if ($token) {
                 try {
                     $payload = $this->verify_token_signature($token);
