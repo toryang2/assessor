@@ -189,7 +189,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
 
           <div style={{ textAlign: 'left', width: '100mm' }}>
             {/* Spacer */}
-            <div style={{ height: '18mm' }} />
+            <div style={{ height: '37mm' }} />
 
             {/* Encoded Info (side by side) */}
             <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 4 }}>
@@ -252,13 +252,19 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           
           <div style={{ textAlign: 'center', width: '80mm' }}>
             <div style={{ height: '18mm' }} />
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
+              <div>{'Verified and checked by:'}</div>
+            </div>
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
               {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || ''}
             </div>
-            <div style={{ fontSize: 11, marginBottom: 70 }}>
+            <div style={{ fontSize: 11, marginBottom: 30 }}>
               {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'VERIFIER'}
             </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
+            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
+              <div>{'Certified correct as to available record/s:'}</div>
+            </div>
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 12, fontWeight: 600 }}>
               {(() => {
                 const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
                 const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
