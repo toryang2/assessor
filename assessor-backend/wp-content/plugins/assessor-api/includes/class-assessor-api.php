@@ -367,7 +367,9 @@ class Assessor_API {
 
     public function delete_document($request) {
         $documents = new Assessor_Documents();
-        return $documents->delete_document($request['doc_id']);
+        $doc_id = isset($request['doc_id']) ? intval($request['doc_id']) : 0;
+        // Pass the full request so the service can extract the user token for auditing
+        return $documents->delete_document($doc_id, $request);
     }
     
     public function get_dashboard_data($request) {

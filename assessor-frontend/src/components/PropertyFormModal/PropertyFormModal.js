@@ -24,6 +24,21 @@ import { CloudUpload } from '@mui/icons-material';
 import { apiService, uploadFile } from '../../utils/api';
 
 const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
+  // Extract a reliable 4-digit year from various backend formats
+  const extractEffectivityYear = (raw) => {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    // If already a 4-digit year, return as-is
+    const yOnly = s.match(/^\d{4}$/);
+    if (yOnly) return yOnly[0];
+    // Try to capture a 4-digit year anywhere in the string (e.g., 2025-01-01)
+    const yInString = s.match(/(\d{4})/);
+    if (yInString) return yInString[1];
+    // Last resort: Date parse, but avoid timezone off-by-one by using UTC methods
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return String(d.getUTCFullYear());
+    return '';
+  };
   const [formData, setFormData] = useState({
     tax_declaration_number: '',
     previous_tax_declaration_number: '',
@@ -72,7 +87,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         area_hectare: property.area_hectare || '',
         title_number: property.title_number || '',
         assessed_value: property.assessed_value || '',
-        effectivity_date: property.effectivity_date ? String(new Date(property.effectivity_date).getFullYear()) : '',
+        effectivity_date: extractEffectivityYear(property.effectivity_date),
         pin: property.pin || '',
         address: property.address || '',
         assessment_date: property.assessment_date ? property.assessment_date.slice(0, 10) : '',

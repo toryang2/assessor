@@ -73,7 +73,8 @@ class Assessor_Auth {
         $token = $this->generate_token($user);
         
         // Log audit trail
-        $this->log_audit($user->id, 'login', 'assessor_users', $user->id);
+        $audit = new Assessor_Audit();
+        $audit->log_activity($user->id, 'login', 'assessor_users', $user->id, null, array('event' => 'login'));
         
         return array(
             'success' => true,
@@ -92,7 +93,8 @@ class Assessor_Auth {
         $user_id = $this->get_user_id_from_token($request);
         
         if ($user_id) {
-            $this->log_audit($user_id, 'logout', 'assessor_users', $user_id);
+            $audit = new Assessor_Audit();
+            $audit->log_activity($user_id, 'logout', 'assessor_users', $user_id, null, array('event' => 'logout'));
         }
         
         return array('success' => true, 'message' => 'Logged out successfully');
@@ -338,7 +340,8 @@ class Assessor_Auth {
 
         $new_id = $wpdb->insert_id;
         // Audit with user_id = 0 since public creation
-        $this->log_audit(0, 'create', 'assessor_users', $new_id);
+        $audit = new Assessor_Audit();
+        $audit->log_activity(0, 'create', 'assessor_users', $new_id, null, array('event' => 'create_user'));
         return array('success' => true, 'id' => $new_id);
     }
 
@@ -415,7 +418,8 @@ class Assessor_Auth {
         if ($result === false) {
             return new WP_Error('update_failed', 'Failed to update user', array('status' => 500));
         }
-        $this->log_audit(0, 'update', 'assessor_users', $id);
+        $audit = new Assessor_Audit();
+        $audit->log_activity(0, 'update', 'assessor_users', $id, null, array('event' => 'update_user'));
         return array('success' => true);
     }
 
@@ -463,7 +467,8 @@ class Assessor_Auth {
         if ($result === false) {
             return new WP_Error('delete_failed', 'Failed to delete user', array('status' => 500));
         }
-        $this->log_audit(0, 'delete', 'assessor_users', $id);
+        $audit = new Assessor_Audit();
+        $audit->log_activity(0, 'delete', 'assessor_users', $id, null, array('event' => 'delete_user'));
         return array('success' => true);
     }
     

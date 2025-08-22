@@ -108,9 +108,23 @@ class Assessor_Documents {
         
         $document_id = $wpdb->insert_id;
         
-        // Log audit trail
+        // Log audit trail with rich context (treat as generic 'upload' for UI)
+        $propDetails = null;
+        try {
+            $propertiesSvc = new Assessor_Properties();
+            $propDetails = $propertiesSvc->get_property($property_id);
+        } catch (\Exception $e) {}
+        $new_values = array(
+            'property_id' => $property_id,
+            'tax_declaration_number' => ($propDetails && isset($propDetails->tax_declaration_number)) ? $propDetails->tax_declaration_number : null,
+            'filename' => $unique_filename,
+            'original_filename' => $file['name'],
+            'file_type' => $file_extension,
+            'file_size' => number_format($file['size'] / 1048576, 2) . ' MB',
+            'description' => $description
+        );
         $audit = new Assessor_Audit();
-        $audit->log_activity($user_id, 'upload_document', 'assessor_documents', $document_id);
+        $audit->log_activity($user_id, 'upload', 'assessor_documents', $document_id, null, $new_values);
         
         return $this->get_document($document_id);
     }
@@ -131,8 +145,8 @@ class Assessor_Documents {
         }
         
         // Delete file from filesystem
-        if (file_exists($document->file_path)) {
-            unlink($document->file_path);
+        if (!empty($document->file_path) && file_exists($document->file_path)) {
+            @unlink($document->file_path);
         }
         
         // Delete database record
@@ -145,6 +159,29 @@ class Assessor_Documents {
         if ($result === false) {
             return new WP_Error('delete_failed', 'Failed to delete document record', array('status' => 500));
         }
+        
+        // Log audit trail for document deletion
+        $auth = new Assessor_Auth();
+        // Safely accept original request object when provided to extract user for auditing
+        $request_obj = func_num_args() > 1 ? func_get_arg(1) : null;
+        $user_id = $auth->get_user_id_from_token($request_obj);
+        // Enrich audit with property info similar to upload path
+        $propDetails = null;
+        try {
+            $propertiesSvc = new Assessor_Properties();
+            $propDetails = $propertiesSvc->get_property($document->property_id);
+        } catch (\Exception $e) {}
+        $old_values = array(
+            'property_id' => $document->property_id,
+            'tax_declaration_number' => ($propDetails && isset($propDetails->tax_declaration_number)) ? $propDetails->tax_declaration_number : null,
+            'filename' => $document->filename,
+            'original_filename' => $document->original_filename,
+            'file_type' => $document->file_type,
+            'file_size' => number_format(((int)$document->file_size) / 1048576, 2) . ' MB',
+            'description' => $document->description
+        );
+        $audit = new Assessor_Audit();
+        $audit->log_activity($user_id ?: 0, 'delete', 'assessor_documents', $document_id, $old_values, null);
         
         return array('success' => true, 'message' => 'Document deleted successfully');
     }

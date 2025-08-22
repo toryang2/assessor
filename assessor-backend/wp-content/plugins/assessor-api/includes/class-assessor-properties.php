@@ -241,8 +241,46 @@ class Assessor_Properties {
         // Insert business name if provided
         // Business is stored on properties table; no separate insert needed
 
-        // Log audit trail
-        $this->log_audit($user_id, 'create', 'assessor_properties', $property_id);
+        // Log audit trail with full snapshot of newly created property
+        $created = $this->get_property($property_id);
+        $new_values = array();
+        if ($created && !is_wp_error($created)) {
+            $new_values = array(
+                'id' => $created->id,
+                'tax_declaration_number' => $created->tax_declaration_number,
+                'previous_tax_declaration_number' => $created->previous_tax_declaration_number,
+                'declarant_last_name' => $created->declarant_last_name,
+                'declarant_first_name' => $created->declarant_first_name,
+                'declarant_middle_initial' => $created->declarant_middle_initial,
+                'business' => isset($created->business) ? $created->business : (isset($created->business_name) ? $created->business_name : ''),
+                'location' => $created->location,
+                'lot_number' => $created->lot_number,
+                'unique_lot_number_identified' => $created->unique_lot_number_identified,
+                'area_hectare' => $created->area_hectare,
+                'title_number' => $created->title_number,
+                'assessed_value' => $created->assessed_value,
+                'effectivity_date' => $created->effectivity_date,
+                'pin' => $created->pin,
+                'address' => $created->address,
+                'assessment_date' => $created->assessment_date,
+                'kind_of_property' => $created->kind_of_property,
+                'gen_class' => $created->gen_class,
+                'memoranda' => $created->memoranda,
+                'supporting_documents' => $created->supporting_documents,
+                'verifier_signatory_name' => isset($created->verifier_signatory_name) ? $created->verifier_signatory_name : '',
+                'verifier_signatory_title' => isset($created->verifier_signatory_title) ? $created->verifier_signatory_title : '',
+                'municipal_assessor_name' => isset($created->municipal_assessor_name) ? $created->municipal_assessor_name : '',
+                'municipal_assessor_suffix' => isset($created->municipal_assessor_suffix) ? $created->municipal_assessor_suffix : '',
+                'municipal_assessor_title' => isset($created->municipal_assessor_title) ? $created->municipal_assessor_title : '',
+                'municipal_assessor_license' => isset($created->municipal_assessor_license) ? $created->municipal_assessor_license : '',
+                'created_at' => $created->created_at,
+                'updated_at' => isset($created->updated_at) ? $created->updated_at : null,
+                'created_by' => isset($created->created_by) ? $created->created_by : null,
+                'updated_by' => isset($created->updated_by) ? $created->updated_by : null
+            );
+        }
+        $audit = new Assessor_Audit();
+        $audit->log_activity($user_id, 'create', 'assessor_properties', $property_id, null, $new_values);
         
         return $this->get_property($property_id);
     }
@@ -262,6 +300,76 @@ class Assessor_Properties {
         // Create version before updating
         $this->create_property_version($id, $current_property, $params['change_reason'] ?? 'Property updated');
         
+        // Compute changes for audit before update
+        $fields_to_track = array(
+            'tax_declaration_number',
+            'previous_tax_declaration_number',
+            'declarant_last_name',
+            'declarant_first_name',
+            'declarant_middle_initial',
+            'business',
+            'location',
+            'lot_number',
+            'unique_lot_number_identified',
+            'area_hectare',
+            'title_number',
+            'assessed_value',
+            'effectivity_date',
+            'pin',
+            'address',
+            'assessment_date',
+            'kind_of_property',
+            'gen_class',
+            'memoranda'
+        );
+        $old_values = array();
+        $new_values = array();
+        foreach ($fields_to_track as $field) {
+            if (!array_key_exists($field, $params)) {
+                continue;
+            }
+            $new_raw = $params[$field];
+            $old_raw = isset($current_property->$field) ? $current_property->$field : null;
+
+            // Normalize values by field type to avoid logging formatting-only changes
+            $is_numeric_4 = ($field === 'area_hectare');
+            $is_numeric_2 = ($field === 'assessed_value');
+
+            if ($is_numeric_4 || $is_numeric_2) {
+                $precision = $is_numeric_4 ? 4 : 2;
+                $old_num = is_null($old_raw) || $old_raw === '' ? null : floatval($old_raw);
+                $new_num = $new_raw === '' || is_null($new_raw) ? null : floatval($new_raw);
+
+                // If both null/empty, no change
+                if ($old_num === null && $new_num === null) {
+                    continue;
+                }
+                // Compare rounded numeric values
+                $old_round = is_null($old_num) ? null : round($old_num, $precision);
+                $new_round = is_null($new_num) ? null : round($new_num, $precision);
+                if ($old_round === $new_round) {
+                    continue; // no effective change
+                }
+                // Store formatted values for readability
+                $old_values[$field] = is_null($old_round) ? null : number_format($old_round, $precision, '.', '');
+                $new_values[$field] = is_null($new_round) ? null : number_format($new_round, $precision, '.', '');
+                continue;
+            }
+
+            // String-like fields: normalize whitespace and case similar to UI
+            $normalize_string = function($v) {
+                if ($v === null) return null;
+                $s = trim((string)$v);
+                return $s;
+            };
+            $old_norm = $normalize_string($old_raw);
+            $new_norm = $normalize_string($new_raw);
+            if ($old_norm !== $new_norm) {
+                $old_values[$field] = $old_norm;
+                $new_values[$field] = $new_norm;
+            }
+        }
+
         // Update property
         $table_properties = $wpdb->prefix . 'assessor_properties';
         
@@ -321,8 +429,9 @@ class Assessor_Properties {
         
         // Business is stored on properties table directly
         
-        // Log audit trail
-        $this->log_audit($user_id, 'update', 'assessor_properties', $id);
+        // Log audit trail with captured changes (if any)
+        $audit = new Assessor_Audit();
+        $audit->log_activity($user_id, 'update', 'assessor_properties', $id, !empty($old_values) ? $old_values : null, !empty($new_values) ? $new_values : null);
         
         return $this->get_property($id);
     }
@@ -351,8 +460,42 @@ class Assessor_Properties {
             return new WP_Error('delete_failed', 'Failed to delete property', array('status' => 500));
         }
         
-        // Log audit trail
-        $this->log_audit($user_id, 'delete', 'assessor_properties', $id);
+        // Log audit trail with full snapshot of property values for complete history
+        $old_values = array(
+            'id' => $property->id,
+            'tax_declaration_number' => $property->tax_declaration_number,
+            'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
+            'declarant_last_name' => $property->declarant_last_name,
+            'declarant_first_name' => $property->declarant_first_name,
+            'declarant_middle_initial' => $property->declarant_middle_initial,
+            'business' => isset($property->business) ? $property->business : (isset($property->business_name) ? $property->business_name : ''),
+            'location' => $property->location,
+            'lot_number' => $property->lot_number,
+            'unique_lot_number_identified' => $property->unique_lot_number_identified,
+            'area_hectare' => $property->area_hectare,
+            'title_number' => $property->title_number,
+            'assessed_value' => $property->assessed_value,
+            'effectivity_date' => $property->effectivity_date,
+            'pin' => $property->pin,
+            'address' => $property->address,
+            'assessment_date' => $property->assessment_date,
+            'kind_of_property' => $property->kind_of_property,
+            'gen_class' => $property->gen_class,
+            'memoranda' => $property->memoranda,
+            'supporting_documents' => $property->supporting_documents,
+            'verifier_signatory_name' => isset($property->verifier_signatory_name) ? $property->verifier_signatory_name : '',
+            'verifier_signatory_title' => isset($property->verifier_signatory_title) ? $property->verifier_signatory_title : '',
+            'municipal_assessor_name' => isset($property->municipal_assessor_name) ? $property->municipal_assessor_name : '',
+            'municipal_assessor_suffix' => isset($property->municipal_assessor_suffix) ? $property->municipal_assessor_suffix : '',
+            'municipal_assessor_title' => isset($property->municipal_assessor_title) ? $property->municipal_assessor_title : '',
+            'municipal_assessor_license' => isset($property->municipal_assessor_license) ? $property->municipal_assessor_license : '',
+            'created_at' => $property->created_at,
+            'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
+            'created_by' => isset($property->created_by) ? $property->created_by : null,
+            'updated_by' => isset($property->updated_by) ? $property->updated_by : null
+        );
+        $audit = new Assessor_Audit();
+        $audit->log_activity($user_id, 'delete', 'assessor_properties', $id, $old_values, null);
         
         return array('success' => true, 'message' => 'Property deleted successfully');
     }

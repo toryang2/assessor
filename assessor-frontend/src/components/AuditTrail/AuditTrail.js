@@ -73,6 +73,8 @@ const AuditTrail = () => {
   const [expandedLogs, setExpandedLogs] = useState(new Set());
   const [detailDialog, setDetailDialog] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetchAuditTrail();
@@ -130,7 +132,26 @@ const AuditTrail = () => {
 
   const handleViewDetails = (log) => {
     setSelectedLog(log);
+    loadHistory(log);
     setDetailDialog(true);
+  };
+
+  const loadHistory = async (log) => {
+    try {
+      setHistoryLoading(true);
+      const params = {
+        page: 1,
+        per_page: 100,
+        table: log.table_name,
+        record_id: log.record_id
+      };
+      const res = await apiService.getAuditTrail(params);
+      setHistoryLogs(res.data || []);
+    } catch (e) {
+      setHistoryLogs([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const clearFilters = () => {
@@ -193,29 +214,107 @@ const AuditTrail = () => {
     return tableNames[table] || table.replace('wp_assessor_', '').replace(/_/g, ' ');
   };
 
-  const formatChanges = (changes) => {
-    if (!changes) return 'No changes recorded';
-    
+  // Build a normalized changes map: { field: { old_value, new_value } }
+  const buildChanges = (log) => {
     try {
-      const parsed = typeof changes === 'string' ? JSON.parse(changes) : changes;
-      return Object.entries(parsed).map(([field, change]) => (
-        <Box key={field} sx={{ mb: 1 }}>
-          <Typography variant="body2" fontWeight={600}>
-            {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
-          </Typography>
-          <Box sx={{ ml: 2 }}>
-            <Typography variant="body2" color="error.main" component="span">
-              {change.old_value || 'Not specified'} →
-            </Typography>
-            <Typography variant="body2" color="success.main" component="span" sx={{ ml: 1 }}>
-              {change.new_value || 'Not specified'}
-            </Typography>
-          </Box>
-        </Box>
-      ));
-    } catch (e) {
-      return <Typography variant="body2" color="text.secondary">Invalid change data</Typography>;
+      // Primary shape: log.changes as map
+      if (log && log.changes) {
+        const parsed = typeof log.changes === 'string' ? JSON.parse(log.changes) : log.changes;
+        // If entries are objects with old_value/new_value, use as-is
+        const sample = parsed && typeof parsed === 'object' ? Object.values(parsed)[0] : null;
+        if (sample && (Object.prototype.hasOwnProperty.call(sample, 'old_value') || Object.prototype.hasOwnProperty.call(sample, 'new_value'))) {
+          return parsed;
+        }
+      }
+      // Fallback shape: separate old_values and new_values on the row
+      const oldVals = log && log.old_values ? (typeof log.old_values === 'string' ? JSON.parse(log.old_values) : log.old_values) : {};
+      const newVals = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
+      const keys = Array.from(new Set([...Object.keys(oldVals || {}), ...Object.keys(newVals || {})]));
+      const out = {};
+      keys.forEach((k) => {
+        out[k] = { old_value: oldVals ? oldVals[k] : undefined, new_value: newVals ? newVals[k] : undefined };
+      });
+      return out;
+    } catch (_) {
+      return {};
     }
+  };
+
+  const hiddenFields = new Set(['created_by', 'updated_by']);
+
+  const sanitizeObjectForDisplay = (obj) => {
+    try {
+      if (!obj || typeof obj !== 'object') return obj;
+      const clone = Array.isArray(obj) ? [...obj] : { ...obj };
+      Object.keys(clone).forEach((k) => {
+        if (hiddenFields.has(k)) delete clone[k];
+      });
+      return clone;
+    } catch (_) {
+      return obj;
+    }
+  };
+
+  const formatChanges = (log) => {
+    const changes = buildChanges(log);
+    const entries = Object.entries(changes).filter(([field]) => !hiddenFields.has(field));
+    if (!entries.length) return <Typography variant="body2">No changes recorded</Typography>;
+    return entries.map(([field, change]) => (
+      <Box key={field} sx={{ mb: 1 }}>
+        <Typography variant="body2" fontWeight={600}>
+          {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+        </Typography>
+        <Box sx={{ ml: 2 }}>
+          <Typography variant="body2" color="error.main" component="span">
+            {(change && change.old_value) !== undefined && (change && change.old_value) !== null ? String(change.old_value) : '—'} →
+          </Typography>
+          <Typography variant="body2" color="success.main" component="span" sx={{ ml: 1 }}>
+            {(change && change.new_value) !== undefined && (change && change.new_value) !== null ? String(change.new_value) : '—'}
+          </Typography>
+        </Box>
+      </Box>
+    ));
+  };
+
+  const renderSummary = (log) => {
+    const action = (log.action || '').toLowerCase();
+    const changes = buildChanges(log);
+    const keys = Object.keys(changes);
+    if (action === 'update') {
+      if (!keys.length) return 'Updated (no field changes captured)';
+      const preview = keys.slice(0, 2).map((k) => {
+        const c = changes[k] || {};
+        const oldV = c.old_value !== undefined && c.old_value !== null ? String(c.old_value) : '—';
+        const newV = c.new_value !== undefined && c.new_value !== null ? String(c.new_value) : '—';
+        return `${k}: ${oldV} → ${newV}`;
+      }).join('; ');
+      const more = keys.length > 2 ? ` (+${keys.length - 2} more)` : '';
+      return `Changed ${keys.length} field(s): ${preview}${more}`;
+    }
+    if (action === 'create') {
+      try {
+        const newVals = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
+        const keysShow = ['tax_declaration_number', 'location', 'kind_of_property', 'assessed_value'];
+        const parts = keysShow.filter(k => newVals && newVals[k] !== undefined && newVals[k] !== null).map(k => `${k}: ${newVals[k]}`);
+        return parts.length ? `Created (${parts.join('; ')})` : 'Created';
+      } catch (_) { return 'Created'; }
+    }
+    if (action === 'upload') {
+      try {
+        const nv = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
+        const file = nv.original_filename || nv.filename || 'file';
+        const tdn = nv.tax_declaration_number ? ` to ${nv.tax_declaration_number}` : '';
+        return `Uploaded ${file}${tdn}`;
+      } catch (_) { return 'Uploaded file'; }
+    }
+    if (action === 'delete') {
+      try {
+        const oldVals = log && log.old_values ? (typeof log.old_values === 'string' ? JSON.parse(log.old_values) : log.old_values) : {};
+        const primary = oldVals && oldVals.tax_declaration_number ? `tax_declaration_number: ${oldVals.tax_declaration_number}` : '';
+        return primary ? `Deleted (${primary})` : 'Deleted';
+      } catch (_) { return 'Deleted'; }
+    }
+    return (log.event || log.action || 'Action');
   };
 
   if (loading && auditLogs.length === 0) {
@@ -340,6 +439,7 @@ const AuditTrail = () => {
                 <TableCell>User</TableCell>
                 <TableCell>Table</TableCell>
                 <TableCell>Record ID</TableCell>
+                <TableCell>Summary</TableCell>
                 <TableCell>Date & Time</TableCell>
                 <TableCell>IP Address</TableCell>
                 <TableCell>Actions</TableCell>
@@ -373,6 +473,11 @@ const AuditTrail = () => {
                     <TableCell>
                       <Typography variant="body2">
                         {log.record_id || 'N/A'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {renderSummary(log)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -416,11 +521,14 @@ const AuditTrail = () => {
                               <Typography variant="subtitle2" gutterBottom>
                                 Changes Made:
                               </Typography>
-                              {formatChanges(log.changes)}
+                              {formatChanges(log)}
                             </Grid>
                             <Grid item xs={12} md={6}>
                               <Typography variant="subtitle2" gutterBottom>
                                 Additional Details:
+                              </Typography>
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                Summary: {renderSummary(log)}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
                                 User Agent: {log.user_agent || 'Not specified'}
@@ -535,7 +643,74 @@ const AuditTrail = () => {
                   Changes Made
                 </Typography>
                 <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
-                  {formatChanges(selectedLog.changes)}
+                  {(() => {
+                    const built = buildChanges(selectedLog);
+                    const has = Object.keys(built || {}).length > 0;
+                    if (has) return formatChanges(selectedLog);
+                    try {
+                      const oldValsRaw = selectedLog.old_values ? (typeof selectedLog.old_values === 'string' ? JSON.parse(selectedLog.old_values) : selectedLog.old_values) : null;
+                      const newValsRaw = selectedLog.new_values ? (typeof selectedLog.new_values === 'string' ? JSON.parse(selectedLog.new_values) : selectedLog.new_values) : null;
+                      const oldVals = sanitizeObjectForDisplay(oldValsRaw);
+                      const newVals = sanitizeObjectForDisplay(newValsRaw);
+                      return (
+                        <Box>
+                          {oldVals && (
+                            <Box sx={{ mb: 1 }}>
+                              <Typography variant="body2" fontWeight={600}>Previous Values</Typography>
+                              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(oldVals, null, 2)}</pre>
+                            </Box>
+                          )}
+                          {newVals && (
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>New Values</Typography>
+                              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(newVals, null, 2)}</pre>
+                            </Box>
+                          )}
+                          {!oldVals && !newVals && (
+                            <Typography variant="body2">No changes recorded</Typography>
+                          )}
+                        </Box>
+                      );
+                    } catch (_) {
+                      return <Typography variant="body2">No changes recorded</Typography>;
+                    }
+                  })()}
+                </Box>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Full History for this Record
+                </Typography>
+                <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
+                  {historyLoading ? (
+                    <Typography variant="body2">Loading history…</Typography>
+                  ) : (historyLogs && historyLogs.length > 0 ? (
+                    <List dense>
+                      {historyLogs.map((h) => (
+                        <ListItem key={h.id} alignItems="flex-start" sx={{ alignItems: 'flex-start' }}>
+                          <ListItemIcon>
+                            {getActionIcon(h.action)}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={`${format(new Date(h.created_at), 'MMM dd, yyyy HH:mm:ss')} • ${h.action.toUpperCase()} • ${h.user_name || h.user_id || 'System'}`}
+                            secondary={
+                              <Box sx={{ mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                                  {renderSummary(h)}
+                                </Typography>
+                                <Box sx={{ ml: 0.5 }}>
+                                  {formatChanges(h)}
+                                </Box>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2">No history found for this record.</Typography>
+                  ))}
                 </Box>
               </Grid>
               
