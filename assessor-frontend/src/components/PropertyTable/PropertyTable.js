@@ -201,7 +201,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
             <div style={{ height: '18mm' }} />
 
             {/* Encoded Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 4 }}>
               {/* Labels */}
               <div style={{ width: '25mm', fontSize: 12, fontWeight: 400 }}>
                 <div>{'Encoded by:'}</div>
@@ -236,9 +236,9 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
             </div>
 
             {/* Receipt Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginTop: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', marginTop: 4 }}>
               {/* Labels */}
-              <div style={{ width: '14mm', fontSize: 8, fontWeight: 400 }}>
+              <div style={{ width: '19mm', fontSize: 10, fontWeight: 400 }}>
                 <div style={{ paddingTop: 50 }}>
                   {'Amount Paid: '}
                 </div>
@@ -249,7 +249,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
               </div>
 
               {/* Data Values */}
-              <div style={{ fontSize: 8, fontWeight: 400 }}>
+              <div style={{ fontSize: 10, fontWeight: 400 }}>
                 <div style={{ paddingTop: 50 }}>{'₱'}</div>
                 <div>{'123123'}</div>
                 <div>{'2025/05/21'}</div>
@@ -262,16 +262,16 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           <div style={{ textAlign: 'center', width: '80mm' }}>
             <div style={{ height: '18mm' }} />
             <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
-              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '____________________________'}
+              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || ''}
             </div>
             <div style={{ fontSize: 11, marginBottom: 70 }}>
-              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'Verifier'}
+              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'VERIFIER'}
             </div>
             <div style={{ borderBottom: '1px solid #000', paddingTop: 4, fontSize: 12, fontWeight: 600 }}>
               {(() => {
                 const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
                 const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
-                const base = (name || '____________________________');
+                const base = (name || '');
                 return (
                   <span>
                     {base}
@@ -280,7 +280,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
                 );
               })()}
             </div>
-            <div style={{ fontSize: 11 }}>
+            <div style={{ fontSize: 11, paddingTop: 10 }}>
               {(printHistory && printHistory[0] && printHistory[0].municipal_assessor_title) || (settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
             </div>
             <div style={{ fontSize: 10 }}>
@@ -527,7 +527,7 @@ const PropertyTable = () => {
         const pxPerMm = 96 / 25.4;
         const a4HeightPx = 297 * pxPerMm;
         const topMarginPx = 12 * pxPerMm;
-        const bottomMarginPx = 5 * pxPerMm; // 16 Default Change to 1 if super low
+        const bottomMarginPx = 16 * pxPerMm; // 16 Default Change to 1 if super low
         const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
         // Current total height (with signature present)
         const totalHeight = root.scrollHeight;
@@ -898,32 +898,19 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {taxHistory[0]?.pin}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>OWNER:</strong> {(() => {
-                      const sanitizeDeclarant = (name) => {
-                        const s = String(name || '').trim();
-                        if (!s) return '';
-                        // normalize spaces around commas, then strip leading/trailing commas/spaces
-                        let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                        // if only a comma remains after normalization, drop it
-                        if (out === ',') out = '';
-                        return out;
-                      };
-                      const d = sanitizeDeclarant(taxHistory[0]?.declarant_name);
-                      const b = taxHistory[0]?.business_name ? String(taxHistory[0].business_name).replace(/,\s*/g, ' ') : '';
-                      return d && b ? `${d} / ${b}` : (d || b || '');
-                    })()}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {taxHistory[0]?.declarant_name}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {taxHistory[0]?.address}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>LOCATION:</strong> {taxHistory[0]?.location}</TableCell>
+                    <TableCell><strong>BUSINESS NAME:</strong> {taxHistory[0]?.business_name}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {taxHistory[0]?.assessment_date}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>EFFECTIVITY:</strong> {taxHistory[0]?.effectivity_date}</TableCell>
+                  <TableCell><strong>LOCATION:</strong> {taxHistory[0]?.location}</TableCell>
                     <TableCell><strong>KIND OF PROPERTY:</strong> {taxHistory[0]?.kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell></TableCell>
+                    <TableCell><strong>EFFECTIVITY:</strong> {taxHistory[0]?.effectivity_date}</TableCell>
                     <TableCell><strong>GEN. CLASS:</strong> {taxHistory[0]?.gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -1023,32 +1010,19 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>OWNER:</strong> {(() => {
-                      const sanitizeDeclarant = (name) => {
-                        const s = String(name || '').trim();
-                        if (!s) return '';
-                        // normalize spaces around commas, then strip leading/trailing commas/spaces
-                        let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                        // if only a comma remains after normalization, drop it
-                        if (out === ',') out = '';
-                        return out;
-                      };
-                      const d = sanitizeDeclarant(printHistory[0]?.declarant_name);
-                      const b = printHistory[0]?.business_name ? String(printHistory[0].business_name).replace(/,\s*/g, ' ') : '';
-                      return d && b ? `${d} / ${b}` : (d || b || '');
-                    })()}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
+                    <TableCell><strong>BUSINESS NAME:</strong> {printHistory[0].business_name}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
+                    <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
                     <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { paddingBottom: '12px' } }}>
-                    <TableCell></TableCell>
+                    <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
                     <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
