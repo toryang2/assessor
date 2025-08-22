@@ -71,6 +71,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   const [existingDocuments, setExistingDocuments] = useState([]);
   const [docPreview, setDocPreview] = useState({ open: false, src: '', filename: '' });
   const [pendingUploads, setPendingUploads] = useState([]);
+  const [documentsToDelete, setDocumentsToDelete] = useState([]);
 
   useEffect(() => {
     if (property) {
@@ -138,6 +139,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
     };
     loadDocs();
     setPendingUploads([]);
+    setDocumentsToDelete([]);
   }, [property]);
 
   useEffect(() => {
@@ -328,6 +330,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
           console.error('Error uploading supporting documents:', e);
           // Proceed but notify user that some uploads failed
           setToast({ open: true, message: 'Some documents failed to upload', severity: 'warning' });
+        }
+      }
+
+      // Perform deferred deletions
+      const toDelete = Array.isArray(documentsToDelete) ? documentsToDelete : [];
+      if (propertyId && toDelete.length > 0) {
+        try {
+          await Promise.all(
+            toDelete.map((docId) => apiService.deletePropertyDocument(propertyId, docId))
+          );
+        } catch (e) {
+          console.error('Error deleting documents:', e);
+          setToast({ open: true, message: 'Some documents failed to delete', severity: 'warning' });
         }
       }
 
@@ -719,14 +734,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
                                 <Typography variant="body2" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.original_filename || doc.filename}>
                                   {doc.original_filename || doc.filename}
                                 </Typography>
-                                <Button size="small" color="error" onClick={async () => {
-                                  try {
-                                    if (!property || !property.id) return;
-                                    await apiService.deletePropertyDocument(property.id, doc.id);
-                                    setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
-                                  } catch (e) {
-                                    setToast({ open: true, message: 'Failed to delete document', severity: 'error' });
-                                  }
+                                <Button size="small" color="error" onClick={() => {
+                                  // Defer deletion until save; optimistically hide from list
+                                  setDocumentsToDelete(prev => (prev.includes(doc.id) ? prev : [...prev, doc.id]));
+                                  setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
+                                  setToast({ open: true, message: 'Document marked for deletion. Save to apply.', severity: 'info' });
                                 }}>Delete</Button>
                               </Box>
                               <Box sx={{ mt: 1 }}>
