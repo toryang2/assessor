@@ -290,7 +290,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
                 );
               })()}
             </div>
-            <div style={{ fontSize: 11, paddingTop: 10 }}>
+            <div style={{ fontSize: 11, paddingTop: 0 }}>
               {(printHistory && printHistory[0] && printHistory[0].municipal_assessor_title) || (settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
             </div>
             <div style={{ fontSize: 10 }}>
