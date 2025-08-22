@@ -407,7 +407,7 @@ const Layout = ({ children }) => {
             exit="exit"
             variants={animations.fadeIn}
           >
-            {currentPage === 'Dashboard' && <Dashboard />}
+            {currentPage === 'Dashboard' && <Dashboard onNavigate={handleNavigation} />}
             {currentPage === 'Properties' && <PropertyTable />}
             {currentPage === 'Audit Trail' && <AuditTrail />}
             {currentPage === 'Export' && <Export />}

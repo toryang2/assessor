@@ -14,7 +14,20 @@ import {
   Chip,
   Avatar,
   useTheme,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Business,
@@ -24,7 +37,9 @@ import {
   Add,
   Edit,
   Notifications,
-  ArrowForward
+  ArrowForward,
+  Close,
+  Visibility
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -42,17 +57,25 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations, statusColors } from '../../theme/theme';
 import { format } from 'date-fns';
+import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 
-const Dashboard = () => {
+const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [properties, setProperties] = useState([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(false);
+  const [showPropertyForm, setShowPropertyForm] = useState(false);
+  const [showPropertiesList, setShowPropertiesList] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(null);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     // Only fetch dashboard data when authentication is complete and user is authenticated
     if (!authLoading && isAuthenticated) {
       fetchDashboardData();
+      fetchProperties();
     }
   }, [authLoading, isAuthenticated]);
 
@@ -65,11 +88,76 @@ const Dashboard = () => {
       setDashboardData(data);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching dashboard data:', error);
+      setToast({ 
+        open: true, 
+        message: 'Failed to fetch dashboard data. Please try again.', 
+        severity: 'error' 
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchProperties = async () => {
+    try {
+      setPropertiesLoading(true);
+      const response = await apiService.getProperties();
+      if (response && response.items) {
+        setProperties(response.items.slice(0, 10)); // Show only first 10 properties
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching properties:', error);
+      setToast({ 
+        open: true, 
+        message: 'Failed to fetch properties. Please try again.', 
+        severity: 'error' 
+      });
+    } finally {
+      setPropertiesLoading(false);
+    }
+  };
+
+  const handleAddProperty = () => {
+    setEditingProperty(null);
+    setShowPropertyForm(true);
+  };
+
+  const handleViewProperties = () => {
+    if (onNavigate) {
+      onNavigate('Properties');
+    } else {
+      setShowPropertiesList(true);
+    }
+  };
+
+  const handlePropertySave = async (message) => {
+    setShowPropertyForm(false);
+    setEditingProperty(null);
+    // Show success message
+    setToast({ open: true, message: message || 'Property saved successfully', severity: 'success' });
+    // Refresh data
+    await fetchDashboardData();
+    await fetchProperties();
+  };
+
+  const handlePropertyCancel = () => {
+    setShowPropertyForm(false);
+    setEditingProperty(null);
+  };
+
+  const handleEditProperty = (property) => {
+    setEditingProperty(property);
+    setShowPropertyForm(true);
+  };
+
+  const handleViewProperty = (property) => {
+    if (onNavigate) {
+      onNavigate('Properties');
+    } else {
+      // Show property details in a modal or expand the list
+      setShowPropertiesList(true);
+    }
+  };
 
 
   // Show loading state while authentication is being checked
@@ -106,14 +194,14 @@ const Dashboard = () => {
       description: 'Create a new property assessment record',
       icon: <Add />,
       color: theme.palette.primary.main,
-      action: () => console.log('Add New Property clicked')
+      action: handleAddProperty
     },
     {
       title: 'View Properties',
       description: 'Browse and manage property records',
       icon: <Business />,
       color: theme.palette.secondary.main,
-      action: () => console.log('View Properties clicked')
+      action: handleViewProperties
     },
     {
       title: 'Export Data',
@@ -185,7 +273,7 @@ const Dashboard = () => {
     </motion.div>
   );
 
-  const QuickActionCard = ({ action }) => (
+  const QuickActionCard = ({ action, loading = false }) => (
     <motion.div
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
@@ -193,9 +281,10 @@ const Dashboard = () => {
       <Card
         sx={{
           height: '100%',
-                   cursor: 'pointer'
+          cursor: loading ? 'not-allowed' : 'pointer',
+          opacity: loading ? 0.7 : 1
         }}
-        onClick={action.action}
+        onClick={loading ? undefined : action.action}
       >
         <CardContent sx={{ textAlign: 'center', padding: 3 }}>
           <Avatar
@@ -207,7 +296,7 @@ const Dashboard = () => {
               margin: '0 auto 16px'
             }}
           >
-            {action.icon}
+            {loading ? <CircularProgress size={32} color="inherit" /> : action.icon}
           </Avatar>
           <Typography variant="h6" component="h3" gutterBottom>
             {action.title}
@@ -237,14 +326,27 @@ const Dashboard = () => {
         variants={animations.fadeIn}
       >
         <Box sx={{ marginBottom: 4 }}>
-          <Typography variant="h3" component="h1" gutterBottom>
-            Welcome back!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Here's what's happening with your property assessment system today.
-          </Typography>
-          
-
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box>
+              <Typography variant="h3" component="h1" gutterBottom>
+                Welcome back!
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Here's what's happening with your property assessment system today.
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              onClick={async () => {
+                await fetchDashboardData();
+                await fetchProperties();
+              }}
+              disabled={loading || propertiesLoading}
+              startIcon={<TrendingUp />}
+            >
+              Refresh Data
+            </Button>
+          </Box>
         </Box>
       </motion.div>
 
@@ -388,11 +490,130 @@ const Dashboard = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.3 }}
               >
-                <QuickActionCard action={action} />
+                <QuickActionCard 
+                  action={action} 
+                  loading={action.title === 'Add New Property' && (loading || propertiesLoading)}
+                />
               </motion.div>
             </Grid>
           ))}
         </Grid>
+      </motion.div>
+
+      {/* Recent Properties */}
+      <motion.div
+        initial="initial"
+        animate="animate"
+        variants={animations.fadeIn}
+        transition={{ delay: 0.4 }}
+      >
+        <Box sx={{ marginTop: 4, marginBottom: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+            <Typography variant="h5" component="h2">
+              Recent Properties
+            </Typography>
+            <Button
+              endIcon={<ArrowForward />}
+              onClick={handleViewProperties}
+              sx={{ textTransform: 'none' }}
+            >
+              View All Properties
+            </Button>
+          </Box>
+          
+          {propertiesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+              <CircularProgress />
+            </Box>
+          ) : properties.length === 0 ? (
+            <Card>
+              <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                <Business sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No Properties Yet
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Get started by adding your first property assessment record.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={handleAddProperty}
+                >
+                  Add First Property
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Grid container spacing={2}>
+              {properties.slice(0, 6).map((property, index) => (
+                <Grid item xs={12} sm={6} md={4} key={property.id}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.3 }}
+                  >
+                    <Card
+                      sx={{
+                        height: '100%',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          boxShadow: theme.shadows[8],
+                          transform: 'translateY(-2px)',
+                          transition: 'all 0.2s ease-in-out'
+                        }
+                      }}
+                      onClick={() => handleViewProperty(property)}
+                    >
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="h6" component="h3" noWrap>
+                            {property.tax_declaration_number || `Property ${property.id}`}
+                          </Typography>
+                          <Chip
+                            label={property.kind_of_property || 'Unknown'}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </Box>
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          {property.declarant_last_name && property.declarant_first_name 
+                            ? `${property.declarant_last_name}, ${property.declarant_first_name}`
+                            : property.business_name || 'No owner specified'
+                          }
+                        </Typography>
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {property.location || property.address || 'Location not specified'}
+                        </Typography>
+                        
+                        {property.assessed_value && (
+                          <Typography variant="body2" fontWeight={500} color="primary.main">
+                            ₱{Number(property.assessed_value).toLocaleString()}
+                          </Typography>
+                        )}
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditProperty(property);
+                            }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
       </motion.div>
 
       {/* Recent Activity */}
@@ -475,8 +696,180 @@ const Dashboard = () => {
           </Card>
         </Box>
       </motion.div>
-    </Box>
-  );
-};
+
+             {/* Property Form Modal */}
+       <PropertyFormModal
+         open={showPropertyForm}
+         property={editingProperty}
+         onSave={handlePropertySave}
+         onCancel={handlePropertyCancel}
+         onClose={handlePropertyCancel}
+       />
+
+             {/* Properties List Dialog */}
+       <Dialog open={showPropertiesList} onClose={() => setShowPropertiesList(false)} maxWidth="lg" fullWidth>
+         <DialogTitle>
+           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+             <Typography variant="h6">Properties Overview</Typography>
+             <Box>
+               <Button
+                 variant="contained"
+                 startIcon={<Add />}
+                 onClick={() => {
+                   setShowPropertiesList(false);
+                   handleAddProperty();
+                 }}
+                 sx={{ mr: 1 }}
+               >
+                 Add New Property
+               </Button>
+               <IconButton onClick={() => setShowPropertiesList(false)}>
+                 <Close />
+               </IconButton>
+             </Box>
+           </Box>
+         </DialogTitle>
+         <DialogContent>
+           <TableContainer component={Paper}>
+             <Table>
+               <TableHead>
+                 <TableRow>
+                   <TableCell><strong>Tax Declaration #</strong></TableCell>
+                   <TableCell><strong>Owner</strong></TableCell>
+                   <TableCell><strong>Location</strong></TableCell>
+                   <TableCell><strong>Type</strong></TableCell>
+                   <TableCell><strong>Assessed Value</strong></TableCell>
+                   <TableCell><strong>Area (ha)</strong></TableCell>
+                   <TableCell align="right"><strong>Actions</strong></TableCell>
+                 </TableRow>
+               </TableHead>
+               <TableBody>
+                 {propertiesLoading ? (
+                   <TableRow>
+                     <TableCell colSpan={7} align="center">
+                       <CircularProgress />
+                     </TableCell>
+                   </TableRow>
+                 ) : properties.length === 0 ? (
+                   <TableRow>
+                     <TableCell colSpan={7} align="center">
+                       <Box sx={{ py: 4, textAlign: 'center' }}>
+                         <Business sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                         <Typography variant="h6" color="text.secondary" gutterBottom>
+                           No Properties Found
+                         </Typography>
+                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                           Get started by adding your first property assessment record.
+                         </Typography>
+                         <Button
+                           variant="contained"
+                           startIcon={<Add />}
+                           onClick={() => {
+                             setShowPropertiesList(false);
+                             handleAddProperty();
+                           }}
+                         >
+                           Add First Property
+                         </Button>
+                       </Box>
+                     </TableCell>
+                   </TableRow>
+                 ) : (
+                   properties.map((property) => (
+                     <TableRow 
+                       key={property.id}
+                       sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
+                     >
+                       <TableCell>
+                         <Typography variant="body2" fontWeight={500}>
+                           {property.tax_declaration_number || `ID: ${property.id}`}
+                         </Typography>
+                       </TableCell>
+                       <TableCell>
+                         <Typography variant="body2">
+                           {property.declarant_last_name && property.declarant_first_name 
+                             ? `${property.declarant_last_name}, ${property.declarant_first_name}`
+                             : property.business_name || 'Not specified'
+                           }
+                         </Typography>
+                       </TableCell>
+                       <TableCell>
+                         <Typography variant="body2">
+                           {property.location || property.address || 'Not specified'}
+                         </Typography>
+                       </TableCell>
+                       <TableCell>
+                         <Chip 
+                           label={property.kind_of_property || 'Unknown'} 
+                           size="small" 
+                           color="primary" 
+                           variant="outlined" 
+                         />
+                       </TableCell>
+                       <TableCell>
+                         {property.assessed_value ? (
+                           <Typography variant="body2" fontWeight={500} color="primary.main">
+                             ₱{Number(property.assessed_value).toLocaleString()}
+                           </Typography>
+                         ) : (
+                           <Typography variant="body2" color="text.secondary">
+                             Not assessed
+                           </Typography>
+                         )}
+                       </TableCell>
+                       <TableCell>
+                         {property.area_hectare ? (
+                           <Typography variant="body2">
+                             {Number(property.area_hectare).toFixed(4)}
+                           </Typography>
+                         ) : (
+                           <Typography variant="body2" color="text.secondary">
+                             -
+                           </Typography>
+                         )}
+                       </TableCell>
+                       <TableCell align="right">
+                         <IconButton 
+                           size="small"
+                           onClick={() => handleEditProperty(property)}
+                           title="Edit Property"
+                         >
+                           <Edit fontSize="small" />
+                         </IconButton>
+                         <IconButton 
+                           size="small"
+                           onClick={() => handleViewProperty(property)}
+                           title="View Details"
+                         >
+                           <Visibility fontSize="small" />
+                         </IconButton>
+                       </TableCell>
+                     </TableRow>
+                   ))
+                 )}
+               </TableBody>
+             </Table>
+           </TableContainer>
+                  </DialogContent>
+       </Dialog>
+
+       {/* Toast Notifications */}
+       <Snackbar
+         open={toast.open}
+         autoHideDuration={4000}
+         onClose={() => setToast(prev => ({ ...prev, open: false }))}
+         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+       >
+         <Alert 
+           onClose={() => setToast(prev => ({ ...prev, open: false }))} 
+           severity={toast.severity} 
+           sx={{ width: '100%' }}
+         >
+           {toast.message}
+         </Alert>
+       </Snackbar>
+     </Box>
+   );
+ };
 
 export default Dashboard;

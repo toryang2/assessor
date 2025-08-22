@@ -23,7 +23,7 @@ import { CloudUpload } from '@mui/icons-material';
 
 import { apiService, uploadFile } from '../../utils/api';
 
-const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
+const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   // Extract a reliable 4-digit year from various backend formats
   const extractEffectivityYear = (raw) => {
     if (!raw) return '';
@@ -73,6 +73,53 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   const [pendingUploads, setPendingUploads] = useState([]);
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
 
+  // Helper function to validate and clean assessment date
+  const cleanAssessmentDate = (dateValue) => {
+    if (!dateValue || dateValue.trim() === '') return null;
+    
+    // Check if it's a valid date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateValue)) return null;
+    
+    // Check if it's a valid date
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return null;
+    
+    return dateValue;
+  };
+
+  // Helper function to format assessment date for form display
+  const formatAssessmentDateForForm = (dateValue) => {
+    if (!dateValue) return '';
+    
+    // If it's already in YYYY-MM-DD format, return as-is
+    if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateValue;
+    }
+    
+    // If it's a full datetime string, extract just the date part
+    if (typeof dateValue === 'string' && dateValue.length >= 10) {
+      const datePart = dateValue.slice(0, 10);
+      // Validate the extracted date
+      return cleanAssessmentDate(datePart) ? datePart : '';
+    }
+    
+    // Try to parse and format the date
+    try {
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (e) {
+      // If parsing fails, return empty string
+    }
+    
+    return '';
+  };
+
   useEffect(() => {
     if (property) {
       setFormData({
@@ -91,36 +138,36 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         effectivity_date: extractEffectivityYear(property.effectivity_date),
         pin: property.pin || '',
         address: property.address || '',
-        assessment_date: property.assessment_date ? property.assessment_date.slice(0, 10) : '',
+        assessment_date: formatAssessmentDateForForm(property.assessment_date),
         kind_of_property: property.kind_of_property || '',
         gen_class: property.gen_class || '',
         memoranda: property.memoranda || '',
         supporting_documents: []
       });
     } else {
-             // Reset form for new property
-       setFormData({
-         tax_declaration_number: '',
-         previous_tax_declaration_number: '',
-         declarant_last_name: '',
-         declarant_first_name: '',
-         declarant_middle_initial: '',
-         business_name: '',
-         location: '',
-         lot_number: '',
-         unique_lot_number_identified: '',
-         area_hectare: '',
-         title_number: '',
-         assessed_value: '',
-         effectivity_date: '',
-         pin: '',
-         address: '',
-         assessment_date: '',
-         kind_of_property: '',
-         gen_class: '',
-         memoranda: '',
-         supporting_documents: []
-       });
+      // Reset form for new property
+      setFormData({
+        tax_declaration_number: '',
+        previous_tax_declaration_number: '',
+        declarant_last_name: '',
+        declarant_first_name: '',
+        declarant_middle_initial: '',
+        business_name: '',
+        location: '',
+        lot_number: '',
+        unique_lot_number_identified: '',
+        area_hectare: '',
+        title_number: '',
+        assessed_value: '',
+        effectivity_date: '',
+        pin: '',
+        address: '',
+        assessment_date: '',
+        kind_of_property: '',
+        gen_class: '',
+        memoranda: '',
+        supporting_documents: []
+      });
     }
     setErrors([]);
     // Load existing documents for edit mode
@@ -296,7 +343,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
         effectivity_date: formData.effectivity_date,
         pin: formData.pin,
         address: formData.address,
-        assessment_date: formData.assessment_date,
+        assessment_date: cleanAssessmentDate(formData.assessment_date),
         kind_of_property: formData.kind_of_property,
         gen_class: formData.gen_class,
         memoranda: formData.memoranda,
@@ -364,18 +411,34 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
   if (!open) return null;
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={3000}
-        onClose={() => setToast(prev => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
-          {toast.message}
-        </Alert>
-      </Snackbar>
-      <form onSubmit={handleSubmit}>
+    <Dialog 
+      open={open} 
+      onClose={onClose || onCancel} 
+      maxWidth="lg" 
+      fullWidth
+      PaperProps={{
+        sx: { maxHeight: '90vh' }
+      }}
+    >
+      <DialogTitle>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            {property ? 'Edit Property' : 'Add New Property'}
+          </Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={3000}
+          onClose={() => setToast(prev => ({ ...prev, open: false }))}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
+            {toast.message}
+          </Alert>
+        </Snackbar>
+        <form onSubmit={handleSubmit}>
         {/* Error Display */}
         {errors.length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -797,7 +860,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open }) => {
           ) : null}
         </DialogContent>
       </Dialog>
-    </Box>
+        </DialogContent>
+      </Dialog>
   );
 };
 

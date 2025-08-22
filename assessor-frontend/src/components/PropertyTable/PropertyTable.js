@@ -40,6 +40,26 @@ import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 import { useReactToPrint } from 'react-to-print';
 
+// Helper function to sanitize declarant names by removing leading/trailing commas
+const sanitizeDeclarant = (name) => {
+  if (!name) return '';
+  const s = String(name).trim();
+  if (!s) return '';
+  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+  if (out === ',') out = '';
+  return out;
+};
+
+// Helper function to sanitize business names by removing leading/trailing commas
+const sanitizeBusinessName = (name) => {
+  if (!name) return '';
+  const s = String(name).trim();
+  if (!s) return '';
+  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+  if (out === ',') out = '';
+  return out;
+};
+
 const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
   const toFormalCase = (text) => {
     if (!text) return '';
@@ -86,7 +106,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{printHistory && printHistory[0] && printHistory[0].declarant_name || ''}</span>
+              <strong>OWNER:</strong> <span>{sanitizeDeclarant(printHistory?.[0]?.declarant_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ADDRESS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].address) || ''}</span>
@@ -94,7 +114,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>BUSINESS NAME:</strong> <span>{printHistory && printHistory[0] && printHistory[0].business_name || ''}</span>
+            <strong>BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
@@ -149,16 +169,9 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
                 <div>{item.tax_declaration_number || ''}</div>
               </td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                const sanitizeDeclarant = (name) => {
-                  const s = String(name || '').trim();
-                  if (!s) return '';
-                  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                  if (out === ',') out = '';
-                  return out;
-                };
                 const d = sanitizeDeclarant(item.declarant_name);
                 const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
-                return d && b ? `${d} / ${b}` : (d || b || '—');
+                return d && b ? `${d} / ${b}` : (d || b || '');
               })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
@@ -184,7 +197,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
       <div className="print-bottom-spacer" />
 
       {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
-      <div className="print-signature" style={{ fontFamily: 'Arial, sans serif', width: '100%', marginTop: '8mm', paddingBottom: '0mm', paddingRight: '10mm', paddingLeft: '10mm' }}>
+      <div className="print-signature" style={{ fontFamily: 'Arial, sans serif', width: '100%', marginTop: '0mm', marginBottom: '0mm', paddingTop: '0mm', paddingBottom: '0mm', paddingRight: '10mm', paddingLeft: '10mm' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
 
           <div style={{ textAlign: 'left', width: '100mm' }}>
@@ -264,7 +277,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
             <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
               <div>{'Certified correct as to available record/s:'}</div>
             </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 12, fontWeight: 600 }}>
+            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
               {(() => {
                 const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
                 const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
@@ -272,7 +285,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
                 return (
                   <span>
                     {base}
-                    {suffix ? <span style={{ fontSize: 11, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
+                    {suffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
                   </span>
                 );
               })()}
@@ -524,7 +537,7 @@ const PropertyTable = () => {
         const pxPerMm = 96 / 25.4;
         const a4HeightPx = 297 * pxPerMm;
         const topMarginPx = 12 * pxPerMm;
-        const bottomMarginPx = 16 * pxPerMm; // 16 Default Change to 1 if super low
+        const bottomMarginPx = 0 * pxPerMm; // 16 Default Change to 1 if super low
         const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
         // Current total height (with signature present)
         const totalHeight = root.scrollHeight;
@@ -733,11 +746,11 @@ const PropertyTable = () => {
                         : '';
                       const business = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ') : '';
                       if (declarant && business) return `${declarant} / ${business}`;
-                      return declarant || business || 'N/A';
+                      return declarant || business || '—';
                     })()}
                   </TableCell>
-                  <TableCell>{property.lot_number}</TableCell>
-                  <TableCell>{property.area_hectare ? property.area_hectare + (property.area_hectare <= 1 ? ' ha' : ' has') : ''}</TableCell>
+                  <TableCell>{property.lot_number || '—'}</TableCell>
+                  <TableCell>{property.area_hectare ? property.area_hectare + (property.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
                   <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.primary">
@@ -811,25 +824,13 @@ const PropertyTable = () => {
         />
       </Paper>
 
-      {/* Property Form Modal */}
-      <Dialog
-        open={propertyModal}
-        onClose={() => setPropertyModal(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {selectedProperty ? 'Edit Property' : 'Add New Property'}
-        </DialogTitle>
-        <DialogContent>
-          <PropertyFormModal
-            property={selectedProperty}
-            onSave={handlePropertySaved}
-            onCancel={() => setPropertyModal(false)}
-            open={propertyModal}
-          />
-        </DialogContent>
-      </Dialog>
+             {/* Property Form Modal */}
+       <PropertyFormModal
+         property={selectedProperty}
+         onSave={handlePropertySaved}
+         onCancel={() => setPropertyModal(false)}
+         open={propertyModal}
+       />
       {/* Preview: Document Viewer */}
       <Dialog open={printDocPreview.open} onClose={() => setPrintDocPreview({ open: false, src: '', filename: '', type: '' })} maxWidth="md" fullWidth>
         <DialogTitle>{printDocPreview.filename}</DialogTitle>
@@ -895,11 +896,11 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {taxHistory[0]?.pin}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>OWNER:</strong> {taxHistory[0]?.declarant_name}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {sanitizeDeclarant(taxHistory[0]?.declarant_name) || ''}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {taxHistory[0]?.address}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>BUSINESS NAME:</strong> {taxHistory[0]?.business_name}</TableCell>
+                    <TableCell><strong>BUSINESS NAME:</strong> {sanitizeBusinessName(taxHistory[0]?.business_name) || ''}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {taxHistory[0]?.assessment_date}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
@@ -936,13 +937,6 @@ const PropertyTable = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
-                        const sanitizeDeclarant = (name) => {
-                          const s = String(name || '').trim();
-                          if (!s) return '';
-                          let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                          if (out === ',') out = '';
-                          return out;
-                        };
                         const d = sanitizeDeclarant(item.declarant_name);
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
@@ -1007,11 +1001,11 @@ const PropertyTable = () => {
                     <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>OWNER:</strong> {printHistory[0].declarant_name}</TableCell>
+                    <TableCell><strong>OWNER:</strong> {sanitizeDeclarant(printHistory[0].declarant_name) || ''}</TableCell>
                     <TableCell><strong>ADDRESS:</strong> {printHistory[0].address}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>BUSINESS NAME:</strong> {printHistory[0].business_name}</TableCell>
+                    <TableCell><strong>BUSINESS NAME:</strong> {sanitizeBusinessName(printHistory[0].business_name) || ''}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -1059,13 +1053,6 @@ const PropertyTable = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
-                        const sanitizeDeclarant = (name) => {
-                          const s = String(name || '').trim();
-                          if (!s) return '';
-                          let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                          if (out === ',') out = '';
-                          return out;
-                        };
                         const d = sanitizeDeclarant(item.declarant_name);
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
