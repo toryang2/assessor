@@ -1156,4 +1156,3 @@ const PropertyTable = () => {
 };
 
 export default PropertyTable;
-
