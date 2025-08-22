@@ -91,6 +91,9 @@ class Assessor_Properties {
             $where_values[] = $params['date_to'];
         }
         
+        // Always exclude deleted properties
+        $where_conditions[] = "p.status != 'deleted'";
+        
         $where_clause = '';
         if (!empty($where_conditions)) {
             $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
@@ -155,7 +158,7 @@ class Assessor_Properties {
             FROM $table_properties p
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id
-            WHERE p.id = %d
+            WHERE p.id = %d AND p.status != 'deleted'
         ";
         
         $property = $wpdb->get_row($wpdb->prepare($query, $id));
@@ -184,7 +187,7 @@ class Assessor_Properties {
         // Check if tax declaration number already exists
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table_properties WHERE tax_declaration_number = %s",
+            "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
             $params['tax_declaration_number']
         ));
         
@@ -266,7 +269,7 @@ class Assessor_Properties {
         if (isset($params['tax_declaration_number'])) {
             $new_tax_number = sanitize_text_field($params['tax_declaration_number']);
             $duplicate_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND id != %d",
+                "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND id != %d AND status != 'deleted'",
                 $new_tax_number,
                 $id
             ));
@@ -335,13 +338,12 @@ class Assessor_Properties {
             return $property;
         }
         
-        // Soft delete by updating status
+        // Hard delete the property record. Related records (versions/documents)
+        // are configured with ON DELETE CASCADE via foreign keys.
         $table_properties = $wpdb->prefix . 'assessor_properties';
-        $result = $wpdb->update(
+        $result = $wpdb->delete(
             $table_properties,
-            array('status' => 'deleted', 'updated_by' => $user_id, 'updated_at' => current_time('mysql')),
             array('id' => $id),
-            array('%s', '%d', '%s'),
             array('%d')
         );
         

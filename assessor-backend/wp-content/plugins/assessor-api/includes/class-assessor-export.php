@@ -51,6 +51,9 @@ class Assessor_Export {
             $query_params[] = $filters['status'];
         }
         
+        // Always exclude deleted properties from exports
+        $where_clause .= " AND status != 'deleted'";
+        
         $query = "SELECT * FROM {$properties_table} {$where_clause} ORDER BY created_at DESC";
         
         if (!empty($query_params)) {

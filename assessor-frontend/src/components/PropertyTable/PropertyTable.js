@@ -86,18 +86,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{(() => {
-                const sanitizeDeclarant = (name) => {
-                  const s = String(name || '').trim();
-                  if (!s) return '';
-                  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-                  if (out === ',') out = '';
-                  return out;
-                };
-                const d = sanitizeDeclarant(printHistory && printHistory[0] && printHistory[0].declarant_name);
-                const b = (printHistory && printHistory[0] && printHistory[0].business_name) ? String(printHistory[0].business_name).replace(/,\s*/g, ' ') : '';
-                return d && b ? `${d} / ${b}` : (d || b || '');
-              })()}</span>
+              <strong>OWNER:</strong> <span>{printHistory && printHistory[0] && printHistory[0].declarant_name || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ADDRESS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].address) || ''}</span>
@@ -105,7 +94,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
+            <strong>BUSINESS NAME:</strong> <span>{printHistory && printHistory[0] && printHistory[0].business_name || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
@@ -113,14 +102,16 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
+            <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
             </td>
           </tr>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }} />
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+            <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
+            </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].gen_class) || ''}</span>
             </td>
