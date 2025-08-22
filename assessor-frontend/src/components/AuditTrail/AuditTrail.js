@@ -265,12 +265,12 @@ const AuditTrail = () => {
           {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
         </Typography>
         <Box sx={{ ml: 2 }}>
-          <Typography variant="body2" color="error.main" component="span">
-            {(change && change.old_value) !== undefined && (change && change.old_value) !== null ? String(change.old_value) : '—'} →
-          </Typography>
-          <Typography variant="body2" color="success.main" component="span" sx={{ ml: 1 }}>
-            {(change && change.new_value) !== undefined && (change && change.new_value) !== null ? String(change.new_value) : '—'}
-          </Typography>
+                                        <Box component="span" sx={{ color: 'error.main' }}>
+                                {(change && change.old_value) !== undefined && (change && change.old_value) !== null ? String(change.old_value) : '—'} →
+                              </Box>
+                              <Box component="span" sx={{ color: 'success.main', ml: 1 }}>
+                                {(change && change.new_value) !== undefined && (change && change.new_value) !== null ? String(change.new_value) : '—'}
+                              </Box>
         </Box>
       </Box>
     ));
@@ -395,7 +395,11 @@ const AuditTrail = () => {
                 label="From Date"
                 value={filters.dateFrom}
                 onChange={(date) => handleFilterChange('dateFrom', date)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
 
@@ -404,7 +408,11 @@ const AuditTrail = () => {
                 label="To Date"
                 value={filters.dateTo}
                 onChange={(date) => handleFilterChange('dateTo', date)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
 

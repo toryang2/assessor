@@ -259,7 +259,11 @@ const Export = () => {
                 label="From Date"
                 value={filters.dateFrom}
                 onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
             <Grid item xs={12} md={3}>
@@ -267,7 +271,11 @@ const Export = () => {
                 label="To Date"
                 value={filters.dateTo}
                 onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
             <Grid item xs={12} md={3}>
@@ -306,7 +314,11 @@ const Export = () => {
                 label="From Date"
                 value={filters.dateFrom}
                 onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
             <Grid item xs={12} md={4}>
@@ -314,7 +326,11 @@ const Export = () => {
                 label="To Date"
                 value={filters.dateTo}
                 onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{
+                  textField: {
+                    fullWidth: true
+                  }
+                }}
               />
             </Grid>
           </Grid>

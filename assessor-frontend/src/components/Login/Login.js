@@ -144,7 +144,18 @@ const Login = () => {
   // If already authenticated, do not render Login (avoid flicker on refresh)
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) return null;
-
+  const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
+  const toFormalCase = (text) => {
+    if (!text) return '';
+    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const words = String(text).toLowerCase().split(/\s+/);
+    return words.map((w, i) => {
+      if (!w) return w;
+      if (i > 0 && small.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  };
+  const headerMunicipality = `${toFormalCase(baseMunicipality)}`;
   return (
     <Box
       sx={{
@@ -212,7 +223,7 @@ const Login = () => {
                   }}
                 >
                   <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
-                    Philippine Local Government
+                    Local Government of {headerMunicipality}
                   </Typography>
                 </motion.div>
                 
@@ -223,7 +234,7 @@ const Login = () => {
                   }}
                 >
                   <Typography variant="h6" component="h2" sx={{ fontWeight: 500 }}>
-                    Property Assessor System
+                    Assessor's Office Archiving System
                   </Typography>
                 </motion.div>
                 
@@ -234,7 +245,7 @@ const Login = () => {
                   }}
                 >
                   <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8 }}>
-                    Comprehensive History Archiving & Management
+                    History Archiving & Management
                   </Typography>
                 </motion.div>
               </motion.div>

@@ -18,8 +18,8 @@ class Assessor_Settings {
 		if (!$settings) {
 			$settings = array(
 				'app_logo_url' => '',
-				'header_province' => 'Province of Bukidnon',
-				'header_municipality' => 'MUNICIPALITY OF KITAOTAO',
+				'header_province' => 'BUKIDNON',
+				'header_municipality' => 'KITAOTAO',
 				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
 				'verifier_signatory_name' => '',
 				'verifier_signatory_title' => '',

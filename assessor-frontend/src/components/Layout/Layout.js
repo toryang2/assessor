@@ -43,7 +43,7 @@ import UserManagement from '../UserManagement/UserManagement';
 import Export from '../Export/Export';
 import Settings from '../Settings/Settings';
 
-const drawerWidth = 280;
+const drawerWidth = 320;
 
 const Layout = ({ children }) => {
   const theme = useTheme();
@@ -166,6 +166,23 @@ const Layout = ({ children }) => {
       badge: null
     }
   ];
+  const toFormalCase = (text) => {
+    if (!text) return '';
+    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const words = String(text).toLowerCase().split(/\s+/);
+    return words.map((w, i) => {
+      if (!w) return w;
+      if (i > 0 && small.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  };
+  const headerPh = 'Republic of the Philippines';
+  const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
+  const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
+  const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
+  const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
+  const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
+
 
   const drawer = (
     <Box>
@@ -182,11 +199,20 @@ const Layout = ({ children }) => {
         ) : (
           <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
         )}
-        <Typography variant="h6" fontWeight={600} color="primary" sx={{ mb: 1 }}>
-          Assessor's Archiving System
+        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
+          {headerPh}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Local Government
+        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
+          {headerProvince}
+        </Typography>
+        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
+          {headerMunicipality}
+        </Typography>
+        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={600} color="text.secondary">
+          {headerOffice}
+        </Typography>
+        <Typography variant="h6" fontFamily="Times New Roman, serif" fontSize={18} fontWeight={600} color="primary" sx={{ mb: 1 }}>
+          Assessor's Office Archiving System
         </Typography>
       </Box>
       
