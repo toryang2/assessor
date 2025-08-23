@@ -28,7 +28,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
  
@@ -38,6 +39,7 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
+import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import { useReactToPrint } from 'react-to-print';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -60,7 +62,7 @@ const sanitizeBusinessName = (name) => {
   return out;
 };
 
-const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
+const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, ref) => {
   const toFormalCase = (text) => {
     if (!text) return '';
     const small = new Set(['of','and','the','for','in','on','at','a','an']);
@@ -254,11 +256,11 @@ const PrintableHistory = forwardRef(({ settings, printHistory }, ref) => {
 
               {/* Data Values */}
               <div style={{ fontSize: 10, fontWeight: 400 }}>
-                <div style={{ paddingTop: 50 }}>{'₱'}</div>
-                <div>{'123123'}</div>
-                <div>{'2025/05/21'}</div>
-                <div>{'MTO Kitaotao'}</div>
-                <div>{'Jomari R. Caina'}</div>
+                <div style={{ paddingTop: 50 }}>{requestData?.amount_paid ? `₱${requestData.amount_paid.toLocaleString()}` : '₱'}</div>
+                <div>{requestData?.receipt_number || ''}</div>
+                <div>{requestData?.date_issued ? new Date(requestData.date_issued).toLocaleDateString('en-CA') : ''}</div>
+                <div>{requestData?.place_issued || ''}</div>
+                <div>{requestData?.prepared_by || ''}</div>
               </div>
             </div>
           </div>
@@ -325,6 +327,8 @@ const PropertyTable = () => {
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
+  const [requestFormModal, setRequestFormModal] = useState(false);
+  const [selectedPropertyForRequest, setSelectedPropertyForRequest] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [historyModal, setHistoryModal] = useState(false);
@@ -335,6 +339,7 @@ const PropertyTable = () => {
   const [printDocuments, setPrintDocuments] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
   const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
+  const [printRequestData, setPrintRequestData] = useState(null);
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -473,6 +478,25 @@ const PropertyTable = () => {
     setPropertyModal(false);
     setSelectedProperty(null);
     fetchProperties();
+  };
+
+  const handleRequestForm = (property) => {
+    setSelectedPropertyForRequest(property);
+    setRequestFormModal(true);
+  };
+
+  const handleRequestFormSaved = (requestData) => {
+    setRequestFormModal(false);
+    setSelectedPropertyForRequest(null);
+    // Store the request data for printing
+    setPrintRequestData(requestData);
+    // Optionally refresh properties or show success message
+    console.log('Request form saved:', requestData);
+    
+    // Automatically open the printable modal after saving
+    setTimeout(() => {
+      setPrintModal(true);
+    }, 500); // Small delay to ensure modal is closed and data is set
   };
 
   const handleViewHistory = async (taxDeclarationNumber) => {
@@ -781,6 +805,15 @@ const PropertyTable = () => {
                       </IconButton>
                       <IconButton
                         size="small"
+                        onClick={() => handleRequestForm(property)}
+                        color="secondary"
+                        sx={{ p: 0.25 }}
+                        title="Create Request Form"
+                      >
+                        <ReceiptIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
                         onClick={() => handleEditProperty(property)}
                         color="primary"
                         sx={{ p: 0.25 }}
@@ -830,6 +863,15 @@ const PropertyTable = () => {
          onSave={handlePropertySaved}
          onCancel={() => setPropertyModal(false)}
          open={propertyModal}
+       />
+
+       {/* Request Form Modal */}
+       <RequestFormModal
+         property={selectedPropertyForRequest}
+         onSave={handleRequestFormSaved}
+         onCancel={() => setRequestFormModal(false)}
+         open={requestFormModal}
+         onClose={() => setRequestFormModal(false)}
        />
       {/* Preview: Document Viewer */}
       <Dialog open={printDocPreview.open} onClose={() => setPrintDocPreview({ open: false, src: '', filename: '', type: '' })} maxWidth="md" fullWidth>
@@ -1132,7 +1174,7 @@ const PropertyTable = () => {
       </Dialog>
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} />
+        <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
         <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
     </Box>

@@ -215,6 +215,34 @@ class Assessor_Database {
             KEY sort_order (sort_order)
         ) $charset_collate;";
         
+        // Requests table
+        $table_requests = $wpdb->prefix . 'assessor_requests';
+        $sql_requests = "CREATE TABLE $table_requests (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            property_id bigint(20) DEFAULT NULL,
+            amount_paid decimal(10,2) NOT NULL,
+            receipt_number varchar(100) NOT NULL,
+            date_issued date NOT NULL,
+            place_issued varchar(255) NOT NULL,
+            prepared_by varchar(255) NOT NULL,
+            payment_type varchar(50) NOT NULL,
+            purpose varchar(100) NOT NULL,
+            client_name varchar(255) NOT NULL,
+            client_address text,
+            contact_number varchar(50),
+            email varchar(255),
+            remarks text,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_by bigint(20) DEFAULT NULL,
+            updated_by bigint(20) DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY property_id (property_id),
+            KEY receipt_number (receipt_number),
+            KEY date_issued (date_issued),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
@@ -227,6 +255,7 @@ class Assessor_Database {
         dbDelta($sql_property_types);
         dbDelta($sql_general_classes);
         dbDelta($sql_locations);
+        dbDelta($sql_requests);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();

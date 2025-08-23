@@ -280,14 +280,48 @@ class Assessor_API {
             'callback' => array($this, 'jwt_config_test'),
             'permission_callback' => '__return_true'
         ));
+        
+        // Requests routes
+        register_rest_route('assessor/v1', '/requests', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_requests'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/requests', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'create_request'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_request'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'update_request'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'delete_request'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        
+        register_rest_route('assessor/v1', '/requests/statistics', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_request_statistics'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
     }
     
     public function check_auth($request) {
-        error_log('🔍 Assessor API: check_auth method called!');
         $auth = new Assessor_Auth();
-        $result = $auth->verify_token($request);
-        error_log('🔍 Assessor API: check_auth result: ' . ($result ? 'TRUE' : 'FALSE'));
-        return $result;
+        return $auth->verify_token($request);
     }
     
     public function check_admin($request) {
@@ -503,6 +537,37 @@ class Assessor_API {
             'timestamp' => current_time('mysql'),
             'version' => ASSESSOR_API_VERSION
         );
+    }
+    
+    // Request handlers
+    public function get_requests($request) {
+        $requests = new Assessor_Requests();
+        return $requests->get_requests($request->get_params());
+    }
+    
+    public function create_request($request) {
+        $requests = new Assessor_Requests();
+        return $requests->create_request($request->get_params(), $request);
+    }
+    
+    public function get_request($request) {
+        $requests = new Assessor_Requests();
+        return $requests->get_request($request['id']);
+    }
+    
+    public function update_request($request) {
+        $requests = new Assessor_Requests();
+        return $requests->update_request($request['id'], $request->get_params(), $request);
+    }
+    
+    public function delete_request($request) {
+        $requests = new Assessor_Requests();
+        return $requests->delete_request($request['id']);
+    }
+    
+    public function get_request_statistics($request) {
+        $requests = new Assessor_Requests();
+        return $requests->get_statistics($request->get_params());
     }
     
     public function enqueue_scripts() {

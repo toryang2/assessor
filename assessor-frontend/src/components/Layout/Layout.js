@@ -31,13 +31,15 @@ import {
   History,
   FileDownload,
   Archive,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
+import RequestsTable from '../RequestsTable/RequestsTable';
 import AuditTrail from '../AuditTrail/AuditTrail';
 import UserManagement from '../UserManagement/UserManagement';
 import Export from '../Export/Export';
@@ -143,6 +145,11 @@ const Layout = ({ children }) => {
     {
       text: 'Properties',
       icon: <Business />,
+      badge: null
+    },
+    {
+      text: 'Requests',
+      icon: <ReceiptIcon />,
       badge: null
     },
     {
@@ -409,6 +416,7 @@ const Layout = ({ children }) => {
           >
             {currentPage === 'Dashboard' && <Dashboard onNavigate={handleNavigation} />}
             {currentPage === 'Properties' && <PropertyTable />}
+            {currentPage === 'Requests' && <RequestsTable />}
             {currentPage === 'Audit Trail' && <AuditTrail />}
             {currentPage === 'Export' && <Export />}
             {currentPage === 'User Management' && <UserManagement />}

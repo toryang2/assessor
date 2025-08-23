@@ -85,6 +85,11 @@ export const endpoints = {
   // Users
   users: '/users',
   user: (id) => `/users/${id}`,
+  
+  // Requests
+  requests: '/requests',
+  request: (id) => `/requests/${id}`,
+  requestStatistics: '/requests/statistics',
 };
 
 // API functions
@@ -414,6 +419,61 @@ export const apiService = {
     }
   },
 
+  // Requests
+  getRequests: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.requests, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  createRequest: async (requestData) => {
+    try {
+      const response = await api.post(endpoints.requests, requestData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  getRequest: async (id) => {
+    try {
+      const response = await api.get(endpoints.request(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  updateRequest: async (id, requestData) => {
+    try {
+      const response = await api.put(endpoints.request(id), requestData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  deleteRequest: async (id) => {
+    try {
+      const response = await api.delete(endpoints.request(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  getRequestStatistics: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.requestStatistics, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
 
 };
 
@@ -429,6 +489,19 @@ export const handleApiError = (error) => {
     
     switch (status) {
       case 400:
+        // Check for specific error types
+        if (data && data.code === 'duplicate_receipt') {
+          return new Error('This receipt number already exists. Please use a different receipt number.');
+        }
+        if (data && data.code === 'missing_field') {
+          return new Error(`Required field missing: ${data.message}`);
+        }
+        if (data && data.code === 'invalid_amount') {
+          return new Error('Amount must be a positive number.');
+        }
+        if (data && data.code === 'invalid_date') {
+          return new Error('Please enter a valid date.');
+        }
         return new Error('Bad request. Please check your input.');
       case 401:
         return new Error('Unauthorized. Please log in again.');
