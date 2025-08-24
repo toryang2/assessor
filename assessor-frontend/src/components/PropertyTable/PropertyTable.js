@@ -669,34 +669,34 @@ const PropertyTable = () => {
         {/* Search and Filters */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Search Properties"
-                size='small'
-                value={searchTerm}
-                onChange={handleSearch}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Search by TDN, name, lot number, or title number..."
-                inputProps={{ style: { textTransform: 'uppercase' } }}
-                helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
-                InputProps={{ 
-                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                }}
-              />
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Search Properties"
+                  size='small'
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="Search by TDN, name, lot number, or title number..."
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
+                  InputProps={{ 
+                    startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6} textAlign="right">
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddProperty}
+                  color="primary"
+                >
+                  Add Property
+                </Button>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={6} textAlign="right">
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddProperty}
-                color="primary"
-              >
-                Add Property
-              </Button>
-            </Grid>
-          </Grid>
           </CardContent>
         </Card>
 

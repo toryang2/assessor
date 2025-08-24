@@ -571,13 +571,12 @@ const RequestsTable = () => {
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* Header */}
-          <Typography variant="h4" gutterBottom>
-            Requests Management
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage and view all payment requests and receipts
-          </Typography>
+      <Typography variant="h4" gutterBottom>
+        Requests Management
+      </Typography>
+      <Typography variant="body1" color="text.secondary">
+        Manage and view all payment requests and receipts
+      </Typography>
 
       {/* Search and Actions */}
       <Card sx={{ mb: 3 }}>
@@ -611,7 +610,7 @@ const RequestsTable = () => {
 
              {/* Requests Table */}
        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-          <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+          <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
             <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
