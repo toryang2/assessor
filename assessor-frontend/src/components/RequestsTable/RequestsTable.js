@@ -37,6 +37,7 @@ import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useReactToPrint } from 'react-to-print';
+import RequestFormModal from '../RequestFormModal/RequestFormModal';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -321,6 +322,7 @@ const RequestsTable = () => {
   const [printRequestData, setPrintRequestData] = useState(null);
   const [printHistory, setPrintHistory] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
+  const [requestFormModal, setRequestFormModal] = useState(false);
   
   // Settings state
   const [settings, setSettings] = useState({});
@@ -512,6 +514,20 @@ const RequestsTable = () => {
     }
   };
 
+  // Handle create request
+  const handleCreateRequest = () => {
+    setRequestFormModal(true);
+  };
+
+  // Handle request form saved
+  const handleRequestFormSaved = (requestData) => {
+    setRequestFormModal(false);
+    // Refresh the requests list
+    fetchRequests();
+    // Show success message or handle as needed
+    console.log('Request form saved:', requestData);
+  };
+
   // Handle delete request
   const handleDeleteRequest = async (requestId) => {
     if (!window.confirm('Are you sure you want to delete this request?')) {
@@ -554,19 +570,14 @@ const RequestsTable = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ReceiptIcon />
+          <Typography variant="h4" gutterBottom>
             Requests Management
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Manage and view all payment requests and receipts
           </Typography>
-        </CardContent>
-      </Card>
 
       {/* Search and Actions */}
       <Card sx={{ mb: 3 }}>
@@ -578,25 +589,30 @@ const RequestsTable = () => {
                 placeholder="Search by receipt number, client name, or prepared by..."
                 value={searchTerm}
                 onChange={handleSearch}
+                helperText={`Total: ${totalCount} requests`}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
             </Grid>
             <Grid item xs={12} md={6} sx={{ textAlign: 'right' }}>
-              <Typography variant="body2" color="text.secondary">
-                Total: {totalCount} requests
-              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateRequest}
+                color="primary"
+              >
+                Create Request
+              </Button>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
 
-      {/* Requests Table */}
-      <Card>
-        <CardContent sx={{ p: 0 }}>
-          <TableContainer>
-            <Table>
+             {/* Requests Table */}
+       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+            <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
                   <TableCell><strong>Receipt No.</strong></TableCell>
@@ -617,7 +633,7 @@ const RequestsTable = () => {
                       <Typography>Loading requests...</Typography>
                     </TableCell>
                   </TableRow>
-                ) : requests.length === 0 ? (
+                                ) : requests.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
                       <Typography color="text.secondary">
@@ -716,18 +732,17 @@ const RequestsTable = () => {
             </Table>
           </TableContainer>
 
-          {/* Pagination */}
-          <TablePagination
-            component="div"
-            count={totalCount}
-            page={page}
-            onPageChange={handleChangePage}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            rowsPerPageOptions={[10, 20, 50, 100]}
-          />
-        </CardContent>
-      </Card>
+        {/* Pagination */}
+        <TablePagination
+          component="div"
+          count={totalCount}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 20, 50, 100]}
+        />
+      </Paper>
 
              {/* Print Modal */}
        <Dialog
@@ -769,6 +784,15 @@ const RequestsTable = () => {
          <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
          <div className="print-page-footer"><span className="pageNumber" /></div>
        </div>
+
+       {/* Request Form Modal */}
+       <RequestFormModal
+         property={null}
+         onSave={handleRequestFormSaved}
+         onCancel={() => setRequestFormModal(false)}
+         open={requestFormModal}
+         onClose={() => setRequestFormModal(false)}
+       />
 
        {/* Error Alert */}
        {error && (

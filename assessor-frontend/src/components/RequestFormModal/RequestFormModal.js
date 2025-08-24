@@ -19,13 +19,42 @@ import {
   DialogContent,
   DialogActions,
   InputAdornment,
-  FormHelperText
+  FormHelperText,
+  Autocomplete,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { Receipt, Payment, Save, Cancel } from '@mui/icons-material';
+import { Receipt, Payment, Save, Cancel, Search } from '@mui/icons-material';
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+
+// Helper function to sanitize declarant names by removing leading/trailing commas
+const sanitizeDeclarant = (name) => {
+  if (!name) return '';
+  const s = String(name).trim();
+  if (!s) return '';
+  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+  if (out === ',') out = '';
+  return out;
+};
+
+// Helper function to sanitize business names by removing leading/trailing commas
+const sanitizeBusinessName = (name) => {
+  if (!name) return '';
+  const s = String(name).trim();
+  if (!s) return '';
+  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+  if (out === ',') out = '';
+  return out;
+};
 
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const { user } = useAuth();
@@ -46,6 +75,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState(new Set());
+  const [propertySearchTerm, setPropertySearchTerm] = useState('');
+  const [propertyOptions, setPropertyOptions] = useState([]);
+  const [propertySearchLoading, setPropertySearchLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState(property);
+  const [taxHistoryModal, setTaxHistoryModal] = useState(false);
+  const [taxHistory, setTaxHistory] = useState([]);
+  const [taxHistoryLoading, setTaxHistoryLoading] = useState(false);
 
   // Payment type options
   const paymentTypeOptions = [
@@ -82,13 +118,118 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         contact_number: '',
         remarks: ''
       });
+      setSelectedProperty(property);
     }
-  }, [open, user]);
+  }, [open, user, property]);
+
+  // Search for properties
+  const searchProperties = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setPropertyOptions([]);
+      return;
+    }
+
+    setPropertySearchLoading(true);
+    try {
+      const response = await apiService.getProperties({
+        page: 1,
+        per_page: 10,
+        q: searchTerm
+      });
+      
+      const properties = response?.properties || response?.data || [];
+      setPropertyOptions(properties);
+    } catch (error) {
+      console.error('Error searching properties:', error);
+      setPropertyOptions([]);
+    } finally {
+      setPropertySearchLoading(false);
+    }
+  };
+
+  // Handle property search input change
+  const handlePropertySearchChange = (event, newValue) => {
+    setPropertySearchTerm(newValue);
+    if (newValue && newValue.length >= 2) {
+      searchProperties(newValue);
+    } else {
+      setPropertyOptions([]);
+    }
+    
+    // Clear property selection validation error when user starts typing
+    if (validationErrors.has('property_selection')) {
+      setValidationErrors(prev => {
+        const newErrors = new Set(prev);
+        newErrors.delete('property_selection');
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle property selection
+  const handlePropertySelect = (event, selectedOption) => {
+    setSelectedProperty(selectedOption);
+    setTaxHistoryModal(false);
+    setTaxHistory([]);
+    
+    // Clear property selection validation error when user selects a property
+    if (validationErrors.has('property_selection')) {
+      setValidationErrors(prev => {
+        const newErrors = new Set(prev);
+        newErrors.delete('property_selection');
+        return newErrors;
+      });
+    }
+  };
+
+  // Fetch tax history for selected property
+  const handleViewTaxHistory = async () => {
+    if (!selectedProperty?.tax_declaration_number) {
+      setToast({
+        open: true,
+        message: 'No property selected or missing tax declaration number',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setTaxHistoryLoading(true);
+    try {
+      const response = await apiService.getTaxDeclarationHistory(selectedProperty.tax_declaration_number);
+      setTaxHistory(response || []);
+      setTaxHistoryModal(true);
+    } catch (error) {
+      console.error('Error fetching tax declaration history:', error);
+      setToast({
+        open: true,
+        message: 'Failed to fetch tax declaration history',
+        severity: 'error'
+      });
+      setTaxHistory([]);
+    } finally {
+      setTaxHistoryLoading(false);
+    }
+  };
+
+  // Confirm property selection and close tax history modal
+  const handleConfirmProperty = () => {
+    setTaxHistoryModal(false);
+    setToast({
+      open: true,
+      message: `Property "${selectedProperty.tax_declaration_number}" confirmed for request`,
+      severity: 'success'
+    });
+  };
 
   // Validation function
   const validateForm = () => {
     const missingFields = [];
     const errorFields = new Set();
+
+    if (!selectedProperty) {
+      missingFields.push('Property Selection');
+      errorFields.add('property_selection');
+    }
 
     if (!formData.amount_paid || parseFloat(formData.amount_paid) <= 0) {
       missingFields.push('Amount Paid');
@@ -158,7 +299,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       // Prepare the data for saving
       const requestData = {
         ...formData,
-        property_id: property?.id,
+        property_id: selectedProperty?.id,
         amount_paid: parseFloat(formData.amount_paid),
         created_at: new Date().toISOString()
       };
@@ -178,13 +319,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         const receiptData = {
           ...response.data,
           // Add property information for the receipt display
-          tax_declaration_number: property?.tax_declaration_number,
-          declarant_last_name: property?.declarant_last_name,
-          declarant_first_name: property?.declarant_first_name,
-          declarant_middle_initial: property?.declarant_middle_initial,
-          business: property?.business,
-          location: property?.location,
-          assessed_value: property?.assessed_value
+          tax_declaration_number: selectedProperty?.tax_declaration_number,
+          declarant_last_name: selectedProperty?.declarant_last_name,
+          declarant_first_name: selectedProperty?.declarant_first_name,
+          declarant_middle_initial: selectedProperty?.declarant_middle_initial,
+          business: selectedProperty?.business,
+          location: selectedProperty?.location,
+          assessed_value: selectedProperty?.assessed_value
         };
         onSave(receiptData);
       }
@@ -240,6 +381,11 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       remarks: ''
     });
     setValidationErrors(new Set());
+    setSelectedProperty(null);
+    setPropertySearchTerm('');
+    setPropertyOptions([]);
+    setTaxHistoryModal(false);
+    setTaxHistory([]);
     if (onClose) onClose();
   };
 
@@ -271,6 +417,146 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         <DialogContent sx={{ p: 3 }}>
           <form onSubmit={handleSubmit}>
             <Grid container spacing={3}>
+              {/* Property Search Section */}
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1,
+                      color: 'primary.main' 
+                    }}>
+                      <Search />
+                      Property Information (Required) *
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                                         <Autocomplete
+                       options={propertyOptions}
+                       getOptionLabel={(option) => {
+                         const hasNames = !!(option.declarant_last_name || option.declarant_first_name);
+                         const declarant = hasNames
+                           ? `${option.declarant_last_name || ''}${hasNames && option.declarant_first_name ? ', ' : ''}${option.declarant_first_name || ''}${option.declarant_middle_initial ? ` ${option.declarant_middle_initial}.` : ''}`
+                           : '';
+                         const business = sanitizeBusinessName(option.business_name);
+                         const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
+                         return `${option.tax_declaration_number || ''} - ${displayName}`;
+                       }}
+                       value={selectedProperty}
+                       onChange={handlePropertySelect}
+                       inputValue={propertySearchTerm}
+                       onInputChange={handlePropertySearchChange}
+                       loading={propertySearchLoading}
+                       noOptionsText="No properties found. Try searching with different terms."
+                       renderInput={(params) => (
+                         <TextField
+                           {...params}
+                           label="Search for Property *"
+                           placeholder="Search by Tax Declaration Number, owner name, or business name..."
+                           helperText={validationErrors.has('property_selection') ? "Property selection is required" : "Start typing to search for properties. Property selection is required."}
+                           error={validationErrors.has('property_selection')}
+                           InputProps={{
+                             ...params.InputProps,
+                             endAdornment: (
+                               <>
+                                 {propertySearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                 {params.InputProps.endAdornment}
+                               </>
+                             ),
+                           }}
+                         />
+                       )}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props}>
+                          <Box>
+                            <Typography variant="body2" fontWeight="bold">
+                              {option.tax_declaration_number}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {(() => {
+                                const hasNames = !!(option.declarant_last_name || option.declarant_first_name);
+                                const declarant = hasNames
+                                  ? `${option.declarant_last_name || ''}${hasNames && option.declarant_first_name ? ', ' : ''}${option.declarant_first_name || ''}${option.declarant_middle_initial ? ` ${option.declarant_middle_initial}.` : ''}`
+                                  : '';
+                                const business = sanitizeBusinessName(option.business_name);
+                                if (declarant && business) return `${declarant} / ${business}`;
+                                return declarant || business || '';
+                              })()}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      clearOnBlur={false}
+                      clearOnEscape={false}
+                                         />
+                     
+                     {validationErrors.has('property_selection') && (
+                       <Typography variant="body2" color="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                         Property selection is required. Please search and select a property before proceeding.
+                       </Typography>
+                     )}
+                     
+                     {!selectedProperty && propertySearchTerm && propertyOptions.length === 0 && !propertySearchLoading && (
+                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                         No properties found matching "{propertySearchTerm}". Try searching with different terms. Property selection is required to create a request.
+                       </Typography>
+                     )}
+                    
+                    {selectedProperty && (
+                      <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" gutterBottom>Selected Property:</Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2">
+                              <strong>Tax Declaration Number:</strong> {selectedProperty.tax_declaration_number}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2">
+                              <strong>Location:</strong> {selectedProperty.location || 'N/A'}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2">
+                              <strong>Owner/Business:</strong> {(() => {
+                                const hasNames = !!(selectedProperty.declarant_last_name || selectedProperty.declarant_first_name);
+                                const declarant = hasNames
+                                  ? `${selectedProperty.declarant_last_name || ''}${hasNames && selectedProperty.declarant_first_name ? ', ' : ''}${selectedProperty.declarant_first_name || ''}${selectedProperty.declarant_middle_initial ? ` ${selectedProperty.declarant_middle_initial}.` : ''}`
+                                  : '';
+                                const business = sanitizeBusinessName(selectedProperty.business_name);
+                                if (declarant && business) return `${declarant} / ${business}`;
+                                return declarant || business || 'N/A';
+                              })()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2">
+                              <strong>Assessed Value:</strong> ₱{(selectedProperty.assessed_value !== undefined && selectedProperty.assessed_value !== null)
+                                ? Number(selectedProperty.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                : '0.00'}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                        
+                        <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={handleViewTaxHistory}
+                            disabled={taxHistoryLoading}
+                            startIcon={taxHistoryLoading ? <CircularProgress size={16} /> : null}
+                          >
+                            {taxHistoryLoading ? 'Loading...' : 'View Tax History'}
+                          </Button>
+                        </Box>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
               {/* Client Information Section */}
               <Grid item xs={12}>
                 <Card variant="outlined">
@@ -287,15 +573,15 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     <Divider sx={{ mb: 2 }} />
                     
                     <Grid container spacing={2}>
-                                             <Grid item xs={12} md={6}>
-                         <TextField
-                           fullWidth
-                           label="Client Name *"
-                           value={formData.client_name}
-                           onChange={handleChange('client_name')}
-                                                       error={validationErrors.has('client_name')}
-                         />
-                       </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Client Name *"
+                          value={formData.client_name}
+                          onChange={handleChange('client_name')}
+                          error={validationErrors.has('client_name')}
+                        />
+                      </Grid>
 
                       <Grid item xs={12} md={6}>
                         <TextField
@@ -349,155 +635,94 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     <Divider sx={{ mb: 2 }} />
                     
                     <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Amount Paid *"
-                            type="number"
-                            value={formData.amount_paid}
-                            onChange={handleChange('amount_paid')}
-                            InputProps={{
-                                startAdornment: <InputAdornment position="start">₱</InputAdornment>,
-                            }}
-                            inputProps={{ min: 0, step: 0.01 }}
-                            error={validationErrors.has('amount_paid')}
-                         />
-                       </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Receipt Number *"
-                            value={formData.receipt_number}
-                            onChange={handleChange('receipt_number')}
-                            error={validationErrors.has('receipt_number')}
-                         />
-                       </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Date Issued *"
-                            type="date"
-                            value={formData.date_issued}
-                            onChange={handleChange('date_issued')}
-                            InputLabelProps={{ shrink: true }}
-                            error={validationErrors.has('date_issued')}
-                         />
-                       </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Place Issued *"
-                            value={formData.place_issued}
-                            onChange={handleChange('place_issued')}
-                            error={validationErrors.has('place_issued')}
-                         />
-                       </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Prepared By *"
-                            value={formData.prepared_by}
-                            onChange={handleChange('prepared_by')}
-                            InputProps={{ readOnly: true }}
-                            variant="filled"
-                            error={validationErrors.has('prepared_by')}
-                         />
-                       </Grid>
-                        <Grid item xs={12} md={6}>
-                         <FormControl fullWidth error={validationErrors.has('payment_type')}>
-                           <InputLabel>Payment Type *</InputLabel>
-                           <Select
-                             value={formData.payment_type}
-                             onChange={handleChange('payment_type')}
-                             label="Payment Type *">
-                             {paymentTypeOptions.map((option) => (
-                               <MenuItem key={option.value} value={option.value}>
-                                 {option.label}
-                               </MenuItem>
-                             ))}
-                           </Select>
-                         </FormControl>
-                       </Grid>
-                        <Grid item xs={12}>
-                         <FormControl fullWidth error={validationErrors.has('purpose')}>
-                           <InputLabel>Purpose *</InputLabel>
-                           <Select
-                             value={formData.purpose}
-                             onChange={handleChange('purpose')}
-                             label="Purpose *">
-                             {purposeOptions.map((option) => (
-                               <MenuItem key={option.value} value={option.value}>
-                                 {option.label}
-                               </MenuItem>
-                             ))}
-                           </Select>
-                         </FormControl>
-                       </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Amount Paid *"
+                          type="number"
+                          value={formData.amount_paid}
+                          onChange={handleChange('amount_paid')}
+                          InputProps={{
+                            startAdornment: <InputAdornment position="start">₱</InputAdornment>,
+                          }}
+                          inputProps={{ min: 0, step: 0.01 }}
+                          error={validationErrors.has('amount_paid')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Receipt Number *"
+                          value={formData.receipt_number}
+                          onChange={handleChange('receipt_number')}
+                          error={validationErrors.has('receipt_number')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Date Issued *"
+                          type="date"
+                          value={formData.date_issued}
+                          onChange={handleChange('date_issued')}
+                          InputLabelProps={{ shrink: true }}
+                          error={validationErrors.has('date_issued')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Place Issued *"
+                          value={formData.place_issued}
+                          onChange={handleChange('place_issued')}
+                          error={validationErrors.has('place_issued')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Prepared By *"
+                          value={formData.prepared_by}
+                          onChange={handleChange('prepared_by')}
+                          InputProps={{ readOnly: true }}
+                          variant="filled"
+                          error={validationErrors.has('prepared_by')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth error={validationErrors.has('payment_type')}>
+                          <InputLabel>Payment Type *</InputLabel>
+                          <Select
+                            value={formData.payment_type}
+                            onChange={handleChange('payment_type')}
+                            label="Payment Type *">
+                            {paymentTypeOptions.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <FormControl fullWidth error={validationErrors.has('purpose')}>
+                          <InputLabel>Purpose *</InputLabel>
+                          <Select
+                            value={formData.purpose}
+                            onChange={handleChange('purpose')}
+                            label="Purpose *">
+                            {purposeOptions.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
                     </Grid>
                   </CardContent>
                 </Card>
               </Grid>
-
-              {/* Property Information (if available) */}
-              {property && (
-                <Grid item xs={12}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
-                        Property Information
-                      </Typography>
-                      <Divider sx={{ mb: 2 }} />
-                      
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Tax Declaration Number"
-                            value={property.tax_declaration_number || ''}
-                            InputProps={{ readOnly: true }}
-                            variant="filled"
-                          />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Property Location"
-                            value={property.location || ''}
-                            InputProps={{ readOnly: true }}
-                            variant="filled"
-                          />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Owner / Business Name"
-                                                         value={(() => {
-                               const hasNames = !!(property.declarant_last_name || property.declarant_first_name);
-                               const declarant = hasNames
-                                 ? `${property.declarant_last_name || ''}${hasNames && property.declarant_first_name ? ', ' : ''}${property.declarant_first_name || ''}${property.declarant_middle_initial ? ` ${property.declarant_middle_initial}.` : ''}`
-                                 : '';
-                               const business = property.business ? String(property.business).replace(/,\s*/g, ' ') : '';
-                               if (declarant && business) return `${declarant} / ${business}`;
-                               return declarant || business || '';
-                             })()}
-                            InputProps={{ readOnly: true }}
-                            variant="filled"
-                          />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Assessed Value"
-                            value={property.assessed_value ? `₱${property.assessed_value.toLocaleString()}` : '₱0.00'}
-                            InputProps={{ readOnly: true }}
-                            variant="filled"
-                          />
-                        </Grid>
-                      </Grid>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              )}
             </Grid>
           </form>
         </DialogContent>
@@ -511,14 +736,148 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           >
             Cancel
           </Button>
-                     <Button
-             onClick={handleSubmit}
-             startIcon={<Save />}
-             variant="contained"
-             disabled={loading}
-           >
-             {loading ? 'Saving...' : 'Save Request'}
-           </Button>
+          <Button
+            onClick={handleSubmit}
+            startIcon={<Save />}
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Save Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Tax History Modal */}
+      <Dialog
+        open={taxHistoryModal}
+        onClose={() => setTaxHistoryModal(false)}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{
+          component: motion.div,
+          initial: { opacity: 0, y: 20 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.3 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'primary.main', 
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <Search />
+          Tax Declaration History - {selectedProperty?.tax_declaration_number}
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 3 }}>
+          {taxHistoryLoading ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress />
+            </Box>
+          ) : taxHistory.length > 0 ? (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Property: <strong>{selectedProperty?.tax_declaration_number}</strong> - 
+                {(() => {
+                  const hasNames = !!(selectedProperty?.declarant_last_name || selectedProperty?.declarant_first_name);
+                  const declarant = hasNames
+                    ? `${selectedProperty?.declarant_last_name || ''}${hasNames && selectedProperty?.declarant_first_name ? ', ' : ''}${selectedProperty?.declarant_first_name || ''}${selectedProperty?.declarant_middle_initial ? ` ${selectedProperty?.declarant_middle_initial}.` : ''}`
+                    : '';
+                  const business = sanitizeBusinessName(selectedProperty?.business_name);
+                  if (declarant && business) return ` ${declarant} / ${business}`;
+                  return ` ${declarant || business || ''}`;
+                })()}
+              </Typography>
+              
+              <TableContainer component={Paper} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+                <Table size="small" stickyHeader>
+                  <colgroup>
+                    <col style={{ width: '15%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '28%' }} />
+                  </colgroup>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Tax Declaration Number</strong></TableCell>
+                      <TableCell><strong>Declarant</strong></TableCell>
+                      <TableCell><strong>Lot Number</strong></TableCell>
+                      <TableCell><strong>Area (hectare)</strong></TableCell>
+                      <TableCell><strong>Title Number</strong></TableCell>
+                      <TableCell><strong>Assessed Value</strong></TableCell>
+                      <TableCell><strong>Effectivity</strong></TableCell>
+                      <TableCell><strong>Memoranda</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
+                    {taxHistory.map((item, index) => (
+                      <TableRow key={index} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="600" color="primary">
+                            {item.tax_declaration_number}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {index === 0 ? 'Current' : 'Previous'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const d = sanitizeDeclarant(item.declarant_name);
+                            const b = sanitizeBusinessName(item.business_name);
+                            if (d && b) return `${d} / ${b}`;
+                            return d || b || '—';
+                          })()}
+                        </TableCell>
+                        <TableCell>{item.lot_number || '—'}</TableCell>
+                        <TableCell>
+                          {item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}
+                        </TableCell>
+                        <TableCell>{item.title_number || '—'}</TableCell>
+                        <TableCell>
+                          ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
+                            ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : '0.00'}
+                        </TableCell>
+                        <TableCell>{item.effectivity_date || '—'}</TableCell>
+                        <TableCell sx={{ maxWidth: 280 }}>
+                          <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                            {item.memoranda || '—'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          ) : (
+            <Typography color="text.secondary" textAlign="center">
+              No tax declaration history found for this property.
+            </Typography>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+          <Button
+            onClick={() => setTaxHistoryModal(false)}
+            variant="outlined"
+          >
+            Close
+          </Button>
+          <Button
+            onClick={handleConfirmProperty}
+            variant="contained"
+            color="success"
+            startIcon={<Save />}
+          >
+            Confirm Property Selection
+          </Button>
         </DialogActions>
       </Dialog>
 

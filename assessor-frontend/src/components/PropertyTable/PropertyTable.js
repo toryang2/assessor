@@ -39,7 +39,6 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
-import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import { useReactToPrint } from 'react-to-print';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -327,8 +326,6 @@ const PropertyTable = () => {
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
-  const [requestFormModal, setRequestFormModal] = useState(false);
-  const [selectedPropertyForRequest, setSelectedPropertyForRequest] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [historyModal, setHistoryModal] = useState(false);
@@ -478,25 +475,6 @@ const PropertyTable = () => {
     setPropertyModal(false);
     setSelectedProperty(null);
     fetchProperties();
-  };
-
-  const handleRequestForm = (property) => {
-    setSelectedPropertyForRequest(property);
-    setRequestFormModal(true);
-  };
-
-  const handleRequestFormSaved = (requestData) => {
-    setRequestFormModal(false);
-    setSelectedPropertyForRequest(null);
-    // Store the request data for printing
-    setPrintRequestData(requestData);
-    // Optionally refresh properties or show success message
-    console.log('Request form saved:', requestData);
-    
-    // Automatically open the printable modal after saving
-    setTimeout(() => {
-      setPrintModal(true);
-    }, 500); // Small delay to ensure modal is closed and data is set
   };
 
   const handleViewHistory = async (taxDeclarationNumber) => {
@@ -803,15 +781,7 @@ const PropertyTable = () => {
                       >
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRequestForm(property)}
-                        color="secondary"
-                        sx={{ p: 0.25 }}
-                        title="Create Request Form"
-                      >
-                        <ReceiptIcon fontSize="small" />
-                      </IconButton>
+
                       <IconButton
                         size="small"
                         onClick={() => handleEditProperty(property)}
@@ -865,14 +835,7 @@ const PropertyTable = () => {
          open={propertyModal}
        />
 
-       {/* Request Form Modal */}
-       <RequestFormModal
-         property={selectedPropertyForRequest}
-         onSave={handleRequestFormSaved}
-         onCancel={() => setRequestFormModal(false)}
-         open={requestFormModal}
-         onClose={() => setRequestFormModal(false)}
-       />
+
       {/* Preview: Document Viewer */}
       <Dialog open={printDocPreview.open} onClose={() => setPrintDocPreview({ open: false, src: '', filename: '', type: '' })} maxWidth="md" fullWidth>
         <DialogTitle>{printDocPreview.filename}</DialogTitle>
@@ -918,7 +881,7 @@ const PropertyTable = () => {
       <Dialog 
         open={historyModal} 
         onClose={() => setHistoryModal(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
       >
         <DialogTitle sx={{ textAlign: 'center' }}>
