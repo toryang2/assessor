@@ -50,6 +50,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     lot_number: '',
     unique_lot_number_identified: '',
     area_hectare: '',
+    area_sqm: '',
+    area_unit: 'hectares',
     title_number: '',
     assessed_value: '',
     effectivity_date: '',
@@ -132,7 +134,25 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         location: property.location || '',
         lot_number: property.lot_number || '',
         unique_lot_number_identified: property.unique_lot_number_identified || '',
-        area_hectare: property.area_hectare || '',
+        area_hectare: (() => {
+          const v = property.area_hectare;
+          const n = Number(v);
+          return (v !== undefined && v !== null && v !== '' && !isNaN(n)) ? n.toFixed(4) : '';
+        })(),
+        area_sqm: (() => {
+          const v = property.area_sqm;
+          const n = Number(v);
+          return (v !== undefined && v !== null && v !== '' && !isNaN(n)) ? n.toFixed(2) : '';
+        })(),
+        area_unit: (() => {
+          const numSqm = Number(property.area_sqm);
+          const numHa = Number(property.area_hectare);
+          const hasSqm = property.area_sqm !== undefined && property.area_sqm !== null && property.area_sqm !== '' && !isNaN(numSqm) && numSqm > 0;
+          const hasHa = property.area_hectare !== undefined && property.area_hectare !== null && property.area_hectare !== '' && !isNaN(numHa) && numHa > 0;
+          if (hasSqm) return 'sqm';
+          if (hasHa) return 'hectares';
+          return 'hectares';
+        })(),
         title_number: property.title_number || '',
         assessed_value: property.assessed_value || '',
         effectivity_date: extractEffectivityYear(property.effectivity_date),
@@ -145,19 +165,21 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         supporting_documents: []
       });
     } else {
-      // Reset form for new property
-      setFormData({
-        tax_declaration_number: '',
-        previous_tax_declaration_number: '',
-        declarant_last_name: '',
-        declarant_first_name: '',
-        declarant_middle_initial: '',
-        business_name: '',
-        location: '',
-        lot_number: '',
-        unique_lot_number_identified: '',
-        area_hectare: '',
-        title_number: '',
+             // Reset form for new property
+       setFormData({
+         tax_declaration_number: '',
+         previous_tax_declaration_number: '',
+         declarant_last_name: '',
+         declarant_first_name: '',
+         declarant_middle_initial: '',
+         business_name: '',
+         location: '',
+         lot_number: '',
+         unique_lot_number_identified: '',
+         area_hectare: '',
+         area_sqm: '',
+         area_unit: 'hectares',
+         title_number: '',
         assessed_value: '',
         effectivity_date: '',
         pin: '',
@@ -187,7 +209,14 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     loadDocs();
     setPendingUploads([]);
     setDocumentsToDelete([]);
-  }, [property]);
+  }, [property, open]);
+
+  // Ensure toast does not persist across modal openings
+  useEffect(() => {
+    if (!open) {
+      setToast(prev => ({ ...prev, open: false, message: '' }));
+    }
+  }, [open]);
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -257,32 +286,45 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return isNaN(num) ? '' : num;
   };
 
-  const handleInputChange = (field, value) => {
-    const uppercaseFields = new Set([
-      'tax_declaration_number',
-      'previous_tax_declaration_number',
-      'declarant_last_name',
-      'declarant_first_name',
-      'declarant_middle_initial',
-      'business_name',
-      'location',
-      'lot_number',
-      'unique_lot_number_identified',
-      'title_number',
-      'pin',
-      'address',
-      'kind_of_property',
-      'gen_class',
-      'memoranda'
-    ]);
-    const nextValue = (typeof value === 'string' && uppercaseFields.has(field)) ? value.toUpperCase() : value;
-    setFormData(prev => ({ ...prev, [field]: nextValue }));
-    
-    // Clear error for this field
-    if (errors.includes(field)) {
-      setErrors(prev => prev.filter(err => err !== field));
-    }
-  };
+     const handleInputChange = (field, value) => {
+     const uppercaseFields = new Set([
+       'tax_declaration_number',
+       'previous_tax_declaration_number',
+       'declarant_last_name',
+       'declarant_first_name',
+       'declarant_middle_initial',
+       'business_name',
+       'location',
+       'lot_number',
+       'unique_lot_number_identified',
+       'title_number',
+       'pin',
+       'address',
+       'kind_of_property',
+       'gen_class',
+       'memoranda'
+     ]);
+     let nextValue = (typeof value === 'string' && uppercaseFields.has(field)) ? value.toUpperCase() : value;
+
+     // Handle area field updates
+     if (field === 'area_hectare') {
+       // Update both area fields and sync the other unit
+       const n = (nextValue === '' || nextValue === null || nextValue === undefined) ? '' : Number(nextValue);
+       if (!isNaN(n) && n !== '') {
+         const sqm = (n * 10000).toFixed(2);
+         setFormData(prev => ({ ...prev, area_hectare: nextValue, area_sqm: sqm }));
+       } else {
+         setFormData(prev => ({ ...prev, area_hectare: nextValue, area_sqm: '' }));
+       }
+     } else {
+       setFormData(prev => ({ ...prev, [field]: nextValue }));
+     }
+     
+     // Clear error for this field
+     if (errors.includes(field)) {
+       setErrors(prev => prev.filter(err => err !== field));
+     }
+   };
 
   const validateForm = () => {
     const errors = [];
@@ -327,6 +369,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         settings = await apiService.getSettings();
       } catch (_) {}
 
+      // Only submit the selected unit; blank the other
       const submitData = {
         tax_declaration_number: formData.tax_declaration_number,
         previous_tax_declaration_number: formData.previous_tax_declaration_number,
@@ -337,7 +380,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         location: formData.location,
         lot_number: formData.lot_number,
         unique_lot_number_identified: formData.unique_lot_number_identified,
-        area_hectare: formData.area_hectare === '' ? '' : Number(formData.area_hectare),
+        area_hectare: formData.area_unit === 'hectares'
+          ? (formData.area_hectare === '' ? '' : Number(formData.area_hectare))
+          : '',
+        area_sqm: formData.area_unit === 'sqm'
+          ? (formData.area_sqm === '' ? '' : Number(formData.area_sqm))
+          : '',
         title_number: formData.title_number,
         assessed_value: formData.assessed_value === '' ? '' : Number(formData.assessed_value),
         effectivity_date: formData.effectivity_date,
@@ -631,28 +679,79 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15 }}
                 />
               </Grid>
-
               <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Area (Hectares)"
-                  value={formData.area_hectare}
-                  onChange={(e) => handleInputChange('area_hectare', e.target.value)}
-                  error={errors.includes('area_hectare')}
-                  helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.0001, tabIndex: 9 }}
-                  placeholder="0.0000"
-                  onBlur={() => {
-                    const v = formData.area_hectare;
-                    if (v === '' || v === null || v === undefined) return;
-                    const n = Number(v);
-                    if (!isNaN(n)) {
-                      handleInputChange('area_hectare', n.toFixed(4));
-                    }
-                  }}
-                />
-              </Grid>
+                 <TextField
+                   fullWidth
+                   label="Area"
+                   value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
+                   onChange={(e) => {
+                     const value = e.target.value;
+                     if (formData.area_unit === 'hectares') {
+                       handleInputChange('area_hectare', value);
+                     } else {
+                       // In sqm mode, only update sqm (no syncing)
+                       handleInputChange('area_sqm', value);
+                     }
+                   }}
+                   error={errors.includes('area_hectare')}
+                   helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                   type="number"
+                   inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
+                   placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
+                   onBlur={() => {
+                     const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
+                     if (v === '' || v === null || v === undefined) return;
+                     const n = Number(v);
+                     if (!isNaN(n)) {
+                       if (formData.area_unit === 'hectares') {
+                         const formatted = n.toFixed(4);
+                         setFormData(prev => ({ ...prev, area_hectare: formatted }));
+                       } else {
+                         const formatted = n.toFixed(2);
+                         setFormData(prev => ({ ...prev, area_sqm: formatted }));
+                       }
+                     }
+                   }}
+                   InputProps={{
+                     endAdornment: (
+                       <FormControl sx={{ minWidth: 120, ml: 1 }}>
+                         <Select
+                           value={formData.area_unit}
+                           onChange={(e) => {
+                             const newUnit = e.target.value;
+                             setFormData(prev => {
+                               const next = { ...prev, area_unit: newUnit };
+                               const numHa = Number(prev.area_hectare);
+                               const numSqm = Number(prev.area_sqm);
+                               const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
+                               const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
+                               if (newUnit === 'hectares') {
+                                 if (!hasHa && hasSqm) {
+                                   next.area_hectare = (numSqm / 10000).toFixed(4);
+                                 }
+                               } else if (newUnit === 'sqm') {
+                                 if (!hasSqm && hasHa) {
+                                   next.area_sqm = (numHa * 10000).toFixed(2);
+                                 }
+                               }
+                               return next;
+                             });
+                           }}
+                           sx={{
+                             '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
+                             '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                             '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                           }}
+                         >
+                           <MenuItem value="hectares">Hectares</MenuItem>
+                           <MenuItem value="sqm">Sqm</MenuItem>
+                         </Select>
+                       </FormControl>
+                     )
+                   }}
+                 />
+               </Grid>
 
               <Grid item xs={12} md={6}>
                 <TextField

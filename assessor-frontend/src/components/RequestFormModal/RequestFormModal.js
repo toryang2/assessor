@@ -845,7 +845,20 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         </TableCell>
                         <TableCell>{item.lot_number || '—'}</TableCell>
                         <TableCell>
-                          {item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}
+                          {(() => {
+                            const haRaw = item.area_hectare;
+                            const sqmRaw = item.area_sqm;
+                            const numHa = Number(haRaw);
+                            const numSqm = Number(sqmRaw);
+                            const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                            const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                            if (!hasHa && !hasSqm) return '—';
+                            if (hasHa && hasSqm) {
+                              return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
+                            }
+                            if (hasHa) return `${numHa.toFixed(4)} ha`;
+                            return `${numSqm.toFixed(2)} sqm`;
+                          })()}
                         </TableCell>
                         <TableCell>{item.title_number || '—'}</TableCell>
                         <TableCell>

@@ -175,7 +175,20 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 return d && b ? `${d} / ${b}` : (d || b || '');
               })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
+                const haRaw = item.area_hectare;
+                const sqmRaw = item.area_sqm;
+                const numHa = Number(haRaw);
+                const numSqm = Number(sqmRaw);
+                const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                if (!hasHa && !hasSqm) return '';
+                if (hasHa && hasSqm) {
+                  return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
+                }
+                if (hasHa) return `${numHa.toFixed(4)} ha`;
+                return `${numSqm.toFixed(2)} sqm`;
+              })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
                 ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -751,7 +764,20 @@ const PropertyTable = () => {
                     })()}
                   </TableCell>
                   <TableCell>{property.lot_number || '—'}</TableCell>
-                  <TableCell>{property.area_hectare ? property.area_hectare + (property.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
+                  <TableCell>{(() => {
+                    const haRaw = property.area_hectare;
+                    const sqmRaw = property.area_sqm;
+                    const numHa = Number(haRaw);
+                    const numSqm = Number(sqmRaw);
+                    const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                    const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                    if (!hasHa && !hasSqm) return '—';
+                    if (hasHa && hasSqm) {
+                      return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
+                    }
+                    if (hasHa) return `${numHa.toFixed(4)} ha`;
+                    return `${numSqm.toFixed(2)} sqm`;
+                  })()}</TableCell>
                   <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.primary">
@@ -946,7 +972,20 @@ const PropertyTable = () => {
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
-                      <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
+                      <TableCell>{(() => {
+                        const haRaw = item.area_hectare;
+                        const sqmRaw = item.area_sqm;
+                        const numHa = Number(haRaw);
+                        const numSqm = Number(sqmRaw);
+                        const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                        const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                        if (!hasHa && !hasSqm) return '—';
+                        if (hasHa && hasSqm) {
+                          return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
+                        }
+                        if (hasHa) return `${numHa.toFixed(4)} ha`;
+                        return `${numSqm.toFixed(2)} sqm`;
+                      })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
                         ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
@@ -1062,7 +1101,20 @@ const PropertyTable = () => {
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
-                      <TableCell>{item.area_hectare ? item.area_hectare + (item.area_hectare <= 1 ? ' ha' : ' has') : '—'}</TableCell>
+                      <TableCell>{(() => {
+                        const haRaw = item.area_hectare;
+                        const sqmRaw = item.area_sqm;
+                        const numHa = Number(haRaw);
+                        const numSqm = Number(sqmRaw);
+                        const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                        const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                        if (!hasHa && !hasSqm) return '—';
+                        if (hasHa && hasSqm) {
+                          return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
+                        }
+                        if (hasHa) return `${numHa.toFixed(4)} ha`;
+                        return `${numSqm.toFixed(2)} sqm`;
+                      })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
                         ₱{(item.assessed_value !== undefined && item.assessed_value !== null)

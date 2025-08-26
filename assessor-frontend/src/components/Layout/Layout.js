@@ -206,7 +206,7 @@ const Layout = ({ children }) => {
         ) : (
           <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
         )}
-        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
+        {/* <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
           {headerPh}
         </Typography>
         <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
@@ -217,9 +217,9 @@ const Layout = ({ children }) => {
         </Typography>
         <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={600} color="text.secondary">
           {headerOffice}
-        </Typography>
-        <Typography variant="h6" fontFamily="Times New Roman, serif" fontSize={18} fontWeight={600} color="primary" sx={{ mb: 1 }}>
-          Assessor's Office Archiving System
+        </Typography> */}
+        <Typography variant="h6" fontWeight={600} color="primary" sx={{ mt: 2, mb: 2 }}>
+          ASSESSOR'S OFFICE ARCHIVING SYSTEM
         </Typography>
       </Box>
       

@@ -209,6 +209,7 @@ class Assessor_Properties {
                 'lot_number' => sanitize_text_field($params['lot_number']),
                 'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified']),
                 'area_hectare' => floatval($params['area_hectare']),
+                'area_sqm' => isset($params['area_sqm']) && $params['area_sqm'] !== '' ? floatval($params['area_sqm']) : (isset($params['area_hectare']) ? floatval($params['area_hectare']) * 10000 : null),
                 'title_number' => sanitize_text_field($params['title_number']),
                 'assessed_value' => floatval($params['assessed_value']),
                 'effectivity_date' => $params['effectivity_date'],
@@ -229,7 +230,7 @@ class Assessor_Properties {
                 'created_by' => $user_id,
                 'updated_by' => $user_id
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result === false) {
@@ -257,6 +258,7 @@ class Assessor_Properties {
                 'lot_number' => $created->lot_number,
                 'unique_lot_number_identified' => $created->unique_lot_number_identified,
                 'area_hectare' => $created->area_hectare,
+                'area_sqm' => isset($created->area_sqm) ? $created->area_sqm : null,
                 'title_number' => $created->title_number,
                 'assessed_value' => $created->assessed_value,
                 'effectivity_date' => $created->effectivity_date,
@@ -312,6 +314,7 @@ class Assessor_Properties {
             'lot_number',
             'unique_lot_number_identified',
             'area_hectare',
+            'area_sqm',
             'title_number',
             'assessed_value',
             'effectivity_date',
@@ -332,7 +335,7 @@ class Assessor_Properties {
             $old_raw = isset($current_property->$field) ? $current_property->$field : null;
 
             // Normalize values by field type to avoid logging formatting-only changes
-            $is_numeric_4 = ($field === 'area_hectare');
+            $is_numeric_4 = ($field === 'area_hectare' || $field === 'area_sqm');
             $is_numeric_2 = ($field === 'assessed_value');
 
             if ($is_numeric_4 || $is_numeric_2) {
@@ -393,7 +396,7 @@ class Assessor_Properties {
         $allowed_fields = array(
             'tax_declaration_number', 'previous_tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 
             'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified',
-            'area_hectare', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
+            'area_hectare', 'area_sqm', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
             'supporting_documents', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
             'municipal_assessor_suffix', 'municipal_assessor_title', 'municipal_assessor_license', 'status'
@@ -407,7 +410,7 @@ class Assessor_Properties {
                 continue;
             }
             if (isset($params[$field])) {
-                if (in_array($field, array('area_hectare', 'assessed_value'))) {
+                if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
                 } else {
                     $update_data[$field] = sanitize_text_field($params[$field]);
@@ -550,7 +553,7 @@ class Assessor_Properties {
                         p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
-                        p.location, p.lot_number, p.area_hectare, p.title_number, p.effectivity_date,
+                        p.location, p.lot_number, p.area_hectare, p.area_sqm, p.title_number, p.effectivity_date,
                         p.assessed_value, p.kind_of_property, p.memoranda, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
@@ -589,6 +592,7 @@ class Assessor_Properties {
                 'location' => $property->location,
                 'lot_number' => $property->lot_number,
                 'area_hectare' => $property->area_hectare,
+                'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
                 'title_number' => $property->title_number,
                 'effectivity_date' => $property->effectivity_date,
                 'assessed_value' => $property->assessed_value,
@@ -663,6 +667,7 @@ class Assessor_Properties {
                 'lot_number' => $property_data->lot_number,
                 'unique_lot_number_identified' => $property_data->unique_lot_number_identified,
                 'area_hectare' => $property_data->area_hectare,
+                'area_sqm' => isset($property_data->area_sqm) ? $property_data->area_sqm : null,
                 'title_number' => $property_data->title_number,
                 'assessed_value' => $property_data->assessed_value,
                 'effectivity_date' => $property_data->effectivity_date,
@@ -682,7 +687,7 @@ class Assessor_Properties {
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
     

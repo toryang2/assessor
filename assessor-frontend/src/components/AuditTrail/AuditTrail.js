@@ -259,18 +259,35 @@ const AuditTrail = () => {
     const changes = buildChanges(log);
     const entries = Object.entries(changes).filter(([field]) => !hiddenFields.has(field));
     if (!entries.length) return <Typography variant="body2">No changes recorded</Typography>;
+    const formatFieldValue = (field, val) => {
+      if (val === undefined || val === null) return '—';
+      // Numeric formatting for known fields
+      if (field === 'area_hectare') {
+        const n = Number(val);
+        return isNaN(n) ? String(val) : n.toFixed(4);
+      }
+      if (field === 'area_sqm') {
+        const n = Number(val);
+        return isNaN(n) ? String(val) : n.toFixed(2);
+      }
+      if (field === 'assessed_value') {
+        const n = Number(val);
+        return isNaN(n) ? String(val) : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      return String(val);
+    };
     return entries.map(([field, change]) => (
       <Box key={field} sx={{ mb: 1 }}>
         <Typography variant="body2" fontWeight={600}>
           {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
         </Typography>
         <Box sx={{ ml: 2 }}>
-                                        <Box component="span" sx={{ color: 'error.main' }}>
-                                {(change && change.old_value) !== undefined && (change && change.old_value) !== null ? String(change.old_value) : '—'} →
-                              </Box>
-                              <Box component="span" sx={{ color: 'success.main', ml: 1 }}>
-                                {(change && change.new_value) !== undefined && (change && change.new_value) !== null ? String(change.new_value) : '—'}
-                              </Box>
+          <Box component="span" sx={{ color: 'error.main' }}>
+            {formatFieldValue(field, change?.old_value)} →
+          </Box>
+          <Box component="span" sx={{ color: 'success.main', ml: 1 }}>
+            {formatFieldValue(field, change?.new_value)}
+          </Box>
         </Box>
       </Box>
     ));
@@ -282,10 +299,26 @@ const AuditTrail = () => {
     const keys = Object.keys(changes);
     if (action === 'update') {
       if (!keys.length) return 'Updated (no field changes captured)';
+      const formatFieldValue = (field, val) => {
+        if (val === undefined || val === null) return '—';
+        if (field === 'area_hectare') {
+          const n = Number(val);
+          return isNaN(n) ? String(val) : n.toFixed(4);
+        }
+        if (field === 'area_sqm') {
+          const n = Number(val);
+          return isNaN(n) ? String(val) : n.toFixed(2);
+        }
+        if (field === 'assessed_value') {
+          const n = Number(val);
+          return isNaN(n) ? String(val) : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return String(val);
+      };
       const preview = keys.slice(0, 2).map((k) => {
         const c = changes[k] || {};
-        const oldV = c.old_value !== undefined && c.old_value !== null ? String(c.old_value) : '—';
-        const newV = c.new_value !== undefined && c.new_value !== null ? String(c.new_value) : '—';
+        const oldV = formatFieldValue(k, c.old_value);
+        const newV = formatFieldValue(k, c.new_value);
         return `${k}: ${oldV} → ${newV}`;
       }).join('; ');
       const more = keys.length > 2 ? ` (+${keys.length - 2} more)` : '';
