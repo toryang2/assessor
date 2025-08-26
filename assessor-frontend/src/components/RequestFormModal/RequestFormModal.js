@@ -149,8 +149,12 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Handle property search input change
   const handlePropertySearchChange = (event, newValue) => {
-    setPropertySearchTerm(newValue);
+    // Convert to uppercase for display
+    const upperCaseValue = newValue ? newValue.toUpperCase() : '';
+    setPropertySearchTerm(upperCaseValue);
+    
     if (newValue && newValue.length >= 2) {
+      // Use original value for search to maintain case-insensitive functionality
       searchProperties(newValue);
     } else {
       setPropertyOptions([]);
