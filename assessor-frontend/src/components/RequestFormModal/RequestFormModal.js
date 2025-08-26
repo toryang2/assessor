@@ -431,8 +431,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       Property Information (Required) *
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    
-                                         <Autocomplete
+                    <Autocomplete
                        options={propertyOptions}
                        getOptionLabel={(option) => {
                          const hasNames = !!(option.declarant_last_name || option.declarant_first_name);
@@ -580,6 +579,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           value={formData.client_name}
                           onChange={handleChange('client_name')}
                           error={validationErrors.has('client_name')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                         />
                       </Grid>
 
@@ -589,6 +589,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Contact Number"
                           value={formData.contact_number}
                           onChange={handleChange('contact_number')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                         />
                       </Grid>
 
@@ -598,6 +599,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Client Address"
                           value={formData.client_address}
                           onChange={handleChange('client_address')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                           multiline
                           rows={2}
                         />
@@ -609,6 +611,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Remarks"
                           value={formData.remarks}
                           onChange={handleChange('remarks')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                           multiline
                           rows={3}
                           placeholder="Additional notes or special instructions..."
@@ -655,6 +658,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Receipt Number *"
                           value={formData.receipt_number}
                           onChange={handleChange('receipt_number')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('receipt_number')}
                         />
                       </Grid>
@@ -675,6 +679,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Place Issued *"
                           value={formData.place_issued}
                           onChange={handleChange('place_issued')}
+                          inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('place_issued')}
                         />
                       </Grid>

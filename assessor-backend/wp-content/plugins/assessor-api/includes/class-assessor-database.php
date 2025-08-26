@@ -222,7 +222,7 @@ class Assessor_Database {
             property_id bigint(20) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
-            date_issued date NOT NULL,
+            date_issued datetime NOT NULL,
             place_issued varchar(255) NOT NULL,
             prepared_by varchar(255) NOT NULL,
             payment_type varchar(50) NOT NULL,

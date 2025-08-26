@@ -59,6 +59,44 @@ const sanitizeBusinessName = (name) => {
   return out;
 };
 
+// Format date function - accessible to both components
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    
+    return `${year}/${month}/${day} @ ${hours12}:${minutes} ${ampm}`;
+  } catch {
+    return dateString;
+  }
+};
+
+// Format date function - accessible to both components
+const formatDateTable = (dateString) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    
+    return `${year}/${month}/${day} ${hours12}:${minutes} ${ampm}`;
+  } catch {
+    return dateString;
+  }
+};
+
 const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, ref) => {
   const toFormalCase = (text) => {
     if (!text) return '';
@@ -214,27 +252,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               {/* Values */}
               <div style={{ fontSize: 12, fontWeight: 400 }}>
                 <div>{(printHistory && printHistory[0] && (printHistory[0].created_by_name || printHistory[0].updated_by_name)) || ''}</div>
-                <div>{(() => {
-                  const dt = (printHistory && printHistory[0] && printHistory[0].created_at) || '';
-                  if (!dt) return '';
-                  try {
-                    const d = new Date(dt);
-                    if (isNaN(d.getTime())) return String(dt);
-                    const pad = (n) => String(n).padStart(2, '0');
-                    const yyyy = d.getFullYear();
-                    const mm = pad(d.getMonth() + 1);
-                    const dd = pad(d.getDate());
-                    let hours = d.getHours();
-                    const minutes = pad(d.getMinutes());
-                    const ampm = hours >= 12 ? 'PM' : 'AM';
-                    hours = hours % 12;
-                    hours = hours ? hours : 12; // 0 -> 12
-                    const hh12 = pad(hours);
-                    return `${yyyy}/${mm}/${dd} ${hh12}:${minutes} ${ampm}`;
-                  } catch (_) {
-                    return String(dt);
-                  }
-                })()}</div>
+                <div>{printHistory && printHistory[0] && printHistory[0].created_at ? formatDate(printHistory[0].created_at) : ''}</div>
               </div>
             </div>
 
@@ -255,7 +273,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               <div style={{ fontSize: 10, fontWeight: 400 }}>
                 <div style={{ paddingTop: 50 }}>{requestData?.amount_paid ? `₱${requestData.amount_paid.toLocaleString()}` : '₱'}</div>
                 <div>{requestData?.receipt_number || ''}</div>
-                <div>{requestData?.date_issued ? new Date(requestData.date_issued).toLocaleDateString('en-CA') : ''}</div>
+                <div>{requestData?.date_issued ? formatDate(requestData.date_issued) : ''}</div>
                 <div>{requestData?.place_issued || ''}</div>
                 <div>{requestData?.prepared_by || ''}</div>
               </div>
@@ -449,7 +467,7 @@ const RequestsTable = () => {
 
   // Handle search
   const handleSearch = (event) => {
-    setSearchTerm(event.target.value);
+    setSearchTerm(event.target.value.toUpperCase());
     setPage(0); // Reset to first page when searching
   };
 
@@ -543,16 +561,6 @@ const RequestsTable = () => {
     }
   };
 
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      return new Date(dateString).toLocaleDateString('en-CA');
-    } catch {
-      return dateString;
-    }
-  };
-
   // Format amount
   const formatAmount = (amount) => {
     if (!amount) return '₱0.00';
@@ -607,8 +615,7 @@ const RequestsTable = () => {
           </Grid>
         </CardContent>
       </Card>
-
-             {/* Requests Table */}
+      {/* Requests Table */}
        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
           <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
             <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
@@ -632,7 +639,7 @@ const RequestsTable = () => {
                       <Typography>Loading requests...</Typography>
                     </TableCell>
                   </TableRow>
-                                ) : requests.length === 0 ? (
+                  ) : requests.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
                       <Typography color="text.secondary">
@@ -640,7 +647,7 @@ const RequestsTable = () => {
                       </Typography>
                     </TableCell>
                   </TableRow>
-                ) : (
+                  ) : (
                   requests.map((request) => (
                     <TableRow key={request.id} hover>
                       <TableCell>
@@ -695,7 +702,7 @@ const RequestsTable = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {formatDate(request.date_issued)}
+                          {formatDateTable(request.date_issued)}
                         </Typography>
                       </TableCell>
                       <TableCell>

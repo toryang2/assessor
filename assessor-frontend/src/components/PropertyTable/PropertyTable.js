@@ -412,7 +412,7 @@ const PropertyTable = () => {
   };
 
   const handleSearch = (event) => {
-    const raw = event.target.value || '';
+    const raw = event.target.value.toUpperCase() || '';
     const normalized = raw
       .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
       .replace(/\s*-\s*/g, '-')        // collapse spaces around hyphen
@@ -679,7 +679,6 @@ const PropertyTable = () => {
                   onChange={handleSearch}
                   onKeyDown={handleSearchKeyDown}
                   placeholder="Search by TDN, name, lot number, or title number..."
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
                   helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
                   InputProps={{ 
                     startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
