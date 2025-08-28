@@ -50,7 +50,7 @@ const drawerWidth = 320;
 const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
+  const { user, logout, isSuperAdmin, isAdmin, isMunicipalAssessor } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -155,7 +155,7 @@ const Layout = ({ children }) => {
   const canAccessPage = (pageName) => {
     const restrictedPages = ['Audit Trail', 'Export', 'User Management', 'Settings'];
     if (restrictedPages.includes(pageName)) {
-      return isSuperAdmin || isAdmin || (isAssessor && user?.role === 'municipal assessor');
+      return isSuperAdmin || isAdmin || isMunicipalAssessor;
     }
     return true; // All other pages are accessible
   };

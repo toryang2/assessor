@@ -95,7 +95,7 @@ A comprehensive, production-ready history archiving application tailored for pro
 
 5. **Build for Production**
    ```bash
-   npm run build
+   npm run build:prod
    ```
 
 ## 🔧 Configuration
