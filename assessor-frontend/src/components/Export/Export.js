@@ -177,65 +177,62 @@ const Export = () => {
   };
 
   const handleExport = async () => {
-    if (selectedFields[exportType].length === 0) {
-      setError('Please select at least one field to export');
+    if (!exportType || !exportFormat) {
+      setError('Please select both export type and format');
       return;
     }
 
     setLoading(true);
-    setExportProgress(0);
     setError('');
     setSuccess('');
+    setExportProgress(0);
 
     try {
-      const params = {
+      const exportConfig = {
         type: exportType,
         format: exportFormat,
-        fields: selectedFields[exportType].join(','),
-        ...filters
+        filters: filters,
+        fields: selectedFields[exportType],
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
       };
 
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setExportProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      const response = await apiService.exportData(params);
+      const response = await apiService.exportData(exportConfig);
       
-      clearInterval(progressInterval);
+      // Handle the response based on format
+      if (exportFormat === 'csv') {
+        // Create and download CSV file
+        const blob = new Blob([response], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${exportType}_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else if (exportFormat === 'json') {
+        // Create and download JSON file
+        const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${exportType}_export_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      setSuccess(`Export completed successfully! ${exportType} data has been downloaded.`);
       setExportProgress(100);
-
-      // Trigger download
-      const blob = new Blob([response.data], {
-        type: exportFormat === 'csv' ? 'text/csv' : 'application/json'
-      });
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${exportType}_export_${new Date().toISOString().split('T')[0]}.${exportFormat}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      setSuccess(`Export completed successfully! ${exportType} data exported in ${exportFormat.toUpperCase()} format.`);
-      
-      setTimeout(() => {
-        setExportProgress(0);
-      }, 2000);
-
-    } catch (err) {
-      setError('Failed to export data. Please try again.');
-      console.error('Export error:', err);
+    } catch (error) {
+      console.error('Export error:', error);
+      setError(`Export failed: ${error.message || 'Unknown error occurred'}`);
     } finally {
       setLoading(false);
+      // Reset progress after a delay
+      setTimeout(() => setExportProgress(0), 2000);
     }
   };
 

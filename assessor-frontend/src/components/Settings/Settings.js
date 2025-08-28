@@ -65,6 +65,35 @@ const Settings = () => {
     load();
   }, []);
 
+  // Add refresh function for cache busting
+  const refreshData = async () => {
+    try {
+      const data = await apiService.getSettings();
+      setForm({
+        app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
+        header_province: data.header_province || DEFAULTS.header_province,
+        header_municipality: data.header_municipality || DEFAULTS.header_municipality,
+        header_office: data.header_office || DEFAULTS.header_office,
+        verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
+        verifier_signatory_title: data.verifier_signatory_title || DEFAULTS.verifier_signatory_title,
+        municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
+        municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
+        municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
+        municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix
+      });
+      const [typesRes, classesRes, locationsRes] = await Promise.all([
+        apiService.getPropertyTypes(),
+        apiService.getGeneralClasses(),
+        apiService.getLocations()
+      ]);
+      setPropertyTypes(typesRes?.items || []);
+      setGeneralClasses(classesRes?.items || []);
+      setLocations(locationsRes?.items || []);
+    } catch (e) {
+      // fallback to defaults silently
+    }
+  };
+
   if (!canManage) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">

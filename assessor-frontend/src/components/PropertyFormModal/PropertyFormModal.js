@@ -138,20 +138,66 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         area_hectare: (() => {
           const v = property.area_hectare;
           const n = Number(v);
-          return (v !== undefined && v !== null && v !== '' && !isNaN(n)) ? n.toFixed(4) : '';
+          const hasHa = (v !== undefined && v !== null && v !== '' && !isNaN(n) && n > 0);
+          // Only load hectares if the unit is hectares
+          if (hasHa) {
+            const unit = (() => {
+              const numSqm = Number(property.area_sqm);
+              const numHa = Number(property.area_hectare);
+              const hasSqmInner = property.area_sqm !== undefined && property.area_sqm !== null && property.area_sqm !== '' && !isNaN(numSqm) && numSqm > 0;
+              const hasHaInner = property.area_hectare !== undefined && property.area_hectare !== null && property.area_hectare !== '' && !isNaN(numHa) && numHa > 0;
+              // Prioritize hectares if both exist (since that's the default unit)
+              if (hasHaInner) return 'hectares';
+              if (hasSqmInner) return 'sqm';
+              return 'hectares';
+            })();
+            const result = unit === 'hectares' ? n.toFixed(4) : '';
+            console.log('PropertyFormModal - area_hectare result:', { unit, result, value: n });
+            return result;
+          }
+          return '';
         })(),
         area_sqm: (() => {
           const v = property.area_sqm;
           const n = Number(v);
-          return (v !== undefined && v !== null && v !== '' && !isNaN(n)) ? n.toFixed(2) : '';
+          const hasSqm = (v !== undefined && v !== null && v !== '' && !isNaN(n) && n > 0);
+          // Only load sqm if the unit is sqm
+          if (hasSqm) {
+            const unit = (() => {
+              const numSqm = Number(property.area_sqm);
+              const numHa = Number(property.area_hectare);
+              const hasSqmInner = property.area_sqm !== undefined && property.area_sqm !== null && property.area_sqm !== '' && !isNaN(numSqm) && numSqm > 0;
+              const hasHaInner = property.area_hectare !== undefined && property.area_hectare !== null && property.area_hectare !== '' && !isNaN(numHa) && numHa > 0;
+              // Prioritize hectares if both exist (since that's the default unit)
+              if (hasHaInner) return 'hectares';
+              if (hasSqmInner) return 'sqm';
+              return 'hectares';
+            })();
+            const result = unit === 'sqm' ? n.toFixed(2) : '';
+            console.log('PropertyFormModal - area_sqm result:', { unit, result, value: n });
+            return result;
+          }
+          return '';
         })(),
         area_unit: (() => {
           const numSqm = Number(property.area_sqm);
           const numHa = Number(property.area_hectare);
           const hasSqm = property.area_sqm !== undefined && property.area_sqm !== null && property.area_sqm !== '' && !isNaN(numSqm) && numSqm > 0;
           const hasHa = property.area_hectare !== undefined && property.area_hectare !== null && property.area_hectare !== '' && !isNaN(numHa) && numHa > 0;
-          if (hasSqm) return 'sqm';
+          
+          // Debug logging
+          console.log('PropertyFormModal - Area initialization:', {
+            area_hectare: property.area_hectare,
+            area_sqm: property.area_sqm,
+            hasHa,
+            hasSqm,
+            numHa,
+            numSqm
+          });
+          
+          // Prioritize hectares if both exist (since that's the default unit)
           if (hasHa) return 'hectares';
+          if (hasSqm) return 'sqm';
           return 'hectares';
         })(),
         title_number: property.title_number || '',
@@ -265,8 +311,10 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         setOptionsLoading(false);
       }
     };
+    
+    // Always load options when component mounts or when modal opens
     loadOptions();
-  }, []);
+  }, [open, property]);
 
   useEffect(() => {
     // Only set default values when options are loaded and we're creating a new property
@@ -279,6 +327,35 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       }));
     }
   }, [property, optionsLoading, propertyTypeOptions, generalClassOptions, locationOptions]);
+
+  // Force refresh options when modal opens
+  useEffect(() => {
+    if (open && (propertyTypeOptions.length === 0 || generalClassOptions.length === 0 || locationOptions.length === 0)) {
+      const loadOptions = async () => {
+        setOptionsLoading(true);
+        try {
+          const [typesRes, classesRes, locationsRes] = await Promise.all([
+            apiService.getPropertyTypes(),
+            apiService.getGeneralClasses(),
+            apiService.getLocations()
+          ]);
+          
+          const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
+          const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
+          const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+          
+          setPropertyTypeOptions(types);
+          setGeneralClassOptions(classes);
+          setLocationOptions(locations);
+        } catch (e) {
+          console.error('PropertyFormModal: Force refresh failed:', e);
+        } finally {
+          setOptionsLoading(false);
+        }
+      };
+      loadOptions();
+    }
+  }, [open, propertyTypeOptions.length, generalClassOptions.length, locationOptions.length]);
 
   // Helper function to format currency
   const formatCurrency = (value) => {
@@ -320,19 +397,16 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
      ]);
      let nextValue = (typeof value === 'string' && uppercaseFields.has(field)) ? value.toUpperCase() : value;
 
-     // Handle area field updates
-     if (field === 'area_hectare') {
-       // Update both area fields and sync the other unit
-       const n = (nextValue === '' || nextValue === null || nextValue === undefined) ? '' : Number(nextValue);
-       if (!isNaN(n) && n !== '') {
-         const sqm = (n * 10000).toFixed(2);
-         setFormData(prev => ({ ...prev, area_hectare: nextValue, area_sqm: sqm }));
-       } else {
-         setFormData(prev => ({ ...prev, area_hectare: nextValue, area_sqm: '' }));
-       }
-     } else {
-       setFormData(prev => ({ ...prev, [field]: nextValue }));
-     }
+           // Handle area field updates - only update the selected unit
+      if (field === 'area_hectare') {
+        // Only update hectares, don't sync with sqm
+        setFormData(prev => ({ ...prev, area_hectare: nextValue }));
+      } else if (field === 'area_sqm') {
+        // Only update sqm, don't sync with hectares
+        setFormData(prev => ({ ...prev, area_sqm: nextValue }));
+      } else {
+        setFormData(prev => ({ ...prev, [field]: nextValue }));
+      }
      
      // Clear error for this field
      if (errors.includes(field)) {
@@ -519,552 +593,511 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Alert>
         </Snackbar>
         <form onSubmit={handleSubmit}>
-        {/* Loading Indicator */}
-        {optionsLoading && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Loading form options...
-          </Alert>
-        )}
+          {/* Error Display */}
+          {errors.length > 0 && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {errors.map((error, index) => (
+                <div key={index}>{error}</div>
+              ))}
+            </Alert>
+          )}
 
-        {/* Retry Options Loading */}
-        {!optionsLoading && (propertyTypeOptions.length === 0 || generalClassOptions.length === 0 || locationOptions.length === 0) && (
-          <Alert 
-            severity="warning" 
-            sx={{ mb: 2 }}
-            action={
-              <Button 
-                color="inherit" 
-                size="small" 
-                onClick={() => {
-                  setOptionsLoading(true);
-                  // Trigger options reload
-                  const loadOptions = async () => {
-                    try {
-                      const [typesRes, classesRes, locationsRes] = await Promise.all([
-                        apiService.getPropertyTypes(),
-                        apiService.getGeneralClasses(),
-                        apiService.getLocations()
-                      ]);
-                      
-                      const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
-                      const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
-                      const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
-                      
-                      setPropertyTypeOptions(types);
-                      setGeneralClassOptions(classes);
-                      setLocationOptions(locations);
-                    } catch (e) {
-                      console.error('PropertyFormModal: Retry failed:', e);
-                    } finally {
-                      setOptionsLoading(false);
-                    }
-                  };
-                  loadOptions();
-                }}
-              >
-                Retry
-              </Button>
-            }
-          >
-            Some form options failed to load. Please retry or contact support.
-          </Alert>
-        )}
+          {/* Basic Information */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Basic Information
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Tax Declaration Number"
+                    value={formData.tax_declaration_number}
+                    onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
+                    error={errors.includes('tax_declaration_number')}
+                    helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
+                    required
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 1 }}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Previous Tax Declaration Number"
+                    value={formData.previous_tax_declaration_number}
+                    onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
+                    helperText="Optional: Enter the previous tax declaration number to create a historical link"
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 2 }}
+                  />
+                </Grid>
 
-        {/* Error Display */}
-        {errors.length > 0 && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {errors.map((error, index) => (
-              <div key={index}>{error}</div>
-            ))}
-          </Alert>
-        )}
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Declarant Last Name"
+                    value={formData.declarant_last_name}
+                    onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
+                    error={errors.includes('declarant_last_name')}
+                    helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
+                    // required
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 3 }}
+                  />
+                </Grid>
 
-        {/* Basic Information */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Basic Information
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Tax Declaration Number"
-                  value={formData.tax_declaration_number}
-                  onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
-                  error={errors.includes('tax_declaration_number')}
-                  helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
-                  required
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 1 }}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Previous Tax Declaration Number"
-                  value={formData.previous_tax_declaration_number}
-                  onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
-                  helperText="Optional: Enter the previous tax declaration number to create a historical link"
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 2 }}
-                />
-              </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Title Number"
+                    value={formData.title_number}
+                    onChange={(e) => handleInputChange('title_number', e.target.value)}
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 10 }}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Declarant First Name"
+                    value={formData.declarant_first_name}
+                    onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
+                    error={errors.includes('declarant_first_name')}
+                    helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
+                    // required
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 4}}
+                  />
+                </Grid>
 
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Declarant Last Name"
-                  value={formData.declarant_last_name}
-                  onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
-                  error={errors.includes('declarant_last_name')}
-                  helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
-                  // required
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 3 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Title Number"
-                  value={formData.title_number}
-                  onChange={(e) => handleInputChange('title_number', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 10 }}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Declarant First Name"
-                  value={formData.declarant_first_name}
-                  onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
-                  error={errors.includes('declarant_first_name')}
-                  helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
-                  // required
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 4}}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Assessed Value (₱)"
-                  value={formData.assessed_value}
-                  onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                  error={errors.includes('assessed_value')}
-                  helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
-                  placeholder="0.00"
-                  onBlur={() => {
-                    const v = formData.assessed_value;
-                    if (v === '' || v === null || v === undefined) return;
-                    const n = Number(v);
-                    if (!isNaN(n)) {
-                      handleInputChange('assessed_value', n.toFixed(2));
-                    }
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Declarant Middle Initial"
-                  value={formData.declarant_middle_initial}
-                  onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
-                  inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1, tabIndex: 5 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Effectivity Year"
-                  value={formData.effectivity_date}
-                  onChange={(e) => handleInputChange('effectivity_date', e.target.value)}
-                  type="number"
-                  inputProps={{ min: 1800, max: 2100, tabIndex: 12 }}
-                  placeholder="YYYY"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Business Name"
-                  InputLabelProps={{ sx: { color: 'primary.main' } }}
-                  value={formData.business_name}
-                  onChange={(e) => handleInputChange('business_name', e.target.value)}
-                  inputProps={{ sx: { color: 'primary.main' }, style: { textTransform: 'uppercase' }, tabIndex: 6 }}
-                  placeholder="Enter business name (optional)"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Assessment Date"
-                  value={formData.assessment_date}
-                  onChange={(e) => handleInputChange('assessment_date', e.target.value)}
-                  type="date"
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  inputProps={{ tabIndex: 13 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Location</InputLabel>
-                  <Select
-                    value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
-                    label="Location"
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                    error={errors.includes('location')}
-                    inputProps={{ tabIndex: 7 }}
-                    disabled={optionsLoading}
-                  >
-                    {optionsLoading ? (
-                      <MenuItem disabled>Loading locations...</MenuItem>
-                    ) : locationOptions.length === 0 ? (
-                      <MenuItem disabled>No locations available</MenuItem>
-                    ) : (
-                      locationOptions.map(loc => (
-                        <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="PIN"
-                  value={formData.pin}
-                  onChange={(e) => handleInputChange('pin', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 14 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Lot Number"
-                  value={formData.lot_number}
-                  onChange={(e) => handleInputChange('lot_number', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 8 }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Unique Lot Number Identified"
-                  value={formData.unique_lot_number_identified}
-                  onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15 }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                 <TextField
-                   fullWidth
-                   label="Area"
-                   value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
-                   onChange={(e) => {
-                     const value = e.target.value;
-                     if (formData.area_unit === 'hectares') {
-                       handleInputChange('area_hectare', value);
-                     } else {
-                       // In sqm mode, only update sqm (no syncing)
-                       handleInputChange('area_sqm', value);
-                     }
-                   }}
-                   error={errors.includes('area_hectare')}
-                   helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
-                   type="number"
-                   inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
-                   placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
-                   onBlur={() => {
-                     const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
-                     if (v === '' || v === null || v === undefined) return;
-                     const n = Number(v);
-                     if (!isNaN(n)) {
-                       if (formData.area_unit === 'hectares') {
-                         const formatted = n.toFixed(4);
-                         setFormData(prev => ({ ...prev, area_hectare: formatted }));
-                       } else {
-                         const formatted = n.toFixed(2);
-                         setFormData(prev => ({ ...prev, area_sqm: formatted }));
-                       }
-                     }
-                   }}
-                   InputProps={{
-                     endAdornment: (
-                       <FormControl sx={{ minWidth: 120, ml: 1 }}>
-                         <Select
-                           value={formData.area_unit}
-                           onChange={(e) => {
-                             const newUnit = e.target.value;
-                             setFormData(prev => {
-                               const next = { ...prev, area_unit: newUnit };
-                               const numHa = Number(prev.area_hectare);
-                               const numSqm = Number(prev.area_sqm);
-                               const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
-                               const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
-                               if (newUnit === 'hectares') {
-                                 if (!hasHa && hasSqm) {
-                                   next.area_hectare = (numSqm / 10000).toFixed(4);
-                                 }
-                               } else if (newUnit === 'sqm') {
-                                 if (!hasSqm && hasHa) {
-                                   next.area_sqm = (numHa * 10000).toFixed(2);
-                                 }
-                               }
-                               return next;
-                             });
-                           }}
-                           sx={{
-                             '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
-                             '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                             '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                           }}
-                         >
-                           <MenuItem value="hectares">Hectares</MenuItem>
-                           <MenuItem value="sqm">Sqm</MenuItem>
-                         </Select>
-                       </FormControl>
-                     )
-                   }}
-                 />
-               </Grid>
-
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange('address', e.target.value)}
-                  placeholder="Complete address"
-                  inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 16 }}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Kind of Property */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Kind of Property
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Kind of Property</InputLabel>
-                  <Select
-                    value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
-                    label="Kind of Property"
-                    onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
-                    error={errors.includes('kind_of_property')}
-                    inputProps={{ tabIndex: 17 }}
-                    disabled={optionsLoading}
-                  >
-                    {optionsLoading ? (
-                      <MenuItem disabled>Loading property types...</MenuItem>
-                    ) : propertyTypeOptions.length === 0 ? (
-                      <MenuItem disabled>No property types available</MenuItem>
-                    ) : (
-                      propertyTypeOptions.map(pt => (
-                        <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <InputLabel>General Class</InputLabel>
-                  <Select
-                    value={generalClassOptions.some(gc => gc.code === formData.gen_class) ? formData.gen_class : ''}
-                    label="General Class"
-                    onChange={(e) => handleInputChange('gen_class', e.target.value)}
-                    inputProps={{ tabIndex: 18 }}
-                    disabled={optionsLoading}
-                  >
-                    {optionsLoading ? (
-                      <MenuItem disabled>Loading general classes...</MenuItem>
-                    ) : generalClassOptions.length === 0 ? (
-                      <MenuItem disabled>No general classes available</MenuItem>
-                    ) : (
-                      generalClassOptions.map(gc => (
-                        <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Supporting Documents */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Supporting Documents
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Memoranda"
-                  value={formData.memoranda}
-                  onChange={(e) => handleInputChange('memoranda', e.target.value)}
-                  placeholder="Additional notes or memoranda"
-                  multiline
-                  rows={3}
-                  inputProps={{ tabIndex: 19 }}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <input
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                  style={{ display: 'none' }}
-                  id="supporting-documents-upload"
-                  multiple
-                  type="file"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files);
-                    setFormData(prev => ({
-                      ...prev,
-                      supporting_documents: files
-                    }));
-                    setPendingUploads(files);
-                  }}
-                  tabIndex={20}
-                />
-                <label htmlFor="supporting-documents-upload">
-                  <Button
-                    variant="outlined"
-                    component="span"
-                    startIcon={<CloudUpload />}
-                  fullWidth
-                    sx={{ 
-                      height: 56, 
-                      borderStyle: 'dashed',
-                      borderWidth: 2,
-                      '&:hover': {
-                        borderStyle: 'solid'
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Assessed Value (₱)"
+                    value={formData.assessed_value}
+                    onChange={(e) => handleInputChange('assessed_value', e.target.value)}
+                    error={errors.includes('assessed_value')}
+                    helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
+                    type="number"
+                    inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
+                    placeholder="0.00"
+                    onBlur={() => {
+                      const v = formData.assessed_value;
+                      if (v === '' || v === null || v === undefined) return;
+                      const n = Number(v);
+                      if (!isNaN(n)) {
+                        handleInputChange('assessed_value', n.toFixed(2));
                       }
                     }}
-                  >
-                    {pendingUploads && pendingUploads.length > 0 
-                      ? `${pendingUploads.length} file(s) selected`
-                      : 'Upload Supporting Documents'
-                    }
-                  </Button>
-                </label>
-                {(Array.isArray(pendingUploads) && pendingUploads.length > 0) && (
-                  <Box sx={{ mt: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Selected (to be uploaded upon save):
-                    </Typography>
-                    {pendingUploads.map((file, index) => (
-                      <Typography key={index} variant="body2" sx={{ ml: 1 }}>
-                        • {(file && file.name) ? file.name : String(file)}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
+                  />
+                </Grid>
 
-                {/* Existing documents (edit mode) */}
-                {Array.isArray(existingDocuments) && existingDocuments.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Existing Documents</Typography>
-                    <Grid container spacing={1.5}>
-                      {existingDocuments.map((doc) => {
-                        const ext = String(doc.file_type || '').toLowerCase();
-                        const isImage = ['jpg','jpeg','png','gif'].includes(ext);
-                        return (
-                          <Grid item key={doc.id} xs={12} sm={6} md={4} lg={3}>
-                            <Box sx={{ border: '1px solid #eee', p: 1, borderRadius: 1 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Typography variant="body2" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.original_filename || doc.filename}>
-                                  {doc.original_filename || doc.filename}
-                                </Typography>
-                                <Button size="small" color="error" onClick={() => {
-                                  // Defer deletion until save; optimistically hide from list
-                                  setDocumentsToDelete(prev => (prev.includes(doc.id) ? prev : [...prev, doc.id]));
-                                  setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
-                                  setToast({ open: true, message: 'Document marked for deletion. Save to apply.', severity: 'info' });
-                                }}>Delete</Button>
-                              </Box>
-                              <Box sx={{ mt: 1 }}>
-                                {isImage ? (
-                                  <img
-                                    src={doc.file_url}
-                                    alt={doc.original_filename || doc.filename}
-                                    style={{ width: '100%', height: 140, objectFit: 'cover', cursor: 'pointer' }}
-                                    onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
-                                  />
-                                ) : (
-                                  <Button size="small" onClick={() => window.open(doc.file_url, '_blank')}>View File</Button>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Declarant Middle Initial"
+                    value={formData.declarant_middle_initial}
+                    onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
+                    inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1, tabIndex: 5 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Effectivity Year"
+                    value={formData.effectivity_date}
+                    onChange={(e) => handleInputChange('effectivity_date', e.target.value)}
+                    type="number"
+                    inputProps={{ min: 1800, max: 2100, tabIndex: 12 }}
+                    placeholder="YYYY"
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Business Name"
+                    InputLabelProps={{ sx: { color: 'primary.main' } }}
+                    value={formData.business_name}
+                    onChange={(e) => handleInputChange('business_name', e.target.value)}
+                    inputProps={{ sx: { color: 'primary.main' }, style: { textTransform: 'uppercase' }, tabIndex: 6 }}
+                    placeholder="Enter business name (optional)"
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Assessment Date"
+                    value={formData.assessment_date}
+                    onChange={(e) => handleInputChange('assessment_date', e.target.value)}
+                    type="date"
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    inputProps={{ tabIndex: 13 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Location</InputLabel>
+                    <Select
+                      value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
+                      label="Location"
+                      onChange={(e) => handleInputChange('location', e.target.value)}
+                      error={errors.includes('location')}
+                      inputProps={{ tabIndex: 7 }}
+                      disabled={optionsLoading}
+                    >
+                      {optionsLoading ? (
+                        <MenuItem disabled>Loading locations...</MenuItem>
+                      ) : locationOptions.length === 0 ? (
+                        <MenuItem disabled>No locations available</MenuItem>
+                      ) : (
+                        locationOptions.map(loc => (
+                          <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
+                        ))
+                      )}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="PIN"
+                    value={formData.pin}
+                    onChange={(e) => handleInputChange('pin', e.target.value)}
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 14 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Lot Number"
+                    value={formData.lot_number}
+                    onChange={(e) => handleInputChange('lot_number', e.target.value)}
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 8 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Unique Lot Number Identified"
+                    value={formData.unique_lot_number_identified}
+                    onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                   <TextField
+                     fullWidth
+                     label="Area"
+                     value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
+                     onChange={(e) => {
+                       const value = e.target.value;
+                       if (formData.area_unit === 'hectares') {
+                         handleInputChange('area_hectare', value);
+                       } else {
+                         // In sqm mode, only update sqm (no syncing)
+                         handleInputChange('area_sqm', value);
+                       }
+                     }}
+                     error={errors.includes('area_hectare')}
+                     helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                     type="number"
+                     inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
+                     placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
+                     onBlur={() => {
+                       const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
+                       if (v === '' || v === null || v === undefined) return;
+                       const n = Number(v);
+                       if (!isNaN(n)) {
+                         if (formData.area_unit === 'hectares') {
+                           const formatted = n.toFixed(4);
+                           setFormData(prev => ({ ...prev, area_hectare: formatted }));
+                         } else {
+                           const formatted = n.toFixed(2);
+                           setFormData(prev => ({ ...prev, area_sqm: formatted }));
+                         }
+                       }
+                     }}
+                     InputProps={{
+                       endAdornment: (
+                         <FormControl sx={{ minWidth: 120, ml: 1 }}>
+                           <Select
+                             value={formData.area_unit}
+                             onChange={(e) => {
+                               const newUnit = e.target.value;
+                               setFormData(prev => {
+                                 const next = { ...prev, area_unit: newUnit };
+                                 const numHa = Number(prev.area_hectare);
+                                 const numSqm = Number(prev.area_sqm);
+                                 const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
+                                 const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
+                                 if (newUnit === 'hectares') {
+                                   if (!hasHa && hasSqm) {
+                                     // Convert sqm to hectares and clear sqm
+                                     next.area_hectare = (numSqm / 10000).toFixed(4);
+                                     next.area_sqm = '';
+                                   } else if (hasHa) {
+                                     // Keep hectares, clear sqm
+                                     next.area_sqm = '';
+                                   }
+                                 } else if (newUnit === 'sqm') {
+                                   if (!hasSqm && hasHa) {
+                                     // Convert hectares to sqm and clear hectares
+                                     next.area_sqm = (numHa * 10000).toFixed(2);
+                                     next.area_hectare = '';
+                                   } else if (hasSqm) {
+                                     // Keep sqm, clear hectares
+                                     next.area_hectare = '';
+                                   }
+                                 }
+                                 return next;
+                               });
+                             }}
+                             sx={{
+                               '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
+                               '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                               '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                             }}
+                           >
+                             <MenuItem value="hectares">Hectares</MenuItem>
+                             <MenuItem value="sqm">Sqm</MenuItem>
+                           </Select>
+                         </FormControl>
+                       )
+                     }}
+                   />
+                 </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Address"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange('address', e.target.value)}
+                    placeholder="Complete address"
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 16 }}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Kind of Property */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Kind of Property
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Kind of Property</InputLabel>
+                    <Select
+                      value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
+                      label="Kind of Property"
+                      onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
+                      error={errors.includes('kind_of_property')}
+                      inputProps={{ tabIndex: 17 }}
+                      disabled={optionsLoading}
+                    >
+                      {optionsLoading ? (
+                        <MenuItem disabled>Loading property types...</MenuItem>
+                      ) : propertyTypeOptions.length === 0 ? (
+                        <MenuItem disabled>No property types available</MenuItem>
+                      ) : (
+                        propertyTypeOptions.map(pt => (
+                          <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
+                        ))
+                      )}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>General Class</InputLabel>
+                    <Select
+                      value={generalClassOptions.some(gc => gc.code === formData.gen_class) ? formData.gen_class : ''}
+                      label="General Class"
+                      onChange={(e) => handleInputChange('gen_class', e.target.value)}
+                      inputProps={{ tabIndex: 18 }}
+                      disabled={optionsLoading}
+                    >
+                      {optionsLoading ? (
+                        <MenuItem disabled>Loading general classes...</MenuItem>
+                      ) : generalClassOptions.length === 0 ? (
+                        <MenuItem disabled>No general classes available</MenuItem>
+                      ) : (
+                        generalClassOptions.map(gc => (
+                          <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
+                        ))
+                      )}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Supporting Documents */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Supporting Documents
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Memoranda"
+                    value={formData.memoranda}
+                    onChange={(e) => handleInputChange('memoranda', e.target.value)}
+                    placeholder="Additional notes or memoranda"
+                    multiline
+                    rows={3}
+                    inputProps={{ tabIndex: 19 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <input
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    style={{ display: 'none' }}
+                    id="supporting-documents-upload"
+                    multiple
+                    type="file"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files);
+                      setFormData(prev => ({
+                        ...prev,
+                        supporting_documents: files
+                      }));
+                      setPendingUploads(files);
+                    }}
+                    tabIndex={20}
+                  />
+                  <label htmlFor="supporting-documents-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUpload />}
+                    fullWidth
+                      sx={{ 
+                        height: 56, 
+                        borderStyle: 'dashed',
+                        borderWidth: 2,
+                        '&:hover': {
+                          borderStyle: 'solid'
+                        }
+                      }}
+                    >
+                      {pendingUploads && pendingUploads.length > 0 
+                        ? `${pendingUploads.length} file(s) selected`
+                        : 'Upload Supporting Documents'
+                      }
+                    </Button>
+                  </label>
+                  {(Array.isArray(pendingUploads) && pendingUploads.length > 0) && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Selected (to be uploaded upon save):
+                      </Typography>
+                      {pendingUploads.map((file, index) => (
+                        <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                          • {(file && file.name) ? file.name : String(file)}
+                        </Typography>
+                      ))}
+                    </Box>
+                  )}
+
+                  {/* Existing documents (edit mode) */}
+                  {Array.isArray(existingDocuments) && existingDocuments.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Existing Documents</Typography>
+                      <Grid container spacing={1.5}>
+                        {existingDocuments.map((doc) => {
+                          const ext = String(doc.file_type || '').toLowerCase();
+                          const isImage = ['jpg','jpeg','png','gif'].includes(ext);
+                          return (
+                            <Grid item key={doc.id} xs={12} sm={6} md={4} lg={3}>
+                              <Box sx={{ border: '1px solid #eee', p: 1, borderRadius: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.original_filename || doc.filename}>
+                                    {doc.original_filename || doc.filename}
+                                  </Typography>
+                                  <Button size="small" color="error" onClick={() => {
+                                    // Defer deletion until save; optimistically hide from list
+                                    setDocumentsToDelete(prev => (prev.includes(doc.id) ? prev : [...prev, doc.id]));
+                                    setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
+                                    setToast({ open: true, message: 'Document marked for deletion. Save to apply.', severity: 'info' });
+                                  }}>Delete</Button>
+                                </Box>
+                                <Box sx={{ mt: 1 }}>
+                                  {isImage ? (
+                                    <img
+                                      src={doc.file_url}
+                                      alt={doc.original_filename || doc.filename}
+                                      style={{ width: '100%', height: 140, objectFit: 'cover', cursor: 'pointer' }}
+                                      onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
+                                    />
+                                  ) : (
+                                    <Button size="small" onClick={() => window.open(doc.file_url, '_blank')}>View File</Button>
+                                  )}
+                                </Box>
+                                {doc.description && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                    {doc.description}
+                                  </Typography>
                                 )}
                               </Box>
-                              {doc.description && (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                  {doc.description}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Box>
-                )}
+                            </Grid>
+                          );
+                        })}
+                      </Grid>
+                    </Box>
+                  )}
+                </Grid>
               </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Form Actions */}
-        <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
-          <Button
-            variant="outlined"
-            onClick={onCancel}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading || optionsLoading}
-          >
-            {loading ? 'Saving...' : (property ? 'Update Property' : 'Create Property')}
-          </Button>
-        </Box>
-      </form>
-      {/* Image Preview Dialog */}
-      <Dialog open={docPreview.open} onClose={() => setDocPreview({ open: false, src: '', filename: '' })} maxWidth="md" fullWidth>
-        <DialogTitle>{docPreview.filename}</DialogTitle>
-        <DialogContent>
-          {docPreview.src ? (
-            <img src={docPreview.src} alt={docPreview.filename} style={{ width: '100%', height: 'auto' }} />
-          ) : null}
-        </DialogContent>
-      </Dialog>
-        </DialogContent>
-      </Dialog>
+          {/* Form Actions */}
+          <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
+            <Button
+              variant="outlined"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading || optionsLoading}
+            >
+              {loading ? 'Saving...' : (property ? 'Update Property' : 'Create Property')}
+            </Button>
+          </Box>
+        </form>
+        {/* Image Preview Dialog */}
+        <Dialog open={docPreview.open} onClose={() => setDocPreview({ open: false, src: '', filename: '' })} maxWidth="md" fullWidth>
+          <DialogTitle>{docPreview.filename}</DialogTitle>
+          <DialogContent>
+            {docPreview.src ? (
+              <img src={docPreview.src} alt={docPreview.filename} style={{ width: '100%', height: 'auto' }} />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+          </DialogContent>
+        </Dialog>
   );
 };
 

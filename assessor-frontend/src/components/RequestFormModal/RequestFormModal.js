@@ -124,21 +124,27 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Search for properties
   const searchProperties = async (searchTerm) => {
-    if (!searchTerm || searchTerm.length < 2) {
+    if (!searchTerm || searchTerm.trim().length < 3) {
       setPropertyOptions([]);
       return;
     }
 
-    setPropertySearchLoading(true);
     try {
-      const response = await apiService.getProperties({
-        page: 1,
+      setPropertySearchLoading(true);
+      const response = await apiService.getProperties({ 
+        q: searchTerm.trim(),
         per_page: 10,
-        q: searchTerm
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
       });
       
-      const properties = response?.properties || response?.data || [];
-      setPropertyOptions(properties);
+      if (response && response.properties) {
+        setPropertyOptions(response.properties);
+      } else if (response && response.data) {
+        setPropertyOptions(response.data);
+      } else {
+        setPropertyOptions([]);
+      }
     } catch (error) {
       console.error('Error searching properties:', error);
       setPropertyOptions([]);
@@ -853,11 +859,10 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                             const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                             if (!hasHa && !hasSqm) return '—';
-                            if (hasHa && hasSqm) {
-                              return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                            }
+                            // Only show the value that actually has data, don't show both
                             if (hasHa) return `${numHa.toFixed(4)} ha`;
-                            return `${numSqm.toFixed(2)} sqm`;
+                            if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                            return '—';
                           })()}
                         </TableCell>
                         <TableCell>{item.title_number || '—'}</TableCell>

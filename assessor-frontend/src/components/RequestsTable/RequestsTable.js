@@ -219,11 +219,10 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                 const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                 if (!hasHa && !hasSqm) return '';
-                if (hasHa && hasSqm) {
-                  return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                }
+                // Only show the value that actually has data, don't show both
                 if (hasHa) return `${numHa.toFixed(4)} ha`;
-                return `${numSqm.toFixed(2)} sqm`;
+                if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                return '';
               })()}</td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
@@ -439,23 +438,46 @@ const RequestsTable = () => {
   });
 
   // Fetch requests
+  const fetchSeqRef = useRef(0);
   const fetchRequests = async () => {
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
-      const response = await apiService.getRequests({
+      setError('');
+      
+      const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        search: searchTerm
-      });
+        q: searchTerm || '',
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
+      };
       
-      setRequests(response.requests || []);
-      setTotalCount(response.pagination?.total || 0);
+      const response = await apiService.getRequests(params);
+      // Ignore if a newer request has started
+      if (seq !== fetchSeqRef.current) return;
+      
+      if (response && response.requests) {
+        setRequests(response.requests);
+        setTotalCount(response.pagination ? response.pagination.total : response.requests.length);
+      } else if (response && response.data) {
+        // Fallback for different response format
+        setRequests(response.data);
+        setTotalCount(response.total || response.data.length);
+      } else {
+        console.warn('Unexpected API response format:', response);
+        setRequests([]);
+        setTotalCount(0);
+      }
     } catch (err) {
       console.error('Error fetching requests:', err);
-      setError('Failed to load requests');
+      setError(`Failed to fetch requests: ${err.message || 'Unknown error'}`);
       setRequests([]);
+      setTotalCount(0);
     } finally {
-      setLoading(false);
+      // Only clear loading for the latest request
+      if (seq === fetchSeqRef.current) setLoading(false);
+      // setInitialLoad(false); // This line was not in the original file, so it's removed.
     }
   };
 

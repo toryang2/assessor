@@ -84,6 +84,26 @@ const DocumentManager = () => {
     }
   };
 
+  // Add refresh function for cache busting
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch property details with cache busting
+      const propertyResponse = await apiService.getProperty(propertyId);
+      setProperty(propertyResponse);
+      
+      // Fetch documents with cache busting
+      const documentsResponse = await apiService.getPropertyDocuments(propertyId);
+      setDocuments(documentsResponse.documents || []);
+    } catch (err) {
+      setError('Failed to fetch property and documents');
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileUpload = async (files) => {
     if (!files || files.length === 0) return;
 

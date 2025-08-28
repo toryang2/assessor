@@ -79,6 +79,26 @@ const VersionHistory = () => {
     }
   };
 
+  // Add refresh function for cache busting
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch property details with cache busting
+      const propertyResponse = await apiService.getProperty(propertyId);
+      setProperty(propertyResponse.data);
+      
+      // Fetch version history with cache busting
+      const versionsResponse = await apiService.getPropertyVersions(propertyId);
+      setVersions(versionsResponse.data || []);
+    } catch (err) {
+      setError('Failed to fetch property and version history');
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVersionExpand = (versionId) => {
     const newExpanded = new Set(expandedVersions);
     if (newExpanded.has(versionId)) {

@@ -93,6 +93,14 @@ define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
 define( 'WP_DEBUG_DISPLAY', false );
 
+// Disable WordPress caching for dynamic content
+define('WP_CACHE', false);
+define('DONOTCACHEPAGE', true);
+define('DONOTCACHEDB', true);
+define('DONOTMINIFY', true);
+define('DONOTCDN', true);
+define('DONOTCACHEOBJECT', true);
+
 /* Add any custom values between this line and the "stop editing" line. */
 
 

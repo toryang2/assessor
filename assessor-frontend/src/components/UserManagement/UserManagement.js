@@ -110,41 +110,41 @@ const UserManagement = () => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
+      setError('');
+      
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        search: (searchTerm || '').trim(),
-        role: filters.role === 'all' ? '' : String(filters.role || '').trim(),
-        status: filters.status === 'all' ? '' : String(filters.status || '').trim(),
+        q: searchTerm || '',
+        role: filters.role !== 'all' ? filters.role : '',
+        status: filters.status !== 'all' ? filters.status : '',
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
       };
+      
       const response = await apiService.getUsers(params);
+      // Ignore if a newer request has started
       if (seq !== fetchSeqRef.current) return;
-      const list = response.users || response.data || [];
-      const roleRank = (role) => {
-        const r = String(role || '').toLowerCase();
-        if (r === 'superadmin') return 2;
-        if (r === 'admin') return 1;
-        return 0;
-      };
-      const parseTs = (val) => {
-        const t = Date.parse(val);
-        return isNaN(t) ? 0 : t;
-      };
-      const sorted = [...list].sort((a, b) => {
-        const diff = roleRank(b.role) - roleRank(a.role);
-        if (diff !== 0) return diff;
-        // Within the same rank, sort by creation date desc
-        return parseTs(b.created_at) - parseTs(a.created_at);
-      });
-      setUsers(sorted);
-      const total = (response.pagination && response.pagination.total) || response.total || list.length;
-      setTotalCount(total);
-      setError('');
+      
+      if (response && response.users) {
+        setUsers(response.users);
+        setTotalCount(response.pagination ? response.pagination.total : response.users.length);
+      } else if (response && response.data) {
+        // Fallback for different response format
+        setUsers(response.data);
+        setTotalCount(response.total || response.data.length);
+      } else {
+        console.warn('Unexpected API response format:', response);
+        setUsers([]);
+        setTotalCount(0);
+      }
     } catch (err) {
-      if (seq !== fetchSeqRef.current) return;
-      setError('Failed to fetch users');
       console.error('Error fetching users:', err);
+      setError(`Failed to fetch users: ${err.message || 'Unknown error'}`);
+      setUsers([]);
+      setTotalCount(0);
     } finally {
+      // Only clear loading for the latest request
       if (seq === fetchSeqRef.current) setLoading(false);
       setInitialLoad(false);
     }

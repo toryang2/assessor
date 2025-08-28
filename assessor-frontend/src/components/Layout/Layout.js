@@ -37,6 +37,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
+import { useCacheBuster } from '../../hooks/useCacheBuster';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
 import RequestsTable from '../RequestsTable/RequestsTable';

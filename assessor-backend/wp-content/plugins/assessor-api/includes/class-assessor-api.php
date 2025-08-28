@@ -48,6 +48,11 @@ class Assessor_API {
             $headers['Access-Control-Allow-Credentials'] = 'true';
             $headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
             $headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With';
+            
+            // Add cache control headers to prevent caching
+            $headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
+            $headers['Pragma'] = 'no-cache';
+            $headers['Expires'] = '0';
         }
         return $headers;
     }

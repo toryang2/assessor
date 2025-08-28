@@ -5,6 +5,11 @@ class Assessor_Properties {
     public function get_properties($request) {
         global $wpdb;
         
+        // Add cache control headers to prevent caching
+        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
         $params = $request->get_params();
         $page = isset($params['page']) ? max(1, intval($params['page'])) : 1;
         $per_page = isset($params['per_page']) ? min(100, max(1, intval($params['per_page']))) : 20;
@@ -208,8 +213,8 @@ class Assessor_Properties {
                 'location' => sanitize_textarea_field($params['location']),
                 'lot_number' => sanitize_text_field($params['lot_number']),
                 'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified']),
-                'area_hectare' => floatval($params['area_hectare']),
-                'area_sqm' => isset($params['area_sqm']) && $params['area_sqm'] !== '' ? floatval($params['area_sqm']) : (isset($params['area_hectare']) ? floatval($params['area_hectare']) * 10000 : null),
+                'area_hectare' => isset($params['area_hectare']) && $params['area_hectare'] !== '' ? floatval($params['area_hectare']) : null,
+                'area_sqm' => isset($params['area_sqm']) && $params['area_sqm'] !== '' ? floatval($params['area_sqm']) : null,
                 'title_number' => sanitize_text_field($params['title_number']),
                 'assessed_value' => floatval($params['assessed_value']),
                 'effectivity_date' => $params['effectivity_date'],

@@ -87,7 +87,9 @@ const AuditTrail = () => {
         page: page + 1,
         per_page: rowsPerPage,
         search: searchTerm,
-        ...filters
+        ...filters,
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
       };
       
       const response = await apiService.getAuditTrail(params);

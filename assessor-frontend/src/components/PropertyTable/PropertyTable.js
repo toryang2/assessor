@@ -183,11 +183,10 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                 const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                 if (!hasHa && !hasSqm) return '';
-                if (hasHa && hasSqm) {
-                  return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                }
+                // Only show the value that actually has data, don't show both
                 if (hasHa) return `${numHa.toFixed(4)} ha`;
-                return `${numSqm.toFixed(2)} sqm`;
+                if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                return '';
               })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
@@ -384,7 +383,7 @@ const PropertyTable = () => {
   }, []);
 
   const fetchSeqRef = useRef(0);
-  const fetchProperties = async () => {
+  const fetchProperties = async (forceRefresh = false) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -393,7 +392,9 @@ const PropertyTable = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        q: searchTerm || ''
+        q: searchTerm || '',
+        // Add cache busting timestamp to prevent browser caching
+        _t: forceRefresh ? Date.now() : Date.now()
       };
       
       const response = await apiService.getProperties(params);
@@ -772,11 +773,10 @@ const PropertyTable = () => {
                     const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                     const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                     if (!hasHa && !hasSqm) return '—';
-                    if (hasHa && hasSqm) {
-                      return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                    }
+                    // Only show the value that actually has data, don't show both
                     if (hasHa) return `${numHa.toFixed(4)} ha`;
-                    return `${numSqm.toFixed(2)} sqm`;
+                    if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                    return '—';
                   })()}</TableCell>
                   <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
@@ -980,11 +980,10 @@ const PropertyTable = () => {
                         const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                         const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                         if (!hasHa && !hasSqm) return '—';
-                        if (hasHa && hasSqm) {
-                          return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                        }
+                        // Only show the value that actually has data, don't show both
                         if (hasHa) return `${numHa.toFixed(4)} ha`;
-                        return `${numSqm.toFixed(2)} sqm`;
+                        if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                        return '—';
                       })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
@@ -1109,11 +1108,10 @@ const PropertyTable = () => {
                         const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                         const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
                         if (!hasHa && !hasSqm) return '—';
-                        if (hasHa && hasSqm) {
-                          return `${numHa.toFixed(4)} ha (${numSqm.toFixed(2)} sqm)`;
-                        }
+                        // Only show the value that actually has data, don't show both
                         if (hasHa) return `${numHa.toFixed(4)} ha`;
-                        return `${numSqm.toFixed(2)} sqm`;
+                        if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
+                        return '—';
                       })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>

@@ -101,17 +101,10 @@ const Dashboard = ({ onNavigate }) => {
   const fetchProperties = async () => {
     try {
       setPropertiesLoading(true);
-      const response = await apiService.getProperties();
-      if (response && response.items) {
-        setProperties(response.items.slice(0, 10)); // Show only first 10 properties
-      }
+      const data = await apiService.getProperties({ per_page: 5 });
+      setProperties(data.properties || []);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching properties:', error);
-      setToast({ 
-        open: true, 
-        message: 'Failed to fetch properties. Please try again.', 
-        severity: 'error' 
-      });
     } finally {
       setPropertiesLoading(false);
     }
