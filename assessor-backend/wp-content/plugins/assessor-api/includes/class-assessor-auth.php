@@ -478,6 +478,7 @@ class Assessor_Auth {
             'user_id' => $user->id,
             'username' => $user->username,
             'role' => $user->role,
+            'iss' => get_site_url(), // Add issuer field
             'iat' => time(),
             'exp' => time() + (24 * 60 * 60) // 24 hours
         ));
