@@ -74,6 +74,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [docPreview, setDocPreview] = useState({ open: false, src: '', filename: '' });
   const [pendingUploads, setPendingUploads] = useState([]);
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
 
   // Helper function to validate and clean assessment date
   const cleanAssessmentDate = (dateValue) => {
@@ -220,19 +221,26 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   useEffect(() => {
     const loadOptions = async () => {
+      setOptionsLoading(true);
       try {
         const [typesRes, classesRes, locationsRes] = await Promise.all([
           apiService.getPropertyTypes(),
           apiService.getGeneralClasses(),
           apiService.getLocations()
         ]);
+        
         const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
         const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
         const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+        
         setPropertyTypeOptions(types);
         setGeneralClassOptions(classes);
         setLocationOptions(locations);
+        
+        // Log for debugging
+        console.log('PropertyFormModal: Loaded options:', { types, classes, locations });
       } catch (e) {
+        console.error('PropertyFormModal: Error loading options:', e);
         // fallback to defaults if API fails
         setPropertyTypeOptions([
           { code: 'LAND', name: 'LAND' },
@@ -250,21 +258,27 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           { code: 'VACANT_LOT', name: 'VACANT LOT' },
           { code: 'SPECIAL', name: 'SPECIAL' }
         ]);
+        setLocationOptions([
+          { code: 'BARANGAY', name: 'BARANGAY' }
+        ]);
+      } finally {
+        setOptionsLoading(false);
       }
     };
     loadOptions();
   }, []);
 
   useEffect(() => {
-    if (!property) {
+    // Only set default values when options are loaded and we're creating a new property
+    if (!property && !optionsLoading && propertyTypeOptions.length > 0 && generalClassOptions.length > 0 && locationOptions.length > 0) {
       setFormData(prev => ({
         ...prev,
-        kind_of_property: prev.kind_of_property || (propertyTypeOptions[0]?.code || ''),
-        gen_class: prev.gen_class || (generalClassOptions[0]?.code || ''),
-        location: prev.location || (locationOptions[0]?.name || '')
+        kind_of_property: propertyTypeOptions[0]?.code || '',
+        gen_class: generalClassOptions[0]?.code || '',
+        location: locationOptions[0]?.name || ''
       }));
     }
-  }, [property, propertyTypeOptions, generalClassOptions, locationOptions]);
+  }, [property, optionsLoading, propertyTypeOptions, generalClassOptions, locationOptions]);
 
   // Helper function to format currency
   const formatCurrency = (value) => {
@@ -332,12 +346,24 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     if (!formData.tax_declaration_number.trim()) {
       errors.push('Tax Declaration Number is required');
     }
-    // Declarant name is optional
+    
+    // Validate location selection
     if (!formData.location.trim()) {
       errors.push('Location is required');
+    } else if (!locationOptions.some(loc => loc.name === formData.location)) {
+      errors.push('Selected location is not valid');
     }
+    
+    // Validate kind of property selection
     if (!formData.kind_of_property.trim()) {
       errors.push('Kind of Property is required');
+    } else if (!propertyTypeOptions.some(pt => pt.code === formData.kind_of_property)) {
+      errors.push('Selected kind of property is not valid');
+    }
+    
+    // Validate general class selection (optional but must be valid if selected)
+    if (formData.gen_class.trim() && !generalClassOptions.some(gc => gc.code === formData.gen_class)) {
+      errors.push('Selected general class is not valid');
     }
     
     return errors;
@@ -345,6 +371,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent submission if options are still loading
+    if (optionsLoading) {
+      setErrors(['Please wait for form options to load before submitting']);
+      return;
+    }
     
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
@@ -487,6 +519,57 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Alert>
         </Snackbar>
         <form onSubmit={handleSubmit}>
+        {/* Loading Indicator */}
+        {optionsLoading && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Loading form options...
+          </Alert>
+        )}
+
+        {/* Retry Options Loading */}
+        {!optionsLoading && (propertyTypeOptions.length === 0 || generalClassOptions.length === 0 || locationOptions.length === 0) && (
+          <Alert 
+            severity="warning" 
+            sx={{ mb: 2 }}
+            action={
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={() => {
+                  setOptionsLoading(true);
+                  // Trigger options reload
+                  const loadOptions = async () => {
+                    try {
+                      const [typesRes, classesRes, locationsRes] = await Promise.all([
+                        apiService.getPropertyTypes(),
+                        apiService.getGeneralClasses(),
+                        apiService.getLocations()
+                      ]);
+                      
+                      const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
+                      const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
+                      const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+                      
+                      setPropertyTypeOptions(types);
+                      setGeneralClassOptions(classes);
+                      setLocationOptions(locations);
+                    } catch (e) {
+                      console.error('PropertyFormModal: Retry failed:', e);
+                    } finally {
+                      setOptionsLoading(false);
+                    }
+                  };
+                  loadOptions();
+                }}
+              >
+                Retry
+              </Button>
+            }
+          >
+            Some form options failed to load. Please retry or contact support.
+          </Alert>
+        )}
+
         {/* Error Display */}
         {errors.length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -642,10 +725,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     onChange={(e) => handleInputChange('location', e.target.value)}
                     error={errors.includes('location')}
                     inputProps={{ tabIndex: 7 }}
+                    disabled={optionsLoading}
                   >
-                    {locationOptions.map(loc => (
-                      <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
-                    ))}
+                    {optionsLoading ? (
+                      <MenuItem disabled>Loading locations...</MenuItem>
+                    ) : locationOptions.length === 0 ? (
+                      <MenuItem disabled>No locations available</MenuItem>
+                    ) : (
+                      locationOptions.map(loc => (
+                        <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
               </Grid>
@@ -783,10 +873,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                     error={errors.includes('kind_of_property')}
                     inputProps={{ tabIndex: 17 }}
+                    disabled={optionsLoading}
                   >
-                    {propertyTypeOptions.map(pt => (
-                      <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
-                    ))}
+                    {optionsLoading ? (
+                      <MenuItem disabled>Loading property types...</MenuItem>
+                    ) : propertyTypeOptions.length === 0 ? (
+                      <MenuItem disabled>No property types available</MenuItem>
+                    ) : (
+                      propertyTypeOptions.map(pt => (
+                        <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
               </Grid>
@@ -799,10 +896,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="General Class"
                     onChange={(e) => handleInputChange('gen_class', e.target.value)}
                     inputProps={{ tabIndex: 18 }}
+                    disabled={optionsLoading}
                   >
-                    {generalClassOptions.map(gc => (
-                      <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
-                    ))}
+                    {optionsLoading ? (
+                      <MenuItem disabled>Loading general classes...</MenuItem>
+                    ) : generalClassOptions.length === 0 ? (
+                      <MenuItem disabled>No general classes available</MenuItem>
+                    ) : (
+                      generalClassOptions.map(gc => (
+                        <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
               </Grid>
@@ -944,7 +1048,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           <Button
             type="submit"
             variant="contained"
-            disabled={loading}
+            disabled={loading || optionsLoading}
           >
             {loading ? 'Saving...' : (property ? 'Update Property' : 'Create Property')}
           </Button>

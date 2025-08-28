@@ -401,9 +401,9 @@ const Dashboard = ({ onNavigate }) => {
       </motion.div>
 
       {/* Charts and Quick Actions */}
-      <Grid container spacing={4}>
+      {/* <Grid container spacing={4}> */}
         {/* Property Type Distribution */}
-        <Grid item xs={12} md={6}>
+        {/* <Grid item xs={12} md={6}>
           <motion.div
             initial="initial"
             animate="animate"
@@ -436,10 +436,10 @@ const Dashboard = ({ onNavigate }) => {
               </CardContent>
             </Card>
           </motion.div>
-        </Grid>
+        </Grid> */}
 
         {/* Monthly Activity */}
-        <Grid item xs={12} md={6}>
+        {/* <Grid item xs={12} md={6}>
           <motion.div
             initial="initial"
             animate="animate"
@@ -464,7 +464,7 @@ const Dashboard = ({ onNavigate }) => {
             </Card>
           </motion.div>
         </Grid>
-      </Grid>
+      </Grid> */}
 
       {/* Quick Actions */}
       <motion.div

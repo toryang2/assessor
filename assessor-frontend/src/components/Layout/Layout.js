@@ -50,7 +50,7 @@ const drawerWidth = 320;
 const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { user, logout } = useAuth();
+  const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -74,6 +74,7 @@ const Layout = ({ children }) => {
       return 'Dashboard';
     }
   });
+  const [isPageAccessChecked, setIsPageAccessChecked] = useState(false);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -98,6 +99,19 @@ const Layout = ({ children }) => {
   };
 
   const handleNavigation = (page) => {
+    // Check if user has access to the requested page
+    if (!canAccessPage(page)) {
+      // Redirect to Dashboard if user doesn't have access
+      setCurrentPage('Dashboard');
+      setMobileOpen(false);
+      try {
+        localStorage.setItem('assessor_current_page', 'Dashboard');
+      } catch (_) {
+        // Ignore localStorage errors
+      }
+      return;
+    }
+    
     setCurrentPage(page);
     setMobileOpen(false);
     // Save the current page to localStorage for persistence across refreshes
@@ -128,6 +142,7 @@ const Layout = ({ children }) => {
   useEffect(() => {
     if (!user) {
       setCurrentPage('Dashboard');
+      setIsPageAccessChecked(false);
       try {
         localStorage.removeItem('assessor_current_page');
       } catch (_) {
@@ -136,41 +151,73 @@ const Layout = ({ children }) => {
     }
   }, [user]);
 
+  // Helper function to check if user can access a specific page
+  const canAccessPage = (pageName) => {
+    const restrictedPages = ['Audit Trail', 'Export', 'User Management', 'Settings'];
+    if (restrictedPages.includes(pageName)) {
+      return isSuperAdmin || isAdmin || (isAssessor && user?.role === 'municipal assessor');
+    }
+    return true; // All other pages are accessible
+  };
+
+  // Check if current page is accessible for current user role
+  useEffect(() => {
+    if (user && currentPage) {
+      if (!canAccessPage(currentPage)) {
+        // Redirect to Dashboard if user doesn't have access to current page
+        setCurrentPage('Dashboard');
+        try {
+          localStorage.setItem('assessor_current_page', 'Dashboard');
+        } catch (_) {
+          // Ignore localStorage errors
+        }
+      }
+      setIsPageAccessChecked(true);
+    }
+  }, [user, currentPage]);
+
   const navigationItems = [
     {
       text: 'Dashboard',
       icon: <DashboardIcon />,
-      badge: null
+      badge: null,
+      show: true // Always show Dashboard
     },
     {
       text: 'Properties',
       icon: <Business />,
-      badge: null
+      badge: null,
+      show: true // Always show Properties
     },
     {
       text: 'Requests',
       icon: <ReceiptIcon />,
-      badge: null
+      badge: null,
+      show: true // Always show Requests
     },
     {
       text: 'Audit Trail',
       icon: <History />,
-      badge: null
+      badge: null,
+      show: canAccessPage('Audit Trail')
     },
     {
       text: 'Export',
       icon: <FileDownload />,
-      badge: null
+      badge: null,
+      show: canAccessPage('Export')
     },
     {
       text: 'User Management',
       icon: <AccountCircle />,
-      badge: null
+      badge: null,
+      show: canAccessPage('User Management')
     },
     {
       text: 'Settings',
       icon: <SettingsIcon />,
-      badge: null
+      badge: null,
+      show: canAccessPage('Settings')
     }
   ];
   const toFormalCase = (text) => {
@@ -224,7 +271,7 @@ const Layout = ({ children }) => {
       </Box>
       
       <List>
-        {navigationItems.map((item) => (
+        {navigationItems.filter(item => item.show).map((item) => (
           <motion.div key={item.text}>
             <ListItem disablePadding>
               <ListItemButton
@@ -313,6 +360,7 @@ const Layout = ({ children }) => {
             >
               {currentPage === 'Dashboard' && <DashboardIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Properties' && <Business sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Requests' && <ReceiptIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Audit Trail' && <History sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
@@ -414,13 +462,37 @@ const Layout = ({ children }) => {
             exit="exit"
             variants={animations.fadeIn}
           >
-            {currentPage === 'Dashboard' && <Dashboard onNavigate={handleNavigation} />}
-            {currentPage === 'Properties' && <PropertyTable />}
-            {currentPage === 'Requests' && <RequestsTable />}
-            {currentPage === 'Audit Trail' && <AuditTrail />}
-            {currentPage === 'Export' && <Export />}
-            {currentPage === 'User Management' && <UserManagement />}
-            {currentPage === 'Settings' && <Settings />}
+            {!isPageAccessChecked ? (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <Typography variant="h6" color="text.secondary">Loading...</Typography>
+              </Box>
+            ) : (
+              <>
+                {currentPage === 'Dashboard' && <Dashboard onNavigate={handleNavigation} />}
+                {currentPage === 'Properties' && <PropertyTable />}
+                {currentPage === 'Requests' && <RequestsTable />}
+                {currentPage === 'Audit Trail' && canAccessPage('Audit Trail') ? <AuditTrail /> : 
+                  currentPage === 'Audit Trail' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
+                {currentPage === 'Export' && canAccessPage('Export') ? <Export /> : 
+                  currentPage === 'Export' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
+                {currentPage === 'User Management' && canAccessPage('User Management') ? <UserManagement /> : 
+                  currentPage === 'User Management' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
+                {currentPage === 'Settings' && canAccessPage('Settings') ? <Settings /> : 
+                  currentPage === 'Settings' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
+              </>
+            )}
           </motion.div>
         </AnimatePresence>
       </Box>
