@@ -55,6 +55,7 @@ import {
 } from 'recharts';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCacheBuster } from '../../hooks/useCacheBuster';
 import { animations, statusColors } from '../../theme/theme';
 import { format } from 'date-fns';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
@@ -62,6 +63,7 @@ import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
@@ -79,11 +81,20 @@ const Dashboard = ({ onNavigate }) => {
     }
   }, [authLoading, isAuthenticated]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (useCacheBusting = false) => {
     try {
       setLoading(true);
-      console.log('🔍 Dashboard: Fetching dashboard data...');
-      const data = await apiService.getDashboardData();
+      console.log('🔍 Dashboard: Fetching dashboard data...', useCacheBusting ? '(with cache busting)' : '');
+      
+      let data;
+      if (useCacheBusting) {
+        // Use cache busting to ensure fresh data
+        const params = addCacheBuster({}, true);
+        data = await apiService.getDashboardData(params);
+      } else {
+        data = await apiService.getDashboardData();
+      }
+      
       console.log('✅ Dashboard: Data fetched successfully:', data);
       setDashboardData(data);
     } catch (error) {
@@ -98,10 +109,19 @@ const Dashboard = ({ onNavigate }) => {
     }
   };
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (useCacheBusting = false) => {
     try {
       setPropertiesLoading(true);
-      const data = await apiService.getProperties({ per_page: 5 });
+      
+      let data;
+      if (useCacheBusting) {
+        // Use cache busting to ensure fresh data
+        const params = addCacheBuster({ per_page: 5 }, true);
+        data = await apiService.getProperties(params);
+      } else {
+        data = await apiService.getProperties({ per_page: 5 });
+      }
+      
       setProperties(data.properties || []);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching properties:', error);
@@ -124,13 +144,21 @@ const Dashboard = ({ onNavigate }) => {
   };
 
   const handlePropertySave = async (message) => {
+    const wasEditing = !!editingProperty;
     setShowPropertyForm(false);
     setEditingProperty(null);
     // Show success message
     setToast({ open: true, message: message || 'Property saved successfully', severity: 'success' });
-    // Refresh data
-    await fetchDashboardData();
-    await fetchProperties();
+    // Optimistically update total properties to avoid stale cache in production
+    if (!wasEditing) {
+      setDashboardData(prev => ({
+        ...prev,
+        total_properties: (prev && typeof prev.total_properties === 'number') ? prev.total_properties + 1 : 1
+      }));
+    }
+    // Refresh data with cache busting to ensure we get the latest total properties count
+    await fetchDashboardData(true);
+    await fetchProperties(true);
   };
 
   const handlePropertyCancel = () => {
@@ -331,8 +359,8 @@ const Dashboard = ({ onNavigate }) => {
             <Button
               variant="outlined"
               onClick={async () => {
-                await fetchDashboardData();
-                await fetchProperties();
+                await fetchDashboardData(true);
+                await fetchProperties(true);
               }}
               disabled={loading || propertiesLoading}
               startIcon={<TrendingUp />}

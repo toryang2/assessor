@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Check for existing token on mount (temporarily disabled token validation)
+  // Check for existing token on mount (non-destructive token validation)
   useEffect(() => {
     const validateStoredAuth = async () => {
       const storedToken = localStorage.getItem('assessor_token');
@@ -52,10 +52,12 @@ export const AuthProvider = ({ children }) => {
               localStorage.removeItem('assessor_user');
             }
           } catch (error) {
-            console.error('❌ AuthContext: Token validation failed:', error);
-            // Token validation failed, clear storage
-            localStorage.removeItem('assessor_token');
-            localStorage.removeItem('assessor_user');
+            console.error('❌ AuthContext: Token validation failed (keeping stored auth for now):', error);
+            // Keep stored auth; let API calls surface logout when user interacts
+            if (storedToken && storedUser) {
+              setToken(storedToken);
+              try { setUser(JSON.parse(storedUser)); } catch (_) { setUser(null); }
+            }
           }
         } else {
           console.log('🔍 AuthContext: No stored auth found');
@@ -95,6 +97,10 @@ export const AuthProvider = ({ children }) => {
         // Update state
         setToken(newToken);
         setUser(userData);
+        try {
+          // Reset last page so post-login starts on Dashboard
+          localStorage.removeItem('assessor_current_page');
+        } catch (_) {}
         
         console.log('✅ AuthContext: Auth state updated, user authenticated');
         return { success: true };

@@ -67,7 +67,7 @@ const Layout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentPage, setCurrentPage] = useState(() => {
-    // Try to restore the last visited page from localStorage
+    // On reload, restore last page if saved; otherwise default to Dashboard
     try {
       const savedPage = localStorage.getItem('assessor_current_page');
       return savedPage || 'Dashboard';

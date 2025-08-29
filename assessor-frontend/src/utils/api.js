@@ -38,13 +38,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid, clear stored auth
-      localStorage.removeItem('assessor_token');
-      localStorage.removeItem('assessor_user');
-      
-      // Don't automatically redirect - let components handle it
-      // This prevents WordPress from intercepting the redirect
-      console.log('🔍 API Service: 401 Unauthorized - Auth cleared, component should handle redirect');
+      // Do not clear auth automatically; let views decide how to handle
+      console.log('🔍 API Service: 401 Unauthorized - letting caller handle');
     }
     return Promise.reject(error);
   }
@@ -347,12 +342,19 @@ export const apiService = {
   },
 
   // Dashboard
-  getDashboardData: async () => {
+  getDashboardData: async (params = {}) => {
     try {
-      console.log('🔍 API Service: Making dashboard request...');
+      console.log('🔍 API Service: Making dashboard request...', params);
       console.log('🔍 API Service: Current token:', localStorage.getItem('assessor_token'));
       
-      const response = await api.get(endpoints.dashboard);
+      const response = await api.get(endpoints.dashboard, { 
+        params,
+        headers: {
+          // Defeat intermediary/proxy caches in production
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       console.log('🔍 API Service: Dashboard response received:', response.data);
       return response.data;
     } catch (error) {
