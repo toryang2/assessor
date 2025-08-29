@@ -51,7 +51,7 @@ const drawerWidth = 320;
 const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { user, logout, isSuperAdmin, isAdmin, isMunicipalAssessor } = useAuth();
+  const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -156,7 +156,7 @@ const Layout = ({ children }) => {
   const canAccessPage = (pageName) => {
     const restrictedPages = ['Audit Trail', 'Export', 'User Management', 'Settings'];
     if (restrictedPages.includes(pageName)) {
-      return isSuperAdmin || isAdmin || isMunicipalAssessor;
+      return isSuperAdmin || isAdmin || isAssessor;
     }
     return true; // All other pages are accessible
   };
@@ -238,6 +238,20 @@ const Layout = ({ children }) => {
   const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
   const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
 
+
+  const formatRole = (role) => {
+    if (!role || typeof role !== 'string') return '';
+    const normalized = role.trim().toLowerCase();
+    if (normalized === 'assessor') return 'Municipal Assessor';
+    if (normalized === 'municipal assessor') return 'Municipal Assessor';
+    if (normalized === 'administrator') return 'Administrator';
+    if (normalized === 'admin') return 'Administrator';
+    if (normalized === 'superadmin') return 'Super Admininstrator';
+    return role
+      .split(/\s+/)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
 
   const drawer = (
     <Box>
@@ -525,7 +539,7 @@ const Layout = ({ children }) => {
             {user?.full_name || user?.username}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
+            {formatRole(user?.role)}
           </Typography>
         </Box>
         
