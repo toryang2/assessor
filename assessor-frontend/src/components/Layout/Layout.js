@@ -288,10 +288,10 @@ const Layout = ({ children }) => {
         {navigationItems.filter(item => item.show).map((item) => (
           <motion.div key={item.text}>
             <ListItem disablePadding>
-                                                           <ListItemButton
+              <ListItemButton
                   onClick={() => handleNavigation(item.text)}
                   selected={currentPage === item.text}
-                                                                           sx={{
+                  sx={{
                       display: 'flex',
                       alignItems: 'center',
                       position: 'relative',
@@ -318,7 +318,7 @@ const Layout = ({ children }) => {
                       },
                     }}
                 >
-                                 <ListItemIcon
+                  <ListItemIcon
                    sx={{
                      color: currentPage === item.text ? 'primary.main' : 'text.secondary',
                      minWidth: 40,
