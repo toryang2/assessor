@@ -155,6 +155,7 @@ class Assessor_Database {
         $sql_settings = "CREATE TABLE $table_settings (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             app_logo_url varchar(500) DEFAULT '',
+            header_photo_url varchar(500) DEFAULT '',
             header_province varchar(255) DEFAULT '',
             header_municipality varchar(255) DEFAULT '',
             header_office varchar(255) DEFAULT '',
@@ -267,6 +268,9 @@ class Assessor_Database {
 
         // Seed initial settings data
         $this->seed_default_settings();
+
+        // Run database migrations
+        $this->run_migrations();
 
         // Adjust users table: make email nullable and non-unique to allow multiple NULL emails
         $this->adjust_users_email_column_and_index();
@@ -412,6 +416,17 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'last_login'", $table_users));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_users ADD COLUMN last_login datetime NULL AFTER status");
+        }
+    }
+
+    private function run_migrations() {
+        global $wpdb;
+        
+        // Migration: Add header_photo_url column to settings table
+        $table_settings = $wpdb->prefix . 'assessor_settings';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'header_photo_url'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN header_photo_url varchar(500) DEFAULT '' AFTER app_logo_url");
         }
     }
 }

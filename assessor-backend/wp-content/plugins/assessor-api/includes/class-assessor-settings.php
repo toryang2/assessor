@@ -18,6 +18,7 @@ class Assessor_Settings {
 		if (!$settings) {
 			$settings = array(
 				'app_logo_url' => '',
+				'header_photo_url' => '',
 				'header_province' => 'BUKIDNON',
 				'header_municipality' => 'KITAOTAO',
 				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
@@ -38,7 +39,7 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$data = array();
 		foreach ($allowed_keys as $key) {
@@ -121,6 +122,65 @@ class Assessor_Settings {
 		}
 
 		return array('app_logo_url' => $url);
+	}
+
+	public function upload_header_photo($request) {
+		// Validate file
+		if (!isset($_FILES['header_photo']) || $_FILES['header_photo']['error'] !== UPLOAD_ERR_OK) {
+			return new WP_Error('upload_error', 'No file uploaded or upload error occurred', array('status' => 400));
+		}
+
+		$file = $_FILES['header_photo'];
+		if ($file['size'] > $this->max_image_size) {
+			return new WP_Error('file_too_large', 'Image exceeds 5MB limit', array('status' => 400));
+		}
+
+		$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+		if (!in_array($ext, $this->allowed_image_types)) {
+			return new WP_Error('invalid_file_type', 'Only images are allowed (jpg, jpeg, png, gif, webp)', array('status' => 400));
+		}
+
+		// Ensure folder exists under uploads
+		$base_dir = trailingslashit($this->upload_dir['basedir']) . $this->logo_folder;
+		$base_url = trailingslashit($this->upload_dir['baseurl']) . $this->logo_folder;
+		if (!file_exists($base_dir)) {
+			if (!wp_mkdir_p($base_dir)) {
+				return new WP_Error('dir_creation_failed', 'Failed to create settings upload directory', array('status' => 500));
+			}
+		}
+
+		$filename = 'header_photo_' . time() . '_' . wp_generate_password(6, false) . '.' . $ext;
+		$path = $base_dir . '/' . $filename;
+
+		if (!move_uploaded_file($file['tmp_name'], $path)) {
+			return new WP_Error('move_failed', 'Failed to move uploaded header photo', array('status' => 500));
+		}
+
+		$url = $base_url . '/' . $filename;
+
+		// Remove previously saved header photo if it exists and is inside our settings folder
+		global $wpdb;
+		$settings_table = $wpdb->prefix . 'assessor_settings';
+		$old_url = $wpdb->get_var("SELECT header_photo_url FROM $settings_table ORDER BY id DESC LIMIT 1");
+		if (!empty($old_url) && $old_url !== $url) {
+			$old_path = str_replace($this->upload_dir['baseurl'], $this->upload_dir['basedir'], $old_url);
+			$old_path = wp_normalize_path($old_path);
+			$safe_base = wp_normalize_path($base_dir);
+			if (strpos($old_path, $safe_base) === 0 && file_exists($old_path)) {
+				@unlink($old_path);
+			}
+		}
+
+		// Persist to settings table
+		$table = $wpdb->prefix . 'assessor_settings';
+		$existing_id = $wpdb->get_var("SELECT id FROM $table ORDER BY id DESC LIMIT 1");
+		if ($existing_id) {
+			$wpdb->update($table, array('header_photo_url' => esc_url_raw($url)), array('id' => $existing_id));
+		} else {
+			$wpdb->insert($table, array('header_photo_url' => esc_url_raw($url)));
+		}
+
+		return array('header_photo_url' => $url);
 	}
 
 	public function get_property_types() {

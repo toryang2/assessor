@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const DEFAULTS = {
   app_logo_url: '',
+  header_photo_url: '',
   header_province: 'BUKIDNON',
   header_municipality: 'KITAOTAO',
   header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR',
@@ -32,6 +33,8 @@ const Settings = () => {
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
   const [pendingLogoFile, setPendingLogoFile] = useState(null);
   const [pendingLogoPreview, setPendingLogoPreview] = useState('');
+  const [pendingHeaderPhotoFile, setPendingHeaderPhotoFile] = useState(null);
+  const [pendingHeaderPhotoPreview, setPendingHeaderPhotoPreview] = useState('');
   const [dragging, setDragging] = useState({ key: null, from: -1 });
 
   useEffect(() => {
@@ -40,6 +43,7 @@ const Settings = () => {
         const data = await apiService.getSettings();
         setForm({
           app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
+          header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
           header_province: data.header_province || DEFAULTS.header_province,
           header_municipality: data.header_municipality || DEFAULTS.header_municipality,
           header_office: data.header_office || DEFAULTS.header_office,
@@ -71,6 +75,7 @@ const Settings = () => {
       const data = await apiService.getSettings();
       setForm({
         app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
+        header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
         header_province: data.header_province || DEFAULTS.header_province,
         header_municipality: data.header_municipality || DEFAULTS.header_municipality,
         header_office: data.header_office || DEFAULTS.header_office,
@@ -126,6 +131,24 @@ const Settings = () => {
           return;
         }
       }
+
+      // Upload pending header photo first (if any), but only on Save
+      if (pendingHeaderPhotoFile) {
+        try {
+          const res = await apiService.uploadHeaderPhoto(pendingHeaderPhotoFile);
+          setForm(prev => ({ ...prev, header_photo_url: res.header_photo_url }));
+          // clear pending preview
+          if (pendingHeaderPhotoPreview) {
+            try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) {}
+          }
+          setPendingHeaderPhotoFile(null);
+          setPendingHeaderPhotoPreview('');
+        } catch (uploadErr) {
+          setToast({ open: true, message: 'Failed to upload header photo.', severity: 'error' });
+          return;
+        }
+      }
+
       const payload = {
         header_province: form.header_province,
         header_municipality: form.header_municipality,
@@ -155,6 +178,18 @@ const Settings = () => {
     const previewUrl = URL.createObjectURL(file);
     setPendingLogoFile(file);
     setPendingLogoPreview(previewUrl);
+  };
+
+  const handleHeaderPhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Do not upload immediately; just stage and preview
+    if (pendingHeaderPhotoPreview) {
+      try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) {}
+    }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingHeaderPhotoFile(file);
+    setPendingHeaderPhotoPreview(previewUrl);
   };
 
   // Drag & Drop sorting helpers
@@ -290,6 +325,35 @@ const Settings = () => {
                     </Button>
                     {pendingLogoFile && (
                       <Typography variant="caption" color="text.secondary">Staged: {pendingLogoFile.name} (will apply on Save)</Typography>
+                    )}
+                    <Typography variant="h6" sx={{ mb: 1 }}>Header Photo</Typography>
+                    <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 280, height: 35, alignSelf: 'center', position: 'relative' }}>
+                      {/* Current header photo (fallback) */}
+                      {form.header_photo_url && !pendingHeaderPhotoPreview && (
+                        <img src={form.header_photo_url} alt="Header Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      )}
+                      {/* Pending preview overlays current */}
+                      {pendingHeaderPhotoPreview && (
+                        <img src={pendingHeaderPhotoPreview} alt="New Header Photo Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      )}
+                      {!form.header_photo_url && !pendingHeaderPhotoPreview && (
+                        <Typography variant="caption" color="text.secondary">No header photo uploaded</Typography>
+                      )}
+                    </Paper>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Header Photo URL"
+                      value={form.header_photo_url}
+                      onChange={(e) => handleChange('header_photo_url', e.target.value)}
+                      helperText="Paste a URL or upload an image (8:1 aspect ratio recommended)."
+                    />
+                    <Button fullWidth variant="outlined" component="label">
+                      Upload Header Photo
+                      <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
+                    </Button>
+                    {pendingHeaderPhotoFile && (
+                      <Typography variant="caption" color="text.secondary">Staged: {pendingHeaderPhotoFile.name} (will apply on Save)</Typography>
                     )}
                   </Box>
                 </Grid>

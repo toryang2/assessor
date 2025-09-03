@@ -190,6 +190,11 @@ class Assessor_API {
             'callback' => array($this, 'upload_logo'),
             'permission_callback' => array($this, 'check_auth')
         ));
+        register_rest_route('assessor/v1', '/settings/header-photo', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'upload_header_photo'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         // Property types
         register_rest_route('assessor/v1', '/settings/property-types', array(
             'methods' => 'GET',
@@ -423,10 +428,16 @@ class Assessor_API {
         $table_users = $wpdb->prefix . 'assessor_users';
         $total_users = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_users");
         
+        // Get header photo URL from settings
+        $settings = new Assessor_Settings();
+        $settings_data = $settings->get_settings();
+        $header_photo_url = isset($settings_data['header_photo_url']) ? $settings_data['header_photo_url'] : '';
+        
         return array(
             'total_properties' => $total_properties,
             'total_versions' => $version_counts,
             'total_users' => $total_users,
+            'header_photo_url' => $header_photo_url,
             'recent_activity' => array() // Will be populated by audit trail
         );
     }
@@ -449,6 +460,11 @@ class Assessor_API {
     public function upload_logo($request) {
         $settings = new Assessor_Settings();
         return $settings->upload_logo($request);
+    }
+
+    public function upload_header_photo($request) {
+        $settings = new Assessor_Settings();
+        return $settings->upload_header_photo($request);
     }
 
     public function get_property_types($request) {

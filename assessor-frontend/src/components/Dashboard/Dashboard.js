@@ -72,12 +72,14 @@ const Dashboard = ({ onNavigate }) => {
   const [showPropertiesList, setShowPropertiesList] = useState(false);
   const [editingProperty, setEditingProperty] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [settings, setSettings] = useState(null);
 
   useEffect(() => {
     // Only fetch dashboard data when authentication is complete and user is authenticated
     if (!authLoading && isAuthenticated) {
       fetchDashboardData();
       fetchProperties();
+      fetchSettings();
     }
   }, [authLoading, isAuthenticated]);
 
@@ -128,6 +130,26 @@ const Dashboard = ({ onNavigate }) => {
     } finally {
       setPropertiesLoading(false);
     }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const data = await apiService.getSettings();
+      setSettings(data);
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching settings:', error);
+    }
+  };
+
+  const toFormalCase = (text) => {
+    if (!text) return '';
+    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const words = String(text).toLowerCase().split(/\s+/);
+    return words.map((w, i) => {
+      if (!w) return w;
+      if (i > 0 && small.has(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
   };
 
   const handleAddProperty = () => {
@@ -340,13 +362,102 @@ const Dashboard = ({ onNavigate }) => {
 
   return (
     <Box>
+      {/* Header Photo */}
+      {dashboardData?.header_photo_url && (
+        <motion.div
+          initial="initial"
+          animate="animate"
+          variants={animations.fadeIn}
+        >
+          <Box sx={{ marginBottom: 4, marginTop: -3, marginLeft: -3, marginRight: -3 }}>
+            <Box
+              sx={{
+                width: '100%',
+                height: '200px', // 8:1 aspect ratio (1600px width / 8 = 200px height)
+                backgroundImage: `url(${dashboardData.header_photo_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                borderRadius: 0,
+                boxShadow: theme.shadows[4],
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Header content with logo and text */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: 3
+                }}
+              >
+                {/* Left side - Logo and text */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {settings?.app_logo_url ? (
+                      <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 86 }} />
+                    ) : (
+                      <Business sx={{ fontSize: 80, color: 'white' }} />
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                          <Typography
+                        variant="h2"
+                        component="h1"
+                        sx={{
+                          color: 'white',
+                          fontWeight: 600,
+                          marginBottom: 0,
+                          fontFamily: 'Poppins, sans-serif'
+                        }}
+                      >
+                        Assessor's Archiving System
+                      </Typography>
+                      <Typography
+                        variant="h3"
+                        sx={{
+                          color: 'white',
+                          fontWeight: 500,
+                          marginBottom: 0,
+                          fontFamily: 'Poppins, sans-serif'
+                        }}
+                      >
+                        Municipality of {toFormalCase(settings?.header_municipality || 'KITAOTAO')}
+                      </Typography>
+                      <Typography
+                        variant="h3"
+                        sx={{
+                          color: 'white',
+                          fontWeight: 400,
+                          marginBottom: 0,
+                          fontFamily: 'Poppins, sans-serif'
+                        }}
+                      >
+                        Province of {toFormalCase(settings?.header_province || 'BUKIDNON')}
+                      </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+        </motion.div>
+      )}
+
       {/* Header */}
       <motion.div
         initial="initial"
         animate="animate"
         variants={animations.fadeIn}
       >
-        <Box sx={{ marginBottom: 4 }}>
+        <Box sx={{ marginBottom: 4, marginTop: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <Box>
               <Typography variant="h3" component="h1" gutterBottom>

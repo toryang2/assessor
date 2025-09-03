@@ -67,6 +67,7 @@ export const endpoints = {
   // Settings
   settings: '/settings',
   settingsLogo: '/settings/logo',
+  settingsHeaderPhoto: '/settings/header-photo',
   propertyTypes: '/settings/property-types',
   generalClasses: '/settings/general-classes',
   locations: '/settings/locations',
@@ -271,6 +272,19 @@ export const apiService = {
     }
   },
 
+  uploadHeaderPhoto: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('header_photo', file);
+      const response = await api.post(endpoints.settingsHeaderPhoto, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Property Types
   savePropertyType: async (propertyType) => {
     try {
@@ -348,12 +362,12 @@ export const apiService = {
       console.log('🔍 API Service: Current token:', localStorage.getItem('assessor_token'));
       
       const response = await api.get(endpoints.dashboard, { 
-        params,
-        headers: {
-          // Defeat intermediary/proxy caches in production
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
+        // headers: {
+        //   // Defeat intermediary/proxy caches in production
+        //   'Cache-Control': 'no-cache, no-store, must-revalidate',
+        //   'Pragma': 'no-cache'
+        // }
+        params
       });
       console.log('🔍 API Service: Dashboard response received:', response.data);
       return response.data;
