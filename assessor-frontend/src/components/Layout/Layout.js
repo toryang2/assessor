@@ -256,7 +256,8 @@ const Layout = ({ children }) => {
   const drawer = (
     <Box>
       <Box sx={{ 
-        p: 2, 
+        py: 4, 
+        px: 2,
         borderBottom: `1px solid ${theme.palette.divider}`,
         display: 'flex',
         flexDirection: 'row',
@@ -287,48 +288,57 @@ const Layout = ({ children }) => {
         {navigationItems.filter(item => item.show).map((item) => (
           <motion.div key={item.text}>
             <ListItem disablePadding>
-              <ListItemButton
-                onClick={() => handleNavigation(item.text)}
-                selected={currentPage === item.text}
-                sx={{
-                  mx: 1,
-                  borderRadius: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                      color: 'white',
-                    },
-                  },
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
-                  },
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    color: currentPage === item.text ? 'white' : 'text.secondary',
-                    minWidth: 40,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                                                           <ListItemButton
+                  onClick={() => handleNavigation(item.text)}
+                  selected={currentPage === item.text}
+                                                                           sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      position: 'relative',
+                      borderRadius: 0,
+                      '&.Mui-selected': {
+                        backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                        color: 'primary.main',
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 4,
+                          backgroundColor: 'primary.main',
+                        },
+                        '&:hover': {
+                          backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                          color: 'primary.main',
+                        },
+                      },
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
                 >
+                                 <ListItemIcon
+                   sx={{
+                     color: currentPage === item.text ? 'primary.main' : 'text.secondary',
+                     minWidth: 40,
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                   }}
+                 >
                   {item.icon}
                 </ListItemIcon>
-                <ListItemText 
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontWeight: currentPage === item.text ? 600 : 400,
-                    color: currentPage === item.text ? 'white' : 'inherit',
-                  }}
-                  sx={{
-                    marginLeft: 0,
-                  }}
-                />
+                                 <ListItemText 
+                   primary={item.text}
+                   primaryTypographyProps={{
+                     fontWeight: currentPage === item.text ? 600 : 400,
+                     color: currentPage === item.text ? 'primary.main' : 'inherit',
+                   }}
+                   sx={{
+                     marginLeft: 0,
+                   }}
+                 />
                 {item.badge && (
                   <Badge badgeContent={item.badge} color="error" />
                 )}
