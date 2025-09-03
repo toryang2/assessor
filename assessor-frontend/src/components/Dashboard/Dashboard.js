@@ -73,6 +73,7 @@ const Dashboard = ({ onNavigate }) => {
   const [editingProperty, setEditingProperty] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [settings, setSettings] = useState(null);
+  const [requestsCount, setRequestsCount] = useState(null);
 
   useEffect(() => {
     // Only fetch dashboard data when authentication is complete and user is authenticated
@@ -80,6 +81,7 @@ const Dashboard = ({ onNavigate }) => {
       fetchDashboardData();
       fetchProperties();
       fetchSettings();
+      fetchRequestStats();
     }
   }, [authLoading, isAuthenticated]);
 
@@ -138,6 +140,18 @@ const Dashboard = ({ onNavigate }) => {
       setSettings(data);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching settings:', error);
+    }
+  };
+
+  const fetchRequestStats = async (useCacheBusting = false) => {
+    try {
+      const params = useCacheBusting ? addCacheBuster({}, true) : {};
+      const stats = await apiService.getRequestStatistics(params);
+      const count =
+        (stats && (stats.total_requests ?? stats.requests_total ?? stats.total ?? stats.count)) ?? 0;
+      setRequestsCount(count);
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching request statistics:', error);
     }
   };
 
@@ -521,11 +535,11 @@ const Dashboard = ({ onNavigate }) => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Active Users"
-              value="24"
+              title="Requests"
+              value={(dashboardData?.requests_count ?? null) ?? (requestsCount ?? 0)}
               icon={<Business />}
               color={theme.palette.info.main}
-              subtitle="Online now"
+              subtitle="Total requests"
               trend="+3% this month"
             />
           </Grid>
