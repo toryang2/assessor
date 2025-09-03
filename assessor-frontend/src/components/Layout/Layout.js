@@ -235,7 +235,7 @@ const Layout = ({ children }) => {
   const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
   const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
   const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
-  const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
+  const headerMunicipality = `Municipality of ${toFormalCase(baseMunicipality)}`;
   const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
 
 
@@ -259,30 +259,28 @@ const Layout = ({ children }) => {
         p: 2, 
         borderBottom: `1px solid ${theme.palette.divider}`,
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        textAlign: 'center'
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 2
       }}>
-        {settings?.app_logo_url ? (
-          <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 86, marginBottom: 8 }} />
-        ) : (
-          <Business sx={{ fontSize: 28, color: 'primary.main', mb: 1 }} />
-        )}
-        {/* <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
-          {headerPh}
-        </Typography>
-        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
-          {headerProvince}
-        </Typography>
-        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={400} color="text.secondary">
-          {headerMunicipality}
-        </Typography>
-        <Typography variant="body2" fontFamily="Times New Roman, serif" fontWeight={600} color="text.secondary">
-          {headerOffice}
-        </Typography> */}
-        <Typography variant="h6" fontWeight={600} color="primary" sx={{ mt: 2, mb: 2 }}>
-          ASSESSOR'S OFFICE ARCHIVING SYSTEM
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          {settings?.app_logo_url ? (
+            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 64 }} />
+          ) : (
+            <Business sx={{ fontSize: 28, color: 'primary.main' }} />
+          )}
+        </Box>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Typography variant="body2" fontWeight={600}>
+            Assessor's Archiving System
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{  }}>
+            {headerMunicipality}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{  }}>
+            {headerProvince}
+          </Typography>
+        </Box>
       </Box>
       
       <List>
@@ -366,7 +364,7 @@ const Layout = ({ children }) => {
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box sx={{ flexGrow: 1, display: 'flex' }}>
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
