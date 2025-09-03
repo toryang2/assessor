@@ -119,6 +119,13 @@ REACT_APP_API_URL=http://your-domain.com/wp-json/assessor/v1
 REACT_APP_SITE_NAME=Property Assessor System
 REACT_APP_VERSION=1.0.0
 ```
+Create a `.env.production` file in the frontend directory:
+
+```env
+REACT_APP_API_URL=http://your-domain.com/wp-json/assessor/v1
+REACT_APP_SITE_NAME=Property Assessor System
+REACT_APP_VERSION=1.0.0
+```
 
 ## 📱 Usage
 
