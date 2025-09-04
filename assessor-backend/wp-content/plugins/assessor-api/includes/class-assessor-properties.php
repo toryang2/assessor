@@ -226,6 +226,8 @@ class Assessor_Properties {
                 'gen_class' => sanitize_text_field($params['gen_class']),
                 'memoranda' => sanitize_textarea_field($params['memoranda']),
                 'supporting_documents' => sanitize_textarea_field($params['supporting_documents']),
+                'supporting_documents_old' => sanitize_textarea_field($params['supporting_documents_old']),
+                'supporting_documents_old' => sanitize_textarea_field($params['supporting_documents_old']),
                 'verifier_signatory_name' => sanitize_text_field($params['verifier_signatory_name']),
                 'verifier_signatory_title' => sanitize_text_field($params['verifier_signatory_title']),
                 'municipal_assessor_name' => sanitize_text_field($params['municipal_assessor_name']),
@@ -236,7 +238,7 @@ class Assessor_Properties {
                 'created_by' => $user_id,
                 'updated_by' => $user_id
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result === false) {
@@ -276,6 +278,7 @@ class Assessor_Properties {
                 'gen_class' => $created->gen_class,
                 'memoranda' => $created->memoranda,
                 'supporting_documents' => $created->supporting_documents,
+                'supporting_documents_old' => isset($created->supporting_documents_old) ? $created->supporting_documents_old : '',
                 'verifier_signatory_name' => isset($created->verifier_signatory_name) ? $created->verifier_signatory_name : '',
                 'verifier_signatory_title' => isset($created->verifier_signatory_title) ? $created->verifier_signatory_title : '',
                 'municipal_assessor_name' => isset($created->municipal_assessor_name) ? $created->municipal_assessor_name : '',
@@ -331,7 +334,9 @@ class Assessor_Properties {
             'assessment_date',
             'kind_of_property',
             'gen_class',
-            'memoranda'
+            'memoranda',
+            'supporting_documents',
+            'supporting_documents_old'
         );
         $old_values = array();
         $new_values = array();
@@ -406,7 +411,7 @@ class Assessor_Properties {
             'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified',
             'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
-            'supporting_documents', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
+            'supporting_documents', 'supporting_documents_old', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
             'municipal_assessor_suffix', 'municipal_assessor_title', 'municipal_assessor_license', 'status'
         );
         
@@ -495,6 +500,7 @@ class Assessor_Properties {
             'gen_class' => $property->gen_class,
             'memoranda' => $property->memoranda,
             'supporting_documents' => $property->supporting_documents,
+            'supporting_documents_old' => isset($property->supporting_documents_old) ? $property->supporting_documents_old : '',
             'verifier_signatory_name' => isset($property->verifier_signatory_name) ? $property->verifier_signatory_name : '',
             'verifier_signatory_title' => isset($property->verifier_signatory_title) ? $property->verifier_signatory_title : '',
             'municipal_assessor_name' => isset($property->municipal_assessor_name) ? $property->municipal_assessor_name : '',
@@ -563,7 +569,7 @@ class Assessor_Properties {
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
                         p.location, p.lot_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
-                        p.assessed_value, p.kind_of_property, p.memoranda, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
+                        p.assessed_value, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
                         c.full_name AS created_by_name
@@ -608,6 +614,8 @@ class Assessor_Properties {
                 'assessed_value' => $property->assessed_value,
                 'kind_of_property' => $property->kind_of_property,
                 'memoranda' => $memoranda_value,
+                'supporting_documents' => isset($property->supporting_documents) ? $property->supporting_documents : '',
+                'supporting_documents_old' => isset($property->supporting_documents_old) ? $property->supporting_documents_old : '',
                 'pin' => $property->pin,
                 'address' => $property->address,
                 'assessment_date' => $property->assessment_date,
@@ -689,6 +697,7 @@ class Assessor_Properties {
                 'gen_class' => $property_data->gen_class,
                 'memoranda' => $property_data->memoranda,
                 'supporting_documents' => $property_data->supporting_documents,
+                'supporting_documents_old' => isset($property_data->supporting_documents_old) ? $property_data->supporting_documents_old : '',
                 'verifier_signatory_name' => isset($property_data->verifier_signatory_name) ? $property_data->verifier_signatory_name : '',
                 'verifier_signatory_title' => isset($property_data->verifier_signatory_title) ? $property_data->verifier_signatory_title : '',
                 'municipal_assessor_name' => isset($property_data->municipal_assessor_name) ? $property_data->municipal_assessor_name : '',
@@ -698,7 +707,7 @@ class Assessor_Properties {
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
     

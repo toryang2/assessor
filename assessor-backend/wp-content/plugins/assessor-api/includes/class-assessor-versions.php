@@ -130,10 +130,11 @@ class Assessor_Versions {
                 'gen_class' => $property_data->gen_class,
                 'memoranda' => $property_data->memoranda,
                 'supporting_documents' => $property_data->supporting_documents,
+                'supporting_documents_old' => isset($property_data->supporting_documents_old) ? $property_data->supporting_documents_old : '',
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
 }

@@ -533,7 +533,22 @@ const PropertyTable = () => {
         if (propertyId) {
           const docsRes = await apiService.getPropertyDocuments(propertyId);
           const docs = (docsRes && docsRes.documents) ? docsRes.documents : (Array.isArray(docsRes) ? docsRes : []);
-          setPrintDocuments(docs);
+          // Add legacy URLs from supporting_documents_old and supporting_documents in current record
+          const current = Array.isArray(response) && response.length > 0 ? response[0] : null;
+          const legacySources = [current?.supporting_documents_old, current?.supporting_documents]
+            .filter(Boolean)
+            .map(String)
+            .join(' | ');
+          const legacy = (legacySources
+            ? legacySources.split(/\||,/).map(s => String(s).trim()).filter(s => s && /^https?:\/\//i.test(s))
+            : [])
+            .map((url, idx) => {
+              const path = url.split('?')[0];
+              const ext = (path.split('.').pop() || '').toLowerCase();
+              const name = decodeURIComponent(path.substring(path.lastIndexOf('/') + 1));
+              return { id: `legacy-${idx}`, file_url: url, file_type: ext, original_filename: name, filename: name, description: 'Legacy document' };
+            });
+          setPrintDocuments([ ...docs, ...legacy ]);
         } else {
           setPrintDocuments([]);
         }
@@ -1190,7 +1205,7 @@ const PropertyTable = () => {
             {/* Attached Documents Section (Preview Only, sticky at bottom; reserved space above to avoid overlap) */}
             {Array.isArray(printDocuments) && printDocuments.length > 0 && (
               <Box sx={{ 
-                p: 2, 
+                p: 1, 
                 position: 'sticky', 
                 bottom: 0, 
                 backgroundColor: 'background.paper', 
@@ -1198,34 +1213,51 @@ const PropertyTable = () => {
                 zIndex: 1,
                 marginTop: 'auto'
               }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.5 }}>
                   Attached Documents
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                  {printDocuments.map((doc) => {
-                    const ext = String(doc.file_type || '').toLowerCase();
-                    const isImage = ['jpg','jpeg','png','gif'].includes(ext);
-                    return (
-                      <Box key={doc.id} sx={{ width: isImage ? 160 : 'auto' }}>
-                        {isImage ? (
-                          <img
-                            src={doc.file_url}
-                            alt={doc.original_filename || doc.filename}
-                            style={{ width: 160, height: 120, objectFit: 'cover', border: '1px solid #ddd', cursor: 'pointer' }}
-                            onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
-                          />
-                        ) : (
-                          <Button size="small" onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}>
-                            {doc.original_filename || doc.filename}
-                          </Button>
-                        )}
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 160 }}>
-                          {doc.description || ''}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
+                {(() => {
+                  const isLegacy = (d) => String(d?.id || '').startsWith('legacy-') || String(d?.description || '') === 'Legacy document';
+                  const managedDocs = (printDocuments || []).filter(d => !isLegacy(d));
+                  const legacyDocs = (printDocuments || []).filter(d => isLegacy(d));
+                  const renderLinks = (docs) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
+                      {docs.map((doc) => {
+                        const ext = String(doc.file_type || '').toLowerCase();
+                        return (
+                          <Box key={doc.id} sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Button 
+                              size="small" 
+                              variant="text"
+                              onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
+                              sx={{ 
+                                minWidth: 0,
+                                p: 0.25,
+                                fontSize: '0.75rem',
+                                textTransform: 'none'
+                              }}
+                            >
+                              {doc.original_filename || doc.filename}
+                            </Button>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  );
+                  return (
+                    <>
+                      {renderLinks(managedDocs)}
+                      {legacyDocs.length > 0 && (
+                        <>
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                            Legacy documents
+                          </Typography>
+                          {renderLinks(legacyDocs)}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
               </Box>
             )}
             </Box>

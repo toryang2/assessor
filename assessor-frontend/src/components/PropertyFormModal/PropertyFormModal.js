@@ -76,6 +76,42 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
 
+  // Parse legacy pipe- or comma-separated URLs from supporting_documents_old (and supporting_documents if needed)
+  const parseLegacySupportingDocuments = (prop) => {
+    if (!prop) return [];
+    const sources = [prop.supporting_documents_old, prop.supporting_documents]
+      .filter(Boolean)
+      .map(String)
+      .join(' | ');
+    if (!sources) return [];
+    // Split on pipe or comma and trim
+    const parts = sources
+      .split(/\||,/)
+      .map(s => String(s).trim())
+      .filter(s => s && /^https?:\/\//i.test(s));
+    const toExt = (url) => {
+      try {
+        const path = url.split('?')[0];
+        const ext = path.split('.').pop().toLowerCase();
+        return ext || '';
+      } catch (_) { return ''; }
+    };
+    const toName = (url) => {
+      try {
+        const path = url.split('?')[0];
+        return decodeURIComponent(path.substring(path.lastIndexOf('/') + 1));
+      } catch (_) { return url; }
+    };
+    return parts.map((url, idx) => ({
+      id: null, // legacy entry, not deletable via API
+      file_url: url,
+      file_type: toExt(url),
+      original_filename: toName(url),
+      filename: toName(url),
+      description: 'Legacy document'
+    }));
+  };
+
   // Helper function to validate and clean assessment date
   const cleanAssessmentDate = (dateValue) => {
     if (!dateValue || dateValue.trim() === '') return null;
@@ -245,12 +281,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         if (property && property.id) {
           const res = await apiService.getPropertyDocuments(property.id);
           const docs = (res && res.documents) ? res.documents : [];
-          setExistingDocuments(docs);
+          const legacy = parseLegacySupportingDocuments(property);
+          setExistingDocuments([ ...legacy, ...docs ]);
         } else {
-          setExistingDocuments([]);
+          const legacy = parseLegacySupportingDocuments(property);
+          setExistingDocuments([ ...legacy ]);
         }
       } catch (_) {
-        setExistingDocuments([]);
+        const legacy = parseLegacySupportingDocuments(property);
+        setExistingDocuments([ ...legacy ]);
       }
     };
     loadDocs();

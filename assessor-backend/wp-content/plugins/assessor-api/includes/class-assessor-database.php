@@ -51,6 +51,7 @@ class Assessor_Database {
             gen_class varchar(50),
             memoranda text,
             supporting_documents text,
+            supporting_documents_old text,
             verifier_signatory_name varchar(255) DEFAULT '',
             verifier_signatory_title varchar(255) DEFAULT '',
             municipal_assessor_name varchar(255) DEFAULT '',
@@ -99,6 +100,7 @@ class Assessor_Database {
             gen_class varchar(50),
             memoranda text,
             supporting_documents text,
+            supporting_documents_old text,
             verifier_signatory_name varchar(255) DEFAULT '',
             verifier_signatory_title varchar(255) DEFAULT '',
             municipal_assessor_name varchar(255) DEFAULT '',
@@ -443,6 +445,18 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'area_hectare_old'", $table_versions));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_versions ADD COLUMN area_hectare_old varchar(255) DEFAULT NULL AFTER area_hectare");
+        }
+
+        // Migration: Add supporting_documents_old column to properties table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'supporting_documents_old'", $table_properties));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_properties ADD COLUMN supporting_documents_old text AFTER supporting_documents");
+        }
+
+        // Migration: Add supporting_documents_old column to property_versions table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'supporting_documents_old'", $table_versions));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_versions ADD COLUMN supporting_documents_old text AFTER supporting_documents");
         }
     }
 }
