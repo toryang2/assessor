@@ -789,10 +789,10 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Unique Lot Number Identified"
                     value={formData.unique_lot_number_identified}
                     onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15 }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
+                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15                      }}
+                   />
+                 </Grid>
+                 <Grid item xs={12} md={6}>
                    <TextField
                      fullWidth
                      label="Area"

@@ -542,6 +542,30 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           </Grid>
                           <Grid item xs={12} md={6}>
                             <Typography variant="body2">
+                              <strong>Area (hectare):</strong> {(() => {
+                                const haRaw = selectedProperty.area_hectare;
+                                const sqmRaw = selectedProperty.area_sqm;
+                                const oldHaRaw = selectedProperty.area_hectare_old;
+                                const numHa = Number(haRaw);
+                                const numSqm = Number(sqmRaw);
+                                const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                                const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                                const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
+                                if (!hasHa && !hasSqm && !hasOldHa) return '—';
+                                let currentArea = '';
+                                if (hasHa) {
+                                  currentArea = `${numHa.toFixed(4)} ha`;
+                                } else if (hasSqm) {
+                                  currentArea = `${numSqm.toFixed(2)} sqm`;
+                                }
+                                if (hasOldHa && currentArea) return `${currentArea} (Old: ${oldHaRaw})`;
+                                if (hasOldHa) return oldHaRaw;
+                                return currentArea || '—';
+                              })()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="body2">
                               <strong>Assessed Value:</strong> ₱{(selectedProperty.assessed_value !== undefined && selectedProperty.assessed_value !== null)
                                 ? Number(selectedProperty.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                 : '0.00'}
@@ -854,15 +878,22 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           {(() => {
                             const haRaw = item.area_hectare;
                             const sqmRaw = item.area_sqm;
+                            const oldHaRaw = item.area_hectare_old;
                             const numHa = Number(haRaw);
                             const numSqm = Number(sqmRaw);
                             const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
                             const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                            if (!hasHa && !hasSqm) return '—';
-                            // Only show the value that actually has data, don't show both
-                            if (hasHa) return `${numHa.toFixed(4)} ha`;
-                            if (hasSqm) return `${numSqm.toFixed(2)} sqm`;
-                            return '—';
+                            const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
+                            if (!hasHa && !hasSqm && !hasOldHa) return '—';
+                            let currentArea = '';
+                            if (hasHa) {
+                              currentArea = `${numHa.toFixed(4)} ha`;
+                            } else if (hasSqm) {
+                              currentArea = `${numSqm.toFixed(2)} sqm`;
+                            }
+                            if (hasOldHa && currentArea) return `${currentArea} (Old: ${oldHaRaw})`;
+                            if (hasOldHa) return oldHaRaw;
+                            return currentArea || '—';
                           })()}
                         </TableCell>
                         <TableCell>{item.title_number || '—'}</TableCell>
