@@ -558,7 +558,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                                 } else if (hasSqm) {
                                   currentArea = `${numSqm.toFixed(2)} sqm`;
                                 }
-                                if (hasOldHa && currentArea) return `${currentArea} (Old: ${oldHaRaw})`;
+                                if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
                                 if (hasOldHa) return oldHaRaw;
                                 return currentArea || '—';
                               })()}
@@ -566,9 +566,27 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           </Grid>
                           <Grid item xs={12} md={6}>
                             <Typography variant="body2">
-                              <strong>Assessed Value:</strong> ₱{(selectedProperty.assessed_value !== undefined && selectedProperty.assessed_value !== null)
-                                ? Number(selectedProperty.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                : '0.00'}
+                              <strong>Assessed Value:</strong> {(() => {
+                                const currentValue = selectedProperty.assessed_value;
+                                const oldValue = selectedProperty.assessed_value_old;
+                                const hasCurrent = currentValue !== undefined && currentValue !== null;
+                                const hasOld = oldValue && oldValue !== '';
+                                
+                                if (!hasCurrent && !hasOld) return '₱0.00';
+                                
+                                let displayValue = '';
+                                if (hasCurrent) {
+                                  displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                }
+                                
+                                if (hasOld && displayValue) {
+                                  return `${displayValue} ${oldValue}`;
+                                } else if (hasOld) {
+                                  return oldValue;
+                                } else {
+                                  return displayValue || '₱0.00';
+                                }
+                              })()}
                             </Typography>
                           </Grid>
                         </Grid>
@@ -891,16 +909,34 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             } else if (hasSqm) {
                               currentArea = `${numSqm.toFixed(2)} sqm`;
                             }
-                            if (hasOldHa && currentArea) return `${currentArea} (Old: ${oldHaRaw})`;
+                            if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
                             if (hasOldHa) return oldHaRaw;
                             return currentArea || '—';
                           })()}
                         </TableCell>
                         <TableCell>{item.title_number || '—'}</TableCell>
                         <TableCell>
-                          ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                            ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : '0.00'}
+                          {(() => {
+                            const currentValue = item.assessed_value;
+                            const oldValue = item.assessed_value_old;
+                            const hasCurrent = currentValue !== undefined && currentValue !== null;
+                            const hasOld = oldValue && oldValue !== '';
+                            
+                            if (!hasCurrent && !hasOld) return '₱0.00';
+                            
+                            let displayValue = '';
+                            if (hasCurrent) {
+                              displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                            }
+                            
+                            if (hasOld && displayValue) {
+                              return `${displayValue} ${oldValue}`;
+                            } else if (hasOld) {
+                              return oldValue;
+                            } else {
+                              return displayValue || '₱0.00';
+                            }
+                          })()}
                         </TableCell>
                         <TableCell>{item.effectivity_date || '—'}</TableCell>
                         <TableCell sx={{ maxWidth: 280 }}>

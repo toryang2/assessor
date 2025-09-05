@@ -218,6 +218,7 @@ class Assessor_Properties {
                 'area_sqm' => isset($params['area_sqm']) && $params['area_sqm'] !== '' ? floatval($params['area_sqm']) : null,
                 'title_number' => sanitize_text_field($params['title_number']),
                 'assessed_value' => floatval($params['assessed_value']),
+                'assessed_value_old' => sanitize_text_field($params['assessed_value_old']),
                 'effectivity_date' => $params['effectivity_date'],
                 'pin' => sanitize_text_field($params['pin']),
                 'address' => sanitize_textarea_field($params['address']),
@@ -238,7 +239,7 @@ class Assessor_Properties {
                 'created_by' => $user_id,
                 'updated_by' => $user_id
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result === false) {
@@ -270,6 +271,7 @@ class Assessor_Properties {
                 'area_sqm' => isset($created->area_sqm) ? $created->area_sqm : null,
                 'title_number' => $created->title_number,
                 'assessed_value' => $created->assessed_value,
+                'assessed_value_old' => isset($created->assessed_value_old) ? $created->assessed_value_old : '',
                 'effectivity_date' => $created->effectivity_date,
                 'pin' => $created->pin,
                 'address' => $created->address,
@@ -409,7 +411,7 @@ class Assessor_Properties {
         $allowed_fields = array(
             'tax_declaration_number', 'previous_tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 
             'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified',
-            'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number', 'assessed_value', 'effectivity_date', 'pin', 
+            'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number', 'assessed_value', 'assessed_value_old', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
             'supporting_documents', 'supporting_documents_old', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
             'municipal_assessor_suffix', 'municipal_assessor_title', 'municipal_assessor_license', 'status'
@@ -492,6 +494,7 @@ class Assessor_Properties {
             'area_hectare_old' => $property->area_hectare_old,
             'title_number' => $property->title_number,
             'assessed_value' => $property->assessed_value,
+            'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
             'effectivity_date' => $property->effectivity_date,
             'pin' => $property->pin,
             'address' => $property->address,
@@ -569,7 +572,7 @@ class Assessor_Properties {
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
                         p.location, p.lot_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
-                        p.assessed_value, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
+                        p.assessed_value, p.assessed_value_old, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
                         c.full_name AS created_by_name
@@ -612,6 +615,7 @@ class Assessor_Properties {
                 'title_number' => $property->title_number,
                 'effectivity_date' => $property->effectivity_date,
                 'assessed_value' => $property->assessed_value,
+                'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
                 'kind_of_property' => $property->kind_of_property,
                 'memoranda' => $memoranda_value,
                 'supporting_documents' => isset($property->supporting_documents) ? $property->supporting_documents : '',
@@ -689,6 +693,7 @@ class Assessor_Properties {
                 'area_sqm' => isset($property_data->area_sqm) ? $property_data->area_sqm : null,
                 'title_number' => $property_data->title_number,
                 'assessed_value' => $property_data->assessed_value,
+                'assessed_value_old' => isset($property_data->assessed_value_old) ? $property_data->assessed_value_old : '',
                 'effectivity_date' => $property_data->effectivity_date,
                 'pin' => $property_data->pin,
                 'address' => $property_data->address,
@@ -707,7 +712,7 @@ class Assessor_Properties {
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
     

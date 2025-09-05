@@ -203,9 +203,27 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 }
               })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : '0.00'}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
+                const currentValue = item.assessed_value;
+                const oldValue = item.assessed_value_old;
+                const hasCurrent = currentValue !== undefined && currentValue !== null;
+                const hasOld = oldValue && oldValue !== '';
+                
+                if (!hasCurrent && !hasOld) return '₱0.00';
+                
+                let displayValue = '';
+                if (hasCurrent) {
+                  displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                }
+                
+                if (hasOld && displayValue) {
+                  return `${displayValue} ${oldValue}`;
+                } else if (hasOld) {
+                  return oldValue;
+                } else {
+                  return displayValue || '₱0.00';
+                }
+              })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
                 <div style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
@@ -814,7 +832,7 @@ const PropertyTable = () => {
                     }
                     
                     if (hasOldHa && currentArea) {
-                      return `${currentArea} (Old: ${oldHaRaw})`;
+                      return `${currentArea} ${oldHaRaw}`;
                     } else if (hasOldHa) {
                       return oldHaRaw;
                     } else {
@@ -824,9 +842,27 @@ const PropertyTable = () => {
                   <TableCell>{property.title_number || '—'}</TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.primary">
-                      ₱{(property.assessed_value !== undefined && property.assessed_value !== null)
-                        ? Number(property.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : '0.00'}
+                      {(() => {
+                        const currentValue = property.assessed_value;
+                        const oldValue = property.assessed_value_old;
+                        const hasCurrent = currentValue !== undefined && currentValue !== null;
+                        const hasOld = oldValue && oldValue !== '';
+                        
+                        if (!hasCurrent && !hasOld) return '₱0.00';
+                        
+                        let displayValue = '';
+                        if (hasCurrent) {
+                          displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        }
+                        
+                        if (hasOld && displayValue) {
+                          return `${displayValue} ${oldValue}`;
+                        } else if (hasOld) {
+                          return oldValue;
+                        } else {
+                          return displayValue || '₱0.00';
+                        }
+                      })()}
                     </Typography>
                   </TableCell>
                   <TableCell>{property.effectivity_date || '—'}</TableCell>
@@ -1035,7 +1071,7 @@ const PropertyTable = () => {
                         }
                         
                         if (hasOldHa && currentArea) {
-                          return `${currentArea} (Old: ${oldHaRaw})`;
+                          return `${currentArea} ${oldHaRaw}`;
                         } else if (hasOldHa) {
                           return oldHaRaw;
                         } else {
@@ -1044,9 +1080,27 @@ const PropertyTable = () => {
                       })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
-                        ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : '0.00'}
+                        {(() => {
+                          const currentValue = item.assessed_value;
+                          const oldValue = item.assessed_value_old;
+                          const hasCurrent = currentValue !== undefined && currentValue !== null;
+                          const hasOld = oldValue && oldValue !== '';
+                          
+                          if (!hasCurrent && !hasOld) return '₱0.00';
+                          
+                          let displayValue = '';
+                          if (hasCurrent) {
+                            displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          }
+                          
+                          if (hasOld && displayValue) {
+                            return `${displayValue} ${oldValue}`;
+                          } else if (hasOld) {
+                            return oldValue;
+                          } else {
+                            return displayValue || '₱0.00';
+                          }
+                        })()}
                       </TableCell>
                       <TableCell>{item.effectivity_date || '—'}</TableCell>
                     </TableRow>
@@ -1177,7 +1231,7 @@ const PropertyTable = () => {
                         }
                         
                         if (hasOldHa && currentArea) {
-                          return `${currentArea} (Old: ${oldHaRaw})`;
+                          return `${currentArea} ${oldHaRaw}`;
                         } else if (hasOldHa) {
                           return oldHaRaw;
                         } else {
@@ -1186,9 +1240,27 @@ const PropertyTable = () => {
                       })()}</TableCell>
                       <TableCell>{item.title_number || '—'}</TableCell>
                       <TableCell>
-                        ₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                          ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : '0.00'}
+                        {(() => {
+                          const currentValue = item.assessed_value;
+                          const oldValue = item.assessed_value_old;
+                          const hasCurrent = currentValue !== undefined && currentValue !== null;
+                          const hasOld = oldValue && oldValue !== '';
+                          
+                          if (!hasCurrent && !hasOld) return '₱0.00';
+                          
+                          let displayValue = '';
+                          if (hasCurrent) {
+                            displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          }
+                          
+                          if (hasOld && displayValue) {
+                            return `${displayValue} ${oldValue}`;
+                          } else if (hasOld) {
+                            return oldValue;
+                          } else {
+                            return displayValue || '₱0.00';
+                          }
+                        })()}
                       </TableCell>
                       <TableCell>{item.effectivity_date || '—'}</TableCell>
                       <TableCell sx={{ maxWidth: 280 }}>

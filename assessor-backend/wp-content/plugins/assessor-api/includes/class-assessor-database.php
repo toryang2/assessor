@@ -43,6 +43,7 @@ class Assessor_Database {
             area_sqm decimal(15,2),
             title_number varchar(100),
             assessed_value decimal(15,2),
+            assessed_value_old varchar(255),
             effectivity_date varchar(20),
             pin varchar(100),
             address text,
@@ -92,6 +93,7 @@ class Assessor_Database {
             area_sqm decimal(15,2),
             title_number varchar(100),
             assessed_value decimal(15,2),
+            assessed_value_old varchar(255),
             effectivity_date varchar(20),
             pin varchar(100),
             address text,
@@ -457,6 +459,18 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'supporting_documents_old'", $table_versions));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_versions ADD COLUMN supporting_documents_old text AFTER supporting_documents");
+        }
+
+        // Migration: Add assessed_value_old column to properties table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'assessed_value_old'", $table_properties));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_properties ADD COLUMN assessed_value_old varchar(255) AFTER assessed_value");
+        }
+
+        // Migration: Add assessed_value_old column to property_versions table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'assessed_value_old'", $table_versions));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_versions ADD COLUMN assessed_value_old varchar(255) AFTER assessed_value");
         }
     }
 }
