@@ -54,6 +54,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     area_unit: 'hectares',
     title_number: '',
     assessed_value: '',
+    assessed_value_old: '',
     effectivity_date: '',
     pin: '',
     address: '',
@@ -238,6 +239,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         })(),
         title_number: property.title_number || '',
         assessed_value: property.assessed_value || '',
+        assessed_value_old: property.assessed_value_old || '',
         effectivity_date: extractEffectivityYear(property.effectivity_date),
         pin: property.pin || '',
         address: property.address || '',
@@ -264,6 +266,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
          area_unit: 'hectares',
          title_number: '',
         assessed_value: '',
+        assessed_value_old: '',
         effectivity_date: '',
         pin: '',
         address: '',
@@ -533,6 +536,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           : '',
         title_number: formData.title_number,
         assessed_value: formData.assessed_value === '' ? '' : Number(formData.assessed_value),
+        assessed_value_old: formData.assessed_value_old,
         effectivity_date: formData.effectivity_date,
         pin: formData.pin,
         address: formData.address,
@@ -548,6 +552,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         municipal_assessor_title: settings?.municipal_assessor_title || '',
         municipal_assessor_license: settings?.municipal_assessor_license || ''
       };
+
+      // On update: if assessed_value is left blank, do not send the field
+      // to avoid backend converting empty string to 0.00.
+      if (property && (formData.assessed_value === '' || formData.assessed_value === null || formData.assessed_value === undefined)) {
+        delete submitData.assessed_value;
+      }
       
       let saved;
       if (property) {
@@ -729,6 +739,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     }}
                   />
                 </Grid>
+
+                {Boolean(property && property.assessed_value_old) && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Assessed Value (Old)"
+                      value={formData.assessed_value_old}
+                      onChange={(e) => handleInputChange('assessed_value_old', e.target.value)}
+                      inputProps={{ tabIndex: 11 }}
+                      placeholder="Enter previous assessed value notes"
+                    />
+                  </Grid>
+                )}
 
                 <Grid item xs={12} md={6}>
                   <TextField
