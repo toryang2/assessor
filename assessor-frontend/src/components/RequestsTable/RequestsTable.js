@@ -21,7 +21,12 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  Chip
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Collapse
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -30,7 +35,9 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Print as PrintIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  FilterList as FilterListIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
@@ -357,6 +364,15 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
   );
 });
 
+// Purpose options for filter
+const purposeOptions = [
+  { value: 'record_verification', label: 'Record Verification' },
+  { value: 'tax_declaration', label: 'Tax Declaration' },
+  { value: 'property_assessment', label: 'Property Assessment' },
+  { value: 'certification', label: 'Certification' },
+  { value: 'other', label: 'Other' }
+];
+
 const RequestsTable = () => {
   const { isAdmin, isSuperAdmin } = useAuth();
   const [requests, setRequests] = useState([]);
@@ -368,6 +384,15 @@ const RequestsTable = () => {
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    purpose: '',
+    dateIssued: '',
+    preparedBy: ''
+  });
+  const [filterModal, setFilterModal] = useState(false);
+  const [users, setUsers] = useState([]);
   
   // Modal states
   const [printModal, setPrintModal] = useState(false);
@@ -470,12 +495,16 @@ const RequestsTable = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        q: searchTerm || '',
+        search: searchTerm || '',
+        purpose: filters.purpose || '',
+        date_issued: filters.dateIssued || '',
+        prepared_by: filters.preparedBy || '',
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       };
       
       const response = await apiService.getRequests(params);
+      
       // Ignore if a newer request has started
       if (seq !== fetchSeqRef.current) return;
       
@@ -516,16 +545,46 @@ const RequestsTable = () => {
   // Load data on component mount
   useEffect(() => {
     fetchSettings();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
     fetchRequests();
-  }, [page, rowsPerPage, searchTerm]);
+  }, [page, rowsPerPage, searchTerm, filters]);
 
   // Handle search
   const handleSearch = (event) => {
     setSearchTerm(event.target.value.toUpperCase());
     setPage(0); // Reset to first page when searching
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    setPage(0); // Reset to first page when filtering
+  };
+
+  // Fetch users for prepared by dropdown
+  const fetchUsers = async () => {
+    try {
+      const response = await apiService.getUsers();
+      setUsers(response?.users || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    }
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilters({
+      purpose: '',
+      dateIssued: '',
+      preparedBy: ''
+    });
+    setPage(0);
   };
 
   // Handle page change
@@ -650,18 +709,109 @@ const RequestsTable = () => {
               />
             </Grid>
             <Grid item xs={12} md={6} sx={{ textAlign: 'right' }}>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleCreateRequest}
-                color="primary"
-              >
-                Create Request
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<FilterListIcon />}
+                  onClick={() => setFilterModal(true)}
+                  color="primary"
+                >
+                  Filters
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleCreateRequest}
+                  color="primary"
+                >
+                  Create Request
+                </Button>
+              </Box>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Filter Modal */}
+      <Dialog
+        open={filterModal}
+        onClose={() => setFilterModal(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FilterListIcon />
+            Filter Requests
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Purpose</InputLabel>
+                <Select
+                  value={filters.purpose}
+                  onChange={(e) => handleFilterChange('purpose', e.target.value)}
+                  label="Purpose"
+                >
+                  <MenuItem value="">All Purposes</MenuItem>
+                  {purposeOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Date Issued"
+                type="date"
+                value={filters.dateIssued}
+                onChange={(e) => handleFilterChange('dateIssued', e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Prepared By</InputLabel>
+                <Select
+                  value={filters.preparedBy}
+                  onChange={(e) => handleFilterChange('preparedBy', e.target.value)}
+                  label="Prepared By"
+                >
+                  <MenuItem value="">All Users</MenuItem>
+                  {users.map((user) => (
+                    <MenuItem key={user.id} value={user.full_name}>
+                      {user.full_name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="outlined"
+            startIcon={<ClearIcon />}
+            onClick={clearFilters}
+            color="secondary"
+          >
+            Clear Filters
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => setFilterModal(false)}
+            color="primary"
+          >
+            Apply Filters
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Requests Table */}
        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
           <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>

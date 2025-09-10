@@ -203,10 +203,10 @@ class Assessor_Requests {
             'per_page' => 20,
             'search' => '',
             'property_id' => null,
-            'date_from' => null,
-            'date_to' => null,
+            'date_issued' => null,
             'payment_type' => null,
-            'purpose' => null
+            'purpose' => null,
+            'prepared_by' => null
         );
         
         $args = wp_parse_args($args, $defaults);
@@ -217,7 +217,12 @@ class Assessor_Requests {
         // Search filter
         if (!empty($args['search'])) {
             $search_term = '%' . $this->db->esc_like($args['search']) . '%';
-            $where_conditions[] = "(r.receipt_number LIKE %s OR r.client_name LIKE %s OR r.prepared_by LIKE %s)";
+            $where_conditions[] = "(r.receipt_number LIKE %s OR r.client_name LIKE %s OR r.remarks LIKE %s OR p.tax_declaration_number LIKE %s OR p.declarant_last_name LIKE %s OR p.declarant_first_name LIKE %s OR p.business LIKE %s OR p.location LIKE %s)";
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
             $where_values[] = $search_term;
             $where_values[] = $search_term;
             $where_values[] = $search_term;
@@ -229,15 +234,10 @@ class Assessor_Requests {
             $where_values[] = $args['property_id'];
         }
         
-        // Date range filter
-        if (!empty($args['date_from'])) {
-            $where_conditions[] = "r.date_issued >= %s";
-            $where_values[] = $args['date_from'];
-        }
-        
-        if (!empty($args['date_to'])) {
-            $where_conditions[] = "r.date_issued <= %s";
-            $where_values[] = $args['date_to'];
+        // Date filter
+        if (!empty($args['date_issued'])) {
+            $where_conditions[] = "r.date_issued = %s";
+            $where_values[] = $args['date_issued'];
         }
         
         // Payment type filter
@@ -250,6 +250,12 @@ class Assessor_Requests {
         if (!empty($args['purpose'])) {
             $where_conditions[] = "r.purpose = %s";
             $where_values[] = $args['purpose'];
+        }
+        
+        // Prepared by filter
+        if (!empty($args['prepared_by'])) {
+            $where_conditions[] = "r.prepared_by LIKE %s";
+            $where_values[] = '%' . $this->db->esc_like($args['prepared_by']) . '%';
         }
         
         $where_clause = implode(' AND ', $where_conditions);
