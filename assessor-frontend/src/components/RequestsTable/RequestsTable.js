@@ -621,7 +621,7 @@ const RequestsTable = () => {
   // Format amount
   const formatAmount = (amount) => {
     if (!amount) return '₱0.00';
-    return `₱${parseFloat(amount).toLocaleString()}`;
+    return `₱${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
