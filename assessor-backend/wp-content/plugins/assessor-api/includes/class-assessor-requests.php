@@ -75,7 +75,6 @@ class Assessor_Requests {
             'date_issued' => current_time('Y-m-d'),
             'place_issued' => '',
             'prepared_by' => '',
-            'payment_type' => '',
             'purpose' => '',
             'client_name' => '',
             'client_address' => '',
@@ -89,7 +88,7 @@ class Assessor_Requests {
         $data = wp_parse_args($data, $defaults);
         
         // Validate required fields
-        $required_fields = array('amount_paid', 'receipt_number', 'date_issued', 'place_issued', 'prepared_by', 'payment_type', 'purpose', 'client_name');
+        $required_fields = array('amount_paid', 'receipt_number', 'date_issued', 'place_issued', 'prepared_by', 'purpose', 'client_name');
         foreach ($required_fields as $field) {
             if (empty($data[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400, 'code' => 'missing_field'));
@@ -123,7 +122,6 @@ class Assessor_Requests {
             'date_issued' => $data['date_issued'],
             'place_issued' => sanitize_text_field($data['place_issued']),
             'prepared_by' => sanitize_text_field($data['prepared_by']),
-            'payment_type' => sanitize_text_field($data['payment_type']),
             'purpose' => sanitize_text_field($data['purpose']),
             'client_name' => sanitize_text_field($data['client_name']),
             'client_address' => sanitize_textarea_field($data['client_address']),
@@ -141,7 +139,6 @@ class Assessor_Requests {
             '%s', // date_issued
             '%s', // place_issued
             '%s', // prepared_by
-            '%s', // payment_type
             '%s', // purpose
             '%s', // client_name
             '%s', // client_address
@@ -331,7 +328,7 @@ class Assessor_Requests {
         }
         
         // Validate required fields if provided
-        $required_fields = array('amount_paid', 'receipt_number', 'date_issued', 'place_issued', 'prepared_by', 'payment_type', 'purpose', 'client_name');
+        $required_fields = array('amount_paid', 'receipt_number', 'date_issued', 'place_issued', 'prepared_by', 'purpose', 'client_name');
         foreach ($required_fields as $field) {
             if (isset($data[$field]) && empty($data[$field])) {
                 return new WP_Error('missing_field', "Field '$field' cannot be empty", array('status' => 400, 'code' => 'missing_field'));
@@ -372,7 +369,6 @@ class Assessor_Requests {
             'date_issued' => '%s',
             'place_issued' => '%s',
             'prepared_by' => '%s',
-            'payment_type' => '%s',
             'purpose' => '%s',
             'client_name' => '%s',
             'client_address' => '%s',
@@ -388,9 +384,11 @@ class Assessor_Requests {
             }
         }
         
-        // Add updated_by
+        // Add updated_by and updated_at
         $update_data['updated_by'] = $current_user_id;
+        $update_data['updated_at'] = current_time('mysql');
         $update_format[] = '%d';
+        $update_format[] = '%s';
         
         if (empty($update_data)) {
             return new WP_Error('no_data', 'No data provided for update', array('status' => 400));
