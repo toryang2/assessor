@@ -64,7 +64,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     date_issued: '',
     place_issued: '',
     prepared_by: '',
-    payment_type: '',
     purpose: '',
     client_name: '',
     client_address: '',
@@ -82,15 +81,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [taxHistoryModal, setTaxHistoryModal] = useState(false);
   const [taxHistory, setTaxHistory] = useState([]);
   const [taxHistoryLoading, setTaxHistoryLoading] = useState(false);
-
-  // Payment type options
-  const paymentTypeOptions = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'check', label: 'Check' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'gcash', label: 'GCash' },
-    { value: 'other', label: 'Other' }
-  ];
 
   // Purpose options
   const purposeOptions = [
@@ -111,7 +101,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         date_issued: today,
         place_issued: '',
         prepared_by: user?.full_name || user?.username || '',
-        payment_type: '',
         purpose: '',
         client_name: '',
         client_address: '',
@@ -266,11 +255,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errorFields.add('prepared_by');
     }
 
-    if (!formData.payment_type) {
-      missingFields.push('Payment Type');
-      errorFields.add('payment_type');
-    }
-
     if (!formData.purpose) {
       missingFields.push('Purpose');
       errorFields.add('purpose');
@@ -359,7 +343,18 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Handle form field changes
   const handleChange = (field) => (event) => {
-    const value = event.target.value;
+    let value = event.target.value;
+    
+    // Convert to uppercase for specific fields (except purpose)
+    const uppercaseFields = [
+      'client_name', 'client_address', 'contact_number', 'remarks',
+      'receipt_number', 'place_issued', 'prepared_by'
+    ];
+    
+    if (uppercaseFields.includes(field)) {
+      value = value.toUpperCase();
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -383,7 +378,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       date_issued: '',
       place_issued: '',
       prepared_by: '',
-      payment_type: '',
       purpose: '',
       client_name: '',
       client_address: '',
@@ -702,6 +696,18 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           }}
                           inputProps={{ min: 0, step: 0.01 }}
                           error={validationErrors.has('amount_paid')}
+                          placeholder="0.00"
+                          onBlur={() => {
+                            const v = formData.amount_paid;
+                            if (v === '' || v === null || v === undefined) return;
+                            const n = Number(v);
+                            if (!isNaN(n)) {
+                              setFormData(prev => ({
+                                ...prev,
+                                amount_paid: n.toFixed(2)
+                              }));
+                            }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -747,21 +753,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
-                        <FormControl fullWidth error={validationErrors.has('payment_type')}>
-                          <InputLabel>Payment Type *</InputLabel>
-                          <Select
-                            value={formData.payment_type}
-                            onChange={handleChange('payment_type')}
-                            label="Payment Type *">
-                            {paymentTypeOptions.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12}>
                         <FormControl fullWidth error={validationErrors.has('purpose')}>
                           <InputLabel>Purpose *</InputLabel>
                           <Select

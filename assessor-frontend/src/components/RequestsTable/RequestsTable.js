@@ -613,16 +613,6 @@ const RequestsTable = () => {
     return `₱${parseFloat(amount).toLocaleString()}`;
   };
 
-  // Get payment type color
-  const getPaymentTypeColor = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'cash': return 'success';
-      case 'check': return 'info';
-      case 'online': return 'primary';
-      default: return 'default';
-    }
-  };
-
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <Typography variant="h4" gutterBottom>
@@ -671,7 +661,7 @@ const RequestsTable = () => {
                   <TableCell><strong>Client Name</strong></TableCell>
                   <TableCell><strong>Property</strong></TableCell>
                   <TableCell><strong>Amount</strong></TableCell>
-                  <TableCell><strong>Payment Type</strong></TableCell>
+                  <TableCell><strong>Remarks</strong></TableCell>
                   <TableCell><strong>Purpose</strong></TableCell>
                   <TableCell><strong>Date Issued</strong></TableCell>
                   <TableCell><strong>Prepared By</strong></TableCell>
@@ -735,11 +725,9 @@ const RequestsTable = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={request.payment_type}
-                          color={getPaymentTypeColor(request.payment_type)}
-                          size="small"
-                        />
+                        <Typography variant="body2">
+                          {request.remarks || '-'}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">

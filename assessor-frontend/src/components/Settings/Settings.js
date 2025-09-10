@@ -367,7 +367,7 @@ const Settings = () => {
                           size="small"
                           label="Province"
                           value={form.header_province.toUpperCase()}
-                          onChange={(e) => handleChange('header_province', e.target.value)}
+                          onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -376,7 +376,7 @@ const Settings = () => {
                           size="small"
                           label="Municipality"
                           value={form.header_municipality.toUpperCase()}
-                          onChange={(e) => handleChange('header_municipality', e.target.value)}
+                          onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -385,7 +385,7 @@ const Settings = () => {
                           size="small"
                           label="Office"
                           value={form.header_office.toUpperCase()}
-                          onChange={(e) => handleChange('header_office', e.target.value)}
+                          onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -406,7 +406,7 @@ const Settings = () => {
                           size="small"
                           label="Verifier Signatory Name"
                           value={(form.verifier_signatory_name || '').toUpperCase()}
-                          onChange={(e) => handleChange('verifier_signatory_name', e.target.value)}
+                          onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -415,7 +415,7 @@ const Settings = () => {
                           size="small"
                           label="Verifier Signatory Title"
                           value={(form.verifier_signatory_title || '').toUpperCase()}
-                          onChange={(e) => handleChange('verifier_signatory_title', e.target.value)}
+                          onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -424,7 +424,7 @@ const Settings = () => {
                           size="small"
                           label="Municipal Assessor Name"
                           value={(form.municipal_assessor_name || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_name', e.target.value)}
+                          onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -433,7 +433,7 @@ const Settings = () => {
                           size="small"
                           label="Municipal Assessor Title/Suffix (e.g., MMREM, REA, REB, LPT)"
                           value={(form.municipal_assessor_suffix || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value)}
+                          onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -442,7 +442,7 @@ const Settings = () => {
                           size="small"
                           label="Title(Municipal Assessor / Acting)"
                           value={(form.municipal_assessor_title || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_title', e.target.value)}
+                          onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
                         />
                       </Grid>
                       <Grid item xs={12}>
@@ -451,7 +451,7 @@ const Settings = () => {
                           size="small"
                           label="Municipal Assessor License Number"
                           value={(form.municipal_assessor_license || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_license', e.target.value)}
+                          onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
                         />
                       </Grid>
                     </Grid>
