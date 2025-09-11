@@ -72,7 +72,7 @@ class Assessor_Requests {
             'property_id' => null,
             'amount_paid' => 0.00,
             'receipt_number' => '',
-            'date_issued' => current_time('Y-m-d'),
+            'date_issued' => date('Y-m-d'),
             'place_issued' => '',
             'prepared_by' => '',
             'purpose' => '',
@@ -83,8 +83,8 @@ class Assessor_Requests {
             'remarks' => '',
             'created_by' => $current_user_id,
             'updated_by' => $current_user_id,
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
         );
         
         $data = wp_parse_args($data, $defaults);
@@ -392,7 +392,7 @@ class Assessor_Requests {
         
         // Add updated_by and updated_at
         $update_data['updated_by'] = $current_user_id;
-        $update_data['updated_at'] = current_time('mysql');
+        $update_data['updated_at'] = date('Y-m-d H:i:s');
         $update_format[] = '%d';
         $update_format[] = '%s';
         

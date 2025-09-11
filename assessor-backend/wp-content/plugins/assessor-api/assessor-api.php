@@ -17,6 +17,15 @@ define('ASSESSOR_API_VERSION', '1.0.7');
 define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+// Set global timezone for the plugin
+date_default_timezone_set('Asia/Manila');
+
+// Set database timezone to match PHP timezone
+add_action('init', function() {
+    global $wpdb;
+    $wpdb->query("SET time_zone = '+08:00'");
+});
+
 // Include required files
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-api.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';

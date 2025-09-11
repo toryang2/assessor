@@ -553,6 +553,16 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         municipal_assessor_license: settings?.municipal_assessor_license || ''
       };
 
+      // Add timestamps based on create vs update
+      if (property) {
+        // Update: only set updated_at
+        submitData.updated_at = new Date().toISOString();
+      } else {
+        // Create: set both created_at and updated_at
+        submitData.created_at = new Date().toISOString();
+        submitData.updated_at = new Date().toISOString();
+      }
+
       // On update: if assessed_value is left blank, do not send the field
       // to avoid backend converting empty string to 0.00.
       if (property && (formData.assessed_value === '' || formData.assessed_value === null || formData.assessed_value === undefined)) {

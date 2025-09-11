@@ -237,9 +237,11 @@ class Assessor_Properties {
                 'municipal_assessor_license' => sanitize_text_field($params['municipal_assessor_license']),
                 'status' => 'active',
                 'created_by' => $user_id,
-                'updated_by' => $user_id
+                'updated_by' => $user_id,
+                'created_at' => isset($params['created_at']) ? $params['created_at'] : date('Y-m-d H:i:s'),
+                'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
         );
         
         if ($result === false) {
@@ -405,7 +407,7 @@ class Assessor_Properties {
         }
         $update_data = array(
             'updated_by' => $user_id,
-            'updated_at' => current_time('mysql')
+            'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
         );
         
         $allowed_fields = array(
