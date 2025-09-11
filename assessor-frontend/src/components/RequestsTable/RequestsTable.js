@@ -293,7 +293,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               {/* Values */}
               <div style={{ fontSize: 12, fontWeight: 400 }}>
                 <div>{(printHistory && printHistory[0] && (printHistory[0].created_by_name || printHistory[0].updated_by_name)) || ''}</div>
-                <div>{printHistory && printHistory[0] && printHistory[0].created_at ? formatDate(printHistory[0].created_at) : ''}</div>
+                <div>{printHistory && printHistory[0] && printHistory[0].updated_at ? formatDate(printHistory[0].updated_at) : ''}</div>
               </div>
             </div>
 
@@ -631,7 +631,7 @@ const RequestsTable = () => {
             location: request.location || '',
             assessed_value: request.assessed_value || '',
             effectivity_date: request.date_issued || '',
-            created_at: request.created_at || new Date().toISOString(),
+            created_at: request.updated_at || new Date().toISOString(),
             created_by_name: request.created_by_name || request.prepared_by || ''
           }];
           console.log('Using fallback history:', fallbackHistory);
