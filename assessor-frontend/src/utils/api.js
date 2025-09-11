@@ -9,7 +9,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and cache busting
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('assessor_token');
@@ -26,6 +26,16 @@ api.interceptors.request.use(
     } else {
       console.log('❌ No token found in localStorage');
     }
+    
+    // Add cache busting headers for Hostinger
+    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    config.headers['Pragma'] = 'no-cache';
+    config.headers['Expires'] = '0';
+    
+    // Add cache busting parameter to URL
+    const separator = config.url.includes('?') ? '&' : '?';
+    config.url = `${config.url}${separator}_t=${Date.now()}&_v=${process.env.REACT_APP_VERSION || '1.0.0'}`;
+    
     return config;
   },
   (error) => {
@@ -362,11 +372,12 @@ export const apiService = {
       console.log('🔍 API Service: Current token:', localStorage.getItem('assessor_token'));
       
       const response = await api.get(endpoints.dashboard, { 
-        // headers: {
-        //   // Defeat intermediary/proxy caches in production
-        //   'Cache-Control': 'no-cache, no-store, must-revalidate',
-        //   'Pragma': 'no-cache'
-        // }
+        headers: {
+          // Defeat intermediary/proxy caches in production (especially Hostinger)
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
         params
       });
       console.log('🔍 API Service: Dashboard response received:', response.data);
