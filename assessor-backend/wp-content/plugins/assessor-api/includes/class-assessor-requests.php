@@ -82,7 +82,9 @@ class Assessor_Requests {
             'email' => '',
             'remarks' => '',
             'created_by' => $current_user_id,
-            'updated_by' => $current_user_id
+            'updated_by' => $current_user_id,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql')
         );
         
         $data = wp_parse_args($data, $defaults);
@@ -129,7 +131,9 @@ class Assessor_Requests {
             'email' => sanitize_email($data['email']),
             'remarks' => sanitize_textarea_field($data['remarks']),
             'created_by' => $data['created_by'],
-            'updated_by' => $data['updated_by']
+            'updated_by' => $data['updated_by'],
+            'created_at' => $data['created_at'],
+            'updated_at' => $data['updated_at']
         );
         
         $insert_format = array(
@@ -146,7 +150,9 @@ class Assessor_Requests {
             '%s', // email
             '%s', // remarks
             '%d', // created_by
-            '%d'  // updated_by
+            '%d', // updated_by
+            '%s', // created_at
+            '%s'  // updated_at
         );
         
         $result = $this->db->insert($this->table_name, $insert_data, $insert_format);

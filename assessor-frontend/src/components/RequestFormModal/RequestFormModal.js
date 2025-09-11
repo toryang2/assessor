@@ -291,11 +291,17 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     setLoading(true);
     try {
       // Prepare the data for saving
+      // Create UTC+8 timestamp (add 8 hours to current time)
+      const now = new Date();
+      const utc8Time = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+      const utc8Timestamp = utc8Time.toISOString();
+      
       const requestData = {
         ...formData,
         property_id: selectedProperty?.id,
         amount_paid: parseFloat(formData.amount_paid),
-        created_at: new Date().toISOString()
+        created_at: utc8Timestamp,
+        updated_at: utc8Timestamp
       };
 
       // Call API to save the request
