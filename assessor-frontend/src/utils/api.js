@@ -27,10 +27,10 @@ api.interceptors.request.use(
       console.log('❌ No token found in localStorage');
     }
     
-    // Add cache busting headers for Hostinger
-    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    config.headers['Pragma'] = 'no-cache';
-    config.headers['Expires'] = '0';
+    // Add cache busting headers for Hostinger. Enable this for Hostinger.
+    // config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    // config.headers['Pragma'] = 'no-cache';
+    // config.headers['Expires'] = '0';
     
     // Add cache busting parameter to URL
     const separator = config.url.includes('?') ? '&' : '?';

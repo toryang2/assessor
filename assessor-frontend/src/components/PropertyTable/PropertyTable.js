@@ -98,10 +98,10 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
       <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%' }} className="info">
         <tbody>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
             </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
+            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
             </td>
           </tr>
@@ -166,7 +166,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         <tbody>
           {(printHistory || []).map((item, index) => (
             <tr key={index}>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                 <div>{item.tax_declaration_number || ''}</div>
               </td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
@@ -202,7 +202,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                   return currentArea || '';
                 }
               })()}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.title_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{item.title_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                 const currentValue = item.assessed_value;
                 const oldValue = item.assessed_value_old;
@@ -645,6 +645,9 @@ const PropertyTable = () => {
         .history-table td { vertical-align: top !important; text-align: left !important; }
         .history-table td:last-child { text-align: left !important; }
         .history-table th { vertical-align: center !important; }
+        /* Force word breaking for long strings without spaces */
+        .history-table td:first-child { word-break: break-all; overflow-wrap: anywhere; }
+        .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; }
         .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
         .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
         /* Layout helpers to keep the signature at the bottom of the last page when space allows */
