@@ -253,7 +253,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                   return currentArea || '';
                 }
               })()}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{item.title_number || ''}</td>
+               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>{item.title_number || ''}</td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
                  ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                  : '0.00'}</td>
@@ -469,6 +469,8 @@ const RequestsTable = () => {
         /* Force word breaking for long strings without spaces */
         .history-table td:first-child { word-break: break-all; overflow-wrap: anywhere; }
         .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; }
+        /* Ensure Title Number column breaks long text properly */
+        .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; hyphens: none; }
         .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
         .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
         /* Layout helpers to keep the signature at the bottom of the last page when space allows */
