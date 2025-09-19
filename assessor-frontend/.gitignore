@@ -5,9 +5,9 @@ node_modules/
 build/
 
 # Environment files
-.env.local
-.env.production
-.env.development
+#.env.local
+#.env.production
+#.env.development
 
 # Logs
 *.log
