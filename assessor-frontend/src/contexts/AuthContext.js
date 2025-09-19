@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../utils/api';
 
 const AuthContext = createContext();
@@ -25,9 +25,28 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(initialToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // AFK timeout management
+  const timeoutRef = useRef(null);
+  const lastActivityRef = useRef(Date.now());
+  const [afkTimeout, setAfkTimeout] = useState(() => {
+    try {
+      const stored = localStorage.getItem('assessor_afk_timeout');
+      return stored ? parseInt(stored, 10) : 30; // Default 30 minutes
+    } catch (_) {
+      return 30;
+    }
+  });
 
   // Check for existing token on mount (non-destructive token validation)
   useEffect(() => {
+    // Clear any leftover unload flags on page load
+    try {
+      sessionStorage.removeItem('assessor_page_unloading');
+    } catch (_) {
+      // Ignore errors
+    }
+
     const validateStoredAuth = async () => {
       const storedToken = localStorage.getItem('assessor_token');
       const storedUser = localStorage.getItem('assessor_user');
@@ -140,6 +159,116 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
+  // AFK timeout functions
+  const resetAfkTimeout = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    if (token && user) {
+      timeoutRef.current = setTimeout(() => {
+        console.log('🕐 AuthContext: AFK timeout reached, logging out');
+        logout();
+      }, afkTimeout * 60 * 1000); // Convert minutes to milliseconds
+    }
+  }, [token, user, afkTimeout]);
+
+  const updateAfkTimeout = useCallback((newTimeout) => {
+    setAfkTimeout(newTimeout);
+    try {
+      localStorage.setItem('assessor_afk_timeout', newTimeout.toString());
+    } catch (_) {
+      // Ignore storage errors
+    }
+    resetAfkTimeout(); // Reset with new timeout
+  }, [resetAfkTimeout]);
+
+  // Activity tracking
+  const trackActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    resetAfkTimeout();
+  }, [resetAfkTimeout]);
+
+  // Browser close logout - use a more reliable method
+  const handleBeforeUnload = useCallback(() => {
+    if (token && user) {
+      // Set a flag to indicate we're about to unload
+      try {
+        sessionStorage.setItem('assessor_page_unloading', 'true');
+        console.log('🔄 AuthContext: Page unloading, set flag');
+      } catch (error) {
+        console.error('Error setting unload flag:', error);
+      }
+    }
+  }, [token, user]);
+
+  // Handle actual page unload (different from beforeunload)
+  const handlePageHide = useCallback(() => {
+    if (token && user) {
+      // Check if this is a refresh by looking for the flag we set
+      const isRefresh = sessionStorage.getItem('assessor_page_unloading') === 'true';
+      
+      if (!isRefresh) {
+        // Only clear storage if it's not a refresh
+        try {
+          localStorage.removeItem('assessor_token');
+          localStorage.removeItem('assessor_user');
+          localStorage.removeItem('assessor_afk_timeout');
+          console.log('🔄 AuthContext: Browser closing (not refresh), cleared local storage');
+        } catch (error) {
+          console.error('Error clearing storage on pagehide:', error);
+        }
+      } else {
+        console.log('🔄 AuthContext: Page refresh detected, keeping session');
+        // Clear the flag for next time
+        try {
+          sessionStorage.removeItem('assessor_page_unloading');
+        } catch (error) {
+          console.error('Error clearing unload flag:', error);
+        }
+      }
+    }
+  }, [token, user]);
+
+  // Set up activity listeners and AFK timeout
+  useEffect(() => {
+    if (!token || !user) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Set up activity tracking
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    events.forEach(event => {
+      document.addEventListener(event, trackActivity, true);
+    });
+
+    // Set up browser close logout
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+
+    // Start AFK timeout
+    resetAfkTimeout();
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, trackActivity, true);
+      });
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [token, user, trackActivity, handleBeforeUnload, resetAfkTimeout]);
+
   const isAuthenticated = !!token && !!user;
   const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
@@ -159,6 +288,8 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     clearError,
+    afkTimeout,
+    updateAfkTimeout,
   };
 
   return (

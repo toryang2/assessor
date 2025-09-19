@@ -17,12 +17,16 @@ const DEFAULTS = {
   municipal_assessor_name: '',
   municipal_assessor_license: '',
   municipal_assessor_title: '',
-  municipal_assessor_suffix: ''
+  municipal_assessor_suffix: '',
+  afk_timeout: 30
 };
 
 const Settings = () => {
-  const { canManage } = useAuth();
-  const [form, setForm] = useState(DEFAULTS);
+  const { canManage, afkTimeout, updateAfkTimeout } = useAuth();
+  const [form, setForm] = useState({
+    ...DEFAULTS,
+    afk_timeout: afkTimeout || DEFAULTS.afk_timeout
+  });
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [propertyTypes, setPropertyTypes] = useState([]);
@@ -52,7 +56,8 @@ const Settings = () => {
           municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
           municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
           municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
-          municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix
+          municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
+          afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
         });
         const [typesRes, classesRes, locationsRes] = await Promise.all([
           apiService.getPropertyTypes(),
@@ -84,7 +89,8 @@ const Settings = () => {
         municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
         municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
         municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
-        municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix
+        municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
+        afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
       });
       const [typesRes, classesRes, locationsRes] = await Promise.all([
         apiService.getPropertyTypes(),
@@ -111,6 +117,16 @@ const Settings = () => {
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAfkTimeoutChange = (value) => {
+    const timeoutValue = parseInt(value, 10);
+    if (!isNaN(timeoutValue) && timeoutValue >= 5 && timeoutValue <= 480) { // 5 minutes to 8 hours
+      setForm(prev => ({ ...prev, afk_timeout: timeoutValue }));
+    } else if (value === '') {
+      // Allow empty input temporarily while user is typing
+      setForm(prev => ({ ...prev, afk_timeout: '' }));
+    }
   };
 
   const handleSave = async () => {
@@ -158,10 +174,15 @@ const Settings = () => {
         municipal_assessor_name: form.municipal_assessor_name,
         municipal_assessor_license: form.municipal_assessor_license,
         municipal_assessor_title: form.municipal_assessor_title,
-        municipal_assessor_suffix: form.municipal_assessor_suffix
+        municipal_assessor_suffix: form.municipal_assessor_suffix,
+        afk_timeout: form.afk_timeout ?? 30
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
+      
+      // Update the auth context with the new AFK timeout
+      updateAfkTimeout(form.afk_timeout);
+      
       setToast({ open: true, message: 'Saved successfully.', severity: 'success' });
     } catch (e) {
       setToast({ open: true, message: 'Failed to save settings.', severity: 'error' });
@@ -456,6 +477,32 @@ const Settings = () => {
                       </Grid>
                     </Grid>
                   </Box>
+                </Grid>
+              </Grid>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Security Settings
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Auto-logout timeout (minutes)"
+                    type="number"
+                    value={form.afk_timeout ?? 30}
+                    onChange={(e) => handleAfkTimeoutChange(e.target.value)}
+                    helperText="Automatically log out after this many minutes of inactivity (5-480 minutes)"
+                    inputProps={{ min: 5, max: 480 }}
+                    size="small"
+                    error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    The system will automatically log you out after {form.afk_timeout ?? 30} minutes of inactivity. 
+                    This helps protect your session when you step away from your computer.
+                  </Typography>
                 </Grid>
               </Grid>
             </Grid>

@@ -27,7 +27,8 @@ class Assessor_Settings {
 				'municipal_assessor_name' => '',
 				'municipal_assessor_license' => '',
 				'municipal_assessor_title' => '',
-				'municipal_assessor_suffix' => ''
+				'municipal_assessor_suffix' => '',
+				'afk_timeout' => 30
 			);
 		}
 		return $settings;
@@ -39,14 +40,23 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
+		$integer_keys = array('afk_timeout');
 		$data = array();
 		foreach ($allowed_keys as $key) {
 			if (isset($params[$key])) {
-				$val = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
-				if (in_array($key, $uppercase_keys, true)) {
-					$val = strtoupper($val);
+				if (in_array($key, $integer_keys, true)) {
+					$val = intval($params[$key]);
+					// Ensure afk_timeout is within valid range (5-480 minutes)
+					if ($key === 'afk_timeout' && ($val < 5 || $val > 480)) {
+						$val = 30; // Default to 30 minutes if invalid
+					}
+				} else {
+					$val = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
+					if (in_array($key, $uppercase_keys, true)) {
+						$val = strtoupper($val);
+					}
 				}
 				$data[$key] = $val;
 			}

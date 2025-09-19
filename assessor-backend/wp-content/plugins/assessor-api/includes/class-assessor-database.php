@@ -171,6 +171,7 @@ class Assessor_Database {
             municipal_assessor_suffix varchar(255) DEFAULT '',
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
+            afk_timeout int DEFAULT 30,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
@@ -471,6 +472,12 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'assessed_value_old'", $table_versions));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_versions ADD COLUMN assessed_value_old varchar(255) AFTER assessed_value");
+        }
+
+        // Migration: Add afk_timeout column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'afk_timeout'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
         }
     }
 }
