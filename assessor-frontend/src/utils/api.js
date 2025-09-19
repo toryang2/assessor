@@ -371,13 +371,14 @@ export const apiService = {
       console.log('🔍 API Service: Making dashboard request...', params);
       console.log('🔍 API Service: Current token:', localStorage.getItem('assessor_token'));
       
-      const response = await api.get(endpoints.dashboard, { 
-        headers: {
-          // Defeat intermediary/proxy caches in production (especially Hostinger)
+      const isProd = process.env.NODE_ENV === 'production';
+      const response = await api.get(endpoints.dashboard, {
+        headers: isProd ? {
+          // Defeat intermediary/proxy caches in production (esp. Hostinger)
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0'
-        },
+        } : {},
         params
       });
       console.log('🔍 API Service: Dashboard response received:', response.data);

@@ -415,6 +415,26 @@ const Settings = () => {
                         </Typography>
                       </Grid>
                     </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="h6" gutterBottom>
+                        Security Settings
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Auto-logout timeout (minutes)"
+                            type="number"
+                            value={form.afk_timeout ?? 30}
+                            onChange={(e) => handleAfkTimeoutChange(e.target.value)}
+                            helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. This helps protect your session when you step away from your computer. (5-480 minutes)`}
+                            inputProps={{ min: 5, max: 480 }}
+                            size="small"
+                            error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Grid>
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={4}>
@@ -477,32 +497,6 @@ const Settings = () => {
                       </Grid>
                     </Grid>
                   </Box>
-                </Grid>
-              </Grid>
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Security Settings
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Auto-logout timeout (minutes)"
-                    type="number"
-                    value={form.afk_timeout ?? 30}
-                    onChange={(e) => handleAfkTimeoutChange(e.target.value)}
-                    helperText="Automatically log out after this many minutes of inactivity (5-480 minutes)"
-                    inputProps={{ min: 5, max: 480 }}
-                    size="small"
-                    error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    The system will automatically log you out after {form.afk_timeout ?? 30} minutes of inactivity. 
-                    This helps protect your session when you step away from your computer.
-                  </Typography>
                 </Grid>
               </Grid>
             </Grid>
