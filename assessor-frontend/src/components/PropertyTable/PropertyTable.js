@@ -1141,7 +1141,7 @@ const PropertyTable = () => {
           ) : printHistory.length > 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <TableContainer component={Paper} sx={{ paddingBottom: Array.isArray(printDocuments) && printDocuments.length > 0 ? '200px' : '0px' }}>
+            <TableContainer component={Paper}>
               <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
                 {appLogoUrl ? (
                   <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
@@ -1278,18 +1278,9 @@ const PropertyTable = () => {
                 </TableBody>
               </Table>
             </TableContainer>
-            </Box>
-            {/* Attached Documents Section (Preview Only, sticky at bottom; reserved space above to avoid overlap) */}
+            {/* Attached Documents Section (Preview Only, non-sticky; included in scroll area) */}
             {Array.isArray(printDocuments) && printDocuments.length > 0 && (
-              <Box sx={{ 
-                p: 1, 
-                position: 'sticky', 
-                bottom: 0, 
-                backgroundColor: 'background.paper', 
-                borderTop: '1px solid #eee',
-                zIndex: 1,
-                marginTop: 'auto'
-              }}>
+              <Box sx={{ p: 1, backgroundColor: 'background.paper' }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.5 }}>
                   Attached Documents
                 </Typography>
@@ -1337,6 +1328,7 @@ const PropertyTable = () => {
                 })()}
               </Box>
             )}
+            </Box>
             </Box>
           ) : (
             <Typography>No history found for this tax declaration number.</Typography>
