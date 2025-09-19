@@ -247,7 +247,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         kind_of_property: property.kind_of_property || '',
         gen_class: property.gen_class || '',
         memoranda: property.memoranda || '',
-        supporting_documents: []
+        supporting_documents: [],
+        // Load old area text if present
+        area_hectare_old: property.area_hectare_old || ''
       });
     } else {
              // Reset form for new property
@@ -274,7 +276,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         kind_of_property: '',
         gen_class: '',
         memoranda: '',
-        supporting_documents: []
+        supporting_documents: [],
+        area_hectare_old: ''
       });
     }
     setErrors([]);
@@ -545,6 +548,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         gen_class: formData.gen_class,
         memoranda: formData.memoranda,
         supporting_documents: supportingDocsString,
+        // Pass old area text if provided; allow explicit null on clear when updating
+        ...(property ? { area_hectare_old: (formData.area_hectare_old === '' ? '' : (formData.area_hectare_old ?? '')) } : { area_hectare_old: formData.area_hectare_old ?? '' }),
         verifier_signatory_name: settings?.verifier_signatory_name || '',
         verifier_signatory_title: settings?.verifier_signatory_title || '',
         municipal_assessor_name: settings?.municipal_assessor_name || '',
@@ -729,39 +734,60 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Assessed Value (₱)"
-                    value={formData.assessed_value}
-                    onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                    error={errors.includes('assessed_value')}
-                    helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
-                    type="number"
-                    inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
-                    placeholder="0.00"
-                    onBlur={() => {
-                      const v = formData.assessed_value;
-                      if (v === '' || v === null || v === undefined) return;
-                      const n = Number(v);
-                      if (!isNaN(n)) {
-                        handleInputChange('assessed_value', n.toFixed(2));
-                      }
-                    }}
-                  />
-                </Grid>
-
-                {Boolean(property && property.assessed_value_old) && (
-                  <Grid item xs={12} md={6}>
+                  {Boolean(property && property.assessed_value_old) ? (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        fullWidth
+                        label="Assessed Value (₱)"
+                        value={formData.assessed_value}
+                        onChange={(e) => handleInputChange('assessed_value', e.target.value)}
+                        error={errors.includes('assessed_value')}
+                        helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
+                        type="number"
+                        inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
+                        placeholder="0.00"
+                        onBlur={() => {
+                          const v = formData.assessed_value;
+                          if (v === '' || v === null || v === undefined) return;
+                          const n = Number(v);
+                          if (!isNaN(n)) {
+                            handleInputChange('assessed_value', n.toFixed(2));
+                          }
+                        }}
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        fullWidth
+                        label="Assessed Value (Old)"
+                        value={formData.assessed_value_old}
+                        onChange={(e) => handleInputChange('assessed_value_old', e.target.value)}
+                        inputProps={{ tabIndex: 11 }}
+                        placeholder="Enter previous assessed value notes"
+                        sx={{ flex: 1 }}
+                      />
+                    </Box>
+                  ) : (
                     <TextField
                       fullWidth
-                      label="Assessed Value (Old)"
-                      value={formData.assessed_value_old}
-                      onChange={(e) => handleInputChange('assessed_value_old', e.target.value)}
-                      inputProps={{ tabIndex: 11 }}
-                      placeholder="Enter previous assessed value notes"
+                      label="Assessed Value (₱)"
+                      value={formData.assessed_value}
+                      onChange={(e) => handleInputChange('assessed_value', e.target.value)}
+                      error={errors.includes('assessed_value')}
+                      helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
+                      type="number"
+                      inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
+                      placeholder="0.00"
+                      onBlur={() => {
+                        const v = formData.assessed_value;
+                        if (v === '' || v === null || v === undefined) return;
+                        const n = Number(v);
+                        if (!isNaN(n)) {
+                          handleInputChange('assessed_value', n.toFixed(2));
+                        }
+                      }}
                     />
-                  </Grid>
-                )}
+                  )}
+                </Grid>
 
                 <Grid item xs={12} md={6}>
                   <TextField
@@ -864,89 +890,176 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15                      }}
                    />
                  </Grid>
-                 <Grid item xs={12} md={6}>
-                   <TextField
-                     fullWidth
-                     label="Area"
-                     value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
-                     onChange={(e) => {
-                       const value = e.target.value;
-                       if (formData.area_unit === 'hectares') {
-                         handleInputChange('area_hectare', value);
-                       } else {
-                         // In sqm mode, only update sqm (no syncing)
-                         handleInputChange('area_sqm', value);
-                       }
-                     }}
-                     error={errors.includes('area_hectare')}
-                     helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
-                     type="number"
-                     inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
-                     placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
-                     onBlur={() => {
-                       const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
-                       if (v === '' || v === null || v === undefined) return;
-                       const n = Number(v);
-                       if (!isNaN(n)) {
-                         if (formData.area_unit === 'hectares') {
-                           const formatted = n.toFixed(4);
-                           setFormData(prev => ({ ...prev, area_hectare: formatted }));
-                         } else {
-                           const formatted = n.toFixed(2);
-                           setFormData(prev => ({ ...prev, area_sqm: formatted }));
-                         }
-                       }
-                     }}
-                     InputProps={{
-                       endAdornment: (
-                         <FormControl sx={{ minWidth: 120, ml: 1 }}>
-                           <Select
-                             value={formData.area_unit}
-                             onChange={(e) => {
-                               const newUnit = e.target.value;
-                               setFormData(prev => {
-                                 const next = { ...prev, area_unit: newUnit };
-                                 const numHa = Number(prev.area_hectare);
-                                 const numSqm = Number(prev.area_sqm);
-                                 const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
-                                 const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
-                                 if (newUnit === 'hectares') {
-                                   if (!hasHa && hasSqm) {
-                                     // Convert sqm to hectares and clear sqm
-                                     next.area_hectare = (numSqm / 10000).toFixed(4);
-                                     next.area_sqm = '';
-                                   } else if (hasHa) {
-                                     // Keep hectares, clear sqm
-                                     next.area_sqm = '';
-                                   }
-                                 } else if (newUnit === 'sqm') {
-                                   if (!hasSqm && hasHa) {
-                                     // Convert hectares to sqm and clear hectares
-                                     next.area_sqm = (numHa * 10000).toFixed(2);
-                                     next.area_hectare = '';
-                                   } else if (hasSqm) {
-                                     // Keep sqm, clear hectares
-                                     next.area_hectare = '';
-                                   }
-                                 }
-                                 return next;
-                               });
-                             }}
-                             sx={{
-                               '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
-                               '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                               '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                             }}
-                           >
-                             <MenuItem value="hectares">Hectares</MenuItem>
-                             <MenuItem value="sqm">Sqm</MenuItem>
-                           </Select>
-                         </FormControl>
-                       )
-                     }}
-                   />
-                 </Grid>
+                <Grid item xs={12} md={6}>
+                  {Boolean(property && property.area_hectare_old) ? (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        fullWidth
+                        label="Area"
+                        value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (formData.area_unit === 'hectares') {
+                            handleInputChange('area_hectare', value);
+                          } else {
+                            handleInputChange('area_sqm', value);
+                          }
+                        }}
+                        error={errors.includes('area_hectare')}
+                        helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                        type="number"
+                        inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
+                        placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
+                        onBlur={() => {
+                          const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
+                          if (v === '' || v === null || v === undefined) return;
+                          const n = Number(v);
+                          if (!isNaN(n)) {
+                            if (formData.area_unit === 'hectares') {
+                              const formatted = n.toFixed(4);
+                              setFormData(prev => ({ ...prev, area_hectare: formatted }));
+                            } else {
+                              const formatted = n.toFixed(2);
+                              setFormData(prev => ({ ...prev, area_sqm: formatted }));
+                            }
+                          }
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <FormControl sx={{ minWidth: 120, ml: 1 }}>
+                              <Select
+                                value={formData.area_unit}
+                                onChange={(e) => {
+                                  const newUnit = e.target.value;
+                                  setFormData(prev => {
+                                    const next = { ...prev, area_unit: newUnit };
+                                    const numHa = Number(prev.area_hectare);
+                                    const numSqm = Number(prev.area_sqm);
+                                    const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
+                                    const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
+                                    if (newUnit === 'hectares') {
+                                      if (!hasHa && hasSqm) {
+                                        next.area_hectare = (numSqm / 10000).toFixed(4);
+                                        next.area_sqm = '';
+                                      } else if (hasHa) {
+                                        next.area_sqm = '';
+                                      }
+                                    } else if (newUnit === 'sqm') {
+                                      if (!hasSqm && hasHa) {
+                                        next.area_sqm = (numHa * 10000).toFixed(2);
+                                        next.area_hectare = '';
+                                      } else if (hasSqm) {
+                                        next.area_hectare = '';
+                                      }
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                sx={{
+                                  '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
+                                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                                }}
+                              >
+                                <MenuItem value="hectares">Hectares</MenuItem>
+                                <MenuItem value="sqm">Sqm</MenuItem>
+                              </Select>
+                            </FormControl>
+                          )
+                        }}
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        fullWidth
+                        label="Area (Hectares - Old)"
+                        value={formData.area_hectare_old ?? ''}
+                        onChange={(e) => handleInputChange('area_hectare_old', e.target.value)}
+                        placeholder="Enter previous area in hectares"
+                        inputProps={{ tabIndex: 9 }}
+                        helperText="Clear this field and save to remove old area (sets to null)."
+                        sx={{ flex: 1 }}
+                      />
+                    </Box>
+                  ) : (
+                    <TextField
+                      fullWidth
+                      label="Area"
+                      value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (formData.area_unit === 'hectares') {
+                          handleInputChange('area_hectare', value);
+                        } else {
+                          handleInputChange('area_sqm', value);
+                        }
+                      }}
+                      error={errors.includes('area_hectare')}
+                      helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
+                      type="number"
+                      inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
+                      placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
+                      onBlur={() => {
+                        const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
+                        if (v === '' || v === null || v === undefined) return;
+                        const n = Number(v);
+                        if (!isNaN(n)) {
+                          if (formData.area_unit === 'hectares') {
+                            const formatted = n.toFixed(4);
+                            setFormData(prev => ({ ...prev, area_hectare: formatted }));
+                          } else {
+                            const formatted = n.toFixed(2);
+                            setFormData(prev => ({ ...prev, area_sqm: formatted }));
+                          }
+                        }
+                      }}
+                      InputProps={{
+                        endAdornment: (
+                          <FormControl sx={{ minWidth: 120, ml: 1 }}>
+                            <Select
+                              value={formData.area_unit}
+                              onChange={(e) => {
+                                const newUnit = e.target.value;
+                                setFormData(prev => {
+                                  const next = { ...prev, area_unit: newUnit };
+                                  const numHa = Number(prev.area_hectare);
+                                  const numSqm = Number(prev.area_sqm);
+                                  const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
+                                  const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
+                                  if (newUnit === 'hectares') {
+                                    if (!hasHa && hasSqm) {
+                                      next.area_hectare = (numSqm / 10000).toFixed(4);
+                                      next.area_sqm = '';
+                                    } else if (hasHa) {
+                                      next.area_sqm = '';
+                                    }
+                                  } else if (newUnit === 'sqm') {
+                                    if (!hasSqm && hasHa) {
+                                      next.area_sqm = (numHa * 10000).toFixed(2);
+                                      next.area_hectare = '';
+                                    } else if (hasSqm) {
+                                      next.area_hectare = '';
+                                    }
+                                  }
+                                  return next;
+                                });
+                              }}
+                              sx={{
+                                '& .MuiSelect-select': { py: 1, px: 2, minHeight: 'auto' },
+                                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                              }}
+                            >
+                              <MenuItem value="hectares">Hectares</MenuItem>
+                              <MenuItem value="sqm">Sqm</MenuItem>
+                            </Select>
+                          </FormControl>
+                        )
+                      }}
+                    />
+                  )}
+                </Grid>
 
                 <Grid item xs={12} md={6}>
                   <TextField

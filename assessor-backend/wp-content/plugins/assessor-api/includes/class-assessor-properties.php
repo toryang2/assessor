@@ -427,7 +427,14 @@ class Assessor_Properties {
                 continue;
             }
             if (isset($params[$field])) {
-                if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
+                if ($field === 'area_hectare_old') {
+                    // Allow explicit nulling when cleared on edit
+                    if ($params[$field] === '' || is_null($params[$field])) {
+                        $update_data[$field] = null;
+                    } else {
+                        $update_data[$field] = sanitize_text_field($params[$field]);
+                    }
+                } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
                 } else {
                     $update_data[$field] = sanitize_text_field($params[$field]);
