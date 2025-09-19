@@ -581,12 +581,14 @@ class Assessor_Properties {
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
                         p.location, p.lot_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
-                        p.assessed_value, p.assessed_value_old, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at,
+                        p.assessed_value, p.assessed_value_old, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at, p.updated_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
-                        c.full_name AS created_by_name
+                        c.full_name AS created_by_name,
+                        u.full_name AS updated_by_name
                  FROM $table_properties p
                  LEFT JOIN $table_users c ON p.created_by = c.id
+                 LEFT JOIN $table_users u ON p.updated_by = u.id
                  WHERE p.tax_declaration_number = %s AND p.status != 'deleted' 
                  ORDER BY p.created_at DESC 
                  LIMIT 1",
@@ -640,7 +642,9 @@ class Assessor_Properties {
                 'municipal_assessor_title' => $property->municipal_assessor_title,
                 'municipal_assessor_license' => $property->municipal_assessor_license,
                 'created_at' => $property->created_at,
-                'created_by_name' => $property->created_by_name
+                'created_by_name' => $property->created_by_name,
+                'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
+                'updated_by_name' => isset($property->updated_by_name) ? $property->updated_by_name : ''
             );
             
             // Move to the previous declaration number

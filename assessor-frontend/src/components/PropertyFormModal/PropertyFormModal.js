@@ -160,6 +160,21 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return '';
   };
 
+  // Helper: current datetime in Asia/Manila (+08:00) as SQL string YYYY-MM-DD HH:mm:ss
+  const nowInPHTSql = () => {
+    const now = new Date();
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const ph = new Date(utcMs + (8 * 60 * 60000));
+    const pad = (n) => String(n).padStart(2, '0');
+    const yyyy = ph.getFullYear();
+    const mm = pad(ph.getMonth() + 1);
+    const dd = pad(ph.getDate());
+    const HH = pad(ph.getHours());
+    const MM = pad(ph.getMinutes());
+    const SS = pad(ph.getSeconds());
+    return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`;
+  };
+
   useEffect(() => {
     if (property) {
       setFormData({
@@ -561,11 +576,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       // Add timestamps based on create vs update
       if (property) {
         // Update: only set updated_at
-        submitData.updated_at = new Date().toISOString();
+        submitData.updated_at = nowInPHTSql();
       } else {
         // Create: set both created_at and updated_at
-        submitData.created_at = new Date().toISOString();
-        submitData.updated_at = new Date().toISOString();
+        const ts = nowInPHTSql();
+        submitData.created_at = ts;
+        submitData.updated_at = ts;
       }
 
       // On update: if assessed_value is left blank, do not send the field

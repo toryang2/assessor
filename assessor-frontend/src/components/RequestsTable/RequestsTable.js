@@ -292,8 +292,8 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 
               {/* Values */}
               <div style={{ fontSize: 12, fontWeight: 400 }}>
-                <div>{(printHistory && printHistory[0] && (printHistory[0].created_by_name || printHistory[0].updated_by_name)) || ''}</div>
-                <div>{printHistory && printHistory[0] && printHistory[0].updated_at ? formatDate(printHistory[0].updated_at) : ''}</div>
+                <div>{printHistory && printHistory[0] &&  printHistory[0].updated_by_name || ''}</div>
+                <div>{printHistory && printHistory[0] && formatDate(printHistory[0].updated_at) || ''}</div>
               </div>
             </div>
 
