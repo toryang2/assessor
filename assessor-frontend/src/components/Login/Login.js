@@ -52,6 +52,22 @@ const Login = () => {
 
 
   // Clear error when component mounts
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    // Get current year in Asia/Manila timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+    });
+
+    const parts = formatter.formatToParts(new Date());
+    const yearPart = parts.find(p => p.type === 'year');
+    if (yearPart) {
+      setYear(yearPart.value);
+    }
+  }, []);
+  
   useEffect(() => {
     clearError();
   }, [clearError]);
@@ -160,7 +176,10 @@ const Login = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: '#f0f4f8',
+        background: `linear-gradient(rgba(240, 244, 248, 0.8), rgba(240, 244, 248, 0.8)), url('${process.env.PUBLIC_URL}/background.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -178,7 +197,10 @@ const Login = () => {
             sx={{
               borderRadius: 4,
               overflow: 'hidden',
-              position: 'relative'
+              position: 'relative',
+              backgroundColor: 'rgba(255, 255, 255, 0.5)', // Semi-transparent white background
+              backdropFilter: 'blur(10px)', // Add blur effect for glass morphism
+              border: '1px solid rgba(255, 255, 255, 0.2)' // Subtle border
             }}
           >
             {/* Header with Philippine Government branding */}
@@ -271,7 +293,7 @@ const Login = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   error={!!validationErrors.username}
-                  helperText={validationErrors.username}
+                  helperText={validationErrors.username || ' '}
                   margin="normal"
                   variant="outlined"
                   InputProps={{
@@ -292,7 +314,7 @@ const Login = () => {
                   value={formData.password}
                   onChange={handleInputChange}
                   error={!!validationErrors.password}
-                  helperText={validationErrors.password}
+                  helperText={validationErrors.password || ' '}
                   margin="normal"
                   variant="outlined"
                   InputProps={{
@@ -340,11 +362,11 @@ const Login = () => {
                   </Button>
                 </motion.div>
 
-                <Box sx={{ marginTop: 3, textAlign: 'center' }}>
+                {/* <Box sx={{ marginTop: 3, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
                     Secure access to government property assessment records
                   </Typography>
-                </Box>
+                </Box> */}
               </motion.form>
             </CardContent>
           </Card>
@@ -358,7 +380,31 @@ const Login = () => {
         >
           <Box sx={{ textAlign: 'center', marginTop: 3 }}>
             <Typography variant="body2" color="#475569" sx={{ opacity: 0.8 }}>
-              © 2024 Philippine Local Government. All rights reserved.
+              © {year} Municipality of {headerMunicipality}. All rights reserved.
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'center', marginTop: 3 }}>
+          <Typography variant="body2" color="#475569" sx={{ opacity: 0.8 }}>
+              Developed by:{' '}
+            </Typography>
+            <Typography variant="body2" color="#475569" sx={{ opacity: 0.8, marginTop: 2 }}>
+              <a
+                href="https://github.com/toryang2"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  color: '#475569'
+                }}
+              >
+                <img
+                  src="https://github.com/toryang2.png"
+                  alt="GitHub Profile"
+                  style={{ width: 40, height: 40, borderRadius: '50%', marginRight: 6 }}
+                />
+              </a>
             </Typography>
           </Box>
         </motion.div>
