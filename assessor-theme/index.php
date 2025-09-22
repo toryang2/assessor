@@ -10,11 +10,27 @@
 </head>
 <body <?php body_class(); ?>>
     <div id="assessor-app-root">
-        <div style="text-align: center; padding: 2rem; color: #666;">
-            <h2>Loading Property Assessor System...</h2>
-            <p>If you see this message for more than a few seconds, check the browser console for errors.</p>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #f0f4f8;">
+            <div style="
+                width: 50px;
+                height: 50px;
+                border: 4px solid #e3e8ef;
+                border-top: 4px solid #2563eb;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-bottom: 1rem;
+            "></div>
+            <h2 style="color: #374151; margin: 0; font-size: 1.25rem; font-weight: 500;">Loading Property Assessor System...</h2>
+            <p style="color: #6b7280; margin: 0.5rem 0 0 0; font-size: 0.875rem;">Please wait while the system initializes</p>
         </div>
     </div>
+    
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
     <?php wp_footer(); ?>
     <script>
         console.log('WordPress theme loaded');
