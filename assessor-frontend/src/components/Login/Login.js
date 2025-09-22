@@ -176,7 +176,7 @@ const Login = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: `linear-gradient(rgba(240, 244, 248, 0.8), rgba(240, 244, 248, 0.8)), url('${process.env.PUBLIC_URL}/background.jpg')`,
+        background: `linear-gradient(rgba(240, 244, 248, 0.8), rgba(240, 244, 248, 0.8)), url('${window.location.origin}/wp-content/themes/assessor-theme/assets/background.jpg')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
