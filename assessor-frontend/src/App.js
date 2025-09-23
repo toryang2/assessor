@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
@@ -20,6 +21,28 @@ const SimpleApp = () => {
 
 // Main App Component
 const App = () => {
+  const [is720p, setIs720p] = useState(false);
+
+  useEffect(() => {
+    const detect720p = () => {
+      try {
+        const scrW = window.screen?.width || window.innerWidth;
+        const scrH = window.screen?.height || window.innerHeight;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        // Consider exact 1280x720, portrait 720x1280, or small viewports <= these bounds
+        const matchExact = (scrW === 1280 && scrH === 720) || (scrW === 720 && scrH === 1280);
+        const matchViewport = winW <= 1280 && winH <= 720;
+        setIs720p(Boolean(matchExact || matchViewport));
+      } catch (_) {
+        setIs720p(false);
+      }
+    };
+    detect720p();
+    window.addEventListener('resize', detect720p);
+    return () => window.removeEventListener('resize', detect720p);
+  }, []);
+
   useEffect(() => {
     // Cache busting for Hostinger - add timestamp to prevent caching
     const timestamp = Date.now();
@@ -54,6 +77,9 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      {is720p && (
+        <GlobalStyles styles={{ html: { fontSize: '10px' } }} />
+      )}
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <AuthProvider>
           <SimpleApp />

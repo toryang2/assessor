@@ -180,6 +180,15 @@ const Login = () => {
     }).join(' ');
   };
   const headerMunicipality = `${toFormalCase(baseMunicipality)}`;
+  const is720p = (() => {
+    try {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      return w <= 1280 && h <= 720;
+    } catch (_) {
+      return false;
+    }
+  })();
   return (
     <Box
       sx={{
@@ -191,10 +200,10 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 2
+        padding: is720p ? 1.5 : 2
       }}
     >
-      <Container maxWidth="sm">
+      <Container maxWidth={is720p ? 'xs' : 'sm'}>
         <motion.div
           initial="initial"
           animate="animate"
@@ -214,7 +223,7 @@ const Login = () => {
             {/* Header with Philippine Government branding */}
             <Box
               sx={{
-                padding: 4,
+                padding: is720p ? 3 : 4,
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden'
@@ -240,9 +249,9 @@ const Login = () => {
                   }}
                 >
                   {settings?.app_logo_url ? (
-                    <img src={settings.app_logo_url} alt="Logo" style={{ height: 128, marginBottom: 16, opacity: 0.9 }} />
+                    <img src={settings.app_logo_url} alt="Logo" style={{ height: is720p ? 72 : 128, marginBottom: 16, opacity: 0.9 }} />
                   ) : (
-                    <Business sx={{ fontSize: 60, marginBottom: 2, opacity: 0.8 }} />
+                    <Business sx={{ fontSize: is720p ? 44 : 60, marginBottom: 2, opacity: 0.8 }} />
                   )}
                 </motion.div>
                 
@@ -252,7 +261,7 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
+                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600, fontSize: is720p ? '1.35rem' : undefined }}>
                     Local Government of {headerMunicipality}
                   </Typography>
                 </motion.div>
@@ -263,7 +272,7 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="h6" component="h2" sx={{ fontWeight: 500 }}>
+                  <Typography variant="h6" component="h2" sx={{ fontWeight: 500, fontSize: is720p ? '1rem' : undefined }}>
                     Assessor's Office Archiving System
                   </Typography>
                 </motion.div>
@@ -274,21 +283,21 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8 }}>
+                  <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8, fontSize: is720p ? '0.9rem' : undefined }}>
                     History Archiving & Management
                   </Typography>
                 </motion.div>
               </motion.div>
             </Box>
 
-            <CardContent sx={{ padding: 4 }}>
+            <CardContent sx={{ padding: is720p ? 3 : 4 }}>
               <motion.form
                 onSubmit={handleSubmit}
                 initial="initial"
                 animate="animate"
                 variants={animations.fadeIn}
               >
-                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', marginBottom: 3, fontWeight: 600 }}>
+                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', marginBottom: 3, fontWeight: 600, fontSize: is720p ? '1.1rem' : undefined }}>
                   Sign In
                 </Typography>
 
@@ -302,8 +311,9 @@ const Login = () => {
                   onChange={handleInputChange}
                   error={!!validationErrors.username}
                   helperText={validationErrors.username || ' '}
-                  margin="normal"
+                  margin={is720p ? 'dense' : 'normal'}
                   variant="outlined"
+                  size={is720p ? 'small' : 'medium'}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -312,7 +322,7 @@ const Login = () => {
                     ),
                   }}
                   sx={{ 
-                    marginBottom: 2,
+                    marginBottom: is720p ? 1.5 : 2,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
                       '&:hover': {
@@ -334,8 +344,9 @@ const Login = () => {
                   onChange={handleInputChange}
                   error={!!validationErrors.password}
                   helperText={validationErrors.password || ' '}
-                  margin="normal"
+                  margin={is720p ? 'dense' : 'normal'}
                   variant="outlined"
+                  size={is720p ? 'small' : 'medium'}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -354,7 +365,7 @@ const Login = () => {
                     ),
                   }}
                   sx={{ 
-                    marginBottom: 3,
+                    marginBottom: is720p ? 2 : 3,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
                       '&:hover': {
@@ -375,16 +386,16 @@ const Login = () => {
                     type="submit"
                     fullWidth
                     variant="contained"
-                    size="large"
+                    size={is720p ? 'medium' : 'large'}
                     sx={{
-                      height: 56,
-                      fontSize: '1.1rem',
+                      height: is720p ? 44 : 56,
+                      fontSize: is720p ? '0.95rem' : '1.1rem',
                       fontWeight: 600,
                       background: theme.palette.primary.main,
                       '&:hover': {
                         background: theme.palette.primary.dark,
                         transform: 'translateY(-2px)',
-                        boxShadow: '0 8px 25px rgba(37, 99, 235, 0.3)'
+                        boxShadow: is720p ? '0 6px 18px rgba(37, 99, 235, 0.22)' : '0 8px 25px rgba(37, 99, 235, 0.3)'
                       }
                     }}
                   >

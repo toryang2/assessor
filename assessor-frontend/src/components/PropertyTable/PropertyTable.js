@@ -767,8 +767,8 @@ const PropertyTable = () => {
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
-            <colgroup>
+          <Table stickyHeader>  {/* sx={{ tableLayout: 'fixed' }} */}
+            {/* <colgroup>
               <col style={{ width: '200px' }} />
               <col style={{ width: '200px' }} />
               <col style={{ width: '120px' }} />
@@ -778,7 +778,7 @@ const PropertyTable = () => {
               <col style={{ width: '120px' }} />
               <col />
               <col style={{ width: '140px' }} />
-            </colgroup>
+            </colgroup> */}
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: 150 }}>Tax Declaration Number</TableCell>
@@ -1027,7 +1027,7 @@ const PropertyTable = () => {
                 </TableBody>
               </Table>
               <Table size="small" stickyHeader>
-                {/* <TableHead>
+                <TableHead>
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
                     <TableCell>Declarant</TableCell>
@@ -1037,7 +1037,7 @@ const PropertyTable = () => {
                     <TableCell>Assessed Value</TableCell>
                     <TableCell>Effectivity</TableCell>
                   </TableRow>
-                </TableHead> */}
+                </TableHead>
                 <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                   {taxHistory.map((item, index) => (
                     <TableRow key={index} hover>
@@ -1127,7 +1127,7 @@ const PropertyTable = () => {
         onClose={() => setPrintModal(false)}
         maxWidth="xl"
         fullWidth
-        PaperProps={{ sx: { maxWidth: '60vw', height: '90vh' } }}
+        PaperProps={{ sx: { maxWidth: '80vw', height: '90vh' } }}
       >
         <DialogTitle sx={{ textAlign: 'center' }}>
           Tax Declaration History (Printable)

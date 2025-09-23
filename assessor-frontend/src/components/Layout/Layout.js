@@ -51,6 +51,16 @@ const drawerWidth = 320;
 const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const is720p = (() => {
+    try {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      return w <= 1280 && h <= 720;
+    } catch (_) {
+      return false;
+    }
+  })();
+  const computedDrawerWidth = is720p ? 240 : drawerWidth;
   const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
@@ -256,29 +266,29 @@ const Layout = ({ children }) => {
   const drawer = (
     <Box>
       <Box sx={{ 
-        py: 4, 
+        py: is720p ? 3 : 4, 
         px: 2,
         borderBottom: `1px solid ${theme.palette.divider}`,
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 2
+        alignItems: 'center',
+        gap: is720p ? 1.5 : 2
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {settings?.app_logo_url ? (
-            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 64 }} />
+            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: is720p ? 48 : 64, display: 'block' }} />
           ) : (
-            <Business sx={{ fontSize: 28, color: 'primary.main' }} />
+            <Business sx={{ fontSize: is720p ? 22 : 28, color: 'primary.main' }} />
           )}
         </Box>
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <Typography variant="body2" fontWeight={600}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Typography variant="body2" fontWeight={600} sx={{ fontSize: is720p ? '0.9rem' : undefined }}>
             Assessor's Archiving System
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{  }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: is720p ? '0.85rem' : undefined }}>
             {headerMunicipality}
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{  }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: is720p ? '0.75rem' : undefined }}>
             {headerProvince}
           </Typography>
         </Box>
@@ -356,8 +366,8 @@ const Layout = ({ children }) => {
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
+          width: { md: `calc(100% - ${computedDrawerWidth}px)` },
+          ml: { md: `${computedDrawerWidth}px` },
           background: '#f8fafc',
           color: '#475569',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
@@ -427,7 +437,7 @@ const Layout = ({ children }) => {
       {/* Drawer */}
       <Box
         component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        sx={{ width: { md: computedDrawerWidth }, flexShrink: { md: 0 } }}
       >
         <Drawer
           variant="temporary"
@@ -440,7 +450,7 @@ const Layout = ({ children }) => {
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
-              width: drawerWidth,
+              width: computedDrawerWidth,
               background: '#ffffff',
               borderRight: `1px solid ${theme.palette.divider}`
             },
@@ -454,7 +464,7 @@ const Layout = ({ children }) => {
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
-              width: drawerWidth,
+              width: computedDrawerWidth,
               background: '#ffffff',
               borderRight: `1px solid ${theme.palette.divider}`
             },
@@ -471,7 +481,7 @@ const Layout = ({ children }) => {
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
+          width: { md: `calc(100% - ${computedDrawerWidth}px)` },
           mt: '64px',
           background: '#f8fafc',
           minHeight: 'calc(100vh - 64px)'

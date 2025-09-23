@@ -74,6 +74,15 @@ const Dashboard = ({ onNavigate }) => {
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [settings, setSettings] = useState(null);
   const [requestsCount, setRequestsCount] = useState(null);
+  const is720p = (() => {
+    try {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      return w <= 1280 && h <= 720;
+    } catch (_) {
+      return false;
+    }
+  })();
 
   useEffect(() => {
     // Only fetch dashboard data when authentication is complete and user is authenticated
@@ -387,7 +396,7 @@ const Dashboard = ({ onNavigate }) => {
             <Box
               sx={{
                 width: '100%',
-                height: '200px', // 8:1 aspect ratio (1600px width / 8 = 200px height)
+                height: is720p ? '100px' : '200px', // shorter at 720p
                 backgroundImage: `url(${dashboardData.header_photo_url})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -417,20 +426,21 @@ const Dashboard = ({ onNavigate }) => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     {settings?.app_logo_url ? (
-                      <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: 86 }} />
+                      <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: is720p ? 64 : 86, display: 'block' }} />
                     ) : (
-                      <Business sx={{ fontSize: 80, color: 'white' }} />
+                      <Business sx={{ fontSize: is720p ? 64 : 80, color: 'white' }} />
                     )}
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                                          <Typography
+                  <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography
                         variant="h2"
                         component="h1"
                         sx={{
                           color: 'white',
                           fontWeight: 600,
                           marginBottom: 0,
-                          fontFamily: 'Poppins, sans-serif'
+                          fontFamily: 'Poppins, sans-serif',
+                          fontSize: is720p ? '1.5rem' : undefined
                         }}
                       >
                         Assessor's Archiving System
@@ -441,7 +451,8 @@ const Dashboard = ({ onNavigate }) => {
                           color: 'white',
                           fontWeight: 500,
                           marginBottom: 0,
-                          fontFamily: 'Poppins, sans-serif'
+                          fontFamily: 'Poppins, sans-serif',
+                          fontSize: is720p ? '1.2rem' : undefined
                         }}
                       >
                         Municipality of {toFormalCase(settings?.header_municipality || 'KITAOTAO')}
@@ -452,7 +463,8 @@ const Dashboard = ({ onNavigate }) => {
                           color: 'white',
                           fontWeight: 400,
                           marginBottom: 0,
-                          fontFamily: 'Poppins, sans-serif'
+                          fontFamily: 'Poppins, sans-serif',
+                          fontSize: is720p ? '1.15rem' : undefined
                         }}
                       >
                         Province of {toFormalCase(settings?.header_province || 'BUKIDNON')}
