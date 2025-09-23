@@ -30,11 +30,19 @@ const App = () => {
       console.log('📦 App version:', process.env.REACT_APP_VERSION);
     }
     
-    // Clear any old cache data on app start
+    // Clear any old cache data on app start (preserve auth and navigation state)
     try {
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
-        if (key.startsWith('assessor_') && !key.includes('token') && !key.includes('user')) {
+        const isAssessorKey = key.startsWith('assessor_');
+        const isAuthKey = key.includes('token') || key.includes('user');
+        const isSafeKey = (
+          key === 'assessor_current_page' ||
+          key === 'assessor_settings' ||
+          key === 'assessor_afk_timeout' ||
+          key === 'app_logo_url'
+        );
+        if (isAssessorKey && !isAuthKey && !isSafeKey) {
           localStorage.removeItem(key);
         }
       });

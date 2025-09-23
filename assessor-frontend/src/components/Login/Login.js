@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 import { motion } from 'framer-motion';
 import {
@@ -28,6 +28,14 @@ import { apiService } from '../../utils/api';
 const Login = () => {
   
   const { login, error, clearError } = useAuth();
+  // Stable cache-buster and asset base to prevent background image reloads on re-render
+  const bgVersionRef = useRef(
+    (typeof window !== 'undefined' && (window.REACT_APP_VERSION || window.__APP_BUILD__)) || '1'
+  );
+  const assetsBase = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return window.__PUBLIC_URL__ || (window.location.origin + "/wp-content/themes/assessor-theme/assets");
+  }, []);
   
   const [formData, setFormData] = useState({
     username: '',
@@ -176,7 +184,7 @@ const Login = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: `linear-gradient(rgba(240, 244, 248, 0.8), rgba(240, 244, 248, 0.8)), url('${window.location.origin}/wp-content/themes/assessor-theme/assets/background.jpg')`,
+        background: `linear-gradient(rgba(240, 244, 248, 0.6), rgba(240, 244, 248, 0.6)), url('${assetsBase}/background.jpg?v=${bgVersionRef.current}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
@@ -303,7 +311,18 @@ const Login = () => {
                       </InputAdornment>
                     ),
                   }}
-                  sx={{ marginBottom: 2 }}
+                  sx={{ 
+                    marginBottom: 2,
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'transparent !important',
+                      '&:hover': {
+                        backgroundColor: 'transparent !important',
+                      },
+                      '&.Mui-focused': {
+                        backgroundColor: 'transparent !important',
+                      },
+                    },
+                  }}
                 />
 
                 <TextField
@@ -334,7 +353,18 @@ const Login = () => {
                       </InputAdornment>
                     ),
                   }}
-                  sx={{ marginBottom: 3 }}
+                  sx={{ 
+                    marginBottom: 3,
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'transparent !important',
+                      '&:hover': {
+                        backgroundColor: 'transparent !important',
+                      },
+                      '&.Mui-focused': {
+                        backgroundColor: 'transparent !important',
+                      },
+                    },
+                  }}
                 />
 
                 <motion.div
