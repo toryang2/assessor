@@ -111,7 +111,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
         <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
-        <div style={{ marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
+        <div className="header-title" style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
       </div>
 
       <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%' }} className="info">
@@ -624,6 +624,11 @@ const PropertyTable = () => {
           }
       }
       @media print {
+        /* Use document fonts for header */
+        .print-header h3, .print-header h4 { font-family: 'Times New Roman', Times, serif !important; }
+        .print-header .header-title { font-family: Tahoma, Verdana, sans-serif !important; }
+        /* Keep rest to app font for readability */
+        html, body, #root, * { font-family: 'Inter','Roboto','Helvetica','Arial',sans-serif; }
         @page :first {
           margin-top: 5mm;
         }
@@ -1141,18 +1146,25 @@ const PropertyTable = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <Box sx={{ flex: 1, overflow: 'auto' }}>
             <TableContainer component={Paper}>
-              <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
-                {appLogoUrl ? (
-                  <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                ) : null}
-                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
-                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
-                <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-                <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
-                <div style={{ marginTop: 8, marginBottom: 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
-              </div>
+              {(() => {
+                const is720p = (() => {
+                  try { const w = window.innerWidth; const h = window.innerHeight; return w <= 1280 && h <= 720; } catch (_) { return false; }
+                })();
+                return (
+                  <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
+                    {appLogoUrl ? (
+                      <img src={appLogoUrl} alt="Logo" style={{ height: is720p ? 48 : 64, display: 'block', margin: is720p ? '0 auto 6px auto' : '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : null}
+                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerPh}</h4>
+                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerProvince}</h4>
+                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
+                    <h3 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 600}}>{headerOffice}</h3>
+                    <div style={{ marginTop: is720p ? 6 : 8, marginBottom: is720p ? 10 : 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif', fontSize: is720p ? 13 : 14 }}>{headerTitle}</div>
+                  </div>
+                );
+              })()}
               <Table size="small" stickyHeader>
-                <TableBody sx={{ '& td': { borderBottom: 'none', padding: '4px 12px' } }}>
+                <TableBody sx={{ '& td': { borderBottom: 'none', padding: { xs: '3px 8px', md: '4px 12px' } } }}>
                   <TableRow sx={{ '& td': { paddingTop: '12px' } }}>
                     <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
                     <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>

@@ -24,6 +24,15 @@ import { CloudUpload } from '@mui/icons-material';
 import { apiService, uploadFile } from '../../utils/api';
 
 const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
+  const is720p = (() => {
+    try {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      return w <= 1280 && h <= 720;
+    } catch (_) {
+      return false;
+    }
+  })();
   // Extract a reliable 4-digit year from various backend formats
   const extractEffectivityYear = (raw) => {
     if (!raw) return '';
@@ -648,10 +657,10 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     <Dialog 
       open={open} 
       onClose={onClose || onCancel} 
-      maxWidth="lg" 
+      maxWidth={is720p ? 'sm' : 'lg'} 
       fullWidth
       PaperProps={{
-        sx: { maxHeight: '90vh' }
+        sx: { maxHeight: '90vh', width: is720p ? '60vw' : undefined }
       }}
     >
       <DialogTitle>
@@ -661,7 +670,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Typography>
         </Box>
       </DialogTitle>
-      <DialogContent>
+      <DialogContent sx={is720p ? { '& .MuiTextField-root': { mb: 1 }, '& .MuiInputBase-root': { fontSize: '0.9rem' }, '& .MuiFormLabel-root': { fontSize: '0.85rem' }, '& .MuiButton-root': { padding: '6px 12px' } } : {}}>
         <Snackbar
           open={toast.open}
           autoHideDuration={3000}
@@ -688,7 +697,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Typography variant="h6" gutterBottom>
                 Basic Information
               </Typography>
-              <Grid container spacing={2}>
+              <Grid container spacing={is720p ? 1 : 2}>
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
@@ -1097,7 +1106,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Typography variant="h6" gutterBottom>
                 Kind of Property
               </Typography>
-              <Grid container spacing={2}>
+              <Grid container spacing={is720p ? 1.5 : 2}>
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth required>
                     <InputLabel>Kind of Property</InputLabel>
@@ -1154,7 +1163,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Typography variant="h6" gutterBottom>
                 Supporting Documents
               </Typography>
-              <Grid container spacing={2}>
+              <Grid container spacing={is720p ? 1.5 : 2}>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -1192,7 +1201,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       startIcon={<CloudUpload />}
                     fullWidth
                       sx={{ 
-                        height: 56, 
+                        height: is720p ? 44 : 56, 
                         borderStyle: 'dashed',
                         borderWidth: 2,
                         '&:hover': {

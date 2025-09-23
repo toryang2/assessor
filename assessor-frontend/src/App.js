@@ -77,6 +77,15 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <GlobalStyles
+        styles={{
+          'html, body, #root': { height: '100%', fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+          '*': { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif' },
+          '@media print': {
+            'html, body, #root, *': { fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif !important' }
+          }
+        }}
+      />
       {is720p && (
         <GlobalStyles styles={{ html: { fontSize: '10px' } }} />
       )}

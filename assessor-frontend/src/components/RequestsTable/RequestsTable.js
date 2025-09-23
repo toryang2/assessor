@@ -146,7 +146,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
         <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
-        <div style={{ marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
+        <div style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
       </div>
 
       <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%' }} className="info">
@@ -446,6 +446,11 @@ const RequestsTable = () => {
           }
       }
       @media print {
+        /* Header fonts */
+        .print-header h3, .print-header h4 { font-family: 'Times New Roman', Times, serif !important; }
+        .print-header div[style*="font-family: 'Tahoma"] { font-family: Tahoma, Verdana, sans-serif !important; }
+        /* Default app font */
+        html, body, #root, * { font-family: 'Inter','Roboto','Helvetica','Arial',sans-serif; }
         @page :first {
           margin-top: 5mm;
         }
