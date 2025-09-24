@@ -429,6 +429,17 @@ class Assessor_API {
         $table_users = $wpdb->prefix . 'assessor_users';
         $total_users = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_users");
         
+        // Compute properties created counts for current and previous month (based on created_at)
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $now_ts = current_time('timestamp');
+        $curr_start = date('Y-m-01 00:00:00', $now_ts);
+        $next_start = date('Y-m-01 00:00:00', strtotime('+1 month', $now_ts));
+        $prev_start = date('Y-m-01 00:00:00', strtotime('-1 month', $now_ts));
+        
+        $sql_month = "SELECT COUNT(*) FROM $table_properties WHERE status != 'deleted' AND created_at >= %s AND created_at < %s";
+        $created_this_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $curr_start, $next_start));
+        $created_last_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $prev_start, $curr_start));
+        
         // Get header photo URL from settings
         $settings = new Assessor_Settings();
         $settings_data = $settings->get_settings();
@@ -438,6 +449,8 @@ class Assessor_API {
             'total_properties' => $total_properties,
             'total_versions' => $version_counts,
             'total_users' => $total_users,
+            'properties_created_this_month' => $created_this_month,
+            'properties_created_last_month' => $created_last_month,
             'header_photo_url' => $header_photo_url,
             'recent_activity' => array() // Will be populated by audit trail
         );

@@ -444,10 +444,12 @@ class Assessor_Requests {
     public function get_statistics($args = array()) {
         $defaults = array(
             'date_from' => null,
-            'date_to' => null
+            'date_to' => null,
+            'summary_only' => false
         );
         
         $args = wp_parse_args($args, $defaults);
+        $summary_only = !empty($args['summary_only']) && ($args['summary_only'] === true || $args['summary_only'] === '1' || $args['summary_only'] === 1);
         
         $where_conditions = array('1=1');
         $where_values = array();
@@ -479,6 +481,31 @@ class Assessor_Requests {
         }
         $total_requests = $this->db->get_var($total_requests_query) ?: 0;
         
+        // This month / last month counts (based on created_at for consistency)
+        $now_ts = current_time('timestamp');
+        $curr_start = date('Y-m-01', $now_ts);
+        $next_start = date('Y-m-01', strtotime('+1 month', $now_ts));
+        $prev_start = date('Y-m-01', strtotime('-1 month', $now_ts));
+        $this_month_count = (int)$this->db->get_var($this->db->prepare(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE created_at >= %s AND created_at < %s",
+            $curr_start,
+            $next_start
+        ));
+        $last_month_count = (int)$this->db->get_var($this->db->prepare(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE created_at >= %s AND created_at < %s",
+            $prev_start,
+            $curr_start
+        ));
+
+        if ($summary_only) {
+            return array(
+                'total_amount' => (float) $total_amount,
+                'total_requests' => (int) $total_requests,
+                'total_requests_this_month' => (int) $this_month_count,
+                'total_requests_last_month' => (int) $last_month_count
+            );
+        }
+
         // Payment type breakdown
         $payment_types_query = "SELECT payment_type, COUNT(*) as count, SUM(amount_paid) as total
                                 FROM {$this->table_name} 
@@ -504,6 +531,8 @@ class Assessor_Requests {
         return array(
             'total_amount' => (float) $total_amount,
             'total_requests' => (int) $total_requests,
+            'total_requests_this_month' => (int) $this_month_count,
+            'total_requests_last_month' => (int) $last_month_count,
             'payment_types' => $payment_types,
             'purposes' => $purposes
         );

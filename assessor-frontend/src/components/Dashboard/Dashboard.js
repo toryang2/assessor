@@ -62,7 +62,7 @@ import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin } = useAuth();
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -154,14 +154,43 @@ const Dashboard = ({ onNavigate }) => {
 
   const fetchRequestStats = async (useCacheBusting = false) => {
     try {
-      const params = useCacheBusting ? addCacheBuster({}, true) : {};
+      const base = { summary_only: true };
+      const params = useCacheBusting ? addCacheBuster(base, true) : base;
       const stats = await apiService.getRequestStatistics(params);
       const count =
         (stats && (stats.total_requests ?? stats.requests_total ?? stats.total ?? stats.count)) ?? 0;
       setRequestsCount(count);
+      // Store monthly counts if present for UI trends
+      setDashboardData(prev => ({
+        ...prev,
+        requests_this_month: stats?.total_requests_this_month ?? prev?.requests_this_month,
+        requests_last_month: stats?.total_requests_last_month ?? prev?.requests_last_month
+      }));
     } catch (error) {
       console.error('❌ Dashboard: Error fetching request statistics:', error);
     }
+  };
+
+  // Show count of records created this month (no percentage)
+  const computeActiveRecordsTrend = () => {
+    const thisMonth =
+      dashboardData?.properties_created_this_month ??
+      dashboardData?.properties_created_current_month ??
+      dashboardData?.properties_created_month ??
+      null;
+    if (typeof thisMonth === 'number') {
+      return `${thisMonth} records added this month`;
+    }
+    return null;
+  };
+
+  // Show count of requests created this month (mirrors computeActiveRecordsTrend)
+  const computeRequestsTrend = () => {
+    const thisMonth = dashboardData?.requests_this_month ?? null;
+    if (typeof thisMonth === 'number') {
+      return `${thisMonth} requests this month`;
+    }
+    return null;
   };
 
   const toFormalCase = (text) => {
@@ -254,36 +283,42 @@ const Dashboard = ({ onNavigate }) => {
     { month: 'Jun', properties: 28, updates: 25 }
   ];
 
-  const quickActions = [
-    {
-      title: 'Add New Property',
-      description: 'Create a new property assessment record',
-      icon: <Add />,
-      color: theme.palette.primary.main,
-      action: handleAddProperty
-    },
-    {
-      title: 'View Properties',
-      description: 'Browse and manage property records',
-      icon: <Business />,
-      color: theme.palette.secondary.main,
-      action: handleViewProperties
-    },
-    {
-      title: 'Export Data',
-      description: 'Generate reports and export data',
-      icon: <FileDownload />,
-      color: theme.palette.secondary.main,
-      action: () => console.log('Export Data clicked')
-    },
-    {
-      title: 'Audit Trail',
-      description: 'View system activity and changes',
-      icon: <History />,
-      color: theme.palette.info.main,
-      action: () => console.log('Audit Trail clicked')
+  const quickActions = (() => {
+    const actions = [
+      {
+        title: 'Add New Property',
+        description: 'Create a new property assessment record',
+        icon: <Add />,
+        color: theme.palette.primary.main,
+        action: handleAddProperty
+      },
+      {
+        title: 'View Properties',
+        description: 'Browse and manage property records',
+        icon: <Business />,
+        color: theme.palette.secondary.main,
+        action: handleViewProperties
+      }
+    ];
+    // Conditionally include Export and Audit based on role
+    if (isSuperAdmin || isAdmin) {
+      actions.push({
+        title: 'Export Data',
+        description: 'Generate reports and export data',
+        icon: <FileDownload />,
+        color: theme.palette.secondary.main,
+        action: () => console.log('Export Data clicked')
+      });
+      actions.push({
+        title: 'Audit Trail',
+        description: 'View system activity and changes',
+        icon: <History />,
+        color: theme.palette.info.main,
+        action: () => console.log('Audit Trail clicked')
+      });
     }
-  ];
+    return actions;
+  })();
 
   const StatCard = ({ title, value, icon, color, subtitle, trend }) => (
     <motion.div
@@ -293,23 +328,32 @@ const Dashboard = ({ onNavigate }) => {
       <Card
         sx={{
           height: '100%',
+          minHeight: isSmallScreen ? 140 : 180,
           background: color + '08',
           border: `1px solid ${color}20`,
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        <CardContent>
+        <CardContent sx={{ p: isSmallScreen ? 2 : 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box>
-              <Typography variant="h4" component="div" fontWeight={600} color={color}>
+              <Typography
+                variant="h4"
+                component="div"
+                fontWeight={600}
+                color={color}
+                sx={{ fontSize: isSmallScreen ? '1.6rem' : undefined }}
+              >
                 {value}
               </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontSize: isSmallScreen ? '0.8rem' : undefined }}>
                 {title}
               </Typography>
               {subtitle && (
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.7rem' : undefined }}>
                   {subtitle}
                 </Typography>
               )}
@@ -318,22 +362,20 @@ const Dashboard = ({ onNavigate }) => {
               sx={{
                 backgroundColor: color + '15',
                 color: color,
-                width: 56,
-                height: 56
+                width: isSmallScreen ? 48 : 56,
+                height: isSmallScreen ? 48 : 56
               }}
             >
               {icon}
             </Avatar>
           </Box>
           
-          {trend && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <TrendingUp sx={{ fontSize: 16, color: theme.palette.success.main, mr: 0.5 }} />
-              <Typography variant="caption" color="success.main">
-                {trend}
-              </Typography>
-            </Box>
-          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 'auto', minHeight: isSmallScreen ? 20 : 22 }}>
+            <TrendingUp sx={{ fontSize: isSmallScreen ? 14 : 16, color: theme.palette.success.main, mr: 0.5, visibility: trend ? 'visible' : 'hidden' }} />
+            <Typography variant="caption" color="success.main" sx={{ fontSize: isSmallScreen ? '0.7rem' : undefined, visibility: trend ? 'visible' : 'hidden' }}>
+              {trend || 'placeholder'}
+            </Typography>
+          </Box>
         </CardContent>
       </Card>
     </motion.div>
@@ -348,26 +390,27 @@ const Dashboard = ({ onNavigate }) => {
         sx={{
           height: '100%',
           cursor: loading ? 'not-allowed' : 'pointer',
-          opacity: loading ? 0.7 : 1
+          opacity: loading ? 0.7 : 1,
+          minHeight: isSmallScreen ? 140 : 180
         }}
         onClick={loading ? undefined : action.action}
       >
-        <CardContent sx={{ textAlign: 'center', padding: 3 }}>
+        <CardContent sx={{ textAlign: 'center', padding: isSmallScreen ? 2 : 3 }}>
           <Avatar
             sx={{
               backgroundColor: action.color + '15',
               color: action.color,
-              width: 64,
-              height: 64,
+              width: isSmallScreen ? 52 : 64,
+              height: isSmallScreen ? 52 : 64,
               margin: '0 auto 16px'
             }}
           >
             {loading ? <CircularProgress size={32} color="inherit" /> : action.icon}
           </Avatar>
-          <Typography variant="h6" component="h3" gutterBottom>
+          <Typography variant="h6" component="h3" gutterBottom sx={{ fontSize: isSmallScreen ? '1rem' : undefined }}>
             {action.title}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.85rem' : undefined }}>
             {action.description}
           </Typography>
         </CardContent>
@@ -514,7 +557,7 @@ const Dashboard = ({ onNavigate }) => {
         animate="animate"
         variants={animations.stagger}
       >
-        <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+        <Grid container spacing={3} sx={{ marginBottom: 4 }} alignItems="stretch">
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total Properties"
@@ -522,7 +565,17 @@ const Dashboard = ({ onNavigate }) => {
               icon={<Business />}
               color={theme.palette.primary.main}
               subtitle="Active records"
-              trend="+12% this month"
+              trend={computeActiveRecordsTrend()}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Total Requests"
+              value={(dashboardData?.requests_count ?? null) ?? (requestsCount ?? 0)}
+              icon={<Business />}
+              color={theme.palette.success.main}
+              subtitle="Monthly Requests"
+              trend={computeRequestsTrend()}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -530,7 +583,7 @@ const Dashboard = ({ onNavigate }) => {
               title="Version History"
               value={dashboardData?.version_counts || 0}
               icon={<History />}
-              color={theme.palette.secondary.main}
+              color={theme.palette.info.main}
               subtitle="Total versions"
               trend="+8% this month"
             />
@@ -543,16 +596,6 @@ const Dashboard = ({ onNavigate }) => {
               color={theme.palette.success.main}
               subtitle="Last 24 hours"
               trend="+15% this week"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Requests"
-              value={(dashboardData?.requests_count ?? null) ?? (requestsCount ?? 0)}
-              icon={<Business />}
-              color={theme.palette.info.main}
-              subtitle="Total requests"
-              trend="+3% this month"
             />
           </Grid>
         </Grid>
@@ -703,7 +746,7 @@ const Dashboard = ({ onNavigate }) => {
               </CardContent>
             </Card>
           ) : (
-            <Grid container spacing={2}>
+            <Grid container spacing={isSmallScreen ? 1.5 : 2} alignItems="stretch">
               {properties.slice(0, 6).map((property, index) => (
                 <Grid item xs={12} sm={6} md={4} key={property.id}>
                   <motion.div
@@ -714,6 +757,9 @@ const Dashboard = ({ onNavigate }) => {
                     <Card
                       sx={{
                         height: '100%',
+                        minHeight: isSmallScreen ? 180 : 220,
+                        display: 'flex',
+                        flexDirection: 'column',
                         cursor: 'pointer',
                         '&:hover': {
                           boxShadow: theme.shadows[8],
@@ -723,9 +769,9 @@ const Dashboard = ({ onNavigate }) => {
                       }}
                       onClick={() => handleViewProperty(property)}
                     >
-                      <CardContent>
+                      <CardContent sx={{ p: isSmallScreen ? 2 : 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                          <Typography variant="h6" component="h3" noWrap>
+                          <Typography variant="h6" component="h3" noWrap sx={{ fontSize: isSmallScreen ? '1rem' : undefined }}>
                             {property.tax_declaration_number || `Property ${property.id}`}
                           </Typography>
                           <Chip
@@ -736,32 +782,38 @@ const Dashboard = ({ onNavigate }) => {
                           />
                         </Box>
                         
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: isSmallScreen ? '0.85rem' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {property.declarant_last_name && property.declarant_first_name 
                             ? `${property.declarant_last_name}, ${property.declarant_first_name}`
                             : property.business_name || 'No owner specified'
                           }
                         </Typography>
                         
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: isSmallScreen ? '0.85rem' : undefined, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {property.location || property.address || 'Location not specified'}
                         </Typography>
                         
-                        {property.assessed_value && (
-                          <Typography variant="body2" fontWeight={500} color="primary.main">
-                            ₱{Number(property.assessed_value).toLocaleString()}
-                          </Typography>
-                        )}
+                        <Box sx={{ minHeight: isSmallScreen ? 20 : 24 }}>
+                          {property.assessed_value ? (
+                            <Typography variant="body2" fontWeight={500} color="primary.main" sx={{ fontSize: isSmallScreen ? '0.9rem' : undefined }}>
+                              ₱{Number(property.assessed_value).toLocaleString()}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" sx={{ visibility: 'hidden', fontSize: isSmallScreen ? '0.9rem' : undefined }}>
+                              placeholder
+                            </Typography>
+                          )}
+                        </Box>
                         
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto' }}>
                           <IconButton
-                            size="small"
+                            size={isSmallScreen ? 'small' : 'medium'}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEditProperty(property);
                             }}
                           >
-                            <Edit fontSize="small" />
+                            <Edit fontSize={isSmallScreen ? 'small' : 'medium'} />
                           </IconButton>
                         </Box>
                       </CardContent>
