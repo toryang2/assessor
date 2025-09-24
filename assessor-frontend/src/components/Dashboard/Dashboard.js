@@ -770,7 +770,9 @@ const Dashboard = ({ onNavigate }) => {
                         
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: isSmallScreen ? '0.85rem' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {property.declarant_last_name && property.declarant_first_name 
-                            ? `${property.declarant_last_name}, ${property.declarant_first_name}`
+                            ? (`${property.declarant_last_name}, ${property.declarant_first_name}`)
+                            : property.declarant_last_name
+                            ? (property.declarant_last_name)
                             : property.business_name || 'No owner specified'
                           }
                         </Typography>
