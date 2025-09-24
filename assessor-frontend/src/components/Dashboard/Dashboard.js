@@ -73,7 +73,7 @@ const Dashboard = ({ onNavigate }) => {
   const [editingProperty, setEditingProperty] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [settings, setSettings] = useState(null);
-  const [requestsCount, setRequestsCount] = useState(null);
+
   const isSmallScreen = (() => {
     try {
       const w = window.innerWidth;
@@ -90,7 +90,6 @@ const Dashboard = ({ onNavigate }) => {
       fetchDashboardData();
       fetchProperties();
       fetchSettings();
-      fetchRequestStats();
     }
   }, [authLoading, isAuthenticated]);
 
@@ -152,25 +151,6 @@ const Dashboard = ({ onNavigate }) => {
     }
   };
 
-  const fetchRequestStats = async (useCacheBusting = false) => {
-    try {
-      const base = { summary_only: true };
-      const params = useCacheBusting ? addCacheBuster(base, true) : base;
-      const stats = await apiService.getRequestStatistics(params);
-      const count =
-        (stats && (stats.total_requests ?? stats.requests_total ?? stats.total ?? stats.count)) ?? 0;
-      setRequestsCount(count);
-      // Store monthly counts if present for UI trends
-      setDashboardData(prev => ({
-        ...prev,
-        requests_this_month: stats?.total_requests_this_month ?? prev?.requests_this_month,
-        requests_last_month: stats?.total_requests_last_month ?? prev?.requests_last_month
-      }));
-    } catch (error) {
-      console.error('❌ Dashboard: Error fetching request statistics:', error);
-    }
-  };
-
   // Show count of records created this month (no percentage)
   const computeActiveRecordsTrend = () => {
     const thisMonth =
@@ -179,7 +159,7 @@ const Dashboard = ({ onNavigate }) => {
       dashboardData?.properties_created_month ??
       null;
     if (typeof thisMonth === 'number') {
-      return `${thisMonth} records added this month`;
+      return `${thisMonth} added this month`;
     }
     return null;
   };
@@ -388,14 +368,15 @@ const Dashboard = ({ onNavigate }) => {
     >
       <Card
         sx={{
-          height: '100%',
+          height: isSmallScreen ? 180 : 220,
           cursor: loading ? 'not-allowed' : 'pointer',
           opacity: loading ? 0.7 : 1,
-          minHeight: isSmallScreen ? 140 : 180
+          display: 'flex',
+          flexDirection: 'column'
         }}
         onClick={loading ? undefined : action.action}
       >
-        <CardContent sx={{ textAlign: 'center', padding: isSmallScreen ? 2 : 3 }}>
+        <CardContent sx={{ textAlign: 'center', padding: isSmallScreen ? 2 : 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', flexGrow: 1 }}>
           <Avatar
             sx={{
               backgroundColor: action.color + '15',
@@ -427,7 +408,7 @@ const Dashboard = ({ onNavigate }) => {
   }
 
   return (
-    <Box>
+    <Box sx={{ pb: 6 }}>
       {/* Header Photo */}
       {dashboardData?.header_photo_url && (
         <motion.div
@@ -571,9 +552,9 @@ const Dashboard = ({ onNavigate }) => {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total Requests"
-              value={(dashboardData?.requests_count ?? null) ?? (requestsCount ?? 0)}
+              value={dashboardData?.requests_count || 0}
               icon={<Business />}
-              color={theme.palette.success.main}
+              color={theme.palette.secondary.main}
               subtitle="Monthly Requests"
               trend={computeRequestsTrend()}
             />
@@ -583,7 +564,7 @@ const Dashboard = ({ onNavigate }) => {
               title="Version History"
               value={dashboardData?.version_counts || 0}
               icon={<History />}
-              color={theme.palette.info.main}
+              color={theme.palette.error.main}
               subtitle="Total versions"
               trend="+8% this month"
             />
@@ -674,7 +655,7 @@ const Dashboard = ({ onNavigate }) => {
         variants={animations.fadeIn}
         transition={{ delay: 0.3 }}
       >
-        <Box sx={{ marginTop: 4, marginBottom: 3 }}>
+        <Box sx={{ marginTop: 4, marginBottom: 5 }}>
           <Typography variant="h5" component="h2" gutterBottom>
             Quick Actions
           </Typography>
@@ -827,7 +808,7 @@ const Dashboard = ({ onNavigate }) => {
       </motion.div>
 
       {/* Recent Activity */}
-      <motion.div
+      {/* <motion.div
         initial="initial"
         animate="animate"
         variants={animations.fadeIn}
@@ -905,9 +886,9 @@ const Dashboard = ({ onNavigate }) => {
             </CardContent>
           </Card>
         </Box>
-      </motion.div>
-
-             {/* Property Form Modal */}
+      </motion.div> */}
+      
+      {/* Property Form Modal */}
        <PropertyFormModal
          open={showPropertyForm}
          property={editingProperty}

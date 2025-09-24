@@ -1,9 +1,10 @@
 <?php
 /**
  * Plugin Name: Assessor History Archiving API
- * Description: Comprehensive REST API for property assessor history archiving system
+ * Description: REST API for Assessor History Archiving System
  * Version: 1.0.7
- * Author: Philippine Local Government
+ * Author: toryang2
+ * Author URI: https://github.com/toryang2
  * Text Domain: assessor-api
  */
 

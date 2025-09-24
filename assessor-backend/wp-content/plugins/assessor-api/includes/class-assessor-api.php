@@ -431,6 +431,7 @@ class Assessor_API {
         
         // Compute properties created counts for current and previous month (based on created_at)
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $table_requests = $wpdb->prefix . 'assessor_requests';
         $now_ts = current_time('timestamp');
         $curr_start = date('Y-m-01 00:00:00', $now_ts);
         $next_start = date('Y-m-01 00:00:00', strtotime('+1 month', $now_ts));
@@ -439,6 +440,19 @@ class Assessor_API {
         $sql_month = "SELECT COUNT(*) FROM $table_properties WHERE status != 'deleted' AND created_at >= %s AND created_at < %s";
         $created_this_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $curr_start, $next_start));
         $created_last_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $prev_start, $curr_start));
+
+        // Requests totals and monthly counts (based on created_at)
+        $total_requests = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_requests");
+        $requests_this_month = (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_requests WHERE created_at >= %s AND created_at < %s",
+            $curr_start,
+            $next_start
+        ));
+        $requests_last_month = (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_requests WHERE created_at >= %s AND created_at < %s",
+            $prev_start,
+            $curr_start
+        ));
         
         // Get header photo URL from settings
         $settings = new Assessor_Settings();
@@ -451,6 +465,10 @@ class Assessor_API {
             'total_users' => $total_users,
             'properties_created_this_month' => $created_this_month,
             'properties_created_last_month' => $created_last_month,
+            // Requests summary for dashboard direct consumption
+            'requests_count' => $total_requests,
+            'requests_this_month' => $requests_this_month,
+            'requests_last_month' => $requests_last_month,
             'header_photo_url' => $header_photo_url,
             'recent_activity' => array() // Will be populated by audit trail
         );
