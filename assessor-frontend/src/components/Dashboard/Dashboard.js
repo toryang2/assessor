@@ -159,7 +159,7 @@ const Dashboard = ({ onNavigate }) => {
       dashboardData?.properties_created_month ??
       null;
     if (typeof thisMonth === 'number') {
-      return `${thisMonth} added this month`;
+      return `${thisMonth} records added this month`;
     }
     return null;
   };
@@ -564,7 +564,7 @@ const Dashboard = ({ onNavigate }) => {
               title="Version History"
               value={dashboardData?.version_counts || 0}
               icon={<History />}
-              color={theme.palette.error.main}
+              color={theme.palette.success.main}
               subtitle="Total versions"
               trend="+8% this month"
             />
