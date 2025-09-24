@@ -21,26 +21,29 @@ const SimpleApp = () => {
 
 // Main App Component
 const App = () => {
-  const [is720p, setIs720p] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   useEffect(() => {
-    const detect720p = () => {
+    const detectSmallScreen = () => {
       try {
         const scrW = window.screen?.width || window.innerWidth;
         const scrH = window.screen?.height || window.innerHeight;
         const winW = window.innerWidth;
         const winH = window.innerHeight;
-        // Consider exact 1280x720, portrait 720x1280, or small viewports <= these bounds
-        const matchExact = (scrW === 1280 && scrH === 720) || (scrW === 720 && scrH === 1280);
-        const matchViewport = winW <= 1280 && winH <= 720;
-        setIs720p(Boolean(matchExact || matchViewport));
+        
+        // Consider exact 1280x720, 1366x768, portrait modes, or small viewports <= these bounds
+        const matchExact720p = (scrW === 1280 && scrH === 720) || (scrW === 720 && scrH === 1280);
+        const matchExact768p = (scrW === 1366 && scrH === 768) || (scrW === 768 && scrH === 1366);
+        const matchViewport = (winW <= 1280 && winH <= 720) || (winW <= 1366 && winH <= 768);
+        
+        setIsSmallScreen(Boolean(matchExact720p || matchExact768p || matchViewport));
       } catch (_) {
-        setIs720p(false);
+        setIsSmallScreen(false);
       }
     };
-    detect720p();
-    window.addEventListener('resize', detect720p);
-    return () => window.removeEventListener('resize', detect720p);
+    detectSmallScreen();
+    window.addEventListener('resize', detectSmallScreen);
+    return () => window.removeEventListener('resize', detectSmallScreen);
   }, []);
 
   useEffect(() => {
@@ -86,8 +89,8 @@ const App = () => {
           }
         }}
       />
-      {is720p && (
-        <GlobalStyles styles={{ html: { fontSize: '10px' } }} />
+      {isSmallScreen && (
+        <GlobalStyles styles={{ html: { fontSize: '14px' } }} />
       )}
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <AuthProvider>

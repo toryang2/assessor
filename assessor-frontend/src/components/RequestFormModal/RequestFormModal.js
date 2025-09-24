@@ -57,8 +57,8 @@ const sanitizeBusinessName = (name) => {
 };
 
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
-  const is720p = (() => {
-    try { const w = window.innerWidth; const h = window.innerHeight; return w <= 1280 && h <= 720; } catch (_) { return false; }
+  const isSmallScreen = (() => {
+    try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768); } catch (_) { return false; }
   })();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
@@ -401,14 +401,14 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       <Dialog
         open={open}
         onClose={handleClose}
-        maxWidth={is720p ? 'sm' : 'md'}
+        maxWidth={isSmallScreen ? 'sm' : 'md'}
         fullWidth
         PaperProps={{
           component: motion.div,
           initial: { opacity: 0, y: 20 },
           animate: { opacity: 1, y: 0 },
           transition: { duration: 0.3 },
-          sx: { width: is720p ? '60vw' : undefined, maxHeight: '90vh' }
+          sx: { width: isSmallScreen ? '60vw' : undefined, maxHeight: '90vh' }
         }}
       >
         <DialogTitle sx={{ 
@@ -421,13 +421,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           <Receipt />
           Request Form
         </DialogTitle>
-        <DialogContent sx={is720p ? { p: 2, '& .MuiTextField-root': { mb: 1 }, '& .MuiInputBase-root': { fontSize: '0.9rem' }, '& .MuiFormLabel-root': { fontSize: '0.85rem' }, '& .MuiButton-root': { padding: '6px 12px' } } : { p: 3 }}>
+        <DialogContent sx={isSmallScreen ? { p: 2, '& .MuiTextField-root': { mb: 1 }, '& .MuiInputBase-root': { fontSize: '0.9rem' }, '& .MuiFormLabel-root': { fontSize: '0.85rem' }, '& .MuiButton-root': { padding: '6px 12px' } } : { p: 3 }}>
           <form onSubmit={handleSubmit}>
-            <Grid container {...(is720p ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 3 })}>
+            <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 3 })}>
               {/* Property Search Section */}
               <Grid item xs={12}>
                 <Card variant="outlined">
-                  <CardContent sx={{ p: is720p ? 2 : 3 }}>
+                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
                     <Typography variant="h6" gutterBottom sx={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -462,8 +462,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                            placeholder="Search by Tax Declaration Number, owner name, or business name..."
                            helperText={validationErrors.has('property_selection') ? "Property selection is required" : "Start typing to search for properties. Property selection is required."}
                            error={validationErrors.has('property_selection')}
-                           size={is720p ? 'small' : 'medium'}
-                           margin={is720p ? 'dense' : 'normal'}
+                           size={isSmallScreen ? 'small' : 'medium'}
+                           margin={isSmallScreen ? 'dense' : 'normal'}
                            InputProps={{
                              ...params.InputProps,
                              endAdornment: (
@@ -610,7 +610,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               {/* Client Information Section */}
               <Grid item xs={12}>
                 <Card variant="outlined">
-                  <CardContent sx={{ p: is720p ? 2 : 3 }}>
+                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
                     <Typography variant="h6" gutterBottom sx={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -622,7 +622,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
                     
-                    <Grid container {...(is720p ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
+                    <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
@@ -631,8 +631,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           onChange={handleChange('client_name')}
                           error={validationErrors.has('client_name')}
                           inputProps={{style: { textTransform: 'uppercase' }}}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
 
@@ -643,8 +643,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           value={formData.contact_number}
                           onChange={handleChange('contact_number')}
                           inputProps={{style: { textTransform: 'uppercase' }}}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
 
@@ -657,8 +657,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           inputProps={{style: { textTransform: 'uppercase' }}}
                           multiline
                           rows={2}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
 
@@ -672,8 +672,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           multiline
                           rows={3}
                           placeholder="Additional notes or special instructions..."
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                     </Grid>
@@ -684,7 +684,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               {/* Payment Information Section */}
               <Grid item xs={12}>
                 <Card variant="outlined">
-                  <CardContent sx={{ p: is720p ? 2 : 3 }}>
+                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
                     <Typography variant="h6" gutterBottom sx={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -696,7 +696,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
                     
-                    <Grid container {...(is720p ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
+                    <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
@@ -721,8 +721,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                               }));
                             }
                           }}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -733,8 +733,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           onChange={handleChange('receipt_number')}
                           inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('receipt_number')}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -746,8 +746,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           onChange={handleChange('date_issued')}
                           InputLabelProps={{ shrink: true }}
                           error={validationErrors.has('date_issued')}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -758,12 +758,12 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           onChange={handleChange('place_issued')}
                           inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('place_issued')}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
-                        <FormControl fullWidth error={validationErrors.has('purpose')} size={is720p ? 'small' : 'medium'}>
+                        <FormControl fullWidth error={validationErrors.has('purpose')} size={isSmallScreen ? 'small' : 'medium'}>
                           <InputLabel>Purpose *</InputLabel>
                           <Select
                             value={formData.purpose}
@@ -783,13 +783,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Prepared By *"
                           value={formData.prepared_by}
                           onChange={handleChange('prepared_by')}
-                          InputProps={{ readOnly: true, style: is720p ? { fontSize: '0.9rem' } : undefined }}
+                          InputProps={{ readOnly: true, style: isSmallScreen ? { fontSize: '0.9rem' } : undefined }}
                           InputLabelProps={{ shrink: true }}
                           inputProps={{ tabIndex: -1 }}
                           variant="outlined"
                           error={validationErrors.has('prepared_by')}
-                          size={is720p ? 'small' : 'medium'}
-                          margin={is720p ? 'dense' : 'normal'}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                           sx={{
                             pointerEvents: 'none',
                             '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }
@@ -805,7 +805,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Button
                 onClick={handleClose}
                 variant="outlined"
-                size={is720p ? 'small' : 'medium'}
+                size={isSmallScreen ? 'small' : 'medium'}
                 disabled={loading}
               >
                 Cancel
@@ -814,7 +814,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 onClick={handleSubmit}
                 startIcon={<Save />}
                 variant="contained"
-                size={is720p ? 'small' : 'medium'}
+                size={isSmallScreen ? 'small' : 'medium'}
                 disabled={loading}
               >
                 {loading ? 'Saving...' : 'Save Request'}
@@ -828,14 +828,14 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       <Dialog
         open={taxHistoryModal}
         onClose={() => setTaxHistoryModal(false)}
-        maxWidth={is720p ? 'lg' : 'xl'}
+        maxWidth={isSmallScreen ? 'lg' : 'xl'}
         fullWidth
         PaperProps={{
           component: motion.div,
           initial: { opacity: 0, y: 20 },
           animate: { opacity: 1, y: 0 },
           transition: { duration: 0.3 },
-          sx: { width: is720p ? '80vw' : undefined, maxHeight: '90vh' }
+          sx: { width: isSmallScreen ? '80vw' : undefined, maxHeight: '90vh' }
         }}
       >
         <DialogTitle sx={{ 
@@ -849,7 +849,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           Tax Declaration History - {selectedProperty?.tax_declaration_number}
         </DialogTitle>
 
-        <DialogContent sx={{ p: is720p ? 2 : 3 }}>
+        <DialogContent sx={{ p: isSmallScreen ? 2 : 3 }}>
           {taxHistoryLoading ? (
             <Box display="flex" justifyContent="center" p={3}>
               <CircularProgress />

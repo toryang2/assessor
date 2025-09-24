@@ -180,11 +180,11 @@ const Login = () => {
     }).join(' ');
   };
   const headerMunicipality = `${toFormalCase(baseMunicipality)}`;
-  const is720p = (() => {
+  const isSmallScreen = (() => {
     try {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      return w <= 1280 && h <= 720;
+      return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768);
     } catch (_) {
       return false;
     }
@@ -200,10 +200,10 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: is720p ? 1.5 : 2
+        padding: isSmallScreen ? 1.5 : 2
       }}
     >
-      <Container maxWidth={is720p ? 'xs' : 'sm'}>
+      <Container maxWidth={isSmallScreen ? 'xs' : 'sm'}>
         <motion.div
           initial="initial"
           animate="animate"
@@ -223,7 +223,7 @@ const Login = () => {
             {/* Header with Philippine Government branding */}
             <Box
               sx={{
-                padding: is720p ? 3 : 4,
+                padding: isSmallScreen ? 3 : 4,
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden'
@@ -249,9 +249,9 @@ const Login = () => {
                   }}
                 >
                   {settings?.app_logo_url ? (
-                    <img src={settings.app_logo_url} alt="Logo" style={{ height: is720p ? 72 : 128, marginBottom: 16, opacity: 0.9 }} />
+                    <img src={settings.app_logo_url} alt="Logo" style={{ height: isSmallScreen ? 72 : 128, marginBottom: 16, opacity: 0.9 }} />
                   ) : (
-                    <Business sx={{ fontSize: is720p ? 44 : 60, marginBottom: 2, opacity: 0.8 }} />
+                    <Business sx={{ fontSize: isSmallScreen ? 44 : 60, marginBottom: 2, opacity: 0.8 }} />
                   )}
                 </motion.div>
                 
@@ -261,7 +261,7 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600, fontSize: is720p ? '1.35rem' : undefined }}>
+                  <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600, fontSize: isSmallScreen ? '1.35rem' : undefined }}>
                     Local Government of {headerMunicipality}
                   </Typography>
                 </motion.div>
@@ -272,7 +272,7 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="h6" component="h2" sx={{ fontWeight: 500, fontSize: is720p ? '1rem' : undefined }}>
+                  <Typography variant="h6" component="h2" sx={{ fontWeight: 500, fontSize: isSmallScreen ? '1rem' : undefined }}>
                     Assessor's Office Archiving System
                   </Typography>
                 </motion.div>
@@ -283,21 +283,21 @@ const Login = () => {
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
                   }}
                 >
-                  <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8, fontSize: is720p ? '0.9rem' : undefined }}>
+                  <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8, fontSize: isSmallScreen ? '0.9rem' : undefined }}>
                     History Archiving & Management
                   </Typography>
                 </motion.div>
               </motion.div>
             </Box>
 
-            <CardContent sx={{ padding: is720p ? 3 : 4 }}>
+            <CardContent sx={{ padding: isSmallScreen ? 3 : 4 }}>
               <motion.form
                 onSubmit={handleSubmit}
                 initial="initial"
                 animate="animate"
                 variants={animations.fadeIn}
               >
-                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', marginBottom: 3, fontWeight: 600, fontSize: is720p ? '1.1rem' : undefined }}>
+                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', marginBottom: 3, fontWeight: 600, fontSize: isSmallScreen ? '1.1rem' : undefined }}>
                   Sign In
                 </Typography>
 
@@ -311,9 +311,9 @@ const Login = () => {
                   onChange={handleInputChange}
                   error={!!validationErrors.username}
                   helperText={validationErrors.username || ' '}
-                  margin={is720p ? 'dense' : 'normal'}
+                  margin={isSmallScreen ? 'dense' : 'normal'}
                   variant="outlined"
-                  size={is720p ? 'small' : 'medium'}
+                  size={isSmallScreen ? 'small' : 'medium'}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -322,7 +322,7 @@ const Login = () => {
                     ),
                   }}
                   sx={{ 
-                    marginBottom: is720p ? 1.5 : 2,
+                    marginBottom: isSmallScreen ? 1.5 : 2,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
                       '&:hover': {
@@ -344,9 +344,9 @@ const Login = () => {
                   onChange={handleInputChange}
                   error={!!validationErrors.password}
                   helperText={validationErrors.password || ' '}
-                  margin={is720p ? 'dense' : 'normal'}
+                  margin={isSmallScreen ? 'dense' : 'normal'}
                   variant="outlined"
-                  size={is720p ? 'small' : 'medium'}
+                  size={isSmallScreen ? 'small' : 'medium'}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -365,7 +365,7 @@ const Login = () => {
                     ),
                   }}
                   sx={{ 
-                    marginBottom: is720p ? 2 : 3,
+                    marginBottom: isSmallScreen ? 2 : 3,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
                       '&:hover': {
@@ -386,16 +386,16 @@ const Login = () => {
                     type="submit"
                     fullWidth
                     variant="contained"
-                    size={is720p ? 'medium' : 'large'}
+                    size={isSmallScreen ? 'medium' : 'large'}
                     sx={{
-                      height: is720p ? 44 : 56,
-                      fontSize: is720p ? '0.95rem' : '1.1rem',
+                      height: isSmallScreen ? 44 : 56,
+                      fontSize: isSmallScreen ? '0.95rem' : '1.1rem',
                       fontWeight: 600,
                       background: theme.palette.primary.main,
                       '&:hover': {
                         background: theme.palette.primary.dark,
                         transform: 'translateY(-2px)',
-                        boxShadow: is720p ? '0 6px 18px rgba(37, 99, 235, 0.22)' : '0 8px 25px rgba(37, 99, 235, 0.3)'
+                        boxShadow: isSmallScreen ? '0 6px 18px rgba(37, 99, 235, 0.22)' : '0 8px 25px rgba(37, 99, 235, 0.3)'
                       }
                     }}
                   >

@@ -1147,19 +1147,19 @@ const PropertyTable = () => {
             <Box sx={{ flex: 1, overflow: 'auto' }}>
             <TableContainer component={Paper}>
               {(() => {
-                const is720p = (() => {
-                  try { const w = window.innerWidth; const h = window.innerHeight; return w <= 1280 && h <= 720; } catch (_) { return false; }
+                const isSmallScreen = (() => {
+                  try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768); } catch (_) { return false; }
                 })();
                 return (
                   <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
                     {appLogoUrl ? (
-                      <img src={appLogoUrl} alt="Logo" style={{ height: is720p ? 48 : 64, display: 'block', margin: is720p ? '0 auto 6px auto' : '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <img src={appLogoUrl} alt="Logo" style={{ height: isSmallScreen ? 48 : 64, display: 'block', margin: isSmallScreen ? '0 auto 6px auto' : '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     ) : null}
-                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerPh}</h4>
-                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerProvince}</h4>
-                    <h4 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-                    <h3 style={{ fontSize: is720p ? 14 : 16, margin: '-6px 0', fontWeight: 600}}>{headerOffice}</h3>
-                    <div style={{ marginTop: is720p ? 6 : 8, marginBottom: is720p ? 10 : 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif', fontSize: is720p ? 13 : 14 }}>{headerTitle}</div>
+                    <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerPh}</h4>
+                    <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerProvince}</h4>
+                    <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
+                    <h3 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 600}}>{headerOffice}</h3>
+                    <div style={{ marginTop: isSmallScreen ? 6 : 8, marginBottom: isSmallScreen ? 10 : 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif', fontSize: isSmallScreen ? 13 : 14 }}>{headerTitle}</div>
                   </div>
                 );
               })()}

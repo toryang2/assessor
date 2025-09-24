@@ -51,16 +51,16 @@ const drawerWidth = 320;
 const Layout = ({ children }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const is720p = (() => {
+  const isSmallScreen = (() => {
     try {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      return w <= 1280 && h <= 720;
+      return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768);
     } catch (_) {
       return false;
     }
   })();
-  const computedDrawerWidth = is720p ? 240 : drawerWidth;
+  const computedDrawerWidth = isSmallScreen ? 300 : drawerWidth;
   const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
@@ -266,29 +266,29 @@ const Layout = ({ children }) => {
   const drawer = (
     <Box>
       <Box sx={{ 
-        py: is720p ? 3 : 4, 
+        py: isSmallScreen ? 3 : 4, 
         px: 2,
         borderBottom: `1px solid ${theme.palette.divider}`,
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: is720p ? 1.5 : 2
+        gap: isSmallScreen ? 1.5 : 2
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {settings?.app_logo_url ? (
-            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: is720p ? 48 : 64, display: 'block' }} />
+            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 48 : 64, display: 'block' }} />
           ) : (
-            <Business sx={{ fontSize: is720p ? 22 : 28, color: 'primary.main' }} />
+            <Business sx={{ fontSize: isSmallScreen ? 22 : 28, color: 'primary.main' }} />
           )}
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <Typography variant="body2" fontWeight={600} sx={{ fontSize: is720p ? '0.9rem' : undefined }}>
+          <Typography variant="body2" fontWeight={600} sx={{ fontSize: isSmallScreen ? '0.9rem' : undefined }}>
             Assessor's Archiving System
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: is720p ? '0.85rem' : undefined }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.85rem' : undefined }}>
             {headerMunicipality}
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: is720p ? '0.75rem' : undefined }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.75rem' : undefined }}>
             {headerProvince}
           </Typography>
         </Box>

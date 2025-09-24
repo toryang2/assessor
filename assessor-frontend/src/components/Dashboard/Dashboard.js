@@ -74,11 +74,11 @@ const Dashboard = ({ onNavigate }) => {
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [settings, setSettings] = useState(null);
   const [requestsCount, setRequestsCount] = useState(null);
-  const is720p = (() => {
+  const isSmallScreen = (() => {
     try {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      return w <= 1280 && h <= 720;
+      return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768);
     } catch (_) {
       return false;
     }
@@ -396,7 +396,7 @@ const Dashboard = ({ onNavigate }) => {
             <Box
               sx={{
                 width: '100%',
-                height: is720p ? '100px' : '200px', // shorter at 720p
+                height: isSmallScreen ? '100px' : '200px', // shorter at 720p
                 backgroundImage: `url(${dashboardData.header_photo_url})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -426,9 +426,9 @@ const Dashboard = ({ onNavigate }) => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     {settings?.app_logo_url ? (
-                      <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: is720p ? 64 : 86, display: 'block' }} />
+                      <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 64 : 86, display: 'block' }} />
                     ) : (
-                      <Business sx={{ fontSize: is720p ? 64 : 80, color: 'white' }} />
+                      <Business sx={{ fontSize: isSmallScreen ? 64 : 80, color: 'white' }} />
                     )}
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -440,7 +440,7 @@ const Dashboard = ({ onNavigate }) => {
                           fontWeight: 600,
                           marginBottom: 0,
                           fontFamily: 'Poppins, sans-serif',
-                          fontSize: is720p ? '1.5rem' : undefined
+                          fontSize: isSmallScreen ? '1.5rem' : undefined
                         }}
                       >
                         Assessor's Archiving System
@@ -452,7 +452,7 @@ const Dashboard = ({ onNavigate }) => {
                           fontWeight: 500,
                           marginBottom: 0,
                           fontFamily: 'Poppins, sans-serif',
-                          fontSize: is720p ? '1.2rem' : undefined
+                          fontSize: isSmallScreen ? '1.2rem' : undefined
                         }}
                       >
                         Municipality of {toFormalCase(settings?.header_municipality || 'KITAOTAO')}
@@ -464,7 +464,7 @@ const Dashboard = ({ onNavigate }) => {
                           fontWeight: 400,
                           marginBottom: 0,
                           fontFamily: 'Poppins, sans-serif',
-                          fontSize: is720p ? '1.15rem' : undefined
+                          fontSize: isSmallScreen ? '1.15rem' : undefined
                         }}
                       >
                         Province of {toFormalCase(settings?.header_province || 'BUKIDNON')}
