@@ -397,6 +397,21 @@ const PropertyTable = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, searchTerm]);
 
+  // Open printable modal automatically when navigated from Dashboard Recent Properties
+  useEffect(() => {
+    try {
+      const tdn = localStorage.getItem('assessor_open_print_tdn');
+      if (tdn) {
+        // Clear immediately to avoid re-opening on subsequent visits
+        localStorage.removeItem('assessor_open_print_tdn');
+        // Delay slightly to avoid modal jank while table renders
+        setTimeout(() => {
+          handleViewPrintableHistory(tdn);
+        }, 50);
+      }
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     const loadSettings = async () => {
       try {

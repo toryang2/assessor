@@ -226,6 +226,11 @@ const Dashboard = ({ onNavigate }) => {
   };
 
   const handleViewProperty = (property) => {
+    if (property && property.tax_declaration_number) {
+      try {
+        localStorage.setItem('assessor_open_print_tdn', String(property.tax_declaration_number));
+      } catch (_) {}
+    }
     if (onNavigate) {
       onNavigate('Properties');
     } else {
