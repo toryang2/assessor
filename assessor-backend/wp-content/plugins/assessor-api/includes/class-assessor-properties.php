@@ -538,8 +538,32 @@ class Assessor_Properties {
     
     public function get_version_counts() {
         global $wpdb;
-        $table_versions = $wpdb->prefix . 'assessor_property_versions';
-        return $wpdb->get_var("SELECT COUNT(*) FROM $table_versions");
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        
+        // Count linked tax declarations = 1 count per linked chain
+        // Count unique tax declaration chains by finding root declarations
+        // Root declarations are those that don't have a previous_tax_declaration_number
+        // or their previous_tax_declaration_number doesn't exist in the properties table
+        $query = "
+            SELECT COUNT(DISTINCT tax_declaration_number) as linked_chains
+            FROM {$table_properties} p1
+            WHERE p1.status != 'deleted'
+              AND (p1.previous_tax_declaration_number IS NULL 
+                   OR p1.previous_tax_declaration_number = ''
+                   OR NOT EXISTS (
+                       SELECT 1 FROM {$table_properties} p2 
+                       WHERE p2.tax_declaration_number = p1.previous_tax_declaration_number
+                         AND p2.status != 'deleted'
+                   ))
+        ";
+        
+        $result = $wpdb->get_var($query);
+        
+        // Debug logging
+        error_log("🔍 Linked Tax Declaration Count Query: " . $query);
+        error_log("🔍 Linked Tax Declaration Count Result: " . ($result ? $result : 0));
+        
+        return $result ? $result : 0;
     }
     
     public function get_tax_declaration_history($tax_declaration_number) {

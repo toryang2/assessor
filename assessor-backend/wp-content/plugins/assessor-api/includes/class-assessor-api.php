@@ -441,6 +441,21 @@ class Assessor_API {
         $created_this_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $curr_start, $next_start));
         $created_last_month = (int)$wpdb->get_var($wpdb->prepare($sql_month, $prev_start, $curr_start));
 
+        // RPTs added this month - count of chain heads (most recent declarations) created this month
+        // This counts the head of each chain that was created this month
+        $rpts_this_month_query = "
+            SELECT COUNT(*) as rpts_this_month
+            FROM {$table_properties} p1
+            WHERE p1.status != 'deleted'
+              AND p1.created_at >= %s AND p1.created_at < %s
+              AND NOT EXISTS (
+                  SELECT 1 FROM {$table_properties} p2 
+                  WHERE p2.previous_tax_declaration_number = p1.tax_declaration_number
+                    AND p2.status != 'deleted'
+              )
+        ";
+        $rpts_this_month = (int)$wpdb->get_var($wpdb->prepare($rpts_this_month_query, $curr_start, $next_start));
+
         // Requests totals and monthly counts (based on created_at)
         $total_requests = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_requests");
         $requests_this_month = (int)$wpdb->get_var($wpdb->prepare(
@@ -461,10 +476,12 @@ class Assessor_API {
         
         return array(
             'total_properties' => $total_properties,
-            'total_versions' => $version_counts,
+            'version_counts' => $version_counts,
             'total_users' => $total_users,
             'properties_created_this_month' => $created_this_month,
             'properties_created_last_month' => $created_last_month,
+            // RPTs summary for dashboard direct consumption
+            'rpts_this_month' => $rpts_this_month,
             // Requests summary for dashboard direct consumption
             'requests_count' => $total_requests,
             'requests_this_month' => $requests_this_month,

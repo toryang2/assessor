@@ -208,7 +208,7 @@ const VersionHistory = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading version history...</Typography>
+        <Typography>Loading revision history...</Typography>
       </Box>
     );
   }
@@ -243,7 +243,7 @@ const VersionHistory = () => {
            Back
          </Button>
         <Typography variant="h4">
-          Version History
+          Revision
         </Typography>
       </Box>
 

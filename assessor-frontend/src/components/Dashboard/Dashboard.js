@@ -39,7 +39,10 @@ import {
   Notifications,
   ArrowForward,
   Close,
-  Visibility
+  Visibility,
+  Assignment,
+  RequestPage,
+  Update
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -173,6 +176,15 @@ const Dashboard = ({ onNavigate }) => {
     return null;
   };
 
+  // Show count of RPTs added this month
+  const computeRPTsTrend = () => {
+    const thisMonth = dashboardData?.rpts_this_month ?? null;
+    if (typeof thisMonth === 'number') {
+      return `${thisMonth} RPTs this month`;
+    }
+    return null;
+  };
+
   const toFormalCase = (text) => {
     if (!text) return '';
     const small = new Set(['of','and','the','for','in','on','at','a','an']);
@@ -274,14 +286,14 @@ const Dashboard = ({ onNavigate }) => {
         title: 'Add New Property',
         description: 'Create a new property assessment record',
         icon: <Add />,
-        color: theme.palette.primary.main,
+        color: '#3b82f6',
         action: handleAddProperty
       },
       {
         title: 'View Properties',
         description: 'Browse and manage property records',
         icon: <Business />,
-        color: theme.palette.secondary.main,
+        color: '#10b981',
         action: handleViewProperties
       }
     ];
@@ -291,14 +303,14 @@ const Dashboard = ({ onNavigate }) => {
         title: 'Export Data',
         description: 'Generate reports and export data',
         icon: <FileDownload />,
-        color: theme.palette.secondary.main,
+        color: '#f59e0b',
         action: () => console.log('Export Data clicked')
       });
       actions.push({
         title: 'Audit Trail',
         description: 'View system activity and changes',
         icon: <History />,
-        color: theme.palette.info.main,
+        color: '#8b5cf6',
         action: () => console.log('Audit Trail clicked')
       });
     }
@@ -546,40 +558,40 @@ const Dashboard = ({ onNavigate }) => {
         <Grid container spacing={3} sx={{ marginBottom: 4 }} alignItems="stretch">
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Total Properties"
+              title="Total Records Added"
               value={dashboardData?.total_properties || 0}
-              icon={<Business />}
-              color={theme.palette.primary.main}
+              icon={<Assignment />}
+              color="#3b82f6"
               subtitle="Active records"
               trend={computeActiveRecordsTrend()}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
+              title="Total RPTs"
+              value={dashboardData?.version_counts || 0}
+              icon={<Business />}
+              color="#10b981"
+              subtitle="Active RPTs"
+              trend={computeRPTsTrend()}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
               title="Total Requests"
               value={dashboardData?.requests_count || 0}
-              icon={<Business />}
-              color={theme.palette.secondary.main}
+              icon={<RequestPage />}
+              color="#f59e0b"
               subtitle="Monthly Requests"
               trend={computeRequestsTrend()}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Version History"
-              value={dashboardData?.version_counts || 0}
-              icon={<History />}
-              color={theme.palette.success.main}
-              subtitle="Total versions"
-              trend="+8% this month"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
               title="Recent Updates"
               value={dashboardData?.recent_activity?.length || 0}
-              icon={<History />}
-              color={theme.palette.success.main}
+              icon={<Update />}
+              color="#8b5cf6"
               subtitle="Last 24 hours"
               trend="+15% this week"
             />
