@@ -25,7 +25,8 @@ class Assessor_Properties {
         
         // Unified free-text search across common fields
         if (!empty($params['q'])) {
-            $q = '%' . $wpdb->esc_like($params['q']) . '%';
+            $q_raw = trim($params['q']);
+            $q = '%' . $wpdb->esc_like($q_raw) . '%';
             $or_sql = array(
                 "p.tax_declaration_number LIKE %s",
                 "p.declarant_last_name LIKE %s",
@@ -36,8 +37,30 @@ class Assessor_Properties {
             );
             $or_vals = array_fill(0, count($or_sql), $q);
 
+            // Support combined declarant name queries (e.g., "Last, First", "First Last", with optional middle initial)
+            // Normalize query for name patterns
+            $q_no_spaces = preg_replace('/\s+/', ' ', $q_raw);
+            $q_no_dot = str_replace('.', '', $q_no_spaces);
+
+            // Patterns to match (using CONCAT and TRIM to avoid double spaces):
+            // 1) "Last, First" and "Last, First MI"
+            $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name) LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+            $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, '')) LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+
+            // 2) "First Last" and "First MI Last"
+            $or_sql[] = "CONCAT(p.declarant_first_name, ' ', p.declarant_last_name) LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+            $or_sql[] = "CONCAT(p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, ''), ' ', p.declarant_last_name) LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+
+            // 3) "Last First" (without comma)
+            $or_sql[] = "CONCAT(p.declarant_last_name, ' ', p.declarant_first_name) LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+
             // Also match numeric-only searches against TDN without hyphens/spaces (e.g., '12312' matches '22-010-0001-12312')
-            $q_digits_raw = preg_replace('/[^0-9]/', '', $params['q']);
+            $q_digits_raw = preg_replace('/[^0-9]/', '', $q_raw);
             if ($q_digits_raw !== '') {
                 $or_sql[] = "REPLACE(REPLACE(p.tax_declaration_number, '-', ''), ' ', '') LIKE %s";
                 $or_vals[] = '%' . $wpdb->esc_like($q_digits_raw) . '%';
