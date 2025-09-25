@@ -149,7 +149,11 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         <div style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
       </div>
 
-      <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%' }} className="info">
+      <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%', tableLayout: 'fixed' }} className="info">
+        <colgroup>
+          <col style={{ width: '50%' }} />
+          <col style={{ width: '50%' }} />
+        </colgroup>
         <tbody>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
@@ -164,7 +168,10 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               <strong>OWNER:</strong> <span>{sanitizeDeclarant(printHistory?.[0]?.declarant_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ADDRESS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].address) || ''}</span>
+              <strong>ADDRESS:</strong>{' '}
+              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                {(printHistory && printHistory[0] && printHistory[0].address) || ''}
+              </span>
             </td>
           </tr>
           <tr>
@@ -322,7 +329,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </div>
           
           <div style={{ textAlign: 'center', width: '80mm' }}>
-            <div style={{ height: '18mm' }} />
+            <div style={{ height: '37mm' }} />
             <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
               <div>{'Verified and checked by:'}</div>
             </div>
@@ -437,7 +444,7 @@ const RequestsTable = () => {
       if (spacer) spacer.style.height = '0px';
     },
     pageStyle: `
-      @page { size: A4 portrait; margin: 12mm 8mm 16mm 8mm; 
+      @page { size: A4 portrait; margin: 12mm 10mm 16mm 8mm; 
           @bottom-right {
             content: counter(page) "/" counter(pages);
             font-family: 'Arial', sans-serif;
@@ -476,6 +483,8 @@ const RequestsTable = () => {
         .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; }
         /* Ensure Title Number column breaks long text properly */
         .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; hyphens: none; }
+        /* Ensure info header cells wrap properly for long addresses */
+        .info td { white-space: normal !important; word-break: break-word !important; overflow-wrap: anywhere !important; }
         .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
         .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
         /* Layout helpers to keep the signature at the bottom of the last page when space allows */
