@@ -224,6 +224,7 @@ const Login = () => {
             <Box
               sx={{
                 padding: isSmallScreen ? 3 : 4,
+                paddingBottom: isSmallScreen ? 2 : 2.5,
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden'
@@ -249,7 +250,7 @@ const Login = () => {
                   }}
                 >
                   {settings?.app_logo_url ? (
-                    <img src={settings.app_logo_url} alt="Logo" style={{ height: isSmallScreen ? 72 : 128, marginBottom: 16, opacity: 0.9 }} />
+                    <img src={settings.app_logo_url} alt="Logo" style={{ height: isSmallScreen ? 64 : 96, marginBottom: 16, opacity: 0.9 }} />
                   ) : (
                     <Business sx={{ fontSize: isSmallScreen ? 44 : 60, marginBottom: 2, opacity: 0.8 }} />
                   )}
@@ -276,28 +277,17 @@ const Login = () => {
                     Assessor's Office Archiving System
                   </Typography>
                 </motion.div>
-                
-                <motion.div
-                  variants={{
-                    initial: { opacity: 0, y: 20 },
-                    animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
-                  }}
-                >
-                  <Typography variant="body1" sx={{ marginTop: 1, opacity: 0.8, fontSize: isSmallScreen ? '0.9rem' : undefined }}>
-                    History Archiving & Management
-                  </Typography>
-                </motion.div>
               </motion.div>
             </Box>
 
-            <CardContent sx={{ padding: isSmallScreen ? 3 : 4 }}>
+            <CardContent sx={{ padding: isSmallScreen ? 3 : 4, paddingTop: isSmallScreen ? 2 : 2.5 }}>
               <motion.form
                 onSubmit={handleSubmit}
                 initial="initial"
                 animate="animate"
                 variants={animations.fadeIn}
               >
-                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', marginBottom: 3, fontWeight: 600, fontSize: isSmallScreen ? '1.1rem' : undefined }}>
+                <Typography variant="h5" component="h3" sx={{ textAlign: 'center', marginBottom: 1.5, fontWeight: 600, fontSize: isSmallScreen ? '1.1rem' : undefined }}>
                   Sign In
                 </Typography>
 

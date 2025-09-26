@@ -12,19 +12,22 @@ const api = axios.create({
 // Request interceptor to add auth token and cache busting
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('assessor_token');
+    // Check sessionStorage for token (session-only mode)
+    const token = sessionStorage.getItem('assessor_token');
+    
     console.log('🔍 API Request Interceptor:', {
       url: config.url,
       method: config.method,
       hasToken: !!token,
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
+      tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
+      tokenSource: 'sessionStorage'
     });
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('✅ Authorization header added:', `Bearer ${token.substring(0, 20)}...`);
     } else {
-      console.log('❌ No token found in localStorage');
+      console.log('❌ No token found in storage');
     }
     
     // Add cache busting headers for Hostinger. Enable this for Hostinger.
@@ -369,7 +372,7 @@ export const apiService = {
   getDashboardData: async (params = {}) => {
     try {
       console.log('🔍 API Service: Making dashboard request...', params);
-      console.log('🔍 API Service: Current token:', localStorage.getItem('assessor_token'));
+      console.log('🔍 API Service: Current token:', sessionStorage.getItem('assessor_token'));
       
       const isProd = process.env.NODE_ENV === 'production';
       const response = await api.get(endpoints.dashboard, {

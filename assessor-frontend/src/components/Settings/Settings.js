@@ -427,7 +427,7 @@ const Settings = () => {
                             type="number"
                             value={form.afk_timeout ?? 30}
                             onChange={(e) => handleAfkTimeoutChange(e.target.value)}
-                            helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. This helps protect your session when you step away from your computer. (5-480 minutes)`}
+                            helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. Login will also expire when browser is closed for security. (5-480 minutes)`}
                             inputProps={{ min: 5, max: 480 }}
                             size="small"
                             error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
