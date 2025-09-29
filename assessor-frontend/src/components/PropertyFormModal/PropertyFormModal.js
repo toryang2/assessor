@@ -74,9 +74,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     supporting_documents: []
   });
 
-  const [errors, setErrors] = useState([]);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
+  const [duplicateTdnError, setDuplicateTdnError] = useState(false);
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
   const [generalClassOptions, setGeneralClassOptions] = useState([]);
   const [locationOptions, setLocationOptions] = useState([]);
@@ -304,7 +304,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         area_hectare_old: ''
       });
     }
-    setErrors([]);
     // Load existing documents for edit mode
     const loadDocs = async () => {
       try {
@@ -447,6 +446,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   };
 
      const handleInputChange = (field, value) => {
+     // Clear duplicate TDN error when user starts typing in TDN field
+     if (field === 'tax_declaration_number' && duplicateTdnError) {
+       setDuplicateTdnError(false);
+     }
+     
      const uppercaseFields = new Set([
        'tax_declaration_number',
        'previous_tax_declaration_number',
@@ -477,10 +481,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         setFormData(prev => ({ ...prev, [field]: nextValue }));
       }
      
-     // Clear error for this field
-     if (errors.includes(field)) {
-       setErrors(prev => prev.filter(err => err !== field));
-     }
    };
 
   const validateForm = () => {
@@ -517,18 +517,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     
     // Prevent submission if options are still loading
     if (optionsLoading) {
-      setErrors(['Please wait for form options to load before submitting']);
+      setToast({ open: true, message: 'Please wait for form options to load before submitting', severity: 'error' });
       return;
     }
     
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
-      setErrors(validationErrors);
+      setToast({ open: true, message: validationErrors.join('. '), severity: 'error' });
       return;
     }
 
     setLoading(true);
-    setErrors([]);
 
     try {
       const supportingDocsString = Array.isArray(formData.supporting_documents)
@@ -641,8 +640,22 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       onCancel();
     } catch (error) {
       console.error('Error saving property:', error);
-      const msg = error.response?.data?.message || 'Error saving property';
-      setErrors([msg]);
+      const msg = error.message || 'Error saving property';
+      
+      console.log('Full error message:', msg);
+      console.log('Message includes check:', msg.includes('Tax Declaration Number already exists'));
+      console.log('Message includes check (lowercase):', msg.toLowerCase().includes('tax declaration number already exists'));
+      
+      // Check if it's a duplicate TDN error
+      if (msg.includes('Tax Declaration Number already exists') || 
+          msg.toLowerCase().includes('tax declaration number already exists')) {
+        console.log('Setting duplicateTdnError to true');
+        setDuplicateTdnError(true);
+      } else {
+        console.log('Setting duplicateTdnError to false');
+        setDuplicateTdnError(false);
+      }
+      
       setToast({ open: true, message: msg, severity: 'error' });
     } finally {
       setLoading(false);
@@ -682,14 +695,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Alert>
         </Snackbar>
         <form onSubmit={handleSubmit}>
-          {/* Error Display */}
-          {errors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {errors.map((error, index) => (
-                <div key={index}>{error}</div>
-              ))}
-            </Alert>
-          )}
 
           {/* Basic Information */}
           <Card sx={{ mb: 3 }}>
@@ -704,10 +709,16 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Tax Declaration Number"
                     value={formData.tax_declaration_number}
                     onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
-                    error={errors.includes('tax_declaration_number')}
-                    helperText={errors.includes('tax_declaration_number') ? errors.find(err => err === 'tax_declaration_number') : ''}
                     required
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 1 }}
+                    error={duplicateTdnError}
+                    helperText={duplicateTdnError ? 'This Tax Declaration Number already exists. Please use a different number.' : ''}
+                    // Debug: Log the current state
+                    onFocus={() => console.log('TDN field focused, duplicateTdnError:', duplicateTdnError)}
+                    inputProps={{ 
+                      style: { textTransform: 'uppercase' }, 
+                      tabIndex: 1,
+                      'data-debug': `duplicateTdnError: ${duplicateTdnError}`
+                    }}
                   />
                 </Grid>
                 
@@ -728,8 +739,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Declarant Last Name"
                     value={formData.declarant_last_name}
                     onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
-                    error={errors.includes('declarant_last_name')}
-                    helperText={errors.includes('declarant_last_name') ? errors.find(err => err === 'declarant_last_name') : ''}
                     // required
                     inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 3 }}
                   />
@@ -751,8 +760,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Declarant First Name"
                     value={formData.declarant_first_name}
                     onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
-                    error={errors.includes('declarant_first_name')}
-                    helperText={errors.includes('declarant_first_name') ? errors.find(err => err === 'declarant_first_name') : ''}
                     // required
                     inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 4}}
                   />
@@ -766,8 +773,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         label="Assessed Value (₱)"
                         value={formData.assessed_value}
                         onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                        error={errors.includes('assessed_value')}
-                        helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
                         type="number"
                         inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
                         placeholder="0.00"
@@ -797,8 +802,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       label="Assessed Value (₱)"
                       value={formData.assessed_value}
                       onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                      error={errors.includes('assessed_value')}
-                      helperText={errors.includes('assessed_value') ? errors.find(err => err === 'assessed_value') : ''}
                       type="number"
                       inputProps={{ min: 0, step: 0.01, tabIndex: 11 }}
                       placeholder="0.00"
@@ -869,7 +872,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
                       label="Location"
                       onChange={(e) => handleInputChange('location', e.target.value)}
-                      error={errors.includes('location')}
                       inputProps={{ tabIndex: 7 }}
                       disabled={optionsLoading}
                     >
@@ -930,8 +932,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             handleInputChange('area_sqm', value);
                           }
                         }}
-                        error={errors.includes('area_hectare')}
-                        helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
                         type="number"
                         inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
                         placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
@@ -1019,8 +1019,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           handleInputChange('area_sqm', value);
                         }
                       }}
-                      error={errors.includes('area_hectare')}
-                      helperText={errors.includes('area_hectare') ? errors.find(err => err === 'area_hectare') : ''}
                       type="number"
                       inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01, tabIndex: 9 }}
                       placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
@@ -1114,7 +1112,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
                       label="Kind of Property"
                       onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
-                      error={errors.includes('kind_of_property')}
                       inputProps={{ tabIndex: 17 }}
                       disabled={optionsLoading}
                     >

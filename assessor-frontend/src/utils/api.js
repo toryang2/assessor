@@ -521,6 +521,9 @@ export const handleApiError = (error) => {
     switch (status) {
       case 400:
         // Check for specific error types
+        if (data && data.code === 'duplicate_tax_number') {
+          return new Error('Tax Declaration Number already exists. Please use a different number.');
+        }
         if (data && data.code === 'duplicate_receipt') {
           return new Error('This receipt number already exists. Please use a different receipt number.');
         }
