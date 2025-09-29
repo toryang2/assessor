@@ -368,7 +368,7 @@ const UserManagement = () => {
         open={!!error}
         autoHideDuration={4000}
         onClose={() => setError('')}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
           {error}
@@ -378,7 +378,7 @@ const UserManagement = () => {
         open={toast.open}
         autoHideDuration={3000}
         onClose={() => setToast(prev => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
           {toast.message}

@@ -66,8 +66,11 @@ class Assessor_Auth {
             return new WP_Error('invalid_credentials', 'Invalid username or password', array('status' => 401));
         }
         
-        // Update last_login timestamp
-        $wpdb->update($table_users, array('last_login' => current_time('mysql')), array('id' => $user->id), array('%s'), array('%d'));
+        // Update last_login timestamp using MySQL's current timestamp for consistency with created_at
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $table_users SET last_login = CURRENT_TIMESTAMP WHERE id = %d",
+            $user->id
+        ));
 
         // Generate JWT token
         $token = $this->generate_token($user);

@@ -358,7 +358,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 });
 
 const PropertyTable = () => {
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin, canEdit } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -919,14 +919,16 @@ const PropertyTable = () => {
                         <VisibilityIcon fontSize="small" />
                       </IconButton>
 
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditProperty(property)}
-                        color="primary"
-                        sx={{ p: 0.25 }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+                      {canEdit && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditProperty(property)}
+                          color="primary"
+                          sx={{ p: 0.25 }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
                       {(isAdmin || isSuperAdmin) && (
                         <IconButton
                           onClick={() => handleDeleteProperty(property)}

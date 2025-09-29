@@ -1001,7 +1001,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         open={toast.open}
         autoHideDuration={6000}
         onClose={() => setToast(prev => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setToast(prev => ({ ...prev, open: false }))}

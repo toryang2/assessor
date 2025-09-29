@@ -80,10 +80,9 @@ class Assessor_Versions {
                 'building_area' => $version->building_area,
                 'assessed_value' => $version->assessed_value,
                 'market_value' => $version->market_value,
-                'updated_at' => current_time('mysql')
             ),
             array('id' => $property_id),
-            array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f', '%s'),
+            array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f'),
             array('%d')
         );
         

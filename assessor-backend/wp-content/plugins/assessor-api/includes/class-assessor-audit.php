@@ -107,11 +107,12 @@ class Assessor_Audit {
             'old_values' => $old_values ? json_encode($old_values) : null,
             'new_values' => $new_values ? json_encode($new_values) : null,
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
-            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
-            'created_at' => current_time('mysql')
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
         );
         
-        return $wpdb->insert($table, $data);
+        $formats = array('%d','%s','%s','%d','%s','%s','%s','%s');
+        
+        return $wpdb->insert($table, $data, $formats);
     }
 }
 

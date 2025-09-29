@@ -258,7 +258,9 @@ export const AuthProvider = ({ children }) => {
   const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
   const isAssessor = user?.role === 'assessor' || user?.role === 'municipal assessor';
+  const isViewer = user?.role === 'viewer';
   const canManage = !!(isSuperAdmin || isAdmin || isAssessor);
+  const canEdit = !!(isSuperAdmin || isAdmin || isAssessor); // Only non-viewer roles can edit
 
   const value = {
     user,
@@ -269,7 +271,9 @@ export const AuthProvider = ({ children }) => {
     isSuperAdmin,
     isAdmin,
     isAssessor,
+    isViewer,
     canManage,
+    canEdit,
     login,
     logout,
     clearError,

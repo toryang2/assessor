@@ -65,7 +65,7 @@ import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
-  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin } = useAuth();
+  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit } = useAuth();
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -806,15 +806,17 @@ const Dashboard = ({ onNavigate }) => {
                         </Box>
                         
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 'auto' }}>
-                          <IconButton
-                            size={isSmallScreen ? 'small' : 'medium'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditProperty(property);
-                            }}
-                          >
-                            <Edit fontSize={isSmallScreen ? 'small' : 'medium'} />
-                          </IconButton>
+                          {canEdit && (
+                            <IconButton
+                              size={isSmallScreen ? 'small' : 'medium'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditProperty(property);
+                              }}
+                            >
+                              <Edit fontSize={isSmallScreen ? 'small' : 'medium'} />
+                            </IconButton>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
@@ -1039,13 +1041,15 @@ const Dashboard = ({ onNavigate }) => {
                          )}
                        </TableCell>
                        <TableCell align="right">
-                         <IconButton 
-                           size="small"
-                           onClick={() => handleEditProperty(property)}
-                           title="Edit Property"
-                         >
-                           <Edit fontSize="small" />
-                         </IconButton>
+                         {canEdit && (
+                           <IconButton 
+                             size="small"
+                             onClick={() => handleEditProperty(property)}
+                             title="Edit Property"
+                           >
+                             <Edit fontSize="small" />
+                           </IconButton>
+                         )}
                          <IconButton 
                            size="small"
                            onClick={() => handleViewProperty(property)}
@@ -1068,7 +1072,7 @@ const Dashboard = ({ onNavigate }) => {
          open={toast.open}
          autoHideDuration={4000}
          onClose={() => setToast(prev => ({ ...prev, open: false }))}
-         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
        >
          <Alert 
            onClose={() => setToast(prev => ({ ...prev, open: false }))} 
