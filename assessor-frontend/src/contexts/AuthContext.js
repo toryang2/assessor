@@ -260,7 +260,7 @@ export const AuthProvider = ({ children }) => {
   const isAssessor = user?.role === 'assessor' || user?.role === 'municipal assessor';
   const isViewer = user?.role === 'viewer';
   const canManage = !!(isSuperAdmin || isAdmin || isAssessor);
-  const canEdit = !!(isSuperAdmin || isAdmin || isAssessor); // Only non-viewer roles can edit
+  const canEdit = !!(isSuperAdmin || isAdmin || isAssessor || user?.role === 'verifier' || user?.role === 'editor'); // Only non-viewer roles can edit
 
   const value = {
     user,

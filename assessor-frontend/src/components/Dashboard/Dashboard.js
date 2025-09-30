@@ -796,7 +796,7 @@ const Dashboard = ({ onNavigate }) => {
                         <Box sx={{ minHeight: isSmallScreen ? 20 : 24 }}>
                           {property.assessed_value ? (
                             <Typography variant="body2" fontWeight={500} color="primary.main" sx={{ fontSize: isSmallScreen ? '0.9rem' : undefined }}>
-                              ₱{Number(property.assessed_value).toLocaleString()}
+                              ₱{Number(property.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </Typography>
                           ) : (
                             <Typography variant="body2" sx={{ visibility: 'hidden', fontSize: isSmallScreen ? '0.9rem' : undefined }}>
@@ -1021,7 +1021,7 @@ const Dashboard = ({ onNavigate }) => {
                        <TableCell>
                          {property.assessed_value ? (
                            <Typography variant="body2" fontWeight={500} color="primary.main">
-                             ₱{Number(property.assessed_value).toLocaleString()}
+                             ₱{Number(property.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                            </Typography>
                          ) : (
                            <Typography variant="body2" color="text.secondary">
