@@ -320,7 +320,23 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               <div>{'Verified and checked by:'}</div>
             </div>
             <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
-              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || ''}
+              {/* {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || ''} */}
+              {(() => {
+                const fullName = (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '';
+                if (!fullName) return '';
+                
+                // Split by comma to separate main name from suffix
+                const parts = fullName.split(',');
+                const mainName = parts[0]?.trim() || '';
+                const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : '';
+                
+                return (
+                  <span>
+                    {mainName}
+                    {suffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ fontSize: 11, marginBottom: 30 }}>
               {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'VERIFIER'}

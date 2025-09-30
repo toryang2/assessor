@@ -578,7 +578,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         municipal_assessor_name: settings?.municipal_assessor_name || '',
         municipal_assessor_suffix: settings?.municipal_assessor_suffix || '',
         municipal_assessor_title: settings?.municipal_assessor_title || '',
-        municipal_assessor_license: settings?.municipal_assessor_license || ''
+        municipal_assessor_license: String(settings?.municipal_assessor_license || '')
       };
 
       // Add timestamps based on create vs update
