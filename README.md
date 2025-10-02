@@ -111,7 +111,7 @@ The plugin automatically creates:
 ```bash
 cd assessor-frontend
 npm start          # Development server
-npm run build:prod      # Production build
+npm run build:prod # Production build
 npm test           # Run tests
 ```
 
