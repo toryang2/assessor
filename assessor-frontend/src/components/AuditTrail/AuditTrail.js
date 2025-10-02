@@ -30,7 +30,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Collapse
+  Collapse,
+  CircularProgress
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -50,6 +51,7 @@ import { format } from 'date-fns';
 
 import { apiService } from '../../utils/api';
 import { statusColors } from '../../theme/theme';
+import LoadingDots from '../LoadingDots';
 
 const AuditTrail = () => {
   const [auditLogs, setAuditLogs] = useState([]);
@@ -362,17 +364,27 @@ const AuditTrail = () => {
 
   if (loading && auditLogs.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading audit trail...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading audit trail<LoadingDots />
+        </Typography>
       </Box>
     );
   }
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
-        Audit Trail
-      </Typography>
+        <Typography variant="h4" gutterBottom>
+          Audit Trail
+        </Typography>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>

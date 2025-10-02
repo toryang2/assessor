@@ -12,7 +12,8 @@ import {
   Snackbar,
   InputAdornment,
   IconButton,
-  Container
+  Container,
+  CircularProgress
 } from '@mui/material';
 import {
   Visibility,
@@ -24,6 +25,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { theme, animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
+import LoadingDots from '../LoadingDots';
 
 const Login = () => {
   
@@ -43,6 +45,7 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [loading, setLoading] = useState(false);
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -140,6 +143,7 @@ const Login = () => {
 
     console.log('✅ Login Component: Form validation passed, starting login process');
     clearError();
+    setLoading(true);
     
     try {
       console.log('🔍 Login Component: Calling login function...');
@@ -157,7 +161,7 @@ const Login = () => {
       console.error('❌ Login Component: Login error:', error);
       setSnackbar({ open: true, message: error.message || 'Login failed', severity: 'error' });
     } finally {
-      // no-op
+      setLoading(false);
     }
   };
 
@@ -377,6 +381,8 @@ const Login = () => {
                     fullWidth
                     variant="contained"
                     size={isSmallScreen ? 'medium' : 'large'}
+                    disabled={loading}
+                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
                     sx={{
                       height: isSmallScreen ? 44 : 56,
                       fontSize: isSmallScreen ? '0.95rem' : '1.1rem',
@@ -384,12 +390,12 @@ const Login = () => {
                       background: theme.palette.primary.main,
                       '&:hover': {
                         background: theme.palette.primary.dark,
-                        transform: 'translateY(-2px)',
-                        boxShadow: isSmallScreen ? '0 6px 18px rgba(37, 99, 235, 0.22)' : '0 8px 25px rgba(37, 99, 235, 0.3)'
+                        transform: loading ? 'none' : 'translateY(-2px)',
+                        boxShadow: loading ? 'none' : (isSmallScreen ? '0 6px 18px rgba(37, 99, 235, 0.22)' : '0 8px 25px rgba(37, 99, 235, 0.3)')
                       }
                     }}
                   >
-                    Sign In
+                    {loading ? <>Signing In<LoadingDots /></> : 'Sign In'}
                   </Button>
                 </motion.div>
 

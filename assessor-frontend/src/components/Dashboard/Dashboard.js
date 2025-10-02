@@ -62,6 +62,7 @@ import { useCacheBuster } from '../../hooks/useCacheBuster';
 import { animations, statusColors } from '../../theme/theme';
 import { format } from 'date-fns';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
+import LoadingDots from '../LoadingDots';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
@@ -255,8 +256,21 @@ const Dashboard = ({ onNavigate }) => {
   // Show loading state while authentication is being checked
   if (authLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Authenticating<LoadingDots />
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Please wait while we verify your session
+        </Typography>
       </Box>
     );
   }
@@ -304,14 +318,22 @@ const Dashboard = ({ onNavigate }) => {
         description: 'Generate reports and export data',
         icon: <FileDownload />,
         color: '#f59e0b',
-        action: () => console.log('Export Data clicked')
+        action: () => {
+          if (onNavigate) {
+            onNavigate('Export');
+          }
+        }
       });
       actions.push({
         title: 'Audit Trail',
         description: 'View system activity and changes',
         icon: <History />,
         color: '#8b5cf6',
-        action: () => console.log('Audit Trail clicked')
+        action: () => {
+          if (onNavigate) {
+            onNavigate('Audit Trail');
+          }
+        }
       });
     }
     return actions;
@@ -418,15 +440,28 @@ const Dashboard = ({ onNavigate }) => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <Typography>Loading dashboard...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading dashboard<LoadingDots />
+        </Typography>
+        {/* <Typography variant="body2" color="text.secondary">
+          Please wait while the system loads
+        </Typography> */}
       </Box>
     );
   }
 
   return (
     <Box sx={{ pb: 6 }}>
-      {/* Header Photo */}
+        {/* Header Photo */}
       {dashboardData?.header_photo_url && (
         <motion.div
           initial="initial"

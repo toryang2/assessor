@@ -19,7 +19,8 @@ import {
   Badge,
   useTheme,
   useMediaQuery,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -38,6 +39,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
 import { useCacheBuster } from '../../hooks/useCacheBuster';
+import LoadingDots from '../LoadingDots';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
 import RequestsTable from '../RequestsTable/RequestsTable';
@@ -362,7 +364,7 @@ const Layout = ({ children }) => {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      {/* App Bar */}
+        {/* App Bar */}
       <AppBar
         position="fixed"
         sx={{
@@ -496,8 +498,21 @@ const Layout = ({ children }) => {
             variants={animations.fadeIn}
           >
             {!isPageAccessChecked ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <Typography variant="h6" color="text.secondary">Loading...</Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                minHeight: '70vh',
+                gap: 2
+              }}>
+                <CircularProgress size={50} thickness={4} />
+                <Typography variant="h6" color="text.secondary">
+                  Loading<LoadingDots />
+                </Typography>
+                {/* <Typography variant="body2" color="text.secondary">
+                  Please wait while the system loads
+                </Typography> */}
               </Box>
             ) : (
               <>

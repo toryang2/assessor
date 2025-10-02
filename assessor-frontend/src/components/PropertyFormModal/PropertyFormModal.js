@@ -85,6 +85,68 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [pendingUploads, setPendingUploads] = useState([]);
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
+  
+  // Keyboard navigation state for multi-character typing
+  const [keyboardBuffer, setKeyboardBuffer] = useState({
+    location: { buffer: '', timestamp: 0 },
+    kind_of_property: { buffer: '', timestamp: 0 },
+    gen_class: { buffer: '', timestamp: 0 }
+  });
+  
+  // Keyboard navigation for dropdowns with multi-character support
+  const handleKeyboardNavigation = (options, currentValue, keyPressed, valueKey = null, fieldName = '') => {
+    if (!options || options.length === 0) return currentValue;
+    
+    const now = Date.now();
+    const key = keyPressed.toLowerCase();
+    const getValue = (option) => valueKey ? option[valueKey] : option;
+    const getLabel = (option) => valueKey ? option.name : option;
+    
+    // Update buffer - reset if more than 1 second has passed
+    const currentBuffer = keyboardBuffer[fieldName] || { buffer: '', timestamp: 0 };
+    const timeDiff = now - currentBuffer.timestamp;
+    const newBuffer = timeDiff > 1000 ? key : currentBuffer.buffer + key;
+    
+    // Update the buffer state
+    setKeyboardBuffer(prev => ({
+      ...prev,
+      [fieldName]: { buffer: newBuffer, timestamp: now }
+    }));
+    
+    // Find options that start with the current buffer
+    const matchingOptions = options.filter(option => 
+      getLabel(option).toLowerCase().startsWith(newBuffer)
+    );
+    
+    if (matchingOptions.length === 0) {
+      // If no matches with full buffer, try just the new key
+      const singleKeyMatches = options.filter(option => 
+        getLabel(option).toLowerCase().startsWith(key)
+      );
+      if (singleKeyMatches.length > 0) {
+        // Reset buffer to just the new key
+        setKeyboardBuffer(prev => ({
+          ...prev,
+          [fieldName]: { buffer: key, timestamp: now }
+        }));
+        return getValue(singleKeyMatches[0]);
+      }
+      return currentValue;
+    }
+    
+    // If current value matches the buffer and we have multiple matches, cycle through them
+    const currentLabel = getLabel(options.find(opt => getValue(opt) === currentValue))?.toLowerCase() || '';
+    if (currentLabel.startsWith(newBuffer) && matchingOptions.length > 1) {
+      const currentMatchIndex = matchingOptions.findIndex(option => getValue(option) === currentValue);
+      if (currentMatchIndex !== -1) {
+        const nextMatchIndex = (currentMatchIndex + 1) % matchingOptions.length;
+        return getValue(matchingOptions[nextMatchIndex]);
+      }
+    }
+    
+    // Otherwise, jump to first matching option
+    return getValue(matchingOptions[0]);
+  };
 
   // Parse legacy pipe- or comma-separated URLs from supporting_documents_old (and supporting_documents if needed)
   const parseLegacySupportingDocuments = (prop) => {
@@ -866,7 +928,23 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth required>
+                  <FormControl 
+                    fullWidth 
+                    required
+                    onKeyDown={(e) => {
+                      if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                        e.preventDefault();
+                        const newValue = handleKeyboardNavigation(
+                          locationOptions.map(loc => loc.name),
+                          formData.location,
+                          e.key,
+                          null,
+                          'location'
+                        );
+                        handleInputChange('location', newValue);
+                      }
+                    }}
+                  >
                     <InputLabel>Location</InputLabel>
                     <Select
                       value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
@@ -874,6 +952,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       onChange={(e) => handleInputChange('location', e.target.value)}
                       inputProps={{ tabIndex: 7 }}
                       disabled={optionsLoading}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300,
+                          },
+                        },
+                      }}
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading locations...</MenuItem>
@@ -1106,7 +1191,23 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               </Typography>
               <Grid container spacing={isSmallScreen ? 1.5 : 2}>
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth required>
+                  <FormControl 
+                    fullWidth 
+                    required
+                    onKeyDown={(e) => {
+                      if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                        e.preventDefault();
+                        const newValue = handleKeyboardNavigation(
+                          propertyTypeOptions,
+                          formData.kind_of_property,
+                          e.key,
+                          'code',
+                          'kind_of_property'
+                        );
+                        handleInputChange('kind_of_property', newValue);
+                      }
+                    }}
+                  >
                     <InputLabel>Kind of Property</InputLabel>
                     <Select
                       value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
@@ -1114,6 +1215,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                       inputProps={{ tabIndex: 17 }}
                       disabled={optionsLoading}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300,
+                          },
+                        },
+                      }}
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading property types...</MenuItem>
@@ -1129,7 +1237,22 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth>
+                  <FormControl 
+                    fullWidth
+                    onKeyDown={(e) => {
+                      if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                        e.preventDefault();
+                        const newValue = handleKeyboardNavigation(
+                          generalClassOptions,
+                          formData.gen_class,
+                          e.key,
+                          'code',
+                          'gen_class'
+                        );
+                        handleInputChange('gen_class', newValue);
+                      }
+                    }}
+                  >
                     <InputLabel>General Class</InputLabel>
                     <Select
                       value={generalClassOptions.some(gc => gc.code === formData.gen_class) ? formData.gen_class : ''}
@@ -1137,6 +1260,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       onChange={(e) => handleInputChange('gen_class', e.target.value)}
                       inputProps={{ tabIndex: 18 }}
                       disabled={optionsLoading}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300,
+                          },
+                        },
+                      }}
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading general classes...</MenuItem>

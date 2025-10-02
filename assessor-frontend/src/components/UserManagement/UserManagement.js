@@ -23,6 +23,7 @@ import {
   IconButton,
   Dialog,
   DialogTitle,
+  CircularProgress,
   DialogContent,
   DialogActions,
   Alert,
@@ -52,6 +53,7 @@ import { format } from 'date-fns';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { keyframes } from '@mui/system';
+import LoadingDots from '../LoadingDots';
 
 const glow = keyframes`
   0% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
@@ -352,17 +354,30 @@ const UserManagement = () => {
 
   if (initialLoad && loading && users.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading users...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading users<LoadingDots />
+        </Typography>
+        {/* <Typography variant="body2" color="text.secondary">
+          Please wait while the system loads
+        </Typography> */}
       </Box>
     );
   }
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
-        User Management
-      </Typography>
+        <Typography variant="h4" gutterBottom>
+          User Management
+        </Typography>
 
       <Snackbar
         open={!!error}

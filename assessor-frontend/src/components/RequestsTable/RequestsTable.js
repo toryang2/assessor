@@ -23,6 +23,7 @@ import {
   Alert,
   Chip,
   FormControl,
+  CircularProgress,
   InputLabel,
   Select,
   MenuItem,
@@ -45,6 +46,7 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useReactToPrint } from 'react-to-print';
 import RequestFormModal from '../RequestFormModal/RequestFormModal';
+import LoadingDots from '../LoadingDots';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -400,6 +402,7 @@ const RequestsTable = () => {
   const { isAdmin, isSuperAdmin } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -562,8 +565,10 @@ const RequestsTable = () => {
       setTotalCount(0);
     } finally {
       // Only clear loading for the latest request
-      if (seq === fetchSeqRef.current) setLoading(false);
-      // setInitialLoad(false); // This line was not in the original file, so it's removed.
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+        setInitialLoad(false);
+      }
     }
   };
 
@@ -718,11 +723,33 @@ const RequestsTable = () => {
     return `₱${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  // Show initial loading state
+  if (initialLoad && loading && (!requests || requests.length === 0)) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading requests<LoadingDots />
+        </Typography>
+        {/* <Typography variant="body2" color="text.secondary">
+          Please wait while the system loads
+        </Typography> */}
+      </Box>
+    );
+  }
+
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
-        Requests Management
-      </Typography>
+        <Typography variant="h4" gutterBottom>
+          Requests Management
+        </Typography>
       <Typography variant="body1" color="text.secondary">
         Manage and view all payment requests and receipts
       </Typography>
@@ -865,10 +892,12 @@ const RequestsTable = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {loading ? (
+                {loading && !initialLoad ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
-                      <Typography>Loading requests...</Typography>
+                      <Box sx={{ py: 4 }}>
+                        <CircularProgress size={30} />
+                      </Box>
                     </TableCell>
                   </TableRow>
                   ) : requests.length === 0 ? (
@@ -994,8 +1023,21 @@ const RequestsTable = () => {
          </DialogTitle>
          <DialogContent sx={{ p: 2 }}>
            {printLoading ? (
-             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-               <Typography>Loading Request History...</Typography>
+             <Box sx={{ 
+               display: 'flex', 
+               flexDirection: 'column',
+               justifyContent: 'center', 
+               alignItems: 'center', 
+               minHeight: '40vh',
+               gap: 2
+             }}>
+               <CircularProgress size={50} thickness={4} />
+               <Typography variant="h6" color="text.secondary">
+                 Loading Request History...
+               </Typography>
+               <Typography variant="body2" color="text.secondary">
+                 Please wait while the system loads
+               </Typography>
              </Box>
                       ) : (
               <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>

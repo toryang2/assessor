@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -40,6 +41,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 import { useReactToPrint } from 'react-to-print';
+import LoadingDots from '../LoadingDots';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -724,8 +726,21 @@ const PropertyTable = () => {
 
   if (initialLoad && loading && (!safeProperties || safeProperties.length === 0)) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading properties...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading properties<LoadingDots />
+        </Typography>
+        {/* <Typography variant="body2" color="text.secondary">
+          Please wait while the system loads
+        </Typography> */}
       </Box>
     );
   }

@@ -21,6 +21,7 @@ import {
   Alert,
   Chip,
   LinearProgress,
+  CircularProgress,
   List,
   ListItem,
   ListItemText,
@@ -44,6 +45,7 @@ import { format } from 'date-fns';
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import LoadingDots from '../LoadingDots';
 
 const DocumentManager = () => {
   // For now, we'll use a default property ID or get it from props
@@ -198,8 +200,21 @@ const DocumentManager = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading documents...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '70vh',
+        gap: 2
+      }}>
+        <CircularProgress size={50} thickness={4} />
+        <Typography variant="h6" color="text.secondary">
+          Loading documents<LoadingDots />
+        </Typography>
+        {/* <Typography variant="body2" color="text.secondary">
+          Please wait while the system loads
+        </Typography> */}
       </Box>
     );
   }
@@ -223,8 +238,8 @@ const DocumentManager = () => {
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* Header */}
-      <Box display="flex" alignItems="center" mb={3}>
+        {/* Header */}
+        <Box display="flex" alignItems="center" mb={3}>
                  <Button
            variant="outlined"
            startIcon={<ArrowBackIcon />}
