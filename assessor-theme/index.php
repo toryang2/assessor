@@ -10,7 +10,7 @@
 </head>
 <body <?php body_class(); ?>>
     <div id="assessor-app-root">
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #f0f4f8;">
+        <div id="wp-loading-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #f0f4f8;">
             <div style="
                 width: 50px;
                 height: 50px;

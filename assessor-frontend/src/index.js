@@ -40,6 +40,13 @@ const targetElement = document.getElementById('assessor-app-root') || document.g
 console.log('Target element found:', targetElement);
 
 if (targetElement) {
+  // Remove WordPress loading screen if it exists
+  const wpLoadingScreen = document.getElementById('wp-loading-screen');
+  if (wpLoadingScreen) {
+    wpLoadingScreen.remove();
+    console.log('WordPress loading screen removed');
+  }
+  
   const root = ReactDOM.createRoot(targetElement);
   root.render(
     <React.StrictMode>
