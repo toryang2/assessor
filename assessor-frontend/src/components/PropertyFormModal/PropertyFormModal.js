@@ -951,7 +951,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         }}
                         InputProps={{
                           endAdornment: (
-                            <FormControl sx={{ minWidth: 120, ml: 1 }}>
+                            <FormControl sx={{ minWidth: 90, ml: 1 }}>
                               <Select
                                 value={formData.area_unit}
                                 onChange={(e) => {
@@ -987,8 +987,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
                                 }}
                               >
-                                <MenuItem value="hectares">Hectares</MenuItem>
-                                <MenuItem value="sqm">Sqm</MenuItem>
+                                <MenuItem value="hectares">ha</MenuItem>
+                                <MenuItem value="sqm">sqm</MenuItem>
                               </Select>
                             </FormControl>
                           )
@@ -1074,8 +1074,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
                               }}
                             >
-                              <MenuItem value="hectares">Hectares</MenuItem>
-                              <MenuItem value="sqm">Sqm</MenuItem>
+                              <MenuItem value="hectares">ha</MenuItem>
+                              <MenuItem value="sqm">sqm</MenuItem>
                             </Select>
                           </FormControl>
                         )

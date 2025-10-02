@@ -266,11 +266,13 @@ const AuditTrail = () => {
       // Numeric formatting for known fields
       if (field === 'area_hectare') {
         const n = Number(val);
-        return isNaN(n) ? String(val) : n.toFixed(4);
+        if (isNaN(n)) return String(val);
+        const unit = n <= 1 ? 'ha' : 'has';
+        return `${n.toFixed(4)} ${unit}`;
       }
       if (field === 'area_sqm') {
         const n = Number(val);
-        return isNaN(n) ? String(val) : n.toFixed(2);
+        return isNaN(n) ? String(val) : `${n.toFixed(2)} sqm`;
       }
       if (field === 'assessed_value') {
         const n = Number(val);
@@ -299,17 +301,23 @@ const AuditTrail = () => {
     const action = (log.action || '').toLowerCase();
     const changes = buildChanges(log);
     const keys = Object.keys(changes);
+    
+    // For property-related actions, show Tax Declaration info if available
+    const taxDeclarationInfo = log.tax_declaration_number ? ` ${log.tax_declaration_number}` : '';
+    
     if (action === 'update') {
-      if (!keys.length) return 'Updated (no field changes captured)';
+      if (!keys.length) return `Updated${taxDeclarationInfo} (no field changes captured)`;
       const formatFieldValue = (field, val) => {
         if (val === undefined || val === null) return '—';
         if (field === 'area_hectare') {
           const n = Number(val);
-          return isNaN(n) ? String(val) : n.toFixed(4);
+          if (isNaN(n)) return String(val);
+          const unit = n <= 1 ? 'ha' : 'has';
+          return `${n.toFixed(4)} ${unit}`;
         }
         if (field === 'area_sqm') {
           const n = Number(val);
-          return isNaN(n) ? String(val) : n.toFixed(2);
+          return isNaN(n) ? String(val) : `${n.toFixed(2)} sqm`;
         }
         if (field === 'assessed_value') {
           const n = Number(val);
@@ -324,32 +332,32 @@ const AuditTrail = () => {
         return `${k}: ${oldV} → ${newV}`;
       }).join('; ');
       const more = keys.length > 2 ? ` (+${keys.length - 2} more)` : '';
-      return `Changed ${keys.length} field(s): ${preview}${more}`;
+      return taxDeclarationInfo ? `Tax Declaration:${taxDeclarationInfo} - Changed ${keys.length} field(s)` : `Changed ${keys.length} field(s): ${preview}${more}`;
     }
     if (action === 'create') {
       try {
         const newVals = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
         const keysShow = ['tax_declaration_number', 'location', 'kind_of_property', 'assessed_value'];
         const parts = keysShow.filter(k => newVals && newVals[k] !== undefined && newVals[k] !== null).map(k => `${k}: ${newVals[k]}`);
-        return parts.length ? `Created (${parts.join('; ')})` : 'Created';
-      } catch (_) { return 'Created'; }
+        return parts.length ? `Created:${taxDeclarationInfo} (${parts.join('; ')})` : `Created:${taxDeclarationInfo}`;
+      } catch (_) { return `Created:${taxDeclarationInfo}`; }
     }
     if (action === 'upload') {
       try {
         const nv = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
         const file = nv.original_filename || nv.filename || 'file';
-        const tdn = nv.tax_declaration_number ? ` to ${nv.tax_declaration_number}` : '';
-        return `Uploaded ${file}${tdn}`;
-      } catch (_) { return 'Uploaded file'; }
+        const tdn = log.tax_declaration_number || (nv.tax_declaration_number ? ` to ${nv.tax_declaration_number}` : '');
+        return `Uploaded ${file}${tdn ? ` (${tdn})` : ''}`;
+      } catch (_) { return `Uploaded file${taxDeclarationInfo}`; }
     }
     if (action === 'delete') {
       try {
         const oldVals = log && log.old_values ? (typeof log.old_values === 'string' ? JSON.parse(log.old_values) : log.old_values) : {};
-        const primary = oldVals && oldVals.tax_declaration_number ? `tax_declaration_number: ${oldVals.tax_declaration_number}` : '';
+        const primary = log.tax_declaration_number || (oldVals && oldVals.tax_declaration_number ? oldVals.tax_declaration_number : '');
         return primary ? `Deleted (${primary})` : 'Deleted';
-      } catch (_) { return 'Deleted'; }
+      } catch (_) { return `Deleted${taxDeclarationInfo}`; }
     }
-    return (log.event || log.action || 'Action');
+    return (log.event || log.action || 'Action') + taxDeclarationInfo;
   };
 
   if (loading && auditLogs.length === 0) {
@@ -481,7 +489,7 @@ const AuditTrail = () => {
                 <TableCell>Action</TableCell>
                 <TableCell>User</TableCell>
                 <TableCell>Table</TableCell>
-                <TableCell>Record ID</TableCell>
+                    <TableCell>ID</TableCell>
                 <TableCell>Summary</TableCell>
                 <TableCell>Date & Time</TableCell>
                 <TableCell>IP Address</TableCell>
@@ -525,7 +533,7 @@ const AuditTrail = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                        {format(new Date(log.created_at), 'MMM dd, yyyy hh:mm:ss a')}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -652,6 +660,40 @@ const AuditTrail = () => {
                       secondary={selectedLog.record_id || 'N/A'}
                     />
                   </ListItem>
+                  {selectedLog.tax_declaration_number && (
+                    <ListItem>
+                      <ListItemText
+                        primary="Tax Declaration Details"
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" fontWeight={600}>
+                              {selectedLog.tax_declaration_number}
+                            </Typography>
+                            {selectedLog.declarant_last_name && (
+                              <Typography variant="caption" color="text.secondary">
+                                Owner: {selectedLog.declarant_last_name}, {selectedLog.declarant_first_name}
+                              </Typography>
+                            )}
+                            {selectedLog.location && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Location: {selectedLog.location}
+                              </Typography>
+                            )}
+                            {selectedLog.kind_of_property && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Type: {selectedLog.kind_of_property}
+                              </Typography>
+                            )}
+                            {selectedLog.assessed_value && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Value: ₱{Number(selectedLog.assessed_value).toLocaleString()}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  )}
                 </List>
               </Grid>
               
@@ -663,7 +705,7 @@ const AuditTrail = () => {
                   <ListItem>
                     <ListItemText
                       primary="Date & Time"
-                      secondary={format(new Date(selectedLog.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                      secondary={format(new Date(selectedLog.created_at), 'MMM dd, yyyy hh:mm:ss a')}
                     />
                   </ListItem>
                   <ListItem>
@@ -736,7 +778,7 @@ const AuditTrail = () => {
                             {getActionIcon(h.action)}
                           </ListItemIcon>
                           <ListItemText
-                            primary={`${format(new Date(h.created_at), 'MMM dd, yyyy HH:mm:ss')} • ${h.action.toUpperCase()} • ${h.user_name || h.user_id || 'System'}`}
+                            primary={`${format(new Date(h.created_at), 'MMM dd, yyyy hh:mm:ss a')} • ${h.action.toUpperCase()} • ${h.user_name || h.user_id || 'System'}`}
                             secondary={
                               <Box sx={{ mt: 0.5 }}>
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>

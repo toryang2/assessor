@@ -287,7 +287,7 @@ class Assessor_Properties {
                 'declarant_last_name' => $created->declarant_last_name,
                 'declarant_first_name' => $created->declarant_first_name,
                 'declarant_middle_initial' => $created->declarant_middle_initial,
-                'business' => isset($created->business) ? $created->business : (isset($created->business_name) ? $created->business_name : ''),
+                'business' => $created->business,
                 'location' => $created->location,
                 'lot_number' => $created->lot_number,
                 'unique_lot_number_identified' => $created->unique_lot_number_identified,
@@ -355,6 +355,7 @@ class Assessor_Properties {
             'area_sqm',
             'title_number',
             'assessed_value',
+            'assessed_value_old',
             'effectivity_date',
             'pin',
             'address',
@@ -363,15 +364,28 @@ class Assessor_Properties {
             'gen_class',
             'memoranda',
             'supporting_documents',
-            'supporting_documents_old'
+            'supporting_documents_old',
+            'verifier_signatory_name',
+            'verifier_signatory_title',
+            'municipal_assessor_name',
+            'municipal_assessor_suffix',
+            'municipal_assessor_title',
+            'municipal_assessor_license',
+            'status'
         );
         $old_values = array();
         $new_values = array();
         foreach ($fields_to_track as $field) {
-            if (!array_key_exists($field, $params)) {
+            // Handle business field name mapping (frontend sends business_name, DB stores as business)
+            $param_key = $field;
+            if ($field === 'business') {
+                $param_key = 'business_name';
+            }
+            
+            if (!array_key_exists($param_key, $params)) {
                 continue;
             }
-            $new_raw = $params[$field];
+            $new_raw = $params[$param_key];
             $old_raw = isset($current_property->$field) ? $current_property->$field : null;
 
             // Normalize values by field type to avoid logging formatting-only changes
@@ -380,19 +394,35 @@ class Assessor_Properties {
 
             if ($is_numeric_4 || $is_numeric_2) {
                 $precision = $is_numeric_4 ? 4 : 2;
+                
+                // Better handling of numeric values
                 $old_num = is_null($old_raw) || $old_raw === '' ? null : floatval($old_raw);
                 $new_num = $new_raw === '' || is_null($new_raw) ? null : floatval($new_raw);
+                
+                // For area_hectare, treat 0.0000 as equivalent to null/empty when comparing
+                // This handles cases where the database has 0.0000 but the form sends empty
+                if ($field === 'area_hectare') {
+                    if ($old_num !== null && $old_num == 0) {
+                        $old_num = null;
+                    }
+                    if ($new_num !== null && $new_num == 0) {
+                        $new_num = null;
+                    }
+                }
 
                 // If both null/empty, no change
                 if ($old_num === null && $new_num === null) {
                     continue;
                 }
+                
                 // Compare rounded numeric values
                 $old_round = is_null($old_num) ? null : round($old_num, $precision);
                 $new_round = is_null($new_num) ? null : round($new_num, $precision);
+                
                 if ($old_round === $new_round) {
                     continue; // no effective change
                 }
+                
                 // Store formatted values for readability
                 $old_values[$field] = is_null($old_round) ? null : number_format($old_round, $precision, '.', '');
                 $new_values[$field] = is_null($new_round) ? null : number_format($new_round, $precision, '.', '');
@@ -403,7 +433,8 @@ class Assessor_Properties {
             $normalize_string = function($v) {
                 if ($v === null) return null;
                 $s = trim((string)$v);
-                return $s;
+                // Treat empty strings as null for comparison purposes
+                return $s === '' ? null : $s;
             };
             $old_norm = $normalize_string($old_raw);
             $new_norm = $normalize_string($new_raw);
@@ -479,9 +510,11 @@ class Assessor_Properties {
         
         // Business is stored on properties table directly
         
-        // Log audit trail with captured changes (if any)
-        $audit = new Assessor_Audit();
-        $audit->log_activity($user_id, 'update', 'assessor_properties', $id, !empty($old_values) ? $old_values : null, !empty($new_values) ? $new_values : null);
+        // Log audit trail with captured changes (only if there are actual changes)
+        if (!empty($old_values) && !empty($new_values)) {
+            $audit = new Assessor_Audit();
+            $audit->log_activity($user_id, 'update', 'assessor_properties', $id, $old_values, $new_values);
+        }
         
         return $this->get_property($id);
     }

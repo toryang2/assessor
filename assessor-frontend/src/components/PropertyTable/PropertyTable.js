@@ -215,7 +215,8 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 
                 let currentArea = '';
                 if (hasHa) {
-                  currentArea = `${numHa.toFixed(4)} ha`;
+                  const unit = numHa <= 1 ? 'ha' : 'has';
+                  currentArea = `${numHa.toFixed(4)} ${unit}`;
                 } else if (hasSqm) {
                   currentArea = `${numSqm.toFixed(2)} sqm`;
                 }
@@ -875,7 +876,8 @@ const PropertyTable = () => {
                     
                     let currentArea = '';
                     if (hasHa) {
-                      currentArea = `${numHa.toFixed(4)} ha`;
+                      const unit = numHa <= 1 ? 'ha' : 'has';
+                      currentArea = `${numHa.toFixed(4)} ${unit}`;
                     } else if (hasSqm) {
                       currentArea = `${numSqm.toFixed(2)} sqm`;
                     }
@@ -1121,7 +1123,8 @@ const PropertyTable = () => {
                         
                         let currentArea = '';
                         if (hasHa) {
-                          currentArea = `${numHa.toFixed(4)} ha`;
+                          const unit = numHa <= 1 ? 'ha' : 'has';
+                          currentArea = `${numHa.toFixed(4)} ${unit}`;
                         } else if (hasSqm) {
                           currentArea = `${numSqm.toFixed(2)} sqm`;
                         }
@@ -1293,7 +1296,8 @@ const PropertyTable = () => {
                         
                         let currentArea = '';
                         if (hasHa) {
-                          currentArea = `${numHa.toFixed(4)} ha`;
+                          const unit = numHa <= 1 ? 'ha' : 'has';
+                          currentArea = `${numHa.toFixed(4)} ${unit}`;
                         } else if (hasSqm) {
                           currentArea = `${numSqm.toFixed(2)} sqm`;
                         }

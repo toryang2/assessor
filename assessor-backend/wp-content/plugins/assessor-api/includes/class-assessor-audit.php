@@ -26,9 +26,9 @@ class Assessor_Audit {
         $values = array();
         
         if ($search !== '') {
-            $where[] = "(a.action LIKE %s OR a.table_name LIKE %s OR a.ip_address LIKE %s OR a.user_agent LIKE %s OR u.full_name LIKE %s)";
+            $where[] = "(a.action LIKE %s OR a.table_name LIKE %s OR a.ip_address LIKE %s OR a.user_agent LIKE %s OR u.full_name LIKE %s OR p.tax_declaration_number LIKE %s OR p.declarant_last_name LIKE %s OR p.declarant_first_name LIKE %s OR p.location LIKE %s)";
             $like = '%' . $wpdb->esc_like($search) . '%';
-            $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like;
+            $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like; $values[] = $like;
         }
         if ($action !== '') {
             $where[] = "a.action = %s";
@@ -62,18 +62,22 @@ class Assessor_Audit {
             $where_clause = 'WHERE ' . implode(' AND ', $where);
         }
         
-        // Total count
-        $count_sql = "SELECT COUNT(*) FROM $table_audit a LEFT JOIN $table_users u ON a.user_id = u.id $where_clause";
+        // Total count - include properties table for search consistency
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $count_sql = "SELECT COUNT(*) FROM $table_audit a LEFT JOIN $table_users u ON a.user_id = u.id LEFT JOIN $table_properties p ON (a.table_name LIKE '%properties%' AND a.record_id = p.id) $where_clause";
         if (!empty($values)) {
             $count_sql = $wpdb->prepare($count_sql, $values);
         }
         $total = intval($wpdb->get_var($count_sql));
         
-        // Data query
+        // Data query - include property details for better context
         $data_sql = "
-            SELECT a.*, u.full_name AS user_name
+            SELECT a.*, u.full_name AS user_name,
+                   p.tax_declaration_number, p.declarant_last_name, p.declarant_first_name,
+                   p.location, p.kind_of_property, p.assessed_value
             FROM $table_audit a
             LEFT JOIN $table_users u ON a.user_id = u.id
+            LEFT JOIN $table_properties p ON (a.table_name LIKE '%properties%' AND a.record_id = p.id)
             $where_clause
             ORDER BY a.created_at DESC
             LIMIT %d OFFSET %d
