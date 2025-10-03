@@ -22,7 +22,18 @@ import {
   Divider,
   Checkbox,
   FormControlLabel,
-  FormGroup
+  FormGroup,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  IconButton,
+  Tooltip,
+  Collapse,
+  Stack
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -32,7 +43,12 @@ import {
   People as PeopleIcon,
   Description as DescriptionIcon,
   Settings as SettingsIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  ExpandMore as ExpandMoreIcon,
+  FilterList as FilterListIcon,
+  CheckBox as CheckBoxIcon,
+  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -46,6 +62,9 @@ const Export = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [exportProgress, setExportProgress] = useState(0);
+  const [activeStep, setActiveStep] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showFieldSelection, setShowFieldSelection] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -60,30 +79,52 @@ const Export = () => {
   const [selectedFields, setSelectedFields] = useState({
     properties: [
       'tax_declaration_number',
-      'owner_name',
+      'previous_tax_declaration_number',
+      'declarant_name',
+      'business',
       'location',
-      'property_type',
-      'status',
+      'lot_number',
+      'unique_lot_number_identified',
+      'area_hectare',
+      'area_sqm',
+      'title_number',
       'assessed_value',
-      'market_value',
+      'effectivity_date',
+      'pin',
+      'address',
+      'assessment_date',
+      'kind_of_property',
+      'gen_class',
+      'memoranda',
+      'supporting_documents',
+      'status',
+      'created_by',
+      'updated_by',
       'created_at',
       'updated_at'
     ],
     audit: [
+      'id',
+      'user_id',
       'action',
-      'user_name',
       'table_name',
       'record_id',
-      'created_at',
-      'ip_address'
+      'old_values',
+      'new_values',
+      'ip_address',
+      'user_agent',
+      'created_at'
     ],
     users: [
+      'id',
       'username',
       'email',
+      'full_name',
       'role',
       'status',
+      'last_login',
       'created_at',
-      'last_login'
+      'updated_at'
     ]
   });
 
@@ -101,44 +142,55 @@ const Export = () => {
   const fieldOptions = {
     properties: [
       { value: 'tax_declaration_number', label: 'Tax Declaration Number' },
-      { value: 'owner_name', label: 'Owner Name' },
-      { value: 'owner_address', label: 'Owner Address' },
-      { value: 'owner_contact', label: 'Owner Contact' },
-      { value: 'property_type', label: 'Property Type' },
-      { value: 'property_address', label: 'Property Address' },
+      { value: 'previous_tax_declaration_number', label: 'Previous Tax Declaration Number' },
+      { value: 'declarant_name', label: 'Declarant Name' },
+      { value: 'business', label: 'Business' },
       { value: 'location', label: 'Location' },
-      { value: 'land_area', label: 'Land Area' },
-      { value: 'land_area_unit', label: 'Land Area Unit' },
-      { value: 'building_area', label: 'Building Area' },
-      { value: 'building_area_unit', label: 'Building Area Unit' },
+      { value: 'lot_number', label: 'Lot Number' },
+      { value: 'unique_lot_number_identified', label: 'Unique Lot Number Identified' },
+      { value: 'area_hectare', label: 'Area (Hectare)' },
+      { value: 'area_hectare_old', label: 'Area Hectare (Old)' },
+      { value: 'area_sqm', label: 'Area (Square Meters)' },
+      { value: 'title_number', label: 'Title Number' },
       { value: 'assessed_value', label: 'Assessed Value' },
-      { value: 'market_value', label: 'Market Value' },
+      { value: 'assessed_value_old', label: 'Assessed Value (Old)' },
+      { value: 'effectivity_date', label: 'Effectivity Date' },
+      { value: 'pin', label: 'PIN' },
+      { value: 'address', label: 'Address' },
+      { value: 'assessment_date', label: 'Assessment Date' },
+      { value: 'kind_of_property', label: 'Kind of Property' },
+      { value: 'gen_class', label: 'General Class' },
+      { value: 'memoranda', label: 'Memoranda' },
+      { value: 'supporting_documents', label: 'Supporting Documents' },
+      { value: 'supporting_documents_old', label: 'Supporting Documents (Old)' },
       { value: 'status', label: 'Status' },
-      { value: 'remarks', label: 'Remarks' },
+      { value: 'created_by', label: 'Created By' },
+      { value: 'updated_by', label: 'Updated By' },
       { value: 'created_at', label: 'Created Date' },
       { value: 'updated_at', label: 'Updated Date' }
     ],
     audit: [
-      { value: 'action', label: 'Action' },
+      { value: 'id', label: 'ID' },
       { value: 'user_id', label: 'User ID' },
-      { value: 'user_name', label: 'User Name' },
+      { value: 'action', label: 'Action' },
       { value: 'table_name', label: 'Table Name' },
       { value: 'record_id', label: 'Record ID' },
-      { value: 'changes', label: 'Changes Made' },
+      { value: 'old_values', label: 'Old Values' },
+      { value: 'new_values', label: 'New Values' },
       { value: 'ip_address', label: 'IP Address' },
       { value: 'user_agent', label: 'User Agent' },
-      { value: 'remarks', label: 'Remarks' },
       { value: 'created_at', label: 'Date & Time' }
     ],
     users: [
+      { value: 'id', label: 'ID' },
       { value: 'username', label: 'Username' },
       { value: 'email', label: 'Email' },
+      { value: 'full_name', label: 'Full Name' },
       { value: 'role', label: 'Role' },
       { value: 'status', label: 'Status' },
-      { value: 'first_name', label: 'First Name' },
-      { value: 'last_name', label: 'Last Name' },
+      { value: 'last_login', label: 'Last Login' },
       { value: 'created_at', label: 'Created Date' },
-      { value: 'last_login', label: 'Last Login' }
+      { value: 'updated_at', label: 'Updated Date' }
     ]
   };
 
@@ -151,6 +203,21 @@ const Export = () => {
       location: '',
       propertyType: ''
     });
+    setActiveStep(0);
+  };
+
+  const handleNext = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+  };
+
+  const handleReset = () => {
+    setActiveStep(0);
+    setShowFilters(false);
+    setShowFieldSelection(false);
   };
 
   const handleFieldToggle = (field) => {
@@ -250,87 +317,97 @@ const Export = () => {
     switch (exportType) {
       case 'properties':
         return (
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={3}>
-              <DatePicker
-                label="From Date"
-                value={filters.dateFrom}
-                onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                slotProps={{
-                  textField: {
-                    fullWidth: true
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <DatePicker
-                label="To Date"
-                value={filters.dateTo}
-                onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                slotProps={{
-                  textField: {
-                    fullWidth: true
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filters.status}
-                  label="Status"
-                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                >
+          <Stack spacing={3}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker
+                  label="From Date"
+                  value={filters.dateFrom}
+                  onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      size: 'small'
+                    }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker
+                  label="To Date"
+                  value={filters.dateTo}
+                  onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      size: 'small'
+                    }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={filters.status}
+                    label="Status"
+                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                  >
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="active">Active</MenuItem>
                   <MenuItem value="inactive">Inactive</MenuItem>
                   <MenuItem value="archived">Archived</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
-                </Select>
-              </FormControl>
+                  <MenuItem value="draft">Draft</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Location"
+                  value={filters.location}
+                  onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+                  placeholder="City/Municipality"
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Location"
-                value={filters.location}
-                onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
-                placeholder="City/Municipality"
-              />
-            </Grid>
-          </Grid>
+          </Stack>
         );
       
       case 'audit':
         return (
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <DatePicker
-                label="From Date"
-                value={filters.dateFrom}
-                onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                slotProps={{
-                  textField: {
-                    fullWidth: true
-                  }
-                }}
-              />
+          <Stack spacing={3}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  label="From Date"
+                  value={filters.dateFrom}
+                  onChange={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      size: 'small'
+                    }
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  label="To Date"
+                  value={filters.dateTo}
+                  onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      size: 'small'
+                    }
+                  }}
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <DatePicker
-                label="To Date"
-                value={filters.dateTo}
-                onChange={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                slotProps={{
-                  textField: {
-                    fullWidth: true
-                  }
-                }}
-              />
-            </Grid>
-          </Grid>
+          </Stack>
         );
       
       default:
@@ -338,12 +415,42 @@ const Export = () => {
     }
   };
 
+  const steps = [
+    {
+      label: 'Select Data Type',
+      description: 'Choose what type of data to export'
+    },
+    {
+      label: 'Choose Format',
+      description: 'Select the export format'
+    },
+    {
+      label: 'Set Filters',
+      description: 'Optional: Filter the data'
+    },
+    {
+      label: 'Select Fields',
+      description: 'Choose which fields to include'
+    },
+    {
+      label: 'Export',
+      description: 'Download your data'
+    }
+  ];
+
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
-        Data Export
-      </Typography>
+      {/* Header */}
+      <Box sx={{ marginBottom: 3 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Data Export
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Export your data in various formats with custom filters and field selection
+        </Typography>
+      </Box>
 
+      {/* Alerts */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
@@ -356,223 +463,355 @@ const Export = () => {
         </Alert>
       )}
 
-      {/* Export Configuration */}
-      <Grid container spacing={3}>
-        {/* Export Type Selection */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Export Type
-              </Typography>
-              <FormControl fullWidth>
-                <InputLabel>Select Data Type</InputLabel>
-                <Select
-                  value={exportType}
-                  label="Select Data Type"
-                  onChange={(e) => handleExportTypeChange(e.target.value)}
-                >
-                  {exportTypes.map(type => (
-                    <MenuItem key={type.value} value={type.value}>
-                      <Box display="flex" alignItems="center">
-                        {type.icon}
-                        <Box sx={{ ml: 1 }}>
-                          <Typography variant="body2">{type.label}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {type.description}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Export Format Selection */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Export Format
-              </Typography>
-              <FormControl fullWidth>
-                <InputLabel>Select Format</InputLabel>
-                <Select
-                  value={exportFormat}
-                  label="Select Format"
-                  onChange={(e) => setExportFormat(e.target.value)}
-                >
-                  {exportFormats.map(format => (
-                    <MenuItem key={format.value} value={format.value}>
-                      <Box display="flex" alignItems="center">
-                        <FileDownloadIcon />
-                        <Box sx={{ ml: 1 }}>
-                          <Typography variant="body2">{format.label}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {format.description}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Export Action */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Export Action
-              </Typography>
-              <Button
-                fullWidth
-                variant="contained"
-                startIcon={<DownloadIcon />}
-                onClick={handleExport}
-                disabled={loading || selectedFields[exportType].length === 0}
-                sx={{ py: 2 }}
-              >
-                {loading ? 'Exporting...' : 'Export Data'}
-              </Button>
-              
-              {loading && (
-                <Box sx={{ mt: 2 }}>
-                  <LinearProgress variant="determinate" value={exportProgress} />
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    {exportProgress}% Complete
+      {/* Stepper */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Stepper activeStep={activeStep} orientation="horizontal">
+          {steps.map((step, index) => (
+            <Step key={step.label}>
+              <StepLabel>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: activeStep === index ? 600 : 400 }}>
+                    {step.label}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {step.description}
                   </Typography>
                 </Box>
-              )}
-            </CardContent>
-          </Card>
+              </StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+      </Paper>
+
+      {/* Data Type Selector - Always Visible */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6" component="h3">
+            Export Data Type
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            You can change this at any time
+          </Typography>
+        </Box>
+        <Grid container spacing={2}>
+          {exportTypes.map(type => (
+            <Grid item xs={12} sm={4} key={type.value}>
+              <Card 
+                sx={{ 
+                  cursor: 'pointer',
+                  border: exportType === type.value ? 2 : 1,
+                  borderColor: exportType === type.value ? 'primary.main' : 'divider',
+                  '&:hover': { borderColor: 'primary.main', boxShadow: 2 }
+                }}
+                onClick={() => handleExportTypeChange(type.value)}
+              >
+                <CardContent>
+                  <Box display="flex" alignItems="center" mb={1}>
+                    {type.icon}
+                    <Typography variant="subtitle1" sx={{ ml: 1 }}>
+                      {type.label}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {type.description}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
-      </Grid>
+      </Paper>
 
-      {/* Filters */}
-      <Card sx={{ mt: 3, mb: 3 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">
-              Export Filters
+      {/* Step Content */}
+      <Paper sx={{ p: 3, mb: 3, minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
+        {/* Step 0: Export Type Selection */}
+        {activeStep === 0 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Welcome to Export Wizard
             </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={clearFilters}
-              size="small"
-            >
-              Clear Filters
-            </Button>
-          </Box>
-          {getFilterFields()}
-        </CardContent>
-      </Card>
-
-      {/* Field Selection */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">
-              Select Fields to Export
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Select your data type above, then choose the export format and configure your export settings.
             </Typography>
-            <Box>
+            <Box sx={{ 
+              p: 3, 
+              bgcolor: 'grey.50', 
+              borderRadius: 2, 
+              border: '1px solid', 
+              borderColor: 'grey.200',
+              textAlign: 'center'
+            }}>
+              <Typography variant="h6" color="primary" gutterBottom>
+                Ready to Export {exportTypes.find(t => t.value === exportType)?.label || 'Your Data'}?
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                You can change the data type at any time using the selector above.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Click "Next" to continue with the export configuration.
+              </Typography>
+            </Box>
+            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
               <Button
-                variant="outlined"
-                size="small"
-                onClick={handleSelectAllFields}
-                sx={{ mr: 1 }}
+                variant="contained"
+                onClick={handleNext}
+                disabled={!exportType}
               >
-                Select All
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleDeselectAllFields}
-              >
-                Deselect All
+                Next
               </Button>
             </Box>
           </Box>
-          
-          <FormGroup>
+        )}
+
+        {/* Step 1: Export Format Selection */}
+        {activeStep === 1 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Choose Export Format
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Select the format for your exported data
+            </Typography>
             <Grid container spacing={2}>
-              {fieldOptions[exportType]?.map(field => (
-                <Grid item xs={12} md={4} key={field.value}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={selectedFields[exportType].includes(field.value)}
-                        onChange={() => handleFieldToggle(field.value)}
-                      />
-                    }
-                    label={field.label}
-                  />
+              {exportFormats.map(format => (
+                <Grid item xs={12} sm={6} key={format.value}>
+                  <Card 
+                    sx={{ 
+                      cursor: 'pointer',
+                      border: exportFormat === format.value ? 2 : 1,
+                      borderColor: exportFormat === format.value ? 'primary.main' : 'divider',
+                      '&:hover': { borderColor: 'primary.main', boxShadow: 2 }
+                    }}
+                    onClick={() => setExportFormat(format.value)}
+                  >
+                    <CardContent>
+                      <Box display="flex" alignItems="center" mb={1}>
+                        <FileDownloadIcon />
+                        <Typography variant="h6" sx={{ ml: 1 }}>
+                          {format.label}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {format.description}
+                      </Typography>
+                    </CardContent>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
-          </FormGroup>
-          
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Selected {selectedFields[exportType].length} of {fieldOptions[exportType]?.length} fields
-            </Typography>
+            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button onClick={handleBack}>
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleNext}
+                disabled={!exportFormat}
+              >
+                Next
+              </Button>
+            </Box>
           </Box>
-        </CardContent>
-      </Card>
+        )}
 
-      {/* Export Information */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Export Information
-          </Typography>
-          <List dense>
-            <ListItem>
-              <ListItemIcon>
-                <SettingsIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Export Type"
-                secondary={exportTypes.find(t => t.value === exportType)?.label}
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <FileDownloadIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Export Format"
-                secondary={exportFormats.find(f => f.value === exportFormat)?.label}
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <DescriptionIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Selected Fields"
-                secondary={`${selectedFields[exportType].length} fields selected`}
-              />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <TableChartIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Estimated Size"
-                secondary="File size will depend on the amount of data and selected fields"
-              />
-            </ListItem>
-          </List>
-        </CardContent>
-      </Card>
+        {/* Step 2: Filters */}
+        {activeStep === 2 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6" component="h3">
+                Set Filters (Optional)
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={clearFilters}
+                size="small"
+              >
+                Clear All
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Filter your data to export only what you need
+            </Typography>
+            {getFilterFields()}
+            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button onClick={handleBack}>
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleNext}
+              >
+                Next
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Step 3: Field Selection */}
+        {activeStep === 3 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6" component="h3">
+                Select Fields to Export
+              </Typography>
+              <Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleSelectAllFields}
+                  sx={{ mr: 1 }}
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleDeselectAllFields}
+                >
+                  Deselect All
+                </Button>
+              </Box>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Choose which fields to include in your export
+            </Typography>
+            
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle1">
+                  Available Fields ({fieldOptions[exportType]?.length || 0})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <FormGroup>
+                  <Grid container spacing={1}>
+                    {fieldOptions[exportType]?.map(field => (
+                      <Grid item xs={12} sm={6} md={4} key={field.value}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedFields[exportType].includes(field.value)}
+                              onChange={() => handleFieldToggle(field.value)}
+                              size="small"
+                            />
+                          }
+                          label={
+                            <Typography variant="body2">
+                              {field.label}
+                            </Typography>
+                          }
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </FormGroup>
+              </AccordionDetails>
+            </Accordion>
+            
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Selected:</strong> {selectedFields[exportType].length} of {fieldOptions[exportType]?.length} fields
+              </Typography>
+            </Box>
+            
+            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button onClick={handleBack}>
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleNext}
+                disabled={selectedFields[exportType].length === 0}
+              >
+                Next
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Step 4: Export */}
+        {activeStep === 4 && (
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Ready to Export
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Review your export settings and click Export to download your data
+            </Typography>
+
+            {/* Export Summary */}
+            <Card sx={{ mb: 3, bgcolor: 'grey.50' }}>
+              <CardContent>
+                <Typography variant="subtitle1" gutterBottom>
+                  Export Summary
+                </Typography>
+                <List dense>
+                  <ListItem sx={{ py: 0 }}>
+                    <ListItemIcon>
+                      <SettingsIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Data Type"
+                      secondary={exportTypes.find(t => t.value === exportType)?.label}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ py: 0 }}>
+                    <ListItemIcon>
+                      <FileDownloadIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Format"
+                      secondary={exportFormats.find(f => f.value === exportFormat)?.label}
+                    />
+                  </ListItem>
+                  <ListItem sx={{ py: 0 }}>
+                    <ListItemIcon>
+                      <DescriptionIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Fields"
+                      secondary={`${selectedFields[exportType].length} fields selected`}
+                    />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+
+            {/* Export Button */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<DownloadIcon />}
+                onClick={handleExport}
+                disabled={loading || selectedFields[exportType].length === 0}
+                sx={{ px: 4, py: 1.5 }}
+              >
+                {loading ? 'Exporting...' : 'Export Data'}
+              </Button>
+            </Box>
+            
+            {loading && (
+              <Box sx={{ mb: 3 }}>
+                <LinearProgress variant="determinate" value={exportProgress} />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
+                  {exportProgress}% Complete
+                </Typography>
+              </Box>
+            )}
+
+            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button onClick={handleBack}>
+                Back
+              </Button>
+              <Button onClick={handleReset}>
+                Start Over
+              </Button>
+            </Box>
+          </Box>
+        )}
+      </Paper>
     </Box>
   );
 };

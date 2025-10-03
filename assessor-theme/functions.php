@@ -152,7 +152,24 @@ function assessor_enqueue_react_app() {
         }
     }
     
-    // CSS is bundled with JavaScript in Create React App, so we don't need separate CSS loading
+    // Find and enqueue the main CSS file
+    $css_files = glob($build_dir . '/static/css/main.*.css');
+    if (!empty($css_files)) {
+        $css_file = basename($css_files[0]);
+        $css_url = get_template_directory_uri() . '/assets/static/css/' . $css_file;
+        
+        wp_enqueue_style(
+            'assessor-react-app',
+            $css_url,
+            array(),
+            '1.0.0'
+        );
+        
+        // Log the CSS URL for debugging
+        error_log('Loading React CSS: ' . $css_url);
+    } else {
+        error_log('No CSS files found in: ' . $build_dir . '/static/css/');
+    }
 }
 add_action('wp_enqueue_scripts', 'assessor_enqueue_react_app');
 
