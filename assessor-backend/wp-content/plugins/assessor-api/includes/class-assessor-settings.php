@@ -31,6 +31,13 @@ class Assessor_Settings {
 				'afk_timeout' => 30
 			);
 		}
+		// Ensure municipal_assessor_license is always returned as a string to preserve leading zeros
+		if (isset($settings['municipal_assessor_license'])) {
+			error_log('🔍 SETTINGS: Raw license from DB = ' . var_export($settings['municipal_assessor_license'], true));
+			error_log('🔍 SETTINGS: License type = ' . gettype($settings['municipal_assessor_license']));
+			$settings['municipal_assessor_license'] = (string) $settings['municipal_assessor_license'];
+			error_log('🔍 SETTINGS: After string cast = ' . var_export($settings['municipal_assessor_license'], true));
+		}
 		return $settings;
 	}
 
@@ -53,12 +60,19 @@ class Assessor_Settings {
 						$val = 30; // Default to 30 minutes if invalid
 					}
 				} else {
-					$val = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
-					if (in_array($key, $uppercase_keys, true)) {
-						$val = strtoupper($val);
+					// Special handling for municipal_assessor_license to preserve leading zeros
+					if ($key === 'municipal_assessor_license') {
+						$val = is_string($params[$key]) ? $params[$key] : '';
+						// Don't sanitize or uppercase the license to preserve leading zeros
+					} else {
+						$val = is_string($params[$key]) ? sanitize_text_field($params[$key]) : '';
+						if (in_array($key, $uppercase_keys, true)) {
+							$val = strtoupper($val);
+						}
 					}
 				}
 				$data[$key] = $val;
+				
 			}
 		}
 		if (empty($data)) {

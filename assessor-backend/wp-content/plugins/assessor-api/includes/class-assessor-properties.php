@@ -223,6 +223,14 @@ class Assessor_Properties {
             return new WP_Error('duplicate_tax_number', 'Tax declaration number already exists', array('status' => 400));
         }
         
+        // Handle municipal_assessor_license with prefix to preserve leading zeros
+        $license_value = sanitize_text_field($params['municipal_assessor_license']);
+        $original_license = $license_value;
+        if (!empty($license_value)) {
+            $license_value = 'LICENSE_' . $license_value;
+            error_log("🔍 CREATE: Added prefix = '$license_value'");
+        }
+        
         // Insert property
         $result = $wpdb->insert(
             $table_properties,
@@ -257,7 +265,7 @@ class Assessor_Properties {
                 'municipal_assessor_name' => sanitize_text_field($params['municipal_assessor_name']),
                 'municipal_assessor_suffix' => sanitize_text_field($params['municipal_assessor_suffix']),
                 'municipal_assessor_title' => sanitize_text_field($params['municipal_assessor_title']),
-                'municipal_assessor_license' => sanitize_text_field($params['municipal_assessor_license']),
+                'municipal_assessor_license' => $license_value,
                 'status' => 'active',
                 'created_by' => $user_id,
                 'updated_by' => $user_id,
@@ -272,6 +280,25 @@ class Assessor_Properties {
         }
         
         $property_id = $wpdb->insert_id;
+        
+        // Remove prefix from license after successful insert to restore original value
+        if (!empty($original_license)) {
+            $result = $wpdb->update(
+                $table_properties,
+                array('municipal_assessor_license' => $original_license),
+                array('id' => $property_id),
+                array('%s'),
+                array('%d')
+            );
+            error_log("🔍 CREATE: Removed prefix, final license = '$original_license'");
+            
+            // Verify the value was stored correctly
+            $stored_license = $wpdb->get_var($wpdb->prepare(
+                "SELECT municipal_assessor_license FROM $table_properties WHERE id = %d",
+                $property_id
+            ));
+            error_log("🔍 CREATE: License after DB insert = '$stored_license' (with leading zeros preserved)");
+        }
         
         // Insert business name if provided
         // Business is stored on properties table; no separate insert needed
@@ -488,6 +515,15 @@ class Assessor_Properties {
                     } else {
                         $update_data[$field] = sanitize_text_field($params[$field]);
                     }
+                } else if ($field === 'municipal_assessor_license') {
+                    // Handle municipal_assessor_license with prefix to preserve leading zeros
+                    $license_value = sanitize_text_field($params[$field]);
+                    if (!empty($license_value)) {
+                        $update_data[$field] = 'LICENSE_' . $license_value;
+                        error_log("🔍 UPDATE: Added prefix = 'LICENSE_$license_value'");
+                    } else {
+                        $update_data[$field] = $license_value;
+                    }
                 } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
                 } else {
@@ -506,6 +542,28 @@ class Assessor_Properties {
         
         if ($result === false) {
             return new WP_Error('update_failed', 'Failed to update property', array('status' => 500));
+        }
+        
+        // Remove prefix from license after successful update to restore original value
+        if (isset($params['municipal_assessor_license'])) {
+            $original_license = sanitize_text_field($params['municipal_assessor_license']);
+            if (!empty($original_license)) {
+                $result = $wpdb->update(
+                    $table_properties,
+                    array('municipal_assessor_license' => $original_license),
+                    array('id' => $id),
+                    array('%s'),
+                    array('%d')
+                );
+                error_log("🔍 UPDATE: Removed prefix, final license = '$original_license'");
+                
+                // Verify the value was stored correctly
+                $stored_license = $wpdb->get_var($wpdb->prepare(
+                    "SELECT municipal_assessor_license FROM $table_properties WHERE id = %d",
+                    $id
+                ));
+                error_log("🔍 UPDATE: License after DB update = '$stored_license' (with leading zeros preserved)");
+            }
         }
         
         // Business is stored on properties table directly
