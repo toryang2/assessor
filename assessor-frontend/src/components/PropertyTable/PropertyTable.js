@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -21,7 +21,9 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  CircularProgress
+  CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -30,7 +32,10 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Print as PrintIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  AttachFile as AttachFileIcon,
+  BrokenImage as BrokenImageIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
  
@@ -61,6 +66,74 @@ const sanitizeBusinessName = (name) => {
   let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
   if (out === ',') out = '';
   return out;
+};
+
+// Format declarant from discrete fields; add dot only for single-character middle
+const formatDeclarantFromParts = (last, first, middle) => {
+  const hasNames = !!(last || first);
+  if (!hasNames) return '';
+  // Normalize middle: remove any dots so we control dot rendering
+  const raw = (middle || '').trim();
+  const mi = raw.replace(/\./g, '');
+  const middleFormatted = mi ? (mi.length === 1 ? ` ${mi}.` : ` ${mi}`) : '';
+  return `${last || ''}${hasNames && first ? ', ' : ''}${first || ''}${middleFormatted}`.trim();
+};
+
+// Adjust a combined declarant name string ("LAST, FIRST MI" or "LAST, FIRST MI.")
+// Apply rule: if middle token length === 1 -> ensure trailing dot; if length > 1 -> no dot
+const normalizeDeclarantString = (name) => {
+  const s = sanitizeDeclarant(name);
+  if (!s) return s;
+  // Split into last, first + rest
+  const parts = s.split(',');
+  if (parts.length < 2) return s;
+  const last = parts[0].trim();
+  const rest = parts.slice(1).join(',').trim();
+  if (!rest) return `${last}`;
+  const restParts = rest.split(/\s+/);
+  if (restParts.length < 2) return `${last}, ${rest}`;
+  const first = restParts[0];
+  const middleRaw = restParts.slice(1).join(' ').trim();
+  if (!middleRaw) return `${last}, ${first}`;
+  const middleNoDots = middleRaw.replace(/\./g, '');
+  const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
+  return `${last}, ${first} ${middleFormatted}`;
+};
+
+// Helper function to get image attachment status for a property
+const getImageAttachmentStatus = (property) => {
+  if (!property) return { hasImages: false, hasBrokenLinks: false, totalUrls: 0, validUrls: 0 };
+  
+  const supportingDocs = property.supporting_documents;
+  const supportingDocsOld = property.supporting_documents_old;
+  
+  // Helper function to extract and validate URLs from a field
+  const extractUrls = (field) => {
+    if (!field || !String(field).trim()) return [];
+    
+    return String(field)
+      .split(/\||,/)
+      .map(url => String(url).trim())
+      .filter(url => url);
+  };
+  
+  // Get all URLs from both fields
+  const allUrls = [
+    ...extractUrls(supportingDocs),
+    ...extractUrls(supportingDocsOld)
+  ];
+  
+  // Filter valid HTTP/HTTPS URLs
+  const validUrls = allUrls.filter(url => /^https?:\/\//i.test(url));
+  const brokenUrls = allUrls.filter(url => url && !/^https?:\/\//i.test(url));
+  
+  return {
+    hasImages: validUrls.length > 0,
+    hasBrokenLinks: brokenUrls.length > 0,
+    totalUrls: allUrls.length,
+    validUrls: validUrls.length,
+    brokenUrls: brokenUrls.length
+  };
 };
 
 // Format date function - accessible to both components
@@ -132,7 +205,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{sanitizeDeclarant(printHistory?.[0]?.declarant_name) || ''}</span>
+              <strong>OWNER:</strong> <span>{normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ADDRESS:</strong>{' '}
@@ -198,7 +271,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 <div>{item.tax_declaration_number || ''}</div>
               </td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                const d = sanitizeDeclarant(item.declarant_name);
+                const d = normalizeDeclarantString(item.declarant_name);
                 const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                 return d && b ? `${d} / ${b}` : (d || b || '');
               })()}</td>
@@ -385,12 +458,47 @@ const PropertyTable = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
+  const [allProperties, setAllProperties] = useState([]);
+  const [loadingAll, setLoadingAll] = useState(false);
   
   // Safety check - ensure properties is always an array
   const safeProperties = properties || [];
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
+  // Image status filter: 'all' | 'with' | 'broken' | 'without'
+  const [imageFilter, setImageFilter] = useState('all');
+
+  const imageCounts = useMemo(() => {
+    const base = (allProperties && allProperties.length) ? allProperties : safeProperties;
+    let withImg = 0, broken = 0, without = 0;
+    (base || []).forEach((property) => {
+      const s = getImageAttachmentStatus(property);
+      if (s.hasImages) withImg += 1;
+      if (s.hasBrokenLinks) broken += 1;
+      if (!s.hasImages && !s.hasBrokenLinks) without += 1;
+    });
+    return { withImg, broken, without };
+  }, [allProperties, safeProperties]);
+  
+  const filteredProperties = useMemo(() => {
+    const base = (allProperties && allProperties.length) ? allProperties : safeProperties;
+    return (base || []).filter((property) => {
+      if (!property) return false;
+      if (imageFilter === 'all') return true;
+      const status = getImageAttachmentStatus(property);
+      if (imageFilter === 'with') return status.hasImages;
+      if (imageFilter === 'broken') return status.hasBrokenLinks;
+      if (imageFilter === 'without') return !status.hasImages && !status.hasBrokenLinks;
+      return true;
+    });
+  }, [allProperties, safeProperties, imageFilter]);
+  
+  const pagedProperties = useMemo(() => {
+    const start = page * rowsPerPage;
+    const end = start + rowsPerPage;
+    return filteredProperties.slice(start, end);
+  }, [filteredProperties, page, rowsPerPage]);
   
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
@@ -406,6 +514,9 @@ const PropertyTable = () => {
   const [printLoading, setPrintLoading] = useState(false);
   const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
   const [printRequestData, setPrintRequestData] = useState(null);
+  const [imageModal, setImageModal] = useState(false);
+  const [propertyImages, setPropertyImages] = useState([]);
+  const [maximizedImage, setMaximizedImage] = useState({ open: false, src: '', alt: '' });
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -422,6 +533,62 @@ const PropertyTable = () => {
     fetchProperties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, searchTerm]);
+
+  // Fetch full dataset for client-side filtering/pagination
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        setLoadingAll(true);
+        const collected = [];
+        let nextPage = 1;
+        const perPage = 100; // backend likely caps per_page; use a safe page size
+        let total = null;
+        let safetyCounter = 0;
+        const SAFETY_LIMIT = 200; // prevents infinite loops (200 pages * 100 = 20,000)
+
+        // Loop through pages until we've fetched all
+        // Stops when we've collected >= total (if provided) or when a page returns fewer than perPage
+        // Also stops at safety limit
+        while (safetyCounter < SAFETY_LIMIT) {
+          safetyCounter += 1;
+          const params = {
+            page: nextPage,
+            per_page: perPage,
+            q: searchTerm || '',
+            _t: Date.now()
+          };
+          const response = await apiService.getProperties(params);
+          const pageItems = (response && response.properties)
+            ? response.properties
+            : (response && response.data)
+              ? response.data
+              : [];
+          if (Array.isArray(pageItems) && pageItems.length > 0) {
+            collected.push(...pageItems);
+          }
+          // Capture total if present
+          if (response && response.pagination && typeof response.pagination.total === 'number') {
+            total = response.pagination.total;
+          } else if (typeof response?.total === 'number') {
+            total = response.total;
+          }
+          // Determine if we should continue
+          const shouldStopByTotal = typeof total === 'number' ? collected.length >= total : false;
+          const shouldStopByShortPage = !Array.isArray(pageItems) || pageItems.length < perPage;
+          if (shouldStopByTotal || shouldStopByShortPage) break;
+          nextPage += 1;
+        }
+        setAllProperties(collected);
+      } catch (e) {
+        // Fall back silently; keep existing page data
+        setAllProperties([]);
+      } finally {
+        setLoadingAll(false);
+      }
+    };
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   // Open printable modal automatically when navigated from Dashboard Recent Properties
   useEffect(() => {
@@ -521,6 +688,11 @@ const PropertyTable = () => {
 
   // No additional filters
   const handleFilterChange = () => {};
+  const handleImageFilterChange = (_event, value) => {
+    if (value === null) return; // keep current when clicking active
+    setImageFilter(value);
+    setPage(0);
+  };
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
@@ -620,6 +792,46 @@ const PropertyTable = () => {
       setPrintDocuments([]);
     } finally {
       setPrintLoading(false);
+    }
+  };
+
+  const handleViewImages = async (property) => {
+    try {
+      setImageModal(true);
+      
+      // Get all image URLs from supporting documents
+      const supportingDocs = property.supporting_documents;
+      const supportingDocsOld = property.supporting_documents_old;
+      
+      const extractUrls = (field) => {
+        if (!field || !String(field).trim()) return [];
+        return String(field)
+          .split(/\||,/)
+          .map(url => String(url).trim())
+          .filter(url => url && /^https?:\/\//i.test(url));
+      };
+      
+      const allUrls = [
+        ...extractUrls(supportingDocs),
+        ...extractUrls(supportingDocsOld)
+      ];
+      
+      // Format URLs for display
+      const images = allUrls.map((url, idx) => {
+        const path = url.split('?')[0];
+        const name = decodeURIComponent(path.substring(path.lastIndexOf('/') + 1));
+        return {
+          id: `image-${idx}`,
+          url: url,
+          name: name || `Image ${idx + 1}`,
+          alt: name || `Property image ${idx + 1}`
+        };
+      });
+      
+      setPropertyImages(images);
+    } catch (err) {
+      console.error('Error loading property images:', err);
+      setPropertyImages([]);
     }
   };
 
@@ -811,7 +1023,19 @@ const PropertyTable = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6} textAlign="right">
+              <Grid item xs={12} md={6} display="flex" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" gap={1}>
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value={imageFilter}
+                  onChange={handleImageFilterChange}
+                  aria-label="Image filter"
+                >
+                  <ToggleButton value="all" aria-label="All">All</ToggleButton>
+                  <ToggleButton value="with" aria-label="With image">With Image{imageCounts.withImg ? ` (${imageCounts.withImg})` : ''}</ToggleButton>
+                  <ToggleButton value="broken" aria-label="Broken image link">Broken{imageCounts.broken ? ` (${imageCounts.broken})` : ''}</ToggleButton>
+                  <ToggleButton value="without" aria-label="Without image">Without Image{imageCounts.without ? ` (${imageCounts.without})` : ''}</ToggleButton>
+                </ToggleButtonGroup>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
@@ -854,7 +1078,7 @@ const PropertyTable = () => {
               </TableRow>
             </TableHead>
             <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75 } }}>
-              {safeProperties && safeProperties.length > 0 ? safeProperties.map((property) => (
+              {pagedProperties && pagedProperties.length > 0 ? pagedProperties.map((property) => (
                 <TableRow key={property.id} hover>
                   <TableCell sx={{ verticalAlign: 'top' }}>
                     <Typography
@@ -867,10 +1091,7 @@ const PropertyTable = () => {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const hasNames = !!(property.declarant_last_name || property.declarant_first_name);
-                      const declarant = hasNames
-                        ? `${property.declarant_last_name || ''}${hasNames && property.declarant_first_name ? ', ' : ''}${property.declarant_first_name || ''}${property.declarant_middle_initial ? ` ${property.declarant_middle_initial}.` : ''}`
-                        : '';
+                      const declarant = formatDeclarantFromParts(property.declarant_last_name, property.declarant_first_name, property.declarant_middle_initial);
                       const business = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ') : '';
                       if (declarant && business) return `${declarant} / ${business}`;
                       return declarant || business || '—';
@@ -972,6 +1193,37 @@ const PropertyTable = () => {
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
+                      
+                      {(() => {
+                        const status = getImageAttachmentStatus(property);
+                        if (!status.hasImages && !status.hasBrokenLinks) return null;
+                        
+                        return (
+                          <Box display="flex" alignItems="center" gap={0.25}>
+                            {status.hasImages && (
+                              <IconButton
+                                size="small"
+                                color="success"
+                                sx={{ p: 0.25 }}
+                                title={`View ${status.validUrls} image${status.validUrls > 1 ? 's' : ''}`}
+                                onClick={() => handleViewImages(property)}
+                              >
+                                <ImageIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                            {status.hasBrokenLinks && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                sx={{ p: 0.25 }}
+                                title={`Has ${status.brokenUrls} broken link${status.brokenUrls > 1 ? 's' : ''}`}
+                              >
+                                <BrokenImageIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+                        );
+                      })()}
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -979,7 +1231,7 @@ const PropertyTable = () => {
                 <TableRow>
                   <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="text.secondary">
-                      {loading ? 'Loading properties...' : 'No properties found'}
+                      {loading || loadingAll ? 'Loading properties...' : 'No properties found'}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -991,7 +1243,7 @@ const PropertyTable = () => {
         <TablePagination
           rowsPerPageOptions={[10, 25, 50, 75, 100]}
           component="div"
-          count={totalCount}
+          count={(allProperties && allProperties.length) ? filteredProperties.length : totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handlePageChange}
@@ -1229,13 +1481,13 @@ const PropertyTable = () => {
                 );
               })()}
               <Table size="small" stickyHeader sx={{ tableLayout: 'fixed' }}>
-                <TableBody sx={{ '& td': { borderBottom: 'none', padding: { xs: '3px 8px', md: '4px 12px' } } }}>
+                    <TableBody sx={{ '& td': { borderBottom: 'none', padding: { xs: '3px 8px', md: '4px 12px' } } }}>
                   <TableRow sx={{ '& td': { paddingTop: '12px' } }}>
                     <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
                     <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}><strong>OWNER:</strong> {sanitizeDeclarant(printHistory[0].declarant_name) || ''}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}><strong>OWNER:</strong> {normalizeDeclarantString(printHistory[0].declarant_name) || ''}</TableCell>
                     <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                       <strong>ADDRESS:</strong>{' '}
                       <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
@@ -1292,7 +1544,7 @@ const PropertyTable = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
-                        const d = sanitizeDeclarant(item.declarant_name);
+                        const d = normalizeDeclarantString(item.declarant_name);
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>
@@ -1370,22 +1622,56 @@ const PropertyTable = () => {
                   const isLegacy = (d) => String(d?.id || '').startsWith('legacy-') || String(d?.description || '') === 'Legacy document';
                   const managedDocs = (printDocuments || []).filter(d => !isLegacy(d));
                   const legacyDocs = (printDocuments || []).filter(d => isLegacy(d));
+
+                  const isImage = (ext) => ['jpg','jpeg','png','gif','webp'].includes(String(ext || '').toLowerCase());
+
+                  const renderThumbnails = (docs) => {
+                    const images = docs.filter(d => isImage(d.file_type));
+                    if (!images.length) return null;
+                    return (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {images.map((doc) => (
+                          <Box
+                            key={doc.id}
+                            sx={{
+                              width: 128,
+                              height: 128,
+                              border: '1px solid #ddd',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              '&:hover': { borderColor: 'primary.main', boxShadow: 1 }
+                            }}
+                            onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: String(doc.file_type || '').toLowerCase() })}
+                            title={doc.original_filename || doc.filename}
+                          >
+                            <img
+                              src={doc.file_url}
+                              alt={doc.original_filename || doc.filename}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                            />
+                            <Box sx={{ display: 'none', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', backgroundColor: 'grey.100' }}>
+                              <Typography variant="caption">Failed to load</Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  };
+
                   const renderLinks = (docs) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
                       {docs.map((doc) => {
                         const ext = String(doc.file_type || '').toLowerCase();
+                        if (isImage(ext)) return null; // images handled by thumbnails
                         return (
                           <Box key={doc.id} sx={{ display: 'inline-flex', alignItems: 'center' }}>
                             <Button 
                               size="small" 
                               variant="text"
                               onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
-                              sx={{ 
-                                minWidth: 0,
-                                p: 0.25,
-                                fontSize: '0.75rem',
-                                textTransform: 'none'
-                              }}
+                              sx={{ minWidth: 0, p: 0.25, fontSize: '0.75rem', textTransform: 'none' }}
                             >
                               {doc.original_filename || doc.filename}
                             </Button>
@@ -1394,14 +1680,20 @@ const PropertyTable = () => {
                       })}
                     </Box>
                   );
+
                   return (
                     <>
+                      {/* Managed docs: thumbnails for images, links for others */}
+                      {renderThumbnails(managedDocs)}
                       {renderLinks(managedDocs)}
+
+                      {/* Legacy docs section (if any) */}
                       {legacyDocs.length > 0 && (
                         <>
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                             Legacy documents
                           </Typography>
+                          {renderThumbnails(legacyDocs)}
                           {renderLinks(legacyDocs)}
                         </>
                       )}
@@ -1423,6 +1715,157 @@ const PropertyTable = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Property Images Modal */}
+      <Dialog 
+        open={imageModal} 
+        onClose={() => setImageModal(false)}
+        maxWidth="md"
+        fullWidth
+        // PaperProps={{ sx: { maxWidth: '90vw', height: '90vh' } }}
+      >
+        <DialogTitle>
+          Property Images
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {propertyImages.length > 0 ? (
+            <Box 
+              sx={{ 
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 2,
+                flex: 1,
+                overflow: 'auto',
+                p: 1
+              }}
+            >
+              {propertyImages.map((image) => (
+                <Box
+                  key={image.id}
+                  sx={{
+                    position: 'relative',
+                    width: 192,
+                    height: 192,
+                    border: '1px solid #ddd',
+                    borderRadius: 1,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      boxShadow: 2
+                    }
+                  }}
+                  onClick={() => setMaximizedImage({ 
+                    open: true, 
+                    src: image.url, 
+                    alt: image.alt 
+                  })}
+                >
+                  <img
+                    src={image.url}
+                    alt={image.alt}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'none',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'grey.100',
+                      color: 'text.secondary'
+                    }}
+                  >
+                    <Typography variant="body2">Failed to load</Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      p: 0.5
+                    }}
+                  >
+                    <Typography variant="caption" noWrap>
+                      {image.name}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Box display="flex" justifyContent="center" alignItems="center" flex={1}>
+              <Typography variant="body2" color="text.secondary">
+                No images found for this property
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImageModal(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Maximized Image Modal */}
+      <Dialog 
+        open={maximizedImage.open} 
+        onClose={() => setMaximizedImage({ open: false, src: '', alt: '' })}
+        maxWidth="md"
+        fullWidth
+        // PaperProps={{ sx: { maxWidth: '95vw', height: '95vh' } }}
+      >
+        <DialogTitle>
+          {maximizedImage.alt}
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 0 }}>
+          <img
+            src={maximizedImage.src}
+            alt={maximizedImage.alt}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain'
+            }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextSibling.style.display = 'flex';
+            }}
+          />
+          <Box
+            sx={{
+              display: 'none',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '50vh',
+              color: 'text.secondary'
+            }}
+          >
+            <BrokenImageIcon sx={{ fontSize: 48, mb: 2 }} />
+            <Typography variant="h6">Failed to load image</Typography>
+            <Typography variant="body2">The image could not be displayed</Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMaximizedImage({ open: false, src: '', alt: '' })}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
         <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />

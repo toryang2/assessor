@@ -68,6 +68,16 @@ const sanitizeBusinessName = (name) => {
   return out;
 };
 
+// Format declarant from discrete fields; add dot only for single-character middle
+const formatDeclarantFromParts = (last, first, middle) => {
+  const hasNames = !!(last || first);
+  if (!hasNames) return '';
+  const raw = (middle || '').trim();
+  const mi = raw.replace(/\./g, '');
+  const middleFormatted = mi ? (mi.length === 1 ? ` ${mi}.` : ` ${mi}`) : '';
+  return `${last || ''}${hasNames && first ? ', ' : ''}${first || ''}${middleFormatted}`.trim();
+};
+
 // Format date function - accessible to both components
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -929,10 +939,7 @@ const RequestsTable = () => {
                       <TableCell>
                         <Typography variant="body2">
                           {(() => {
-                            const hasNames = !!(request.declarant_last_name || request.declarant_first_name);
-                            const declarant = hasNames
-                              ? `${request.declarant_last_name || ''}${hasNames && request.declarant_first_name ? ', ' : ''}${request.declarant_first_name || ''}${request.declarant_middle_initial ? ` ${request.declarant_middle_initial}.` : ''}`
-                              : '';
+                            const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
                             const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
                             if (declarant && business) return `${declarant} / ${business}`;
                             return declarant || business || '';

@@ -56,6 +56,35 @@ const sanitizeBusinessName = (name) => {
   return out;
 };
 
+// Format declarant from discrete fields; add dot only for single-character middle
+const formatDeclarantFromParts = (last, first, middle) => {
+  const hasNames = !!(last || first);
+  if (!hasNames) return '';
+  const raw = (middle || '').trim();
+  const mi = raw.replace(/\./g, '');
+  const middleFormatted = mi ? (mi.length === 1 ? ` ${mi}.` : ` ${mi}`) : '';
+  return `${last || ''}${hasNames && first ? ', ' : ''}${first || ''}${middleFormatted}`.trim();
+};
+
+// Normalize a combined declarant string with the same rule
+const normalizeDeclarantString = (name) => {
+  const s = sanitizeDeclarant(name);
+  if (!s) return s;
+  const parts = s.split(',');
+  if (parts.length < 2) return s;
+  const last = parts[0].trim();
+  const rest = parts.slice(1).join(',').trim();
+  if (!rest) return `${last}`;
+  const restParts = rest.split(/\s+/);
+  if (restParts.length < 2) return `${last}, ${rest}`;
+  const first = restParts[0];
+  const middleRaw = restParts.slice(1).join(' ').trim();
+  if (!middleRaw) return `${last}, ${first}`;
+  const middleNoDots = middleRaw.replace(/\./g, '');
+  const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
+  return `${last}, ${first} ${middleFormatted}`;
+};
+
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const isSmallScreen = (() => {
     try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768); } catch (_) { return false; }
@@ -441,10 +470,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     <Autocomplete
                        options={propertyOptions}
                        getOptionLabel={(option) => {
-                         const hasNames = !!(option.declarant_last_name || option.declarant_first_name);
-                         const declarant = hasNames
-                           ? `${option.declarant_last_name || ''}${hasNames && option.declarant_first_name ? ', ' : ''}${option.declarant_first_name || ''}${option.declarant_middle_initial ? ` ${option.declarant_middle_initial}.` : ''}`
-                           : '';
+                         const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
                          const business = sanitizeBusinessName(option.business_name);
                          const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
                          return `${option.tax_declaration_number || ''} - ${displayName}`;
@@ -483,10 +509,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {(() => {
-                                const hasNames = !!(option.declarant_last_name || option.declarant_first_name);
-                                const declarant = hasNames
-                                  ? `${option.declarant_last_name || ''}${hasNames && option.declarant_first_name ? ', ' : ''}${option.declarant_first_name || ''}${option.declarant_middle_initial ? ` ${option.declarant_middle_initial}.` : ''}`
-                                  : '';
+                                const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
                                 const business = sanitizeBusinessName(option.business_name);
                                 if (declarant && business) return `${declarant} / ${business}`;
                                 return declarant || business || '';
@@ -529,10 +552,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           <Grid item xs={12} md={6}>
                             <Typography variant="body2">
                               <strong>Owner/Business:</strong> {(() => {
-                                const hasNames = !!(selectedProperty.declarant_last_name || selectedProperty.declarant_first_name);
-                                const declarant = hasNames
-                                  ? `${selectedProperty.declarant_last_name || ''}${hasNames && selectedProperty.declarant_first_name ? ', ' : ''}${selectedProperty.declarant_first_name || ''}${selectedProperty.declarant_middle_initial ? ` ${selectedProperty.declarant_middle_initial}.` : ''}`
-                                  : '';
+                                const declarant = formatDeclarantFromParts(selectedProperty.declarant_last_name, selectedProperty.declarant_first_name, selectedProperty.declarant_middle_initial);
                                 const business = sanitizeBusinessName(selectedProperty.business_name);
                                 if (declarant && business) return `${declarant} / ${business}`;
                                 return declarant || business || 'N/A';

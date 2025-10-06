@@ -31,9 +31,9 @@ class Assessor_Database {
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             tax_declaration_number varchar(100) NOT NULL,
             previous_tax_declaration_number varchar(100),
-            declarant_last_name varchar(100) NOT NULL,
-            declarant_first_name varchar(100) NOT NULL,
-            declarant_middle_initial varchar(10),
+            declarant_last_name varchar(255) NOT NULL,
+            declarant_first_name varchar(255) NOT NULL,
+            declarant_middle_initial varchar(255),
             business varchar(200),
             location text NOT NULL,
             lot_number varchar(100),
@@ -81,9 +81,9 @@ class Assessor_Database {
             version_number int NOT NULL,
             tax_declaration_number varchar(100) NOT NULL,
             previous_tax_declaration_number varchar(100),
-            declarant_last_name varchar(100) NOT NULL,
-            declarant_first_name varchar(100) NOT NULL,
-            declarant_middle_initial varchar(10),
+            declarant_last_name varchar(255) NOT NULL,
+            declarant_first_name varchar(255) NOT NULL,
+            declarant_middle_initial varchar(255),
             business varchar(200),
             location text NOT NULL,
             lot_number varchar(100),
@@ -478,6 +478,36 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'afk_timeout'", $table_settings));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
+        }
+
+        // Migration: Expand declarant name fields to varchar(255) in properties table
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_last_name'", $table_properties));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_properties MODIFY declarant_last_name varchar(255) NOT NULL");
+        }
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_first_name'", $table_properties));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_properties MODIFY declarant_first_name varchar(255) NOT NULL");
+        }
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_middle_initial'", $table_properties));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_properties MODIFY declarant_middle_initial varchar(255) NULL");
+        }
+
+        // Migration: Expand declarant name fields to varchar(255) in property_versions table
+        $table_versions = $wpdb->prefix . 'assessor_property_versions';
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_last_name'", $table_versions));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_versions MODIFY declarant_last_name varchar(255) NOT NULL");
+        }
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_first_name'", $table_versions));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_versions MODIFY declarant_first_name varchar(255) NOT NULL");
+        }
+        $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_middle_initial'", $table_versions));
+        if ($col && intval($col) < 255) {
+            $wpdb->query("ALTER TABLE $table_versions MODIFY declarant_middle_initial varchar(255) NULL");
         }
     }
 }

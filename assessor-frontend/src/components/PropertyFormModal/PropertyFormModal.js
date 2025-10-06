@@ -882,10 +882,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
-                    label="Declarant Middle Initial"
+                    label="Declarant Middle Name/Initial"
                     value={formData.declarant_middle_initial}
-                    onChange={(e) => handleInputChange('declarant_middle_initial', String(e.target.value || '').replace(/\s/g, '').slice(0, 1))}
-                    inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 1, tabIndex: 5 }}
+                    onChange={(e) => {
+                      const raw = String(e.target.value || '').toUpperCase().replace(/\./g, '');
+                      // allow up to 255 chars per backend change, but typical use is 1-3 letters
+                      handleInputChange('declarant_middle_initial', raw);
+                    }}
+                    inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 255, tabIndex: 5 }}
+                    helperText="Please do not include a dot (.) in the middle initial."
                   />
                 </Grid>
 

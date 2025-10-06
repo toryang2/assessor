@@ -6,7 +6,7 @@
     <meta name="description" content="Property Assessor System">
     <meta name="robots" content="noindex, nofollow">
     <?php wp_head(); ?>
-    <title><?php bloginfo('name'); ?> - Property Assessor</title>
+    <!-- <title><?php bloginfo('name'); ?> - Property Assessor</title> -->
 </head>
 <body <?php body_class(); ?>>
     <div id="assessor-app-root">
