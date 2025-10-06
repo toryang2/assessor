@@ -1036,15 +1036,16 @@ const RequestsTable = () => {
                justifyContent: 'center', 
                alignItems: 'center', 
                minHeight: '40vh',
+               minWidth: '40vw',
                gap: 2
              }}>
                <CircularProgress size={50} thickness={4} />
                <Typography variant="h6" color="text.secondary">
                  Loading Request History...
                </Typography>
-               <Typography variant="body2" color="text.secondary">
+               {/* <Typography variant="body2" color="text.secondary">
                  Please wait while the system loads
-               </Typography>
+               </Typography> */}
              </Box>
                       ) : (
               <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>

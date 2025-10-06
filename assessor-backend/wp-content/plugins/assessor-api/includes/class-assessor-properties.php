@@ -11,6 +11,7 @@ class Assessor_Properties {
         header('Expires: 0');
         
         $params = $request->get_params();
+        $fetch_all = !empty($params['all']) && ($params['all'] === '1' || $params['all'] === 1 || $params['all'] === true);
         $page = isset($params['page']) ? max(1, intval($params['page'])) : 1;
         $per_page = isset($params['per_page']) ? min(100, max(1, intval($params['per_page']))) : 20;
         $offset = ($page - 1) * $per_page;
@@ -103,6 +104,24 @@ class Assessor_Properties {
             $where_conditions[] = "p.business LIKE %s";
             $where_values[] = '%' . $wpdb->esc_like($params['business']) . '%';
         }
+
+        // Image status filter: with | without | broken
+        if (!empty($params['image_status'])) {
+            $status = strtolower(trim($params['image_status']));
+            // Define helpers for readability
+            $has_http = "(p.supporting_documents REGEXP 'https?://' OR p.supporting_documents_old REGEXP 'https?://')";
+            $has_any = "(COALESCE(p.supporting_documents,'') <> '' OR COALESCE(p.supporting_documents_old,'') <> '')";
+            if ($status === 'with') {
+                // Has at least one http/https URL in either field
+                $where_conditions[] = $has_http;
+            } elseif ($status === 'without') {
+                // No http/https URLs present in both fields
+                $where_conditions[] = "NOT (" . $has_http . ")";
+            } elseif ($status === 'broken') {
+                // Has some content but no http/https URLs
+                $where_conditions[] = $has_any . " AND NOT (" . $has_http . ")";
+            }
+        }
         
         if (!empty($params['status'])) {
             $where_conditions[] = "p.status = %s";
@@ -145,7 +164,7 @@ class Assessor_Properties {
         $total = $wpdb->get_var($count_query);
         
         // Get properties with user information
-        $query = "
+        $select_sql = "
             SELECT p.*, 
                    c.full_name as created_by_name,
                    u.full_name as updated_by_name,
@@ -154,20 +173,96 @@ class Assessor_Properties {
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id
             $where_clause
-            ORDER BY $order_by
-            LIMIT %d OFFSET %d
-        ";
-        
-        $query_values = array_merge($where_values, array($per_page, $offset));
-        $properties = $wpdb->get_results($wpdb->prepare($query, $query_values));
+            ORDER BY $order_by";
+
+        if ($fetch_all) {
+            // Fetch all matching rows in one response
+            $query = $select_sql; // no LIMIT/OFFSET
+            if (!empty($where_values)) {
+                $properties = $wpdb->get_results($wpdb->prepare($query, $where_values));
+            } else {
+                $properties = $wpdb->get_results($query);
+            }
+        } else {
+            // Paged fetch
+            $query = $select_sql . "\n            LIMIT %d OFFSET %d";
+            $query_values = array_merge($where_values, array($per_page, $offset));
+            $properties = $wpdb->get_results($wpdb->prepare($query, $query_values));
+        }
+
+        // If requesting only broken image links, validate URLs server-side for current page
+        if (!empty($params['image_status']) && strtolower(trim($params['image_status'])) === 'broken' && !empty($properties)) {
+            $is_image_url_ok = function($url) {
+                if (empty($url)) return false;
+                if (!preg_match('/^https?:\/\//i', $url)) return false;
+                // Use cURL HEAD to check availability
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_NOBODY, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+                curl_close($ch);
+                if ($http_code >= 200 && $http_code < 300) {
+                    // If content-type is present, prefer image/*; otherwise accept 2xx as OK
+                    if ($content_type) {
+                        return stripos($content_type, 'image/') === 0;
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+            $split_urls = function($raw) {
+                if (empty($raw)) return array();
+                $sources = is_array($raw) ? $raw : array($raw);
+                $joined = implode(' | ', array_map('strval', array_filter($sources)));
+                if (empty($joined)) return array();
+                $parts = preg_split('/[|,]/', $joined);
+                $urls = array();
+                foreach ($parts as $p) {
+                    $u = trim($p);
+                    if ($u !== '' && preg_match('/^https?:\/\//i', $u)) {
+                        $urls[] = $u;
+                    }
+                }
+                return $urls;
+            };
+
+            $filtered = array();
+            foreach ($properties as $prop) {
+                $urls = array_merge(
+                    $split_urls(isset($prop->supporting_documents) ? $prop->supporting_documents : ''),
+                    $split_urls(isset($prop->supporting_documents_old) ? $prop->supporting_documents_old : '')
+                );
+                if (empty($urls)) {
+                    // No URLs; not considered broken-by-link
+                    continue;
+                }
+                $hasValid = false;
+                foreach ($urls as $u) {
+                    if ($is_image_url_ok($u)) { $hasValid = true; break; }
+                }
+                // Broken link definition: has at least one URL present, but none are reachable images
+                if (!$hasValid) {
+                    $filtered[] = $prop;
+                }
+            }
+            $properties = $filtered;
+        }
         
         return array(
             'properties' => $properties,
             'pagination' => array(
-                'page' => $page,
-                'per_page' => $per_page,
+                'page' => $fetch_all ? 1 : $page,
+                'per_page' => $fetch_all ? intval($total) : $per_page,
                 'total' => intval($total),
-                'total_pages' => ceil($total / $per_page)
+                'total_pages' => $fetch_all ? 1 : ceil($total / $per_page)
             )
         );
     }

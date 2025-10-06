@@ -539,46 +539,19 @@ const PropertyTable = () => {
     const fetchAll = async () => {
       try {
         setLoadingAll(true);
-        const collected = [];
-        let nextPage = 1;
-        const perPage = 100; // backend likely caps per_page; use a safe page size
-        let total = null;
-        let safetyCounter = 0;
-        const SAFETY_LIMIT = 200; // prevents infinite loops (200 pages * 100 = 20,000)
-
-        // Loop through pages until we've fetched all
-        // Stops when we've collected >= total (if provided) or when a page returns fewer than perPage
-        // Also stops at safety limit
-        while (safetyCounter < SAFETY_LIMIT) {
-          safetyCounter += 1;
-          const params = {
-            page: nextPage,
-            per_page: perPage,
-            q: searchTerm || '',
-            _t: Date.now()
-          };
-          const response = await apiService.getProperties(params);
-          const pageItems = (response && response.properties)
-            ? response.properties
-            : (response && response.data)
-              ? response.data
-              : [];
-          if (Array.isArray(pageItems) && pageItems.length > 0) {
-            collected.push(...pageItems);
-          }
-          // Capture total if present
-          if (response && response.pagination && typeof response.pagination.total === 'number') {
-            total = response.pagination.total;
-          } else if (typeof response?.total === 'number') {
-            total = response.total;
-          }
-          // Determine if we should continue
-          const shouldStopByTotal = typeof total === 'number' ? collected.length >= total : false;
-          const shouldStopByShortPage = !Array.isArray(pageItems) || pageItems.length < perPage;
-          if (shouldStopByTotal || shouldStopByShortPage) break;
-          nextPage += 1;
-        }
-        setAllProperties(collected);
+        const params = {
+          all: 1,
+          q: searchTerm || '',
+          image_status: imageFilter === 'all' ? undefined : imageFilter,
+          _t: Date.now()
+        };
+        const response = await apiService.getProperties(params);
+        const items = (response && response.properties)
+          ? response.properties
+          : (response && response.data)
+            ? response.data
+            : [];
+        setAllProperties(items);
       } catch (e) {
         // Fall back silently; keep existing page data
         setAllProperties([]);
