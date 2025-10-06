@@ -499,6 +499,67 @@ const PropertyTable = () => {
     const end = start + rowsPerPage;
     return filteredProperties.slice(start, end);
   }, [filteredProperties, page, rowsPerPage]);
+
+  const extractImageUrls = (prop) => {
+    try {
+      const sources = [prop?.supporting_documents, prop?.supporting_documents_old]
+        .filter(Boolean)
+        .map(String)
+        .join(' | ');
+      if (!sources) return [];
+      return sources
+        .split(/\||,/)
+        .map(s => String(s).trim())
+        .filter(u => u && /^https?:\/\//i.test(u));
+    } catch (_) { return []; }
+  };
+
+  const checkImageUrl = (url, timeoutMs = 5000) => new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; resolve(false); } }, timeoutMs);
+    try {
+      const img = new Image();
+      img.onload = () => { if (!done) { done = true; clearTimeout(timer); resolve(true); } };
+      img.onerror = () => { if (!done) { done = true; clearTimeout(timer); resolve(false); } };
+      img.src = url;
+    } catch (_) {
+      clearTimeout(timer);
+      resolve(false);
+    }
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const updates = {};
+      for (const prop of pagedProperties) {
+        const propId = prop?.id;
+        if (!propId) continue;
+        if (imageStatusByPropertyId[propId]?.verified) continue;
+        const urls = extractImageUrls(prop);
+        if (!urls.length) {
+          updates[propId] = { hasImages: false, hasBrokenLinks: false, verified: true };
+          continue;
+        }
+        // Check all URLs with early exit on first success
+        const toCheck = urls;
+        let anyOk = false;
+        for (const u of toCheck) {
+          const sep = u.includes('?') ? '&' : '?';
+          const testUrl = `${u}${sep}__ping=${Date.now()}`;
+          // eslint-disable-next-line no-await-in-loop
+          const ok = await checkImageUrl(testUrl, 4000);
+          if (ok) { anyOk = true; break; }
+        }
+        updates[propId] = { hasImages: anyOk, hasBrokenLinks: !anyOk, verified: true };
+      }
+      if (!cancelled && Object.keys(updates).length) {
+        setImageStatusByPropertyId(prev => ({ ...prev, ...updates }));
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [pagedProperties, imageFilter]);
   
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
@@ -517,6 +578,7 @@ const PropertyTable = () => {
   const [imageModal, setImageModal] = useState(false);
   const [propertyImages, setPropertyImages] = useState([]);
   const [maximizedImage, setMaximizedImage] = useState({ open: false, src: '', alt: '' });
+  const [imageStatusByPropertyId, setImageStatusByPropertyId] = useState({});
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -1168,7 +1230,14 @@ const PropertyTable = () => {
                       )}
                       
                       {(() => {
-                        const status = getImageAttachmentStatus(property);
+                        const prelim = getImageAttachmentStatus(property);
+                        const verified = imageStatusByPropertyId[property.id];
+                        const status = verified?.verified ? {
+                          hasImages: !!verified.hasImages,
+                          hasBrokenLinks: !!verified.hasBrokenLinks,
+                          validUrls: prelim.validUrls,
+                          brokenUrls: prelim.brokenUrls
+                        } : prelim;
                         if (!status.hasImages && !status.hasBrokenLinks) return null;
                         
                         return (
