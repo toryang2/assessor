@@ -41,53 +41,53 @@ remove_action('wp_head', 'rest_output_link_wp_head');
 remove_action('wp_head', 'wp_oembed_add_discovery_links');
 
 // Customize login page
-function assessor_custom_login_logo() {
-    $logo_url = esc_url(get_option('assessor_app_logo_url', ''));
-    $has_logo = !empty($logo_url);
-    echo '<style type="text/css">';
-    if ($has_logo) {
-        echo '#login h1 a {
-            background-image: url(' . $logo_url . ') !important;
-            background-size: contain !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important;
-            width: 320px !important;
-            height: 80px !important;
-            text-indent: -9999px !important;
-            overflow: hidden !important;
-            display: block !important;
-        }';
-    } else {
-        echo '#login h1 a {
-            background-image: none !important;
-            background-size: contain !important;
-            width: 100% !important;
-            height: 60px !important;
-            text-indent: 0 !important;
-            font-size: 24px !important;
-            line-height: 60px !important;
-            color: #1e3a8a !important;
-            text-decoration: none !important;
-        }
-        #login h1 a:before {
-            content: "Property Assessor System";
-        }';
-    }
-    echo '</style>';
-}
-add_action('login_head', 'assessor_custom_login_logo');
+// function assessor_custom_login_logo() {
+//     $logo_url = esc_url(get_option('assessor_app_logo_url', ''));
+//     $has_logo = !empty($logo_url);
+//     echo '<style type="text/css">';
+//     if ($has_logo) {
+//         echo '#login h1 a {
+//             background-image: url(' . $logo_url . ') !important;
+//             background-size: contain !important;
+//             background-repeat: no-repeat !important;
+//             background-position: center center !important;
+//             width: 320px !important;
+//             height: 80px !important;
+//             text-indent: -9999px !important;
+//             overflow: hidden !important;
+//             display: block !important;
+//         }';
+//     } else {
+//         echo '#login h1 a {
+//             background-image: none !important;
+//             background-size: contain !important;
+//             width: 100% !important;
+//             height: 60px !important;
+//             text-indent: 0 !important;
+//             font-size: 24px !important;
+//             line-height: 60px !important;
+//             color: #1e3a8a !important;
+//             text-decoration: none !important;
+//         }
+//         #login h1 a:before {
+//             content: "Property Assessor System";
+//         }';
+//     }
+//     echo '</style>';
+// }
+// add_action('login_head', 'assessor_custom_login_logo');
 
 // Change login logo URL
-function assessor_login_logo_url() {
-    return home_url();
-}
-add_filter('login_headerurl', 'assessor_login_logo_url');
+// function assessor_login_logo_url() {
+//     return home_url();
+// }
+// add_filter('login_headerurl', 'assessor_login_logo_url');
 
 // Change login logo title
-function assessor_login_logo_url_title() {
-    return get_bloginfo('name');
-}
-add_filter('login_headertext', 'assessor_login_logo_url_title');
+// function assessor_login_logo_url_title() {
+//     return get_bloginfo('name');
+// }
+// add_filter('login_headertext', 'assessor_login_logo_url_title');
 
 // Enqueue React app scripts
 function assessor_enqueue_react_app() {

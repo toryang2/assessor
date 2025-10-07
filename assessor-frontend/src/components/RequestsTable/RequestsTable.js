@@ -767,14 +767,15 @@ const RequestsTable = () => {
       {/* Search and Actions */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Grid container spacing={2} alignItems="center">
+          <Grid container spacing={2} alignItems="flex-start">
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                placeholder="Search by receipt number, client name, or prepared by..."
+                size='small'
+                placeholder={`Total: ${totalCount} requests`}
                 value={searchTerm}
                 onChange={handleSearch}
-                helperText={`Total: ${totalCount} requests`}
+                // helperText={`Total: ${totalCount} requests`}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
@@ -783,18 +784,34 @@ const RequestsTable = () => {
             <Grid item xs={12} md={6} sx={{ textAlign: 'right' }}>
               <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                 <Button
+                  size="small"
                   variant="outlined"
                   startIcon={<FilterListIcon />}
                   onClick={() => setFilterModal(true)}
                   color="primary"
+                  sx={{
+                    height: 40, // same as TextField small height
+                    '& .MuiToggleButton-root': {
+                      height: '100%',
+                      py: 0.5,
+                    },
+                  }}
                 >
                   Filters
                 </Button>
                 <Button
+                  size="small"
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={handleCreateRequest}
                   color="primary"
+                  sx={{
+                    height: 40, // same as TextField small height
+                    '& .MuiToggleButton-root': {
+                      height: '100%',
+                      py: 0.5,
+                    },
+                  }}
                 >
                   Create Request
                 </Button>
@@ -886,7 +903,7 @@ const RequestsTable = () => {
 
       {/* Requests Table */}
        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-          <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
+          <TableContainer sx={{ height: { xs: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
             <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>

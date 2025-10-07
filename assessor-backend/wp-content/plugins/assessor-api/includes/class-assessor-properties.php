@@ -11,6 +11,12 @@ class Assessor_Properties {
         header('Expires: 0');
         
         $params = $request->get_params();
+        
+        // Debug: Log all incoming parameters
+        error_log('🔍 PROPERTIES API: get_properties called with params: ' . json_encode($params));
+        error_log('🔍 PROPERTIES API: Request method: ' . $request->get_method());
+        error_log('🔍 PROPERTIES API: Request route: ' . $request->get_route());
+        
         $fetch_all = !empty($params['all']) && ($params['all'] === '1' || $params['all'] === 1 || $params['all'] === true);
         $page = isset($params['page']) ? max(1, intval($params['page'])) : 1;
         $per_page = isset($params['per_page']) ? min(100, max(1, intval($params['per_page']))) : 20;
@@ -108,18 +114,19 @@ class Assessor_Properties {
         // Image status filter: with | without | broken
         if (!empty($params['image_status'])) {
             $status = strtolower(trim($params['image_status']));
+            error_log('Image status filter: ' . $status);
             // Define helpers for readability
             $has_http = "(p.supporting_documents REGEXP 'https?://' OR p.supporting_documents_old REGEXP 'https?://')";
             $has_any = "(COALESCE(p.supporting_documents,'') <> '' OR COALESCE(p.supporting_documents_old,'') <> '')";
-            if ($status === 'with') {
-                // Has at least one http/https URL in either field
-                $where_conditions[] = $has_http;
-            } elseif ($status === 'without') {
-                // No http/https URLs present in both fields
+            // For all image status filters, we need to get properties with potential URLs
+            // The real filtering will be done server-side with actual URL verification
+            if ($status === 'without') {
+                // Without: no URLs at all
                 $where_conditions[] = "NOT (" . $has_http . ")";
-            } elseif ($status === 'broken') {
-                // Has some content but no http/https URLs
-                $where_conditions[] = $has_any . " AND NOT (" . $has_http . ")";
+            } else {
+                // For 'with' and 'broken', get properties that might have URLs
+                // We'll verify them server-side
+                $where_conditions[] = $has_http;
             }
         }
         
@@ -190,70 +197,209 @@ class Assessor_Properties {
             $properties = $wpdb->get_results($wpdb->prepare($query, $query_values));
         }
 
-        // If requesting only broken image links, validate URLs server-side for current page
-        if (!empty($params['image_status']) && strtolower(trim($params['image_status'])) === 'broken' && !empty($properties)) {
-            $is_image_url_ok = function($url) {
-                if (empty($url)) return false;
-                if (!preg_match('/^https?:\/\//i', $url)) return false;
-                // Use cURL HEAD to check availability
-                $ch = curl_init($url);
-                curl_setopt($ch, CURLOPT_NOBODY, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-                curl_close($ch);
-                if ($http_code >= 200 && $http_code < 300) {
-                    // If content-type is present, prefer image/*; otherwise accept 2xx as OK
-                    if ($content_type) {
-                        return stripos($content_type, 'image/') === 0;
-                    }
-                    return true;
+        // If requesting image status filters, use hybrid approach for instant results
+        if (!empty($params['image_status'])) {
+            $status = strtolower(trim($params['image_status']));
+            
+            if ($status === 'without') {
+                // Without: no URLs at all - instant database filtering
+                $where_conditions[] = "(
+                    (supporting_documents IS NULL OR supporting_documents = '' OR supporting_documents = '[]') 
+                    AND 
+                    (supporting_documents_old IS NULL OR supporting_documents_old = '' OR supporting_documents_old = '[]')
+                )";
+                
+                // Rebuild the query with the new WHERE conditions
+                $where_clause = '';
+                if (!empty($where_conditions)) {
+                    $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
                 }
-                return false;
-            };
+                
+                $select_sql = "SELECT DISTINCT p.* FROM {$wpdb->prefix}assessor_properties p";
+                if (!empty($join_clause)) {
+                    $select_sql .= " " . $join_clause;
+                }
+                $select_sql .= " " . $where_clause;
+                
+                if (!empty($order_clause)) {
+                    $select_sql .= " " . $order_clause;
+                }
+                
+                // Get total count for pagination
+                $count_sql = "SELECT COUNT(DISTINCT p.id) FROM {$wpdb->prefix}assessor_properties p";
+                if (!empty($join_clause)) {
+                    $count_sql .= " " . $join_clause;
+                }
+                $count_sql .= " " . $where_clause;
+                
+                $total_count = $wpdb->get_var($wpdb->prepare($count_sql, $where_values));
+                
+                // Get paginated results
+                $query = $select_sql . "\n            LIMIT %d OFFSET %d";
+                $query_values = array_merge($where_values, array($per_page, $offset));
+                $properties = $wpdb->get_results($wpdb->prepare($query, $query_values));
+                
+            } else {
+                // For 'with' and 'broken', get all properties with URLs first (instant)
+                $where_conditions[] = "(
+                    (supporting_documents IS NOT NULL AND supporting_documents != '' AND supporting_documents != '[]' AND supporting_documents LIKE '%http%')
+                    OR 
+                    (supporting_documents_old IS NOT NULL AND supporting_documents_old != '' AND supporting_documents_old != '[]' AND supporting_documents_old LIKE '%http%')
+                )";
+                
+                // Rebuild the query with the new WHERE conditions
+                $where_clause = '';
+                if (!empty($where_conditions)) {
+                    $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+                }
+                
+                $select_sql = "SELECT DISTINCT p.* FROM {$wpdb->prefix}assessor_properties p";
+                if (!empty($join_clause)) {
+                    $select_sql .= " " . $join_clause;
+                }
+                $select_sql .= " " . $where_clause;
+                
+                if (!empty($order_clause)) {
+                    $select_sql .= " " . $order_clause;
+                }
+                
+                // Get total count for pagination
+                $count_sql = "SELECT COUNT(DISTINCT p.id) FROM {$wpdb->prefix}assessor_properties p";
+                if (!empty($join_clause)) {
+                    $count_sql .= " " . $join_clause;
+                }
+                $count_sql .= " " . $where_clause;
+                
+                $total_count = $wpdb->get_var($wpdb->prepare($count_sql, $where_values));
+                
+                // For image status filtering, get ALL properties with URLs (no pagination limit)
+                $properties = $wpdb->get_results($wpdb->prepare($select_sql, $where_values));
+                
+                // Only perform per-URL verification for 'broken'.
+                // 'with' relies on SQL has-http match for speed and consistency.
+                if ($status === 'broken') {
+                    $filtered = array();
+                    
+                    // Extract URLs from each property
+                    $split_urls = function($raw) {
+                        if (empty($raw)) return array();
+                        $sources = is_array($raw) ? $raw : array($raw);
+                        $joined = implode(' | ', array_map('strval', array_filter($sources)));
+                        if (empty($joined)) return array();
+                        $parts = preg_split('/[|,]/', $joined);
+                        $urls = array();
+                        foreach ($parts as $p) {
+                            $u = trim($p);
+                            if ($u !== '' && preg_match('/^https?:\/\//i', $u)) {
+                                $urls[] = $u;
+                            }
+                        }
+                        return $urls;
+                    };
+                    
+                    // For debugging - let's see what we're working with
+                    error_log('Processing ' . count($properties) . ' properties for status: ' . $status);
+                    
+                    // URL checker using fast HTTP HEAD with strict timeouts
+                    $check_url = function($url) {
+                        $ch = curl_init($url);
+                        curl_setopt($ch, CURLOPT_NOBODY, true);
+                        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_USERAGENT, 'AssessorImageChecker/1.0');
+                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+                        // Some hosts may have SSL issues; ignore to avoid false negatives
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                        curl_exec($ch);
+                        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $ctype = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+                        $errno = curl_errno($ch);
+                        curl_close($ch);
+                        $ok = ($errno === 0) && ($http >= 200 && $http < 300) && is_string($ctype) && stripos($ctype, 'image/') === 0;
+                        return array($ok, $http, $ctype, $errno);
+                    };
 
-            $split_urls = function($raw) {
-                if (empty($raw)) return array();
-                $sources = is_array($raw) ? $raw : array($raw);
-                $joined = implode(' | ', array_map('strval', array_filter($sources)));
-                if (empty($joined)) return array();
-                $parts = preg_split('/[|,]/', $joined);
-                $urls = array();
-                foreach ($parts as $p) {
-                    $u = trim($p);
-                    if ($u !== '' && preg_match('/^https?:\/\//i', $u)) {
-                        $urls[] = $u;
+                    // Process properties in batches to avoid timeout
+                    $batch_size = 5; // Smaller batch size for better debugging
+                    $batches = array_chunk($properties, $batch_size);
+                    $processed_count = 0;
+                    $broken_count = 0;
+                    $working_count = 0;
+                    
+                    foreach ($batches as $batch) {
+                        foreach ($batch as $prop) {
+                            $processed_count++;
+                            $urls = array_merge(
+                                $split_urls(isset($prop->supporting_documents) ? $prop->supporting_documents : ''),
+                                $split_urls(isset($prop->supporting_documents_old) ? $prop->supporting_documents_old : '')
+                            );
+                            
+                            if (empty($urls)) continue;
+                            
+        // Debug: log first few properties and progress every 50 properties
+        if ($processed_count <= 3) {
+            error_log('Property ' . $processed_count . ' has ' . count($urls) . ' URLs: ' . implode(', ', $urls));
+        } else if ($processed_count % 50 === 0) {
+            error_log('Progress: Processed ' . $processed_count . ' properties so far...');
+        }
+                            
+                            // Real URL checks via HTTP HEAD
+                            $hasBrokenUrls = false;
+                            $hasWorkingUrls = false;
+                            foreach ($urls as $url) {
+                                list($ok, $code, $ctype, $errno) = $check_url($url);
+                                // Log selectively to avoid noise
+                                if ($processed_count <= 2 || $processed_count % 200 === 0) {
+                                    error_log('URL check => ok=' . ($ok ? '1' : '0') . ', http=' . $code . ', type=' . ($ctype ?: 'n/a') . ', err=' . $errno . ' | ' . $url);
+                                }
+                                if ($ok) {
+                                    $hasWorkingUrls = true;
+                                } else {
+                                    $hasBrokenUrls = true;
+                                }
+                                // Early exit if we already know it is mixed
+                                if ($hasBrokenUrls && $hasWorkingUrls) {
+                                    // For 'broken' filter we only need to know there's any broken
+                                    if ($status === 'broken') {
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if ($status === 'with' && $hasWorkingUrls && !$hasBrokenUrls) {
+                                // With: has working URLs and no broken URLs
+                                if ($processed_count <= 5) { error_log('ADD with => TDN ' . $prop->tax_declaration_number); }
+                                $filtered[] = $prop;
+                                $working_count++;
+                            } else if ($status === 'broken' && $hasBrokenUrls) {
+                                // Broken: has at least one broken URL (even if others work)
+                                if ($processed_count <= 5) { error_log('ADD broken => TDN ' . $prop->tax_declaration_number); }
+                                $filtered[] = $prop;
+                                $broken_count++;
+                            }
+                        }
+                        
+                        // Small delay between batches
+                        usleep(50000); // 0.05 second delay
                     }
-                }
-                return $urls;
-            };
-
-            $filtered = array();
-            foreach ($properties as $prop) {
-                $urls = array_merge(
-                    $split_urls(isset($prop->supporting_documents) ? $prop->supporting_documents : ''),
-                    $split_urls(isset($prop->supporting_documents_old) ? $prop->supporting_documents_old : '')
-                );
-                if (empty($urls)) {
-                    // No URLs; not considered broken-by-link
-                    continue;
-                }
-                $hasValid = false;
-                foreach ($urls as $u) {
-                    if ($is_image_url_ok($u)) { $hasValid = true; break; }
-                }
-                // Broken link definition: has at least one URL present, but none are reachable images
-                if (!$hasValid) {
-                    $filtered[] = $prop;
+                    
+                    error_log('Processed ' . $processed_count . ' properties. Found ' . $working_count . ' working, ' . $broken_count . ' broken');
+error_log('Final filtered count: ' . count($filtered) . ' properties');
+                    
+                    $properties = $filtered;
+                    
+                    // Apply pagination after filtering
+                    $total_count = count($properties);
+                    // Update overall total to reflect filtered count
+                    $total = $total_count;
+                    if (!$fetch_all) {
+                        $properties = array_slice($properties, $offset, $per_page);
+                    }
                 }
             }
-            $properties = $filtered;
         }
         
         return array(

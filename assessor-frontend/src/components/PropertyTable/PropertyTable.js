@@ -466,19 +466,18 @@ const PropertyTable = () => {
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
-  // Image status filter: 'all' | 'with' | 'broken' | 'without'
+  // Image status filter: 'all' | 'with' | 'without'
   const [imageFilter, setImageFilter] = useState('all');
 
   const imageCounts = useMemo(() => {
     const base = (allProperties && allProperties.length) ? allProperties : safeProperties;
-    let withImg = 0, broken = 0, without = 0;
+    let withImg = 0, without = 0;
     (base || []).forEach((property) => {
       const s = getImageAttachmentStatus(property);
       if (s.hasImages) withImg += 1;
-      if (s.hasBrokenLinks) broken += 1;
-      if (!s.hasImages && !s.hasBrokenLinks) without += 1;
+      if (!s.hasImages) without += 1;
     });
-    return { withImg, broken, without };
+    return { withImg, without };
   }, [allProperties, safeProperties]);
   
   const filteredProperties = useMemo(() => {
@@ -488,8 +487,7 @@ const PropertyTable = () => {
       if (imageFilter === 'all') return true;
       const status = getImageAttachmentStatus(property);
       if (imageFilter === 'with') return status.hasImages;
-      if (imageFilter === 'broken') return status.hasBrokenLinks;
-      if (imageFilter === 'without') return !status.hasImages && !status.hasBrokenLinks;
+      if (imageFilter === 'without') return !status.hasImages;
       return true;
     });
   }, [allProperties, safeProperties, imageFilter]);
@@ -604,7 +602,6 @@ const PropertyTable = () => {
         const params = {
           all: 1,
           q: searchTerm || '',
-          image_status: imageFilter === 'all' ? undefined : imageFilter,
           _t: Date.now()
         };
         const response = await apiService.getProperties(params);
@@ -724,7 +721,10 @@ const PropertyTable = () => {
   // No additional filters
   const handleFilterChange = () => {};
   const handleImageFilterChange = (_event, value) => {
-    if (value === null) return; // keep current when clicking active
+    // Guard against deselection or unexpected values
+    if (value === null || (value !== 'all' && value !== 'with' && value !== 'without')) {
+      return;
+    }
     setImageFilter(value);
     setPage(0);
   };
@@ -1052,33 +1052,51 @@ const PropertyTable = () => {
                   onChange={handleSearch}
                   onKeyDown={handleSearchKeyDown}
                   placeholder="Search by TDN, name, lot number, or title number..."
-                  helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
+                  // helperText="Search by Tax Declaration Number, Declarant Last Name, Declarant First Name, Lot Number, or Title Number"
                   InputProps={{ 
                     startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                   }}
                 />
               </Grid>
               <Grid item xs={12} md={6} display="flex" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" gap={1}>
-                <ToggleButtonGroup
-                  size="small"
-                  exclusive
-                  value={imageFilter}
-                  onChange={handleImageFilterChange}
-                  aria-label="Image filter"
-                >
-                  <ToggleButton value="all" aria-label="All">All</ToggleButton>
-                  <ToggleButton value="with" aria-label="With image">With Image{imageCounts.withImg ? ` (${imageCounts.withImg})` : ''}</ToggleButton>
-                  <ToggleButton value="broken" aria-label="Broken image link">Broken{imageCounts.broken ? ` (${imageCounts.broken})` : ''}</ToggleButton>
-                  <ToggleButton value="without" aria-label="Without image">Without Image{imageCounts.without ? ` (${imageCounts.without})` : ''}</ToggleButton>
-                </ToggleButtonGroup>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={handleAddProperty}
-                  color="primary"
-                >
-                  Add Property
-                </Button>
+                <Box display="flex" alignItems="stretch" gap={1}>
+                  <ToggleButtonGroup
+                    size="small"
+                    exclusive
+                    value={imageFilter}
+                    onChange={handleImageFilterChange}
+                    aria-label="Image filter"
+                    sx={{
+                      height: 40, // same as TextField small height
+                      '& .MuiToggleButton-root': {
+                        height: '100%',
+                        py: 0.5,
+                      },
+                    }}
+                  >
+                    <ToggleButton value="all" aria-label="All">All</ToggleButton>
+                    <ToggleButton value="with" aria-label="With image">
+                      <ImageIcon sx={{ mr: 0.5, color: 'success.main' }} />{imageCounts.withImg ? ` ${imageCounts.withImg}` : ''}
+                    </ToggleButton>
+                    <ToggleButton value="without" aria-label="Without image">
+                      <BrokenImageIcon sx={{ mr: 0.5, color: 'error.main' }} />{imageCounts.without ? ` ${imageCounts.without}` : ''}
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddProperty}
+                    color="primary"
+                    sx={{
+                      height: 40,
+                      minHeight: 40,
+                      px: 2,
+                    }}
+                  >
+                    Add Property
+                  </Button>
+                </Box>
               </Grid>
             </Grid>
           </CardContent>
@@ -1086,7 +1104,7 @@ const PropertyTable = () => {
 
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+        <TableContainer sx={{ height: { xs: 'calc(100vh - 340px)', md: 'calc(100vh - 300px)' }, overflow: 'auto' }}>
           <Table stickyHeader>  {/* sx={{ tableLayout: 'fixed' }} */}
             {/* <colgroup>
               <col style={{ width: '200px' }} />

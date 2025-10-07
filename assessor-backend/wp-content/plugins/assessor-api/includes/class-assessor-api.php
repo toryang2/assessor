@@ -361,6 +361,7 @@ class Assessor_API {
     }
     
     public function get_properties($request) {
+        error_log('🔍 MAIN API: get_properties called, delegating to Properties class');
         $properties = new Assessor_Properties();
         return $properties->get_properties($request);
     }
