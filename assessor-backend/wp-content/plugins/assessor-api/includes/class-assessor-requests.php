@@ -209,10 +209,14 @@ class Assessor_Requests {
             'date_issued' => null,
             'payment_type' => null,
             'purpose' => null,
-            'prepared_by' => null
+            'prepared_by' => null,
+            'all' => false
         );
         
         $args = wp_parse_args($args, $defaults);
+        
+        // Handle 'all' parameter - if true, return all records without pagination
+        $fetch_all = !empty($args['all']) && ($args['all'] === '1' || $args['all'] === 1 || $args['all'] === true);
         
         $where_conditions = array('1=1');
         $where_values = array();
@@ -220,7 +224,11 @@ class Assessor_Requests {
         // Search filter
         if (!empty($args['search'])) {
             $search_term = '%' . $this->db->esc_like($args['search']) . '%';
-            $where_conditions[] = "(r.receipt_number LIKE %s OR r.client_name LIKE %s OR r.remarks LIKE %s OR p.tax_declaration_number LIKE %s OR p.declarant_last_name LIKE %s OR p.declarant_first_name LIKE %s OR p.business LIKE %s OR p.location LIKE %s)";
+            $where_conditions[] = "(r.receipt_number LIKE %s OR r.client_name LIKE %s OR r.client_address LIKE %s OR r.remarks LIKE %s OR r.purpose LIKE %s OR r.prepared_by LIKE %s OR p.tax_declaration_number LIKE %s OR p.declarant_last_name LIKE %s OR p.declarant_first_name LIKE %s OR p.declarant_middle_initial LIKE %s OR p.business LIKE %s OR p.location LIKE %s)";
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
+            $where_values[] = $search_term;
             $where_values[] = $search_term;
             $where_values[] = $search_term;
             $where_values[] = $search_term;
@@ -270,8 +278,7 @@ class Assessor_Requests {
         }
         $total = $this->db->get_var($count_query);
         
-        // Get paginated results
-        $offset = ($args['page'] - 1) * $args['per_page'];
+        // Build the main query
         $query = "SELECT r.*, 
                          p.tax_declaration_number,
                          p.declarant_last_name,
@@ -287,23 +294,39 @@ class Assessor_Requests {
                   LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
                   LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID
                   WHERE {$where_clause}
-                  ORDER BY r.created_at DESC
-                  LIMIT %d OFFSET %d";
+                  ORDER BY r.created_at DESC";
         
-        $query_values = array_merge($where_values, array($args['per_page'], $offset));
+        if (!$fetch_all) {
+            // Add pagination for normal requests
+            $offset = ($args['page'] - 1) * $args['per_page'];
+            $query .= " LIMIT %d OFFSET %d";
+            $query_values = array_merge($where_values, array($args['per_page'], $offset));
+        } else {
+            // No pagination for 'all' requests
+            $query_values = $where_values;
+        }
+        
         $query = $this->db->prepare($query, $query_values);
-        
         $requests = $this->db->get_results($query, ARRAY_A);
         
-        return array(
-            'requests' => $requests,
-            'pagination' => array(
-                'total' => (int) $total,
-                'per_page' => (int) $args['per_page'],
-                'current_page' => (int) $args['page'],
-                'total_pages' => ceil($total / $args['per_page'])
-            )
-        );
+        if ($fetch_all) {
+            // Return all records without pagination info
+            return array(
+                'requests' => $requests,
+                'total' => (int) $total
+            );
+        } else {
+            // Return paginated results with pagination info
+            return array(
+                'requests' => $requests,
+                'pagination' => array(
+                    'total' => (int) $total,
+                    'per_page' => (int) $args['per_page'],
+                    'current_page' => (int) $args['page'],
+                    'total_pages' => ceil($total / $args['per_page'])
+                )
+            );
+        }
     }
     
     /**

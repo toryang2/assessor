@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -125,6 +125,23 @@ const formatDateTable = (dateString) => {
   } catch {
     return dateString;
   }
+};
+
+// Custom hook for debounced search
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 };
 
 const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, ref) => {
@@ -417,9 +434,15 @@ const RequestsTable = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
+  const [allRequests, setAllRequests] = useState([]);
+  const [loadingAll, setLoadingAll] = useState(false);
+  
+  // Safety check - ensure requests is always an array
+  const safeRequests = requests || [];
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -439,6 +462,47 @@ const RequestsTable = () => {
   
   // Settings state
   const [settings, setSettings] = useState({});
+  
+  // Filtered requests for client-side filtering when searching
+  const filteredRequests = useMemo(() => {
+    const base = (allRequests && allRequests.length) ? allRequests : safeRequests;
+    return (base || []).filter((request) => {
+      if (!request) return false;
+      
+      // Apply search filter
+      if (debouncedSearchTerm) {
+        const searchUpper = debouncedSearchTerm.toUpperCase();
+        const matchesSearch = 
+          (request.receipt_number && String(request.receipt_number).toUpperCase().includes(searchUpper)) ||
+          (request.client_name && String(request.client_name).toUpperCase().includes(searchUpper)) ||
+          (request.client_address && String(request.client_address).toUpperCase().includes(searchUpper)) ||
+          (request.declarant_last_name && String(request.declarant_last_name).toUpperCase().includes(searchUpper)) ||
+          (request.declarant_first_name && String(request.declarant_first_name).toUpperCase().includes(searchUpper)) ||
+          (request.declarant_middle_initial && String(request.declarant_middle_initial).toUpperCase().includes(searchUpper)) ||
+          (request.business && String(request.business).toUpperCase().includes(searchUpper)) ||
+          (request.tax_declaration_number && String(request.tax_declaration_number).toUpperCase().includes(searchUpper)) ||
+          (request.purpose && String(request.purpose).toUpperCase().includes(searchUpper)) ||
+          (request.remarks && String(request.remarks).toUpperCase().includes(searchUpper)) ||
+          (request.prepared_by && String(request.prepared_by).toUpperCase().includes(searchUpper));
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Apply other filters
+      if (filters.purpose && request.purpose !== filters.purpose) return false;
+      if (filters.dateIssued && request.date_issued !== filters.dateIssued) return false;
+      if (filters.preparedBy && request.prepared_by !== filters.preparedBy) return false;
+      
+      return true;
+    });
+  }, [allRequests, safeRequests, debouncedSearchTerm, filters]);
+  
+  // Paged requests for display
+  const pagedRequests = useMemo(() => {
+    const start = page * rowsPerPage;
+    const end = start + rowsPerPage;
+    return filteredRequests.slice(start, end);
+  }, [filteredRequests, page, rowsPerPage]);
   
   // Print ref
   const printRef = useRef(null);
@@ -534,7 +598,7 @@ const RequestsTable = () => {
 
   // Fetch requests
   const fetchSeqRef = useRef(0);
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async (forceRefresh = false) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -543,12 +607,12 @@ const RequestsTable = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        search: searchTerm || '',
+        search: debouncedSearchTerm || '',
         purpose: filters.purpose || '',
         date_issued: filters.dateIssued || '',
         prepared_by: filters.preparedBy || '',
         // Add cache busting timestamp to prevent browser caching
-        _t: Date.now()
+        _t: forceRefresh ? Date.now() : Date.now()
       };
       
       const response = await apiService.getRequests(params);
@@ -580,7 +644,7 @@ const RequestsTable = () => {
         setInitialLoad(false);
       }
     }
-  };
+  }, [page, rowsPerPage, debouncedSearchTerm, filters]);
 
   // Fetch settings
   const fetchSettings = async () => {
@@ -598,13 +662,59 @@ const RequestsTable = () => {
     fetchUsers();
   }, []);
 
+  // Fetch requests for pagination (only when not searching)
   useEffect(() => {
-    fetchRequests();
-  }, [page, rowsPerPage, searchTerm, filters]);
+    if (!debouncedSearchTerm) {
+      fetchRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage, debouncedSearchTerm, filters]);
+
+  // Fetch full dataset for client-side filtering/pagination when searching
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        setLoadingAll(true);
+        const params = {
+          all: 1,
+          search: debouncedSearchTerm || '',
+          purpose: filters.purpose || '',
+          date_issued: filters.dateIssued || '',
+          prepared_by: filters.preparedBy || '',
+          _t: Date.now()
+        };
+        const response = await apiService.getRequests(params);
+        const items = (response && response.requests)
+          ? response.requests
+          : (response && response.data)
+            ? response.data
+            : [];
+        setAllRequests(items);
+      } catch (e) {
+        // Fall back silently; keep existing page data
+        setAllRequests([]);
+      } finally {
+        setLoadingAll(false);
+      }
+    };
+    
+    if (debouncedSearchTerm) {
+      fetchAll();
+    } else {
+      // Clear all requests when not searching to use paginated data
+      setAllRequests([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm, filters]);
 
   // Handle search
   const handleSearch = (event) => {
-    setSearchTerm(event.target.value.toUpperCase());
+    const raw = event.target.value || '';
+    const normalized = raw
+      .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
+      .replace(/\s*-\s*/g, '-')        // collapse spaces around hyphen
+      .trim();
+    setSearchTerm(normalized);
     setPage(0); // Reset to first page when searching
   };
 
@@ -629,6 +739,7 @@ const RequestsTable = () => {
 
   // Clear all filters
   const clearFilters = () => {
+    setSearchTerm('');
     setFilters({
       purpose: '',
       dateIssued: '',
@@ -734,7 +845,7 @@ const RequestsTable = () => {
   };
 
   // Show initial loading state
-  if (initialLoad && loading && (!requests || requests.length === 0)) {
+  if (initialLoad && loading && (!safeRequests || safeRequests.length === 0)) {
     return (
       <Box sx={{ 
         display: 'flex', 
@@ -927,16 +1038,19 @@ const RequestsTable = () => {
                       </Box>
                     </TableCell>
                   </TableRow>
-                  ) : requests.length === 0 ? (
+                  ) : pagedRequests.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
                       <Typography color="text.secondary">
-                        {searchTerm ? 'No requests found matching your search.' : 'No requests found.'}
+                        {loading || loadingAll ? 
+                          (debouncedSearchTerm ? 'Searching requests...' : 'Loading requests...') : 
+                          (searchTerm ? 'No requests found matching your search.' : 'No requests found.')
+                        }
                       </Typography>
                     </TableCell>
                   </TableRow>
                   ) : (
-                  requests.map((request) => (
+                  pagedRequests.map((request) => (
                     <TableRow key={request.id} hover>
                       <TableCell>
                         <Typography variant="body2" fontWeight="medium">
@@ -1024,7 +1138,7 @@ const RequestsTable = () => {
         {/* Pagination */}
         <TablePagination
           component="div"
-          count={totalCount}
+          count={debouncedSearchTerm ? filteredRequests.length : totalCount}
           page={page}
           onPageChange={handleChangePage}
           rowsPerPage={rowsPerPage}

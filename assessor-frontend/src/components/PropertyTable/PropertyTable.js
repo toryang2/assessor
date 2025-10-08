@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -98,6 +98,23 @@ const normalizeDeclarantString = (name) => {
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
   return `${last}, ${first} ${middleFormatted}`;
+};
+
+// Custom hook for debounced search
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 };
 
 // Helper function to get image attachment status for a property
@@ -466,11 +483,13 @@ const PropertyTable = () => {
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
   // Image status filter: 'all' | 'with' | 'without'
   const [imageFilter, setImageFilter] = useState('all');
 
   const imageCounts = useMemo(() => {
-    const base = (allProperties && allProperties.length) ? allProperties : safeProperties;
+    // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
+    const base = (allProperties && allProperties.length > 0) ? allProperties : safeProperties;
     let withImg = 0, without = 0;
     (base || []).forEach((property) => {
       const s = getImageAttachmentStatus(property);
@@ -481,16 +500,37 @@ const PropertyTable = () => {
   }, [allProperties, safeProperties]);
   
   const filteredProperties = useMemo(() => {
-    const base = (allProperties && allProperties.length) ? allProperties : safeProperties;
+    // Use allProperties when searching or when image filter is active, otherwise use safeProperties
+    const base = (debouncedSearchTerm || imageFilter !== 'all') ? 
+      (allProperties && allProperties.length ? allProperties : safeProperties) : 
+      safeProperties;
+    
     return (base || []).filter((property) => {
       if (!property) return false;
+      
+      // Apply search filter
+      if (debouncedSearchTerm) {
+        const searchUpper = debouncedSearchTerm.toUpperCase();
+        const matchesSearch = 
+          (property.tax_declaration_number && String(property.tax_declaration_number).toUpperCase().includes(searchUpper)) ||
+          (property.declarant_last_name && String(property.declarant_last_name).toUpperCase().includes(searchUpper)) ||
+          (property.declarant_first_name && String(property.declarant_first_name).toUpperCase().includes(searchUpper)) ||
+          (property.declarant_middle_initial && String(property.declarant_middle_initial).toUpperCase().includes(searchUpper)) ||
+          (property.lot_number && String(property.lot_number).toUpperCase().includes(searchUpper)) ||
+          (property.title_number && String(property.title_number).toUpperCase().includes(searchUpper)) ||
+          (property.business_name && String(property.business_name).toUpperCase().includes(searchUpper));
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Apply image filter
       if (imageFilter === 'all') return true;
       const status = getImageAttachmentStatus(property);
       if (imageFilter === 'with') return status.hasImages;
       if (imageFilter === 'without') return !status.hasImages;
       return true;
     });
-  }, [allProperties, safeProperties, imageFilter]);
+  }, [allProperties, safeProperties, imageFilter, debouncedSearchTerm]);
   
   const pagedProperties = useMemo(() => {
     const start = page * rowsPerPage;
@@ -589,19 +629,22 @@ const PropertyTable = () => {
   })();
   const [settings, setSettings] = useState(initialSettings);
 
+  // Fetch properties for pagination (only when not searching)
   useEffect(() => {
-    fetchProperties();
+    if (!debouncedSearchTerm) {
+      fetchProperties();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, searchTerm]);
+  }, [page, rowsPerPage, debouncedSearchTerm]);
 
-  // Fetch full dataset for client-side filtering/pagination
+  // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
   useEffect(() => {
     const fetchAll = async () => {
       try {
         setLoadingAll(true);
         const params = {
           all: 1,
-          q: searchTerm || '',
+          q: debouncedSearchTerm || '',
           _t: Date.now()
         };
         const response = await apiService.getProperties(params);
@@ -618,9 +661,47 @@ const PropertyTable = () => {
         setLoadingAll(false);
       }
     };
-    fetchAll();
+    
+    if (debouncedSearchTerm || imageFilter !== 'all') {
+      fetchAll();
+    } else {
+      // Don't clear allProperties - we need it for accurate image counts
+      // The filteredProperties logic will handle using the right dataset
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+  }, [debouncedSearchTerm, imageFilter]);
+
+  // Fetch full dataset for image counts on initial load
+  useEffect(() => {
+    const fetchInitialCounts = async () => {
+      try {
+        setLoadingAll(true);
+        const params = {
+          all: 1,
+          q: '',
+          _t: Date.now()
+        };
+        const response = await apiService.getProperties(params);
+        const items = (response && response.properties)
+          ? response.properties
+          : (response && response.data)
+            ? response.data
+            : [];
+        setAllProperties(items);
+      } catch (e) {
+        // Fall back silently
+        setAllProperties([]);
+      } finally {
+        setLoadingAll(false);
+      }
+    };
+    
+    // Fetch initial counts if we don't have allProperties yet
+    if (!allProperties.length) {
+      fetchInitialCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Open printable modal automatically when navigated from Dashboard Recent Properties
   useEffect(() => {
@@ -654,7 +735,7 @@ const PropertyTable = () => {
   }, []);
 
   const fetchSeqRef = useRef(0);
-  const fetchProperties = async (forceRefresh = false) => {
+  const fetchProperties = useCallback(async (forceRefresh = false) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -663,7 +744,7 @@ const PropertyTable = () => {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
-        q: searchTerm || '',
+        q: debouncedSearchTerm || '',
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
@@ -694,22 +775,22 @@ const PropertyTable = () => {
       if (seq === fetchSeqRef.current) setLoading(false);
       setInitialLoad(false);
     }
-  };
+  }, [page, rowsPerPage, debouncedSearchTerm]);
 
   const handleSearch = (event) => {
-    const raw = event.target.value.toUpperCase() || '';
+    const raw = event.target.value || '';
     const normalized = raw
       .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
       .replace(/\s*-\s*/g, '-')        // collapse spaces around hyphen
-      .toUpperCase();
+      .trim();
     setSearchTerm(normalized);
-    setPage(0);
+    setPage(0); // Reset to first page when searching
   };
 
   const handleSearchKeyDown = (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      const list = safeProperties || [];
+      const list = filteredProperties || [];
       if (!list.length) return;
       // Prefer exact TDN match on current page; otherwise open the first visible row
       const exact = list.find(p => String(p.tax_declaration_number || '').toUpperCase() === String(searchTerm || '').toUpperCase());
@@ -969,6 +1050,7 @@ const PropertyTable = () => {
   const clearFilters = () => {
     setSearchTerm('');
     setPage(0);
+    setImageFilter('all');
   };
 
   if (initialLoad && loading && (!safeProperties || safeProperties.length === 0)) {
@@ -1291,7 +1373,11 @@ const PropertyTable = () => {
                 <TableRow>
                   <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="text.secondary">
-                      {loading || loadingAll ? 'Loading properties...' : 'No properties found'}
+                      {loading || loadingAll ? 
+                        (debouncedSearchTerm ? 'Searching properties...' : 
+                         imageFilter !== 'all' ? 'Filtering properties...' : 'Loading properties...') : 
+                        'No properties found'
+                      }
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -1303,7 +1389,7 @@ const PropertyTable = () => {
         <TablePagination
           rowsPerPageOptions={[10, 25, 50, 75, 100]}
           component="div"
-          count={(allProperties && allProperties.length) ? filteredProperties.length : totalCount}
+          count={(debouncedSearchTerm || imageFilter !== 'all') ? filteredProperties.length : totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handlePageChange}
