@@ -287,10 +287,16 @@ class Assessor_Requests {
                          p.business,
                          p.location,
                          p.assessed_value,
+                         p.kind_of_property,
+                         p.gen_class,
+                         pt.name as kind_of_property_name,
+                         gc.name as gen_class_name,
                          u1.display_name as created_by_name,
                          u2.display_name as updated_by_name
                   FROM {$this->table_name} r
                   LEFT JOIN {$this->db->prefix}assessor_properties p ON r.property_id = p.id
+                  LEFT JOIN {$this->db->prefix}assessor_property_types pt ON p.kind_of_property = pt.code
+                  LEFT JOIN {$this->db->prefix}assessor_general_classes gc ON p.gen_class = gc.code
                   LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
                   LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID
                   WHERE {$where_clause}

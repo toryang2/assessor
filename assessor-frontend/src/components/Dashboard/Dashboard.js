@@ -1047,7 +1047,7 @@ const Dashboard = ({ onNavigate }) => {
                        </TableCell>
                        <TableCell>
                          <Chip 
-                           label={property.kind_of_property || 'Unknown'} 
+                           label={property.kind_of_property_name || property.kind_of_property || 'Unknown'} 
                            size="small" 
                            color="primary" 
                            variant="outlined" 

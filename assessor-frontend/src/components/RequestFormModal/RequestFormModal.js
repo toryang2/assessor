@@ -70,19 +70,39 @@ const formatDeclarantFromParts = (last, first, middle) => {
 const normalizeDeclarantString = (name) => {
   const s = sanitizeDeclarant(name);
   if (!s) return s;
+  
+  // Split by comma to separate last name from first/middle
   const parts = s.split(',');
   if (parts.length < 2) return s;
+  
   const last = parts[0].trim();
   const rest = parts.slice(1).join(',').trim();
   if (!rest) return `${last}`;
+  
+  // Handle cases where we have "LAST, ET. AL., FIRST MI" format
+  // We want to preserve the "ET. AL." part and format the first name and middle initial
   const restParts = rest.split(/\s+/);
-  if (restParts.length < 2) return `${last}, ${rest}`;
-  const first = restParts[0];
-  const middleRaw = restParts.slice(1).join(' ').trim();
-  if (!middleRaw) return `${last}, ${first}`;
+  
+  // Find the actual first name and middle initial
+  // Look for the last meaningful word (middle initial) and the word before it (first name)
+  const meaningfulParts = restParts.filter(part => part.length > 0);
+  
+  if (meaningfulParts.length === 0) return `${last}`;
+  if (meaningfulParts.length === 1) return `${last}, ${rest}`;
+  
+  // Take the last two meaningful parts as first name and middle initial
+  const first = meaningfulParts[meaningfulParts.length - 2];
+  const middleRaw = meaningfulParts[meaningfulParts.length - 1];
+  
+  // Format middle initial
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
-  return `${last}, ${first} ${middleFormatted}`;
+  
+  // Reconstruct with all parts preserved
+  const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
+  const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
+  
+  return result;
 };
 
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
@@ -880,10 +900,11 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Typography variant="body1" sx={{ mb: 2 }}>
                 Property: <strong>{selectedProperty?.tax_declaration_number}</strong> - 
                 {(() => {
-                  const hasNames = !!(selectedProperty?.declarant_last_name || selectedProperty?.declarant_first_name);
-                  const declarant = hasNames
-                    ? `${selectedProperty?.declarant_last_name || ''}${hasNames && selectedProperty?.declarant_first_name ? ', ' : ''}${selectedProperty?.declarant_first_name || ''}${selectedProperty?.declarant_middle_initial ? ` ${selectedProperty?.declarant_middle_initial}.` : ''}`
-                    : '';
+                  const declarant = formatDeclarantFromParts(
+                    selectedProperty?.declarant_last_name,
+                    selectedProperty?.declarant_first_name,
+                    selectedProperty?.declarant_middle_initial
+                  );
                   const business = sanitizeBusinessName(selectedProperty?.business_name);
                   if (declarant && business) return ` ${declarant} / ${business}`;
                   return ` ${declarant || business || ''}`;
@@ -927,7 +948,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const d = sanitizeDeclarant(item.declarant_name);
+                            const d = normalizeDeclarantString(item.declarant_name);
                             const b = sanitizeBusinessName(item.business_name);
                             if (d && b) return `${d} / ${b}`;
                             return d || b || '—';

@@ -78,6 +78,46 @@ const formatDeclarantFromParts = (last, first, middle) => {
   return `${last || ''}${hasNames && first ? ', ' : ''}${first || ''}${middleFormatted}`.trim();
 };
 
+// Adjust a combined declarant name string ("LAST, FIRST MI" or "LAST, FIRST MI.")
+// Apply rule: if middle token length === 1 -> ensure trailing dot; if length > 1 -> no dot
+const normalizeDeclarantString = (name) => {
+  const s = sanitizeDeclarant(name);
+  if (!s) return s;
+  
+  // Split by comma to separate last name from first/middle
+  const parts = s.split(',');
+  if (parts.length < 2) return s;
+  
+  const last = parts[0].trim();
+  const rest = parts.slice(1).join(',').trim();
+  if (!rest) return `${last}`;
+  
+  // Handle cases where we have "LAST, ET. AL., FIRST MI" format
+  // We want to preserve the "ET. AL." part and format the first name and middle initial
+  const restParts = rest.split(/\s+/);
+  
+  // Find the actual first name and middle initial
+  // Look for the last meaningful word (middle initial) and the word before it (first name)
+  const meaningfulParts = restParts.filter(part => part.length > 0);
+  
+  if (meaningfulParts.length === 0) return `${last}`;
+  if (meaningfulParts.length === 1) return `${last}, ${rest}`;
+  
+  // Take the last two meaningful parts as first name and middle initial
+  const first = meaningfulParts[meaningfulParts.length - 2];
+  const middleRaw = meaningfulParts[meaningfulParts.length - 1];
+  
+  // Format middle initial
+  const middleNoDots = middleRaw.replace(/\./g, '');
+  const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
+  
+  // Reconstruct with all parts preserved
+  const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
+  const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
+  
+  return result;
+};
+
 // Format date function - accessible to both components
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -194,7 +234,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{sanitizeDeclarant(printHistory?.[0]?.declarant_name) || ''}</span>
+              <strong>OWNER:</strong> <span>{normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ADDRESS:</strong>{' '}
@@ -216,7 +256,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
+              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
             </td>
           </tr>
           <tr>
@@ -224,7 +264,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].gen_class) || ''}</span>
+              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
             </td>
           </tr>
         </tbody>
@@ -260,7 +300,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                  <div>{item.tax_declaration_number || ''}</div>
                </td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                 const d = sanitizeDeclarant(item.declarant_name);
+                 const d = normalizeDeclarantString(item.declarant_name);
                  const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                  return d && b ? `${d} / ${b}` : (d || b || '');
                })()}</td>
@@ -499,16 +539,10 @@ const RequestsTable = () => {
   
   // Paged requests for display
   const pagedRequests = useMemo(() => {
-    // When using server-side pagination (no search term), use safeRequests directly
-    if (!debouncedSearchTerm) {
-      return safeRequests;
-    }
-    
-    // For client-side filtering (search), apply slicing
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
     return filteredRequests.slice(start, end);
-  }, [filteredRequests, safeRequests, page, rowsPerPage, debouncedSearchTerm]);
+  }, [filteredRequests, page, rowsPerPage]);
   
   // Print ref
   const printRef = useRef(null);

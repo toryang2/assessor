@@ -256,6 +256,14 @@ export const apiService = {
       throw handleApiError(error);
     }
   },
+  getPropertyTypes: async () => {
+    try {
+      const response = await api.get(endpoints.propertyTypes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
   saveSettings: async (settings) => {
     try {
       const response = await api.post(endpoints.settings, settings);

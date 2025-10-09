@@ -85,20 +85,39 @@ const formatDeclarantFromParts = (last, first, middle) => {
 const normalizeDeclarantString = (name) => {
   const s = sanitizeDeclarant(name);
   if (!s) return s;
-  // Split into last, first + rest
+  
+  // Split by comma to separate last name from first/middle
   const parts = s.split(',');
   if (parts.length < 2) return s;
+  
   const last = parts[0].trim();
   const rest = parts.slice(1).join(',').trim();
   if (!rest) return `${last}`;
+  
+  // Handle cases where we have "LAST, ET. AL., FIRST MI" format
+  // We want to preserve the "ET. AL." part and format the first name and middle initial
   const restParts = rest.split(/\s+/);
-  if (restParts.length < 2) return `${last}, ${rest}`;
-  const first = restParts[0];
-  const middleRaw = restParts.slice(1).join(' ').trim();
-  if (!middleRaw) return `${last}, ${first}`;
+  
+  // Find the actual first name and middle initial
+  // Look for the last meaningful word (middle initial) and the word before it (first name)
+  const meaningfulParts = restParts.filter(part => part.length > 0);
+  
+  if (meaningfulParts.length === 0) return `${last}`;
+  if (meaningfulParts.length === 1) return `${last}, ${rest}`;
+  
+  // Take the last two meaningful parts as first name and middle initial
+  const first = meaningfulParts[meaningfulParts.length - 2];
+  const middleRaw = meaningfulParts[meaningfulParts.length - 1];
+  
+  // Format middle initial
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
-  return `${last}, ${first} ${middleFormatted}`;
+  
+  // Reconstruct with all parts preserved
+  const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
+  const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
+  
+  return result;
 };
 
 // Custom hook for debounced search
@@ -245,7 +264,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
+            <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
             </td>
           </tr>
           <tr>
@@ -253,7 +272,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].gen_class) || ''}</span>
+              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
             </td>
           </tr>
         </tbody>
@@ -1494,11 +1513,11 @@ const PropertyTable = () => {
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
                   <TableCell><strong>LOCATION:</strong> {taxHistory[0]?.location}</TableCell>
-                    <TableCell><strong>KIND OF PROPERTY:</strong> {taxHistory[0]?.kind_of_property}</TableCell>
+                    <TableCell><strong>KIND OF PROPERTY:</strong> {taxHistory[0]?.kind_of_property_name || taxHistory[0]?.kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell><strong>EFFECTIVITY:</strong> {taxHistory[0]?.effectivity_date}</TableCell>
-                    <TableCell><strong>GEN. CLASS:</strong> {taxHistory[0]?.gen_class}</TableCell>
+                    <TableCell><strong>GEN. CLASS:</strong> {taxHistory[0]?.gen_class_name || taxHistory[0]?.gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -1656,11 +1675,11 @@ const PropertyTable = () => {
                   </TableRow>
                   <TableRow>
                     <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
-                    <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property}</TableCell>
+                    <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property_name || printHistory[0].kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { paddingBottom: '12px' } }}>
                     <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
-                    <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class}</TableCell>
+                    <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class_name || printHistory[0].gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

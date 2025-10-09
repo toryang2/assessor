@@ -693,7 +693,7 @@ const AuditTrail = () => {
                             )}
                             {selectedLog.kind_of_property && (
                               <Typography variant="caption" color="text.secondary" display="block">
-                                Type: {selectedLog.kind_of_property}
+                                Type: {selectedLog.kind_of_property_name || selectedLog.kind_of_property}
                               </Typography>
                             )}
                             {selectedLog.assessed_value && (
