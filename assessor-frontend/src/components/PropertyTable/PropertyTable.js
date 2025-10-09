@@ -68,6 +68,7 @@ const sanitizeBusinessName = (name) => {
   return out;
 };
 
+
 // Format declarant from discrete fields; add dot only for single-character middle
 const formatDeclarantFromParts = (last, first, middle) => {
   const hasNames = !!(last || first);
@@ -244,7 +245,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
+            <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
             </td>
           </tr>
           <tr>
@@ -533,10 +534,17 @@ const PropertyTable = () => {
   }, [allProperties, safeProperties, imageFilter, debouncedSearchTerm]);
   
   const pagedProperties = useMemo(() => {
+    // When using server-side pagination (no search term and image filter is 'all'),
+    // use safeProperties directly instead of client-side slicing
+    if (!debouncedSearchTerm && imageFilter === 'all') {
+      return safeProperties;
+    }
+    
+    // For client-side filtering (search or image filter), apply slicing
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
     return filteredProperties.slice(start, end);
-  }, [filteredProperties, page, rowsPerPage]);
+  }, [filteredProperties, safeProperties, page, rowsPerPage, debouncedSearchTerm, imageFilter]);
 
   const extractImageUrls = (prop) => {
     try {
@@ -629,13 +637,13 @@ const PropertyTable = () => {
   })();
   const [settings, setSettings] = useState(initialSettings);
 
-  // Fetch properties for pagination (only when not searching)
+  // Fetch properties for pagination (only when not searching and image filter is 'all')
   useEffect(() => {
-    if (!debouncedSearchTerm) {
+    if (!debouncedSearchTerm && imageFilter === 'all') {
       fetchProperties();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, debouncedSearchTerm]);
+  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter]);
 
   // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
   useEffect(() => {
@@ -733,6 +741,7 @@ const PropertyTable = () => {
     };
     loadSettings();
   }, []);
+
 
   const fetchSeqRef = useRef(0);
   const fetchProperties = useCallback(async (forceRefresh = false) => {
@@ -1464,15 +1473,15 @@ const PropertyTable = () => {
             </Box>
           ) : taxHistory.length > 0 ? (
             <TableContainer component={Paper}>
-              <Table size="small" stickyHeader>
-                <TableBody sx={{ '& td': { padding: '4px 8px' } }}>
+              <Table size="small" stickyHeader sx={{ tableLayout: 'fixed' }}>
+                <TableBody sx={{ '& td': { borderBottom: 'none', padding: { xs: '3px 8px', md: '4px 12px' } } }}>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
                     <TableCell><strong>TAX DECLARATION NUMBER:</strong> {taxHistory[0]?.tax_declaration_number}</TableCell>
                     <TableCell><strong>PIN:</strong> {taxHistory[0]?.pin}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>OWNER:</strong> {sanitizeDeclarant(taxHistory[0]?.declarant_name) || ''}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                    <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'normal', wordBreak: 'break-word' }}><strong>OWNER:</strong> {normalizeDeclarantString(taxHistory[0]?.declarant_name) || ''}</TableCell>
+                    <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'normal', wordBreak: 'break-word' }}>
                       <strong>ADDRESS:</strong>{' '}
                       <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                         {taxHistory[0]?.address}
@@ -1517,7 +1526,7 @@ const PropertyTable = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
-                        const d = sanitizeDeclarant(item.declarant_name);
+                        const d = normalizeDeclarantString(item.declarant_name);
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>

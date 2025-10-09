@@ -216,7 +216,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
+            <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].kind_of_property) || ''}</span>
             </td>
           </tr>
           <tr>
@@ -499,10 +499,16 @@ const RequestsTable = () => {
   
   // Paged requests for display
   const pagedRequests = useMemo(() => {
+    // When using server-side pagination (no search term), use safeRequests directly
+    if (!debouncedSearchTerm) {
+      return safeRequests;
+    }
+    
+    // For client-side filtering (search), apply slicing
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
     return filteredRequests.slice(start, end);
-  }, [filteredRequests, page, rowsPerPage]);
+  }, [filteredRequests, safeRequests, page, rowsPerPage, debouncedSearchTerm]);
   
   // Print ref
   const printRef = useRef(null);
