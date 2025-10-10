@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon } from '@mui/material';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { motion } from 'framer-motion';
@@ -40,6 +40,7 @@ const Settings = () => {
   const [pendingHeaderPhotoFile, setPendingHeaderPhotoFile] = useState(null);
   const [pendingHeaderPhotoPreview, setPendingHeaderPhotoPreview] = useState('');
   const [dragging, setDragging] = useState({ key: null, from: -1 });
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -294,12 +295,369 @@ const Settings = () => {
     }
   };
 
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  const renderGeneralSettings = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12}>
+        <Grid container spacing={2} alignItems="flex-start">
+          <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center', maxWidth: 360, width: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>Branding</Typography>
+              <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 140, height: 140, alignSelf: 'center', position: 'relative' }}>
+                {/* Current logo (fallback) */}
+                {form.app_logo_url && !pendingLogoPreview && (
+                  <img src={form.app_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                )}
+                {/* Pending preview overlays current */}
+                {pendingLogoPreview && (
+                  <img src={pendingLogoPreview} alt="New Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                )}
+                {!form.app_logo_url && !pendingLogoPreview && (
+                  <Typography variant="caption" color="text.secondary">No logo uploaded</Typography>
+                )}
+              </Paper>
+              <TextField
+                fullWidth
+                size="small"
+                label="Logo URL"
+                value={form.app_logo_url}
+                onChange={(e) => handleChange('app_logo_url', e.target.value)}
+                helperText="Paste a URL or upload an image."
+              />
+              <Button fullWidth variant="outlined" component="label">
+                Upload Image
+                <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
+              </Button>
+              {pendingLogoFile && (
+                <Typography variant="caption" color="text.secondary">Staged: {pendingLogoFile.name} (will apply on Save)</Typography>
+              )}
+              <Typography variant="h6" sx={{ mb: 1 }}>Header Photo</Typography>
+              <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 280, height: 35, alignSelf: 'center', position: 'relative' }}>
+                {/* Current header photo (fallback) */}
+                {form.header_photo_url && !pendingHeaderPhotoPreview && (
+                  <img src={form.header_photo_url} alt="Header Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+                {/* Pending preview overlays current */}
+                {pendingHeaderPhotoPreview && (
+                  <img src={pendingHeaderPhotoPreview} alt="New Header Photo Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+                {!form.header_photo_url && !pendingHeaderPhotoPreview && (
+                  <Typography variant="caption" color="text.secondary">No header photo uploaded</Typography>
+                )}
+              </Paper>
+              <TextField
+                fullWidth
+                size="small"
+                label="Header Photo URL"
+                value={form.header_photo_url}
+                onChange={(e) => handleChange('header_photo_url', e.target.value)}
+                helperText="Paste a URL or upload an image (8:1 aspect ratio recommended)."
+              />
+              <Button fullWidth variant="outlined" component="label">
+                Upload Header Photo
+                <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
+              </Button>
+              {pendingHeaderPhotoFile && (
+                <Typography variant="caption" color="text.secondary">Staged: {pendingHeaderPhotoFile.name} (will apply on Save)</Typography>
+              )}
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>Print Header Details</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Province"
+                    value={form.header_province.toUpperCase()}
+                    onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipality"
+                    value={form.header_municipality.toUpperCase()}
+                    onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Office"
+                    value={form.header_office.toUpperCase()}
+                    onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">
+                    The first line (Republic of the Philippines) and header title are fixed in the printout.
+                  </Typography>
+                </Grid>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>
+                  Security Settings
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Auto-logout timeout (minutes)"
+                      type="number"
+                      value={form.afk_timeout ?? 30}
+                      onChange={(e) => handleAfkTimeoutChange(e.target.value)}
+                      helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. Login will also expire when browser is closed for security. (5-480 minutes)`}
+                      inputProps={{ min: 5, max: 480 }}
+                      size="small"
+                      error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+                    />
+                  </Grid>
+                </Grid>
+              </Grid>
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>Signatory Details</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Verifier Signatory Name"
+                    value={(form.verifier_signatory_name || '').toUpperCase()}
+                    onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Verifier Signatory Title"
+                    value={(form.verifier_signatory_title || '').toUpperCase()}
+                    onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipal Assessor Name"
+                    value={(form.municipal_assessor_name || '').toUpperCase()}
+                    onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipal Assessor Title/Suffix (e.g., MMREM, REA, REB, LPT)"
+                    value={(form.municipal_assessor_suffix || '').toUpperCase()}
+                    onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Title(Municipal Assessor / Acting)"
+                    value={(form.municipal_assessor_title || '').toUpperCase()}
+                    onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipal Assessor License Number"
+                    value={(form.municipal_assessor_license || '').toUpperCase()}
+                    onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          </Grid>
+        </Grid>
+      </Grid>
+      <Grid item xs={12} textAlign="right">
+        <Button variant="contained" onClick={handleSave}>Save</Button>
+      </Grid>
+    </Grid>
+  );
+
+  const renderDataManagement = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} md={6} lg={4}>
+        <Typography variant="h6">Property Types</Typography>
+        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Code" required value={newType.code}
+              onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Name" required value={newType.name}
+              onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button fullWidth variant="outlined" onClick={addPropertyType}>Add</Button>
+          </Grid>
+        </Grid>
+        <List dense>
+          {(propertyTypes || []).map((t, index) => (
+            <ListItem key={t.id} draggable onDragStart={() => handleDragStart('propertyTypes', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('propertyTypes', index)} secondaryAction={
+              <IconButton edge="end" aria-label="delete" onClick={async () => {
+                try {
+                  await apiService.deletePropertyType(t.id);
+                  const res = await apiService.getPropertyTypes();
+                  setPropertyTypes(res?.items || []);
+                  setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
+                }
+              }}>
+                <DeleteIcon />
+              </IconButton>
+            }>
+              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                <DragIndicatorIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={t.name} />
+              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={t.status === 'active'} onChange={async (e) => {
+                try {
+                  const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
+                  setPropertyTypes(updated?.items || []);
+                  setToast({ open: true, message: 'Property type updated.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
+                }
+              }} />} label={t.status === 'active' ? 'Active' : 'Disabled'} />
+            </ListItem>
+          ))}
+        </List>
+      </Grid>
+
+      <Grid item xs={12} md={6} lg={4}>
+        <Typography variant="h6">General Classes</Typography>
+        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Code" required value={newClass.code}
+              onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Name" required value={newClass.name}
+              onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button fullWidth variant="outlined" onClick={addGeneralClass}>Add</Button>
+          </Grid>
+        </Grid>
+        <List dense>
+          {(generalClasses || []).map((c, index) => (
+            <ListItem key={c.id} draggable onDragStart={() => handleDragStart('generalClasses', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('generalClasses', index)} secondaryAction={
+              <IconButton edge="end" aria-label="delete" onClick={async () => {
+                try {
+                  await apiService.deleteGeneralClass(c.id);
+                  const res = await apiService.getGeneralClasses();
+                  setGeneralClasses(res?.items || []);
+                  setToast({ open: true, message: 'General class deleted.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
+                }
+              }}>
+                <DeleteIcon />
+              </IconButton>
+            }>
+              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                <DragIndicatorIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={c.name} />
+              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={c.status === 'active'} onChange={async (e) => {
+                try {
+                  const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
+                  setGeneralClasses(updated?.items || []);
+                  setToast({ open: true, message: 'General class updated.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                }
+              }} />} label={c.status === 'active' ? 'Active' : 'Disabled'} />
+            </ListItem>
+          ))}
+        </List>
+      </Grid>
+
+      <Grid item xs={12} md={6} lg={4}>
+        <Typography variant="h6">Locations</Typography>
+        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Code" required value={newLocation.code}
+              onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth size="small" label="Name" required value={newLocation.name}
+              onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button fullWidth variant="outlined" onClick={addLocation}>Add</Button>
+          </Grid>
+        </Grid>
+        <List dense>
+          {(locations || []).map((l, index) => (
+            <ListItem key={l.id} draggable onDragStart={() => handleDragStart('locations', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('locations', index)} secondaryAction={
+              <IconButton edge="end" aria-label="delete" onClick={async () => {
+                try {
+                  await apiService.deleteLocation(l.id);
+                  const res = await apiService.getLocations();
+                  setLocations(res?.items || []);
+                  setToast({ open: true, message: 'Location deleted.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to delete location.', severity: 'error' });
+                }
+              }}>
+                <DeleteIcon />
+              </IconButton>
+            }>
+              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                <DragIndicatorIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} />
+              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
+                try {
+                  const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                  setLocations(updated?.items || []);
+                  setToast({ open: true, message: 'Location updated.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to update location.', severity: 'error' });
+                }
+              }} />} label={l.status === 'active' ? 'Active' : 'Disabled'} />
+            </ListItem>
+          ))}
+        </List>
+      </Grid>
+    </Grid>
+  );
+
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* <Typography variant="h4" gutterBottom>
-        Settings
-      </Typography> */}
-
       <Snackbar
         open={toast.open}
         autoHideDuration={3000}
@@ -312,361 +670,15 @@ const Settings = () => {
       </Snackbar>
 
       <Card>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs">
+            <Tab label="General Settings" />
+            <Tab label="Data Management" />
+          </Tabs>
+        </Box>
         <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Grid container spacing={2} alignItems="flex-start">
-                <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'center' }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center', maxWidth: 360, width: '100%' }}>
-                    <Typography variant="h6" sx={{ mb: 1 }}>Branding</Typography>
-                    <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 140, height: 140, alignSelf: 'center', position: 'relative' }}>
-                      {/* Current logo (fallback) */}
-                      {form.app_logo_url && !pendingLogoPreview && (
-                        <img src={form.app_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      )}
-                      {/* Pending preview overlays current */}
-                      {pendingLogoPreview && (
-                        <img src={pendingLogoPreview} alt="New Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      )}
-                      {!form.app_logo_url && !pendingLogoPreview && (
-                        <Typography variant="caption" color="text.secondary">No logo uploaded</Typography>
-                      )}
-                    </Paper>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Logo URL"
-                      value={form.app_logo_url}
-                      onChange={(e) => handleChange('app_logo_url', e.target.value)}
-                      helperText="Paste a URL or upload an image."
-                    />
-                    <Button fullWidth variant="outlined" component="label">
-                      Upload Image
-                      <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
-                    </Button>
-                    {pendingLogoFile && (
-                      <Typography variant="caption" color="text.secondary">Staged: {pendingLogoFile.name} (will apply on Save)</Typography>
-                    )}
-                    <Typography variant="h6" sx={{ mb: 1 }}>Header Photo</Typography>
-                    <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 280, height: 35, alignSelf: 'center', position: 'relative' }}>
-                      {/* Current header photo (fallback) */}
-                      {form.header_photo_url && !pendingHeaderPhotoPreview && (
-                        <img src={form.header_photo_url} alt="Header Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      )}
-                      {/* Pending preview overlays current */}
-                      {pendingHeaderPhotoPreview && (
-                        <img src={pendingHeaderPhotoPreview} alt="New Header Photo Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      )}
-                      {!form.header_photo_url && !pendingHeaderPhotoPreview && (
-                        <Typography variant="caption" color="text.secondary">No header photo uploaded</Typography>
-                      )}
-                    </Paper>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Header Photo URL"
-                      value={form.header_photo_url}
-                      onChange={(e) => handleChange('header_photo_url', e.target.value)}
-                      helperText="Paste a URL or upload an image (8:1 aspect ratio recommended)."
-                    />
-                    <Button fullWidth variant="outlined" component="label">
-                      Upload Header Photo
-                      <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
-                    </Button>
-                    {pendingHeaderPhotoFile && (
-                      <Typography variant="caption" color="text.secondary">Staged: {pendingHeaderPhotoFile.name} (will apply on Save)</Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
-                    <Typography variant="h6" sx={{ mb: 1 }}>Print Header Details</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Province"
-                          value={form.header_province.toUpperCase()}
-                          onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Municipality"
-                          value={form.header_municipality.toUpperCase()}
-                          onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Office"
-                          value={form.header_office.toUpperCase()}
-                          onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Typography variant="caption" color="text.secondary">
-                          The first line (Republic of the Philippines) and header title are fixed in the printout.
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Typography variant="h6" gutterBottom>
-                        Security Settings
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12}>
-                          <TextField
-                            fullWidth
-                            label="Auto-logout timeout (minutes)"
-                            type="number"
-                            value={form.afk_timeout ?? 30}
-                            onChange={(e) => handleAfkTimeoutChange(e.target.value)}
-                            helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. Login will also expire when browser is closed for security. (5-480 minutes)`}
-                            inputProps={{ min: 5, max: 480 }}
-                            size="small"
-                            error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
-                          />
-                        </Grid>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
-                    <Typography variant="h6" sx={{ mb: 1 }}>Signatory Details</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Verifier Signatory Name"
-                          value={(form.verifier_signatory_name || '').toUpperCase()}
-                          onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Verifier Signatory Title"
-                          value={(form.verifier_signatory_title || '').toUpperCase()}
-                          onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Municipal Assessor Name"
-                          value={(form.municipal_assessor_name || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Municipal Assessor Title/Suffix (e.g., MMREM, REA, REB, LPT)"
-                          value={(form.municipal_assessor_suffix || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Title(Municipal Assessor / Acting)"
-                          value={(form.municipal_assessor_title || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Municipal Assessor License Number"
-                          value={(form.municipal_assessor_license || '').toUpperCase()}
-                          onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
-                        />
-                      </Grid>
-                    </Grid>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Grid>
-            <Grid item xs={12} textAlign="right">
-              <Button variant="contained" onClick={handleSave}>Save</Button>
-            </Grid>
-            <Grid item xs={12}>
-              <Divider sx={{ my: 2 }} />
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6} lg={4}>
-                  <Typography variant="h6">Property Types</Typography>
-                  <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newType.code}
-                        onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newType.name}
-                        onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={addPropertyType}>Add</Button>
-                    </Grid>
-                  </Grid>
-                  <List dense>
-                    {(propertyTypes || []).map((t, index) => (
-                      <ListItem key={t.id} draggable onDragStart={() => handleDragStart('propertyTypes', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('propertyTypes', index)} secondaryAction={
-                        <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          try {
-                            await apiService.deletePropertyType(t.id);
-                            const res = await apiService.getPropertyTypes();
-                            setPropertyTypes(res?.items || []);
-                            setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
-                          }
-                        }}>
-                          <DeleteIcon />
-                        </IconButton>
-                      }>
-                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                          <DragIndicatorIcon fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={t.name} />
-                        <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={t.status === 'active'} onChange={async (e) => {
-                          try {
-                            const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
-                            setPropertyTypes(updated?.items || []);
-                            setToast({ open: true, message: 'Property type updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
-                          }
-                        }} />} label={t.status === 'active' ? 'Active' : 'Disabled'} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Grid>
-
-                <Grid item xs={12} md={6} lg={4}>
-                  <Typography variant="h6">General Classes</Typography>
-                  <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newClass.code}
-                        onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newClass.name}
-                        onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={addGeneralClass}>Add</Button>
-                    </Grid>
-                  </Grid>
-                  <List dense>
-                    {(generalClasses || []).map((c, index) => (
-                      <ListItem key={c.id} draggable onDragStart={() => handleDragStart('generalClasses', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('generalClasses', index)} secondaryAction={
-                        <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          try {
-                            await apiService.deleteGeneralClass(c.id);
-                            const res = await apiService.getGeneralClasses();
-                            setGeneralClasses(res?.items || []);
-                            setToast({ open: true, message: 'General class deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
-                          }
-                        }}>
-                          <DeleteIcon />
-                        </IconButton>
-                      }>
-                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                          <DragIndicatorIcon fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={c.name} />
-                        <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={c.status === 'active'} onChange={async (e) => {
-                          try {
-                            const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
-                            setGeneralClasses(updated?.items || []);
-                            setToast({ open: true, message: 'General class updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
-                          }
-                        }} />} label={c.status === 'active' ? 'Active' : 'Disabled'} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Grid>
-
-                <Grid item xs={12} md={6} lg={4}>
-                  <Typography variant="h6">Locations</Typography>
-                  <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Code" required value={newLocation.code}
-                        onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField fullWidth size="small" label="Name" required value={newLocation.name}
-                        onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button fullWidth variant="outlined" onClick={addLocation}>Add</Button>
-                    </Grid>
-                  </Grid>
-                  <List dense>
-                    {(locations || []).map((l, index) => (
-                      <ListItem key={l.id} draggable onDragStart={() => handleDragStart('locations', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('locations', index)} secondaryAction={
-                        <IconButton edge="end" aria-label="delete" onClick={async () => {
-                          try {
-                            await apiService.deleteLocation(l.id);
-                            const res = await apiService.getLocations();
-                            setLocations(res?.items || []);
-                            setToast({ open: true, message: 'Location deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete location.', severity: 'error' });
-                          }
-                        }}>
-                          <DeleteIcon />
-                        </IconButton>
-                      }>
-                        <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                          <DragIndicatorIcon fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} />
-                        <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
-                          try {
-                            const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
-                            setLocations(updated?.items || []);
-                            setToast({ open: true, message: 'Location updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update location.', severity: 'error' });
-                          }
-                        }} />} label={l.status === 'active' ? 'Active' : 'Disabled'} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Grid>
-              </Grid>
-            </Grid>
-          </Grid>
+          {activeTab === 0 && renderGeneralSettings()}
+          {activeTab === 1 && renderDataManagement()}
         </CardContent>
       </Card>
     </Box>
