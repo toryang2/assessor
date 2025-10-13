@@ -10,7 +10,22 @@ class Assessor_API {
         add_action('init', array($this, 'handle_cors'));
         // Add minimal CORS for our REST namespace only
         add_action('rest_api_init', array($this, 'attach_assessor_cors_headers'));
+        // Ensure database tables exist
+        $this->ensure_database_tables();
         error_log('🔍 Assessor API Class: init method completed!');
+    }
+
+    private function ensure_database_tables() {
+        global $wpdb;
+        $table_revision_entries = $wpdb->prefix . 'assessor_revision_entries';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_revision_entries));
+        
+        if (!$table_exists) {
+            error_log('🔍 Assessor API: Revision entries table not found, creating...');
+            $database = new Assessor_Database();
+            $database->create_tables();
+            error_log('🔍 Assessor API: Database tables created/updated');
+        }
     }
     
     public function handle_cors() {
@@ -244,6 +259,23 @@ class Assessor_API {
             'callback' => array($this, 'delete_location'),
             'permission_callback' => array($this, 'check_auth')
         ));
+        
+        // Revision entries routes
+        register_rest_route('assessor/v1', '/settings/revision-entries', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_revision_entries'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/revision-entries', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_revision_entry'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/revision-entries/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_revision_entry'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         error_log('🔍 Assessor API: Settings routes registered');
         
         // Audit trail routes
@@ -282,6 +314,13 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/test', array(
             'methods' => 'GET',
             'callback' => array($this, 'test_endpoint'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Database setup route (no authentication required)
+        register_rest_route('assessor/v1', '/setup-database', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'setup_database'),
             'permission_callback' => '__return_true'
         ));
         
@@ -561,6 +600,21 @@ class Assessor_API {
         $settings = new Assessor_Settings();
         return $settings->delete_location($request);
     }
+
+    public function get_revision_entries($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_revision_entries();
+    }
+
+    public function save_revision_entry($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_revision_entry($request);
+    }
+
+    public function delete_revision_entry($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_revision_entry($request);
+    }
     
     public function get_audit_trail($request) {
         $audit = new Assessor_Audit();
@@ -588,6 +642,32 @@ class Assessor_API {
     public function test_endpoint($request) {
         error_log('🔍 Assessor API: Test endpoint called!');
         return array('message' => 'Test endpoint working!', 'timestamp' => time());
+    }
+
+    public function setup_database($request) {
+        try {
+            $database = new Assessor_Database();
+            $database->create_tables();
+            
+            // Check if revision entries table exists
+            global $wpdb;
+            $table_revision_entries = $wpdb->prefix . 'assessor_revision_entries';
+            $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_revision_entries));
+            
+            return array(
+                'success' => true,
+                'message' => 'Database tables created/updated successfully',
+                'revision_entries_table_exists' => !empty($table_exists),
+                'table_name' => $table_revision_entries,
+                'timestamp' => current_time('mysql')
+            );
+        } catch (Exception $e) {
+            return array(
+                'success' => false,
+                'message' => 'Error creating database tables: ' . $e->getMessage(),
+                'timestamp' => current_time('mysql')
+            );
+        }
     }
     
     public function jwt_config_test($request) {

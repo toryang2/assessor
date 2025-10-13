@@ -252,6 +252,22 @@ class Assessor_Database {
             KEY date_issued (date_issued),
             KEY created_at (created_at)
         ) $charset_collate;";
+
+        // Revision entries table
+        $table_revision_entries = $wpdb->prefix . 'assessor_revision_entries';
+        $sql_revision_entries = "CREATE TABLE $table_revision_entries (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            revision_year varchar(100) NOT NULL,
+            from_year varchar(10) NOT NULL,
+            to_year varchar(20) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY status (status),
+            KEY sort_order (sort_order)
+        ) $charset_collate;";
         
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -266,6 +282,7 @@ class Assessor_Database {
         dbDelta($sql_general_classes);
         dbDelta($sql_locations);
         dbDelta($sql_requests);
+        dbDelta($sql_revision_entries);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();
@@ -292,11 +309,25 @@ class Assessor_Database {
         $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $table_documents = $wpdb->prefix . 'assessor_documents';
         
-        // Add foreign key for property_versions table
-        $wpdb->query("ALTER TABLE $table_versions ADD CONSTRAINT fk_property_versions_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
+        // Add foreign key for property_versions.property_id -> properties.id if it does not already exist
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = %s AND CONSTRAINT_NAME = %s",
+            $table_versions,
+            'fk_property_versions_property_id'
+        ));
+        if (intval($exists) === 0) {
+            $wpdb->query("ALTER TABLE $table_versions ADD CONSTRAINT fk_property_versions_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
+        }
         
-        // Add foreign key for documents table
-        $wpdb->query("ALTER TABLE $table_documents ADD CONSTRAINT fk_documents_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
+        // Add foreign key for documents.property_id -> properties.id if it does not already exist
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = %s AND CONSTRAINT_NAME = %s",
+            $table_documents,
+            'fk_documents_property_id'
+        ));
+        if (intval($exists) === 0) {
+            $wpdb->query("ALTER TABLE $table_documents ADD CONSTRAINT fk_documents_property_id FOREIGN KEY (property_id) REFERENCES $table_properties(id) ON DELETE CASCADE");
+        }
     }
     
     private function insert_default_admin() {
@@ -480,6 +511,33 @@ class Assessor_Database {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
         }
 
+        // Migration: Ensure revision entries table exists
+        $table_revision_entries = $wpdb->prefix . 'assessor_revision_entries';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_revision_entries));
+        if (!$table_exists) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql_revision_entries = "CREATE TABLE $table_revision_entries (
+                id mediumint(9) NOT NULL AUTO_INCREMENT,
+                revision_year varchar(100) NOT NULL,
+                from_year varchar(10) NOT NULL,
+                to_year varchar(20) NOT NULL,
+                status varchar(20) NOT NULL DEFAULT 'active',
+                sort_order int NOT NULL DEFAULT 0,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY status (status),
+                KEY sort_order (sort_order)
+            ) $charset_collate;";
+            $wpdb->query($sql_revision_entries);
+        } else {
+            // Migration: Update to_year column length if it exists but is too short
+            $column_info = $wpdb->get_row($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'to_year'", $table_revision_entries));
+            if ($column_info && intval($column_info->CHARACTER_MAXIMUM_LENGTH) < 20) {
+                $wpdb->query("ALTER TABLE $table_revision_entries MODIFY to_year varchar(20) NOT NULL");
+            }
+        }
+
         // Migration: Expand declarant name fields to varchar(255) in properties table
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_last_name'", $table_properties));
@@ -508,6 +566,32 @@ class Assessor_Database {
         $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_middle_initial'", $table_versions));
         if ($col && intval($col) < 255) {
             $wpdb->query("ALTER TABLE $table_versions MODIFY declarant_middle_initial varchar(255) NULL");
+        }
+
+        // Migration: Add revision_id column to properties table
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'revision_id'", $table_properties));
+        if (!$column) {
+            // Prefer placing after status if it exists; otherwise append at the end
+            $has_status = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'status'", $table_properties));
+            if ($has_status) {
+                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id mediumint(9) DEFAULT NULL AFTER status");
+            } else {
+                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id mediumint(9) DEFAULT NULL");
+            }
+        }
+
+        // Migration: Add revision_id column to property_versions table
+        $table_versions = $wpdb->prefix . 'assessor_property_versions';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'revision_id'", $table_versions));
+        if (!$column) {
+            // Place after status only if such column exists; otherwise append
+            $has_status_versions = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'status'", $table_versions));
+            if ($has_status_versions) {
+                $wpdb->query("ALTER TABLE $table_versions ADD COLUMN revision_id mediumint(9) DEFAULT NULL AFTER status");
+            } else {
+                $wpdb->query("ALTER TABLE $table_versions ADD COLUMN revision_id mediumint(9) DEFAULT NULL");
+            }
         }
     }
 }

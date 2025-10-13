@@ -84,6 +84,7 @@ export const endpoints = {
   propertyTypes: '/settings/property-types',
   generalClasses: '/settings/general-classes',
   locations: '/settings/locations',
+  revisionEntries: '/settings/revision-entries',
   
   // Export
   export: '/export',
@@ -348,6 +349,34 @@ export const apiService = {
   deleteLocation: async (id) => {
     try {
       const response = await api.post(endpoints.locations + '/delete', { id });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Revision Entries
+  getRevisionEntries: async () => {
+    try {
+      const response = await api.get(endpoints.revisionEntries);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  saveRevisionEntry: async (revisionEntry) => {
+    try {
+      const response = await api.post(endpoints.revisionEntries, revisionEntry);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deleteRevisionEntry: async (id) => {
+    try {
+      const response = await api.post(endpoints.revisionEntries + '/delete', { id });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

@@ -23,7 +23,11 @@ import {
   Alert,
   CircularProgress,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -504,8 +508,25 @@ const PropertyTable = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
-  // Image status filter: 'all' | 'with' | 'without'
-  const [imageFilter, setImageFilter] = useState('all');
+  // Image status filter: 'all' | 'with' | 'without' (persist to sessionStorage)
+  const [imageFilter, setImageFilter] = useState(() => {
+    try {
+      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_image_filter') : null;
+      return saved === 'with' || saved === 'without' || saved === 'all' ? saved : 'all';
+    } catch (_) {
+      return 'all';
+    }
+  });
+  // Revision filter (persist to sessionStorage)
+  const [revisionFilter, setRevisionFilter] = useState(() => {
+    try {
+      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_revision_filter') : null;
+      return saved !== null ? saved : '';
+    } catch (_) {
+      return '';
+    }
+  });
+  const [revisionEntries, setRevisionEntries] = useState([]);
 
   const imageCounts = useMemo(() => {
     // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
@@ -521,6 +542,7 @@ const PropertyTable = () => {
   
   const filteredProperties = useMemo(() => {
     // Use allProperties when searching or when image filter is active, otherwise use safeProperties
+    // Revision filter is handled server-side, so no client-side filtering needed
     const base = (debouncedSearchTerm || imageFilter !== 'all') ? 
       (allProperties && allProperties.length ? allProperties : safeProperties) : 
       safeProperties;
@@ -548,13 +570,15 @@ const PropertyTable = () => {
       const status = getImageAttachmentStatus(property);
       if (imageFilter === 'with') return status.hasImages;
       if (imageFilter === 'without') return !status.hasImages;
+      
       return true;
     });
   }, [allProperties, safeProperties, imageFilter, debouncedSearchTerm]);
   
   const pagedProperties = useMemo(() => {
-    // When using server-side pagination (no search term and image filter is 'all'),
+    // When using server-side pagination (no search term, image filter is 'all'),
     // use safeProperties directly instead of client-side slicing
+    // Revision filter is handled server-side, so it's included in safeProperties
     if (!debouncedSearchTerm && imageFilter === 'all') {
       return safeProperties;
     }
@@ -656,47 +680,63 @@ const PropertyTable = () => {
   })();
   const [settings, setSettings] = useState(initialSettings);
 
-  // Fetch properties for pagination (only when not searching and image filter is 'all')
+  // Fetch revision entries
   useEffect(() => {
-    if (!debouncedSearchTerm && imageFilter === 'all') {
+    const fetchRevisionEntries = async () => {
+      try {
+        console.log('🔍 FETCHING REVISION ENTRIES...');
+        const response = await apiService.getRevisionEntries();
+        console.log('🔍 REVISION ENTRIES RESPONSE:', response);
+        const entries = response?.items || [];
+        console.log('🔍 SETTING REVISION ENTRIES:', entries);
+        setRevisionEntries(entries);
+      } catch (error) {
+        console.error('Failed to fetch revision entries:', error);
+      }
+    };
+    fetchRevisionEntries();
+  }, []);
+
+  // Fetch properties for pagination (only when not searching and image filter is 'all')
+  // Revision filter uses server-side filtering, so it's handled by fetchProperties
+  useEffect(() => {
+    if (!debouncedSearchTerm && imageFilter === 'all' && !revisionFilter) {
       fetchProperties();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter]);
+  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter]);
 
   // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        setLoadingAll(true);
-        const params = {
-          all: 1,
-          q: debouncedSearchTerm || '',
-          _t: Date.now()
-        };
-        const response = await apiService.getProperties(params);
-        const items = (response && response.properties)
-          ? response.properties
-          : (response && response.data)
-            ? response.data
-            : [];
-        setAllProperties(items);
-      } catch (e) {
-        // Fall back silently; keep existing page data
-        setAllProperties([]);
-      } finally {
-        setLoadingAll(false);
-      }
-    };
-    
-    if (debouncedSearchTerm || imageFilter !== 'all') {
-      fetchAll();
-    } else {
-      // Don't clear allProperties - we need it for accurate image counts
-      // The filteredProperties logic will handle using the right dataset
+  const fetchAllDataset = useCallback(async () => {
+    try {
+      setLoadingAll(true);
+      const params = {
+        all: 1,
+        q: debouncedSearchTerm || '',
+        revision_id: revisionFilter || '',
+        _t: Date.now()
+      };
+      const response = await apiService.getProperties(params);
+      const items = (response && response.properties)
+        ? response.properties
+        : (response && response.data)
+          ? response.data
+          : [];
+      setAllProperties(items);
+    } catch (e) {
+      setAllProperties([]);
+    } finally {
+      setLoadingAll(false);
     }
+  }, [debouncedSearchTerm, revisionFilter]);
+
+  useEffect(() => {
+    // Always refresh the all-properties dataset when filters change so
+    // imageCounts stay accurate for the current revision/search/image filter.
+    // This includes when switching back to "All Revisions" (empty string).
+    fetchAllDataset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, imageFilter]);
+  }, [debouncedSearchTerm, imageFilter, revisionFilter]);
 
   // Fetch full dataset for image counts on initial load
   useEffect(() => {
@@ -763,6 +803,54 @@ const PropertyTable = () => {
 
 
   const fetchSeqRef = useRef(0);
+  const fetchPropertiesWithRevision = useCallback(async (revisionId) => {
+    const seq = ++fetchSeqRef.current;
+    try {
+      setLoading(true);
+      setError(''); // Clear previous errors
+      
+      const params = {
+        page: page + 1,
+        per_page: rowsPerPage,
+        q: debouncedSearchTerm || '',
+        revision_id: revisionId || '',
+        // Add cache busting timestamp to prevent browser caching
+        _t: Date.now()
+      };
+      
+      console.log('🔍 FETCH PROPERTIES WITH REVISION DEBUG:', {
+        page: page + 1,
+        per_page: rowsPerPage,
+        searchTerm: debouncedSearchTerm,
+        revisionId,
+        params
+      });
+      
+      const response = await apiService.getProperties(params);
+      // Ignore if a newer request has started
+      if (seq !== fetchSeqRef.current) return;
+      
+      if (response && response.properties) {
+        setProperties(response.properties);
+        setTotalCount(response.pagination ? response.pagination.total : response.properties.length);
+      } else if (response && response.data) {
+        // Fallback for different response format
+        setProperties(response.data);
+        setTotalCount(response.total || response.data.length);
+      } else {
+        setProperties([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching properties with revision:', error);
+      setError('Failed to load properties');
+      setProperties([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, rowsPerPage, debouncedSearchTerm]);
+
   const fetchProperties = useCallback(async (forceRefresh = false) => {
     const seq = ++fetchSeqRef.current;
     try {
@@ -773,9 +861,19 @@ const PropertyTable = () => {
         page: page + 1,
         per_page: rowsPerPage,
         q: debouncedSearchTerm || '',
+        revision_id: revisionFilter || '',
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
+      
+      console.log('🔍 FETCH PROPERTIES DEBUG:', {
+        page: page + 1,
+        per_page: rowsPerPage,
+        searchTerm: debouncedSearchTerm,
+        revisionFilter,
+        params
+      });
+      
       
       const response = await apiService.getProperties(params);
       // Ignore if a newer request has started
@@ -835,6 +933,11 @@ const PropertyTable = () => {
       return;
     }
     setImageFilter(value);
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('assessor_image_filter', String(value));
+      }
+    } catch (_) {}
     setPage(0);
   };
 
@@ -867,7 +970,10 @@ const PropertyTable = () => {
       await apiService.deleteProperty(propertyToDelete.id);
       setDeleteDialog(false);
       setPropertyToDelete(null);
-      fetchProperties();
+      // Refresh current page and counts respecting filters
+      fetchPropertiesWithRevision(revisionFilter);
+      // Always refresh the all-properties dataset so imageCounts stay in sync
+      fetchAllDataset();
     } catch (err) {
       setError('Failed to delete property');
     }
@@ -876,7 +982,10 @@ const PropertyTable = () => {
   const handlePropertySaved = () => {
     setPropertyModal(false);
     setSelectedProperty(null);
-    fetchProperties();
+    // Refresh current page and counts respecting filters
+    fetchPropertiesWithRevision(revisionFilter);
+    // Always refresh the all-properties dataset so imageCounts stay in sync
+    fetchAllDataset();
   };
 
   const handleViewHistory = async (taxDeclarationNumber) => {
@@ -1170,6 +1279,46 @@ const PropertyTable = () => {
               </Grid>
               <Grid item xs={12} md={6} display="flex" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" gap={1}>
                 <Box display="flex" alignItems="stretch" gap={1}>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel shrink>Revision</InputLabel>
+                    <Select
+                      value={revisionFilter}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        console.log('🔍 REVISION DROPDOWN CHANGE:', {
+                          selectedValue: newValue,
+                          revisionEntries: revisionEntries,
+                          revisionEntriesLength: revisionEntries.length
+                        });
+                        setRevisionFilter(newValue);
+                        try {
+                          if (typeof window !== 'undefined') {
+                            window.sessionStorage.setItem('assessor_revision_filter', String(newValue ?? ''));
+                          }
+                        } catch (_) {}
+                        setPage(0);
+                        // Immediately fetch with the new revision filter
+                        fetchPropertiesWithRevision(newValue);
+                      }}
+                      label="Revision"
+                      displayEmpty
+                      renderValue={(selected) => {
+                        const v = selected === undefined || selected === null ? '' : selected;
+                        if (v === '') return 'All Revisions';
+                        const found = (revisionEntries || []).find(r => String(r.id) === String(v));
+                        return found ? found.revision_year : 'All Revisions';
+                      }}
+                    >
+                      <MenuItem value="" selected={revisionFilter === ''}>
+                        <em>All Revisions</em>
+                      </MenuItem>
+                      {revisionEntries.map((revision) => (
+                        <MenuItem key={revision.id} value={revision.id}>
+                          {revision.revision_year}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <ToggleButtonGroup
                     size="small"
                     exclusive

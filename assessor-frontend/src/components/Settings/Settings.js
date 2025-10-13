@@ -35,6 +35,8 @@ const Settings = () => {
   const [newClass, setNewClass] = useState({ code: '', name: '' });
   const [locations, setLocations] = useState([]);
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
+  const [revisionEntries, setRevisionEntries] = useState([]);
+  const [newRevisionEntry, setNewRevisionEntry] = useState({ revision_year: '', from_year: '', to_year: '' });
   const [pendingLogoFile, setPendingLogoFile] = useState(null);
   const [pendingLogoPreview, setPendingLogoPreview] = useState('');
   const [pendingHeaderPhotoFile, setPendingHeaderPhotoFile] = useState(null);
@@ -60,14 +62,16 @@ const Settings = () => {
           municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
           afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
         });
-        const [typesRes, classesRes, locationsRes] = await Promise.all([
+        const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
           apiService.getPropertyTypes(),
           apiService.getGeneralClasses(),
-          apiService.getLocations()
+          apiService.getLocations(),
+          apiService.getRevisionEntries()
         ]);
         setPropertyTypes(typesRes?.items || []);
         setGeneralClasses(classesRes?.items || []);
         setLocations(locationsRes?.items || []);
+        setRevisionEntries(revisionEntriesRes?.items || []);
       } catch (e) {
         // fallback to defaults silently
       }
@@ -93,14 +97,16 @@ const Settings = () => {
         municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
         afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
       });
-      const [typesRes, classesRes, locationsRes] = await Promise.all([
+      const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
         apiService.getPropertyTypes(),
         apiService.getGeneralClasses(),
-        apiService.getLocations()
+        apiService.getLocations(),
+        apiService.getRevisionEntries()
       ]);
       setPropertyTypes(typesRes?.items || []);
       setGeneralClasses(classesRes?.items || []);
       setLocations(locationsRes?.items || []);
+      setRevisionEntries(revisionEntriesRes?.items || []);
     } catch (e) {
       // fallback to defaults silently
     }
@@ -243,6 +249,10 @@ const Settings = () => {
         const next = reorder(locations);
         setLocations(next);
         await Promise.all(next.map((item, idx) => apiService.saveLocation({ id: item.id, code: item.code, name: item.name, status: item.status, sort_order: idx + 1 })));
+      } else if (key === 'revisionEntries') {
+        const next = reorder(revisionEntries);
+        setRevisionEntries(next);
+        await Promise.all(next.map((item, idx) => apiService.saveRevisionEntry({ id: item.id, revision_year: item.revision_year, from_year: item.from_year, to_year: item.to_year, status: item.status, sort_order: idx + 1 })));
       }
     } finally {
       setDragging({ key: null, from: -1 });
@@ -292,6 +302,50 @@ const Settings = () => {
       setToast({ open: true, message: 'Location saved.', severity: 'success' });
     } catch (err) {
       setToast({ open: true, message: 'Failed to save location.', severity: 'error' });
+    }
+  };
+
+  const addRevisionEntry = async () => {
+    if (!newRevisionEntry.revision_year || !newRevisionEntry.from_year) {
+      setToast({ open: true, message: 'Revision Entry: Revision Year and From Year are required.', severity: 'error' });
+      return;
+    }
+    
+    // Auto-set to_year to 'present' if blank
+    let toYear = newRevisionEntry.to_year.trim();
+    if (!toYear) {
+      toYear = 'present';
+    }
+    
+    // Validate to_year - must be a number or 'present'
+    const toYearLower = toYear.toLowerCase();
+    if (toYearLower !== 'present' && (isNaN(toYearLower) || parseInt(toYearLower) < 1900 || parseInt(toYearLower) > 2100)) {
+      setToast({ open: true, message: 'To Year: Must be a valid year (1900-2100) or leave blank for "present".', severity: 'error' });
+      return;
+    }
+    try {
+      const res = await apiService.saveRevisionEntry({ 
+        revision_year: newRevisionEntry.revision_year, 
+        from_year: newRevisionEntry.from_year, 
+        to_year: toYear, 
+        status: 'active' 
+      });
+      setRevisionEntries(res?.items || []);
+      setNewRevisionEntry({ revision_year: '', from_year: '', to_year: '' });
+      
+      // Check if any previous revisions were updated
+      const updatedRevisions = res?.updated_previous_revisions || 0;
+      if (updatedRevisions > 0) {
+        setToast({ 
+          open: true, 
+          message: `Revision entry saved. ${updatedRevisions} previous revision(s) were automatically updated to end before this new revision.`, 
+          severity: 'info' 
+        });
+      } else {
+        setToast({ open: true, message: 'Revision entry saved.', severity: 'success' });
+      }
+    } catch (err) {
+      setToast({ open: true, message: 'Failed to save revision entry.', severity: 'error' });
     }
   };
 
@@ -656,6 +710,118 @@ const Settings = () => {
     </Grid>
   );
 
+  const renderRevisionSettings = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} md={8} lg={6}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Revision Entries</Typography>
+        
+        {/* Compact Add Form */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1, display: 'block' }}>
+            💡 Leave "To Year" blank for ongoing revisions. Previous "present" revisions will auto-update when adding new ones.
+          </Typography>
+          <Grid container spacing={1} alignItems="flex-start">
+            <Grid item xs={12} sm={4}>
+              <TextField 
+                fullWidth 
+                size="small" 
+                label="Revision Year" 
+                required 
+                value={newRevisionEntry.revision_year}
+                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, revision_year: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
+                placeholder="e.g., 2024 Revision"
+                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
+                inputProps={{ style: { fontSize: '0.75rem' } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField 
+                fullWidth 
+                size="small" 
+                label="From Year" 
+                type="number"
+                required 
+                value={newRevisionEntry.from_year}
+                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, from_year: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
+                placeholder="2024"
+                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
+                inputProps={{ style: { fontSize: '0.75rem' }, min: 1900, max: 2100 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+            <TextField 
+              fullWidth 
+              size="small" 
+              label="To Year" 
+              value={newRevisionEntry.to_year}
+              onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
+              placeholder="Leave blank for present"
+              helperText="Optional"
+              InputLabelProps={{ style: { fontSize: '0.75rem' } }}
+              inputProps={{ style: { fontSize: '0.75rem' } }}
+            />
+          </Grid>
+          </Grid>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Button variant="outlined" size="small" onClick={addRevisionEntry}
+                    sx={{
+                      height: 40,
+                      minHeight: 40,
+                      px: 2,
+                    }}>
+              Add
+            </Button>
+          </Box>
+        </Paper>
+        <List dense>
+          {(revisionEntries || []).map((entry, index) => (
+            <ListItem key={entry.id} draggable onDragStart={() => handleDragStart('revisionEntries', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('revisionEntries', index)} secondaryAction={
+              <IconButton edge="end" aria-label="delete" onClick={async () => {
+                try {
+                  await apiService.deleteRevisionEntry(entry.id);
+                  const res = await apiService.getRevisionEntries();
+                  setRevisionEntries(res?.items || []);
+                  setToast({ open: true, message: 'Revision entry deleted.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to delete revision entry.', severity: 'error' });
+                }
+              }}>
+                <DeleteIcon />
+              </IconButton>
+            }>
+              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
+                <DragIndicatorIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText 
+                primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} 
+                primary={`${entry.revision_year} (${entry.from_year} - ${entry.to_year === 'present' ? 'Present' : entry.to_year})`} 
+              />
+              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={entry.status === 'active'} onChange={async (e) => {
+                try {
+                  const updated = await apiService.saveRevisionEntry({ 
+                    id: entry.id, 
+                    revision_year: entry.revision_year, 
+                    from_year: entry.from_year, 
+                    to_year: entry.to_year, 
+                    status: e.target.checked ? 'active' : 'disabled', 
+                    sort_order: entry.sort_order || 0 
+                  });
+                  setRevisionEntries(updated?.items || []);
+                  setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
+                } catch (err) {
+                  setToast({ open: true, message: 'Failed to update revision entry.', severity: 'error' });
+                }
+              }} />} label={entry.status === 'active' ? 'Active' : 'Disabled'} />
+            </ListItem>
+          ))}
+        </List>
+      </Grid>
+    </Grid>
+  );
+
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <Snackbar
@@ -674,11 +840,13 @@ const Settings = () => {
           <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs">
             <Tab label="General Settings" />
             <Tab label="Data Management" />
+            <Tab label="Revision Settings" />
           </Tabs>
         </Box>
         <CardContent>
           {activeTab === 0 && renderGeneralSettings()}
           {activeTab === 1 && renderDataManagement()}
+          {activeTab === 2 && renderRevisionSettings()}
         </CardContent>
       </Card>
     </Box>

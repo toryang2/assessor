@@ -111,6 +111,57 @@ class Assessor_Properties {
             $where_values[] = '%' . $wpdb->esc_like($params['business']) . '%';
         }
 
+        // Revision filter - filter by date range based on revision's from_year and to_year
+        if (!empty($params['revision_id'])) {
+            $revision_id = intval($params['revision_id']);
+            error_log("🔍 REVISION FILTER START:");
+            error_log("  - params['revision_id']: " . $params['revision_id']);
+            error_log("  - intval revision_id: " . $revision_id);
+            
+            if ($revision_id > 0) {
+                // Get revision details to determine date range
+                $table_revisions = $wpdb->prefix . 'assessor_revision_entries';
+                $revision = $wpdb->get_row($wpdb->prepare(
+                    "SELECT from_year, to_year FROM $table_revisions WHERE id = %d AND status = 'active'",
+                    $revision_id
+                ));
+                
+                // Debug: Check if revision was found
+                error_log("🔍 REVISION QUERY RESULT:");
+                error_log("  - Query: SELECT from_year, to_year FROM $table_revisions WHERE id = $revision_id AND status = 'active'");
+                error_log("  - Revision found: " . ($revision ? 'YES' : 'NO'));
+                if ($revision) {
+                    error_log("  - Revision data: " . print_r($revision, true));
+                }
+
+                if ($revision) {
+                    $from_year = intval($revision->from_year);
+                    // Treat 'present' as open-ended to include future years as well
+                    $to_year = (strtolower($revision->to_year) === 'present') ? 9999 : intval($revision->to_year);
+                    
+                    // Debug logging
+                    error_log("🔍 REVISION FILTER DEBUG:");
+                    error_log("  - revision_id: " . $revision_id);
+                    error_log("  - from_year: " . $from_year);
+                    error_log("  - to_year: " . $to_year);
+                    error_log("  - revision->from_year: " . $revision->from_year);
+                    error_log("  - revision->to_year: " . $revision->to_year);
+                    
+                    // Filter by effectivity_date within the revision's date range
+                    // effectivity_date is stored as varchar, so convert to integer for comparison
+                    $where_conditions[] = "(
+                        CAST(p.effectivity_date AS UNSIGNED) >= %d AND CAST(p.effectivity_date AS UNSIGNED) <= %d
+                    )";
+                    $where_values[] = $from_year;
+                    $where_values[] = $to_year;
+                    
+                    error_log("  - Added WHERE condition with values: " . $from_year . " to " . $to_year);
+                } else {
+                    error_log("❌ REVISION FILTER: No revision found for ID: " . $revision_id);
+                }
+            }
+        }
+
         // Image status filter: with | without | broken
         if (!empty($params['image_status'])) {
             $status = strtolower(trim($params['image_status']));
@@ -188,12 +239,20 @@ class Assessor_Properties {
             $where_clause
             ORDER BY $order_by";
 
+        // Debug logging for final query
+        error_log("🔍 FINAL SQL QUERY:");
+        error_log("  - SQL: " . $select_sql);
+        error_log("  - WHERE clause: " . $where_clause);
+        error_log("  - WHERE values: " . print_r($where_values, true));
+        
         if ($fetch_all) {
             // Fetch all matching rows in one response
             $query = $select_sql; // no LIMIT/OFFSET
             if (!empty($where_values)) {
+                error_log("  - Executing with WHERE values: " . print_r($where_values, true));
                 $properties = $wpdb->get_results($wpdb->prepare($query, $where_values));
             } else {
+                error_log("  - Executing without WHERE values");
                 $properties = $wpdb->get_results($query);
             }
         } else {
