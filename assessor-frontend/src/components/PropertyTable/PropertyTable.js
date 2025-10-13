@@ -528,6 +528,17 @@ const PropertyTable = () => {
   });
   const [revisionEntries, setRevisionEntries] = useState([]);
 
+  // Location filter (persist to sessionStorage). Empty string means All Locations
+  const [locationFilter, setLocationFilter] = useState(() => {
+    try {
+      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_location_filter') : null;
+      return saved !== null ? saved : '';
+    } catch (_) {
+      return '';
+    }
+  });
+  const [locationOptions, setLocationOptions] = useState([]);
+
   const imageCounts = useMemo(() => {
     // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
     const base = (allProperties && allProperties.length > 0) ? allProperties : safeProperties;
@@ -697,14 +708,30 @@ const PropertyTable = () => {
     fetchRevisionEntries();
   }, []);
 
+  // Fetch location options (same API source as in PropertyFormModal)
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const res = await apiService.getLocations();
+        const items = Array.isArray(res?.items) ? res.items : [];
+        const active = items.filter(i => i.status === 'active');
+        setLocationOptions(active);
+      } catch (e) {
+        console.error('Failed to fetch locations:', e);
+        setLocationOptions([]);
+      }
+    };
+    fetchLocations();
+  }, []);
+
   // Fetch properties for pagination (only when not searching and image filter is 'all')
   // Revision filter uses server-side filtering, so it's handled by fetchProperties
   useEffect(() => {
-    if (!debouncedSearchTerm && imageFilter === 'all' && !revisionFilter) {
+    if (!debouncedSearchTerm && imageFilter === 'all' && !revisionFilter && !locationFilter) {
       fetchProperties();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter]);
+  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter]);
 
   // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
   const fetchAllDataset = useCallback(async () => {
@@ -714,6 +741,7 @@ const PropertyTable = () => {
         all: 1,
         q: debouncedSearchTerm || '',
         revision_id: revisionFilter || '',
+        location: locationFilter || '',
         _t: Date.now()
       };
       const response = await apiService.getProperties(params);
@@ -728,7 +756,7 @@ const PropertyTable = () => {
     } finally {
       setLoadingAll(false);
     }
-  }, [debouncedSearchTerm, revisionFilter]);
+  }, [debouncedSearchTerm, revisionFilter, locationFilter]);
 
   useEffect(() => {
     // Always refresh the all-properties dataset when filters change so
@@ -736,7 +764,7 @@ const PropertyTable = () => {
     // This includes when switching back to "All Revisions" (empty string).
     fetchAllDataset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, imageFilter, revisionFilter]);
+  }, [debouncedSearchTerm, imageFilter, revisionFilter, locationFilter]);
 
   // Fetch full dataset for image counts on initial load
   useEffect(() => {
@@ -803,7 +831,7 @@ const PropertyTable = () => {
 
 
   const fetchSeqRef = useRef(0);
-  const fetchPropertiesWithRevision = useCallback(async (revisionId) => {
+  const fetchPropertiesWithFilters = useCallback(async (revisionId, locationName) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -814,15 +842,17 @@ const PropertyTable = () => {
         per_page: rowsPerPage,
         q: debouncedSearchTerm || '',
         revision_id: revisionId || '',
+        location: locationName || '',
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       };
       
-      console.log('🔍 FETCH PROPERTIES WITH REVISION DEBUG:', {
+      console.log('🔍 FETCH PROPERTIES WITH FILTERS DEBUG:', {
         page: page + 1,
         per_page: rowsPerPage,
         searchTerm: debouncedSearchTerm,
         revisionId,
+        locationName,
         params
       });
       
@@ -862,6 +892,7 @@ const PropertyTable = () => {
         per_page: rowsPerPage,
         q: debouncedSearchTerm || '',
         revision_id: revisionFilter || '',
+        location: locationFilter || '',
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
@@ -871,6 +902,7 @@ const PropertyTable = () => {
         per_page: rowsPerPage,
         searchTerm: debouncedSearchTerm,
         revisionFilter,
+        locationFilter,
         params
       });
       
@@ -901,7 +933,7 @@ const PropertyTable = () => {
       if (seq === fetchSeqRef.current) setLoading(false);
       setInitialLoad(false);
     }
-  }, [page, rowsPerPage, debouncedSearchTerm]);
+  }, [page, rowsPerPage, debouncedSearchTerm, revisionFilter, locationFilter]);
 
   const handleSearch = (event) => {
     const raw = event.target.value || '';
@@ -971,7 +1003,7 @@ const PropertyTable = () => {
       setDeleteDialog(false);
       setPropertyToDelete(null);
       // Refresh current page and counts respecting filters
-      fetchPropertiesWithRevision(revisionFilter);
+      fetchPropertiesWithFilters(revisionFilter, locationFilter);
       // Always refresh the all-properties dataset so imageCounts stay in sync
       fetchAllDataset();
     } catch (err) {
@@ -983,7 +1015,7 @@ const PropertyTable = () => {
     setPropertyModal(false);
     setSelectedProperty(null);
     // Refresh current page and counts respecting filters
-    fetchPropertiesWithRevision(revisionFilter);
+    fetchPropertiesWithFilters(revisionFilter, locationFilter);
     // Always refresh the all-properties dataset so imageCounts stay in sync
     fetchAllDataset();
   };
@@ -1297,8 +1329,8 @@ const PropertyTable = () => {
                           }
                         } catch (_) {}
                         setPage(0);
-                        // Immediately fetch with the new revision filter
-                        fetchPropertiesWithRevision(newValue);
+                        // Immediately fetch with the new revision + current location
+                        fetchPropertiesWithFilters(newValue, locationFilter);
                       }}
                       label="Revision"
                       displayEmpty
@@ -1315,6 +1347,41 @@ const PropertyTable = () => {
                       {revisionEntries.map((revision) => (
                         <MenuItem key={revision.id} value={revision.id}>
                           {revision.revision_year}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                    <InputLabel shrink>Location</InputLabel>
+                    <Select
+                      value={locationFilter}
+                      onChange={(e) => {
+                        const newLoc = e.target.value;
+                        setLocationFilter(newLoc);
+                        try {
+                          if (typeof window !== 'undefined') {
+                            window.sessionStorage.setItem('assessor_location_filter', String(newLoc ?? ''));
+                          }
+                        } catch (_) {}
+                        setPage(0);
+                        // Immediately fetch with current revision + new location
+                        fetchPropertiesWithFilters(revisionFilter, newLoc);
+                      }}
+                      label="Location"
+                      displayEmpty
+                      renderValue={(selected) => {
+                        const v = selected === undefined || selected === null ? '' : selected;
+                        if (v === '') return 'All Locations';
+                        const found = (locationOptions || []).find(l => String(l.name) === String(v));
+                        return found ? found.name : 'All Locations';
+                      }}
+                    >
+                      <MenuItem value="" selected={locationFilter === ''}>
+                        <em>All Locations</em>
+                      </MenuItem>
+                      {locationOptions.map((loc) => (
+                        <MenuItem key={loc.code || loc.name} value={loc.name}>
+                          {loc.name}
                         </MenuItem>
                       ))}
                     </Select>
