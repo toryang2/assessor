@@ -65,12 +65,13 @@ const Export = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [showFieldSelection, setShowFieldSelection] = useState(false);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
   
   // Filter states
   const [filters, setFilters] = useState({
     dateFrom: null,
     dateTo: null,
-    status: '',
     location: '',
     propertyType: ''
   });
@@ -194,12 +195,33 @@ const Export = () => {
     ]
   };
 
+  // Load location options on component mount
+  useEffect(() => {
+    const loadLocationOptions = async () => {
+      setOptionsLoading(true);
+      try {
+        const locationsRes = await apiService.getLocations();
+        const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+        setLocationOptions(locations);
+      } catch (e) {
+        console.error('Export: Error loading locations:', e);
+        // fallback to defaults if API fails
+        setLocationOptions([
+          { code: 'BARANGAY', name: 'BARANGAY' }
+        ]);
+      } finally {
+        setOptionsLoading(false);
+      }
+    };
+    
+    loadLocationOptions();
+  }, []);
+
   const handleExportTypeChange = (type) => {
     setExportType(type);
     setFilters({
       dateFrom: null,
       dateTo: null,
-      status: '',
       location: '',
       propertyType: ''
     });
@@ -255,10 +277,17 @@ const Export = () => {
     setExportProgress(0);
 
     try {
+      // Format dates for backend
+      const formattedFilters = {
+        ...filters,
+        dateFrom: filters.dateFrom ? filters.dateFrom.toISOString().split('T')[0] : null,
+        dateTo: filters.dateTo ? filters.dateTo.toISOString().split('T')[0] : null
+      };
+
       const exportConfig = {
         type: exportType,
         format: exportFormat,
-        filters: filters,
+        filters: formattedFilters,
         fields: selectedFields[exportType],
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
@@ -307,7 +336,6 @@ const Export = () => {
     setFilters({
       dateFrom: null,
       dateTo: null,
-      status: '',
       location: '',
       propertyType: ''
     });
@@ -347,30 +375,25 @@ const Export = () => {
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
+                  <InputLabel>Location</InputLabel>
                   <Select
-                    value={filters.status}
-                    label="Status"
-                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                    value={filters.location}
+                    label="Location"
+                    onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+                    disabled={optionsLoading}
                   >
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="inactive">Inactive</MenuItem>
-                  <MenuItem value="archived">Archived</MenuItem>
-                  <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="draft">Draft</MenuItem>
+                    <MenuItem value="">All Locations</MenuItem>
+                    {optionsLoading ? (
+                      <MenuItem disabled>Loading locations...</MenuItem>
+                    ) : locationOptions.length === 0 ? (
+                      <MenuItem disabled>No locations available</MenuItem>
+                    ) : (
+                      locationOptions.map(loc => (
+                        <MenuItem key={loc.code} value={loc.name}>{loc.name}</MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Location"
-                  value={filters.location}
-                  onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="City/Municipality"
-                />
               </Grid>
             </Grid>
           </Stack>

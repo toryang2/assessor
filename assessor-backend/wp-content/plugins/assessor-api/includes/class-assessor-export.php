@@ -51,6 +51,26 @@ class Assessor_Export {
             $query_params[] = $filters['status'];
         }
         
+        if (!empty($filters['location'])) {
+            $where_clause .= " AND location = %s";
+            $query_params[] = $filters['location'];
+        }
+        
+        if (!empty($filters['dateFrom'])) {
+            $where_clause .= " AND created_at >= %s";
+            $query_params[] = $filters['dateFrom'];
+        }
+        
+        if (!empty($filters['dateTo'])) {
+            $where_clause .= " AND created_at <= %s";
+            $query_params[] = $filters['dateTo'];
+        }
+        
+        if (!empty($filters['propertyType'])) {
+            $where_clause .= " AND kind_of_property = %s";
+            $query_params[] = $filters['propertyType'];
+        }
+        
         // Always exclude deleted properties from exports
         $where_clause .= " AND status != 'deleted'";
         

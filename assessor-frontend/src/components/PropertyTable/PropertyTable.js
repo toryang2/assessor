@@ -1012,7 +1012,7 @@ const PropertyTable = () => {
       if (spacer) spacer.style.height = '0px';
     },
     pageStyle: `
-      @page { size: A4 portrait; margin: 12mm 10mm 16mm 8mm; 
+      @page { size: A4 portrait; margin: 12mm 12mm 16mm 8mm; 
           @bottom-right {
             content: counter(page) "/" counter(pages);
             font-family: 'Arial', sans-serif;
