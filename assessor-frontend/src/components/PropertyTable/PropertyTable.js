@@ -725,10 +725,16 @@ const PropertyTable = () => {
   }, []);
 
   // Fetch properties for pagination (only when not searching and image filter is 'all')
-  // Revision filter uses server-side filtering, so it's handled by fetchProperties
+  // Revision and location filters use server-side filtering, so they're handled by fetchPropertiesWithFilters
   useEffect(() => {
-    if (!debouncedSearchTerm && imageFilter === 'all' && !revisionFilter && !locationFilter) {
-      fetchProperties();
+    if (!debouncedSearchTerm && imageFilter === 'all') {
+      if (revisionFilter || locationFilter) {
+        // Use server-side filtering when revision or location filters are active
+        fetchPropertiesWithFilters(revisionFilter, locationFilter);
+      } else {
+        // Use regular fetchProperties when no filters are active
+        fetchProperties();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter]);
@@ -1293,8 +1299,9 @@ const PropertyTable = () => {
         {/* Search and Filters */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+            <Grid container spacing={{ xs: 1, sm: 2 }} alignItems="center">
+              {/* Search Field and Add Button Row */}
+              <Grid item xs={12} sm={6} md={6} lg={6} xl={6}>
                 <TextField
                   fullWidth
                   label="Search Properties"
@@ -1309,9 +1316,51 @@ const PropertyTable = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6} display="flex" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" gap={1}>
-                <Box display="flex" alignItems="stretch" gap={1}>
-                  <FormControl size="small" sx={{ minWidth: 150 }}>
+              <Grid item xs={12} sm={6} md={6} lg={6} xl={6} display="flex" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddProperty}
+                  color="primary"
+                  sx={{
+                    height: 40,
+                    minHeight: 40,
+                    px: 1.5,
+                    minWidth: 'auto',
+                    width: 'auto'
+                  }}
+                >
+                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                    Add Property
+                  </Box>
+                  <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                    Add
+                  </Box>
+                </Button>
+              </Grid>
+              
+              {/* Filters Row */}
+              <Grid item xs={12}>
+                <Box 
+                  display="flex" 
+                  alignItems="center" 
+                  gap={{ xs: 1, sm: 2 }} 
+                  flexWrap="wrap"
+                  sx={{ 
+                    '& > *': {
+                      flex: { xs: '1 1 auto', sm: '0 1 auto' },
+                      minWidth: { xs: '120px', sm: 'auto' }
+                    }
+                  }}
+                >
+                  <FormControl size="small" sx={{ 
+                    minWidth: { xs: 120, sm: 150 },
+                    width: { xs: '100%', sm: 'auto' },
+                    // Custom breakpoints for your specific screen sizes
+                    '@media (min-width: 1280px)': { minWidth: 160 }, // 720p/768p optimization
+                    '@media (min-width: 1920px)': { minWidth: 180 }  // 1080p optimization
+                  }}>
                     <InputLabel shrink>Revision</InputLabel>
                     <Select
                       value={revisionFilter}
@@ -1351,7 +1400,14 @@ const PropertyTable = () => {
                       ))}
                     </Select>
                   </FormControl>
-                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                  
+                  <FormControl size="small" sx={{ 
+                    minWidth: { xs: 120, sm: 180 },
+                    width: { xs: '100%', sm: 'auto' },
+                    // Custom breakpoints for your specific screen sizes
+                    '@media (min-width: 1280px)': { minWidth: 200 }, // 720p/768p optimization
+                    '@media (min-width: 1920px)': { minWidth: 220 }  // 1080p optimization
+                  }}>
                     <InputLabel shrink>Location</InputLabel>
                     <Select
                       value={locationFilter}
@@ -1386,6 +1442,7 @@ const PropertyTable = () => {
                       ))}
                     </Select>
                   </FormControl>
+                  
                   <ToggleButtonGroup
                     size="small"
                     exclusive
@@ -1394,34 +1451,58 @@ const PropertyTable = () => {
                     aria-label="Image filter"
                     sx={{
                       height: 40, // same as TextField small height
+                      width: { xs: '100%', sm: 'auto' },
+                      // Custom breakpoints for your specific screen sizes
+                      '@media (min-width: 1280px)': { 
+                        minWidth: '280px' // 720p/768p optimization
+                      },
+                      '@media (min-width: 1920px)': { 
+                        minWidth: '320px' // 1080p optimization
+                      },
                       '& .MuiToggleButton-root': {
                         height: '100%',
                         py: 0.5,
+                        flex: { xs: 1, sm: 'none' },
+                        minWidth: { xs: '60px', sm: 'auto' },
+                        // Enhanced sizing for your screen resolutions
+                        '@media (min-width: 1280px)': { 
+                          minWidth: '80px',
+                          px: 1.5
+                        },
+                        '@media (min-width: 1920px)': { 
+                          minWidth: '90px',
+                          px: 2
+                        }
                       },
                     }}
                   >
-                    <ToggleButton value="all" aria-label="All">All</ToggleButton>
+                    <ToggleButton value="all" aria-label="All">
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                        All
+                      </Box>
+                      <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                        All
+                      </Box>
+                    </ToggleButton>
                     <ToggleButton value="with" aria-label="With image">
-                      <ImageIcon sx={{ mr: 0.5, color: 'success.main' }} />{imageCounts.withImg ? ` ${imageCounts.withImg}` : ''}
+                      <ImageIcon sx={{ mr: { xs: 0, sm: 0.5 }, color: 'success.main' }} />
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                        {imageCounts.withImg ? ` ${imageCounts.withImg}` : ''}
+                      </Box>
+                      <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                        {imageCounts.withImg || ''}
+                      </Box>
                     </ToggleButton>
                     <ToggleButton value="without" aria-label="Without image">
-                      <BrokenImageIcon sx={{ mr: 0.5, color: 'error.main' }} />{imageCounts.without ? ` ${imageCounts.without}` : ''}
+                      <BrokenImageIcon sx={{ mr: { xs: 0, sm: 0.5 }, color: 'error.main' }} />
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                        {imageCounts.without ? ` ${imageCounts.without}` : ''}
+                      </Box>
+                      <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                        {imageCounts.without || ''}
+                      </Box>
                     </ToggleButton>
                   </ToggleButtonGroup>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddProperty}
-                    color="primary"
-                    sx={{
-                      height: 40,
-                      minHeight: 40,
-                      px: 2,
-                    }}
-                  >
-                    Add Property
-                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1430,7 +1511,7 @@ const PropertyTable = () => {
 
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: { xs: 'calc(100vh - 340px)', md: 'calc(100vh - 300px)' }, overflow: 'auto' }}>
+        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
           <Table stickyHeader>  {/* sx={{ tableLayout: 'fixed' }} */}
             {/* <colgroup>
               <col style={{ width: '200px' }} />
