@@ -85,6 +85,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [pendingUploads, setPendingUploads] = useState([]);
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState(null);
   
   // Keyboard navigation state for multi-character typing
   const [keyboardBuffer, setKeyboardBuffer] = useState({
@@ -395,10 +396,40 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     }
   }, [open]);
 
+  // Cache for options to avoid repeated API calls
+  const [optionsCache, setOptionsCache] = useState({
+    propertyTypes: null,
+    generalClasses: null,
+    locations: null,
+    lastFetched: null
+  });
+
+  // Check if cache is still valid (5 minutes)
+  const isCacheValid = () => {
+    if (!optionsCache.lastFetched) return false;
+    const now = Date.now();
+    const cacheAge = now - optionsCache.lastFetched;
+    return cacheAge < 5 * 60 * 1000; // 5 minutes
+  };
+
   useEffect(() => {
     const loadOptions = async () => {
+      // Check if we have valid cached data
+      if (isCacheValid() && optionsCache.propertyTypes && optionsCache.generalClasses && optionsCache.locations) {
+        console.log('PropertyFormModal: Using cached options');
+        setPropertyTypeOptions(optionsCache.propertyTypes);
+        setGeneralClassOptions(optionsCache.generalClasses);
+        setLocationOptions(optionsCache.locations);
+        setOptionsLoading(false);
+        setOptionsError(null);
+        return;
+      }
+
       setOptionsLoading(true);
+      setOptionsError(null);
+      
       try {
+        console.log('PropertyFormModal: Fetching fresh options from server...');
         const [typesRes, classesRes, locationsRes] = await Promise.all([
           apiService.getPropertyTypes(),
           apiService.getGeneralClasses(),
@@ -409,42 +440,72 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
         const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
         
+        // Validate that we got meaningful data
+        if (types.length === 0 || classes.length === 0 || locations.length === 0) {
+          throw new Error('Incomplete options data received from server');
+        }
+        
+        // Update state
         setPropertyTypeOptions(types);
         setGeneralClassOptions(classes);
         setLocationOptions(locations);
         
-        // Log for debugging
-        console.log('PropertyFormModal: Loaded options:', { types, classes, locations });
+        // Update cache
+        setOptionsCache({
+          propertyTypes: types,
+          generalClasses: classes,
+          locations: locations,
+          lastFetched: Date.now()
+        });
+        
+        console.log('PropertyFormModal: Successfully loaded options:', { 
+          typesCount: types.length, 
+          classesCount: classes.length, 
+          locationsCount: locations.length 
+        });
       } catch (e) {
         console.error('PropertyFormModal: Error loading options:', e);
-        // fallback to defaults if API fails
-        setPropertyTypeOptions([
-          { code: 'LAND', name: 'LAND' },
-          { code: 'BUILDING', name: 'BUILDING' },
-          { code: 'MACHINERY', name: 'MACHINERY' },
-          { code: 'IMPROVEMENTS', name: 'IMPROVEMENTS' },
-          { code: 'PLANT_TREES', name: 'PLANT/TREES' }
-        ]);
-        setGeneralClassOptions([
-          { code: 'RESIDENTIAL', name: 'RESIDENTIAL' },
-          { code: 'COMMERCIAL', name: 'COMMERCIAL' },
-          { code: 'INDUSTRIAL', name: 'INDUSTRIAL' },
-          { code: 'AGRICULTURAL', name: 'AGRICULTURAL' },
-          { code: 'MIXED_USE', name: 'MIXED USE' },
-          { code: 'VACANT_LOT', name: 'VACANT LOT' },
-          { code: 'SPECIAL', name: 'SPECIAL' }
-        ]);
-        setLocationOptions([
-          { code: 'BARANGAY', name: 'BARANGAY' }
-        ]);
+        setOptionsError(e.message || 'Failed to load form options');
+        
+        // Use cached data if available, otherwise fallback to defaults
+        if (optionsCache.propertyTypes && optionsCache.generalClasses && optionsCache.locations) {
+          console.log('PropertyFormModal: Using cached data as fallback');
+          setPropertyTypeOptions(optionsCache.propertyTypes);
+          setGeneralClassOptions(optionsCache.generalClasses);
+          setLocationOptions(optionsCache.locations);
+        } else {
+          console.log('PropertyFormModal: Using default fallback options');
+          // Enhanced fallback options
+          setPropertyTypeOptions([
+            { code: 'LAND', name: 'LAND' },
+            { code: 'BUILDING', name: 'BUILDING' },
+            { code: 'MACHINERY', name: 'MACHINERY' },
+            { code: 'IMPROVEMENTS', name: 'IMPROVEMENTS' },
+            { code: 'PLANT_TREES', name: 'PLANT/TREES' }
+          ]);
+          setGeneralClassOptions([
+            { code: 'RESIDENTIAL', name: 'RESIDENTIAL' },
+            { code: 'COMMERCIAL', name: 'COMMERCIAL' },
+            { code: 'INDUSTRIAL', name: 'INDUSTRIAL' },
+            { code: 'AGRICULTURAL', name: 'AGRICULTURAL' },
+            { code: 'MIXED_USE', name: 'MIXED USE' },
+            { code: 'VACANT_LOT', name: 'VACANT LOT' },
+            { code: 'SPECIAL', name: 'SPECIAL' }
+          ]);
+          setLocationOptions([
+            { code: 'BARANGAY', name: 'BARANGAY' }
+          ]);
+        }
       } finally {
         setOptionsLoading(false);
       }
     };
     
-    // Always load options when component mounts or when modal opens
-    loadOptions();
-  }, [open, property]);
+    // Load options when modal opens
+    if (open) {
+      loadOptions();
+    }
+  }, [open]);
 
   useEffect(() => {
     // Only set default values when options are loaded and we're creating a new property
@@ -458,34 +519,47 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     }
   }, [property, optionsLoading, propertyTypeOptions, generalClassOptions, locationOptions]);
 
-  // Force refresh options when modal opens
-  useEffect(() => {
-    if (open && (propertyTypeOptions.length === 0 || generalClassOptions.length === 0 || locationOptions.length === 0)) {
-      const loadOptions = async () => {
-        setOptionsLoading(true);
-        try {
-          const [typesRes, classesRes, locationsRes] = await Promise.all([
-            apiService.getPropertyTypes(),
-            apiService.getGeneralClasses(),
-            apiService.getLocations()
-          ]);
-          
-          const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
-          const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
-          const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
-          
-          setPropertyTypeOptions(types);
-          setGeneralClassOptions(classes);
-          setLocationOptions(locations);
-        } catch (e) {
-          console.error('PropertyFormModal: Force refresh failed:', e);
-        } finally {
-          setOptionsLoading(false);
-        }
-      };
-      loadOptions();
+  // Retry mechanism for failed options loading
+  const retryLoadOptions = async () => {
+    setOptionsLoading(true);
+    setOptionsError(null);
+    
+    try {
+      console.log('PropertyFormModal: Retrying options load...');
+      const [typesRes, classesRes, locationsRes] = await Promise.all([
+        apiService.getPropertyTypes(),
+        apiService.getGeneralClasses(),
+        apiService.getLocations()
+      ]);
+      
+      const types = (Array.isArray(typesRes?.items) ? typesRes.items : []).filter(i => i.status === 'active');
+      const classes = (Array.isArray(classesRes?.items) ? classesRes.items : []).filter(i => i.status === 'active');
+      const locations = (Array.isArray(locationsRes?.items) ? locationsRes.items : []).filter(i => i.status === 'active');
+      
+      if (types.length === 0 || classes.length === 0 || locations.length === 0) {
+        throw new Error('Incomplete options data received from server');
+      }
+      
+      setPropertyTypeOptions(types);
+      setGeneralClassOptions(classes);
+      setLocationOptions(locations);
+      
+      // Update cache
+      setOptionsCache({
+        propertyTypes: types,
+        generalClasses: classes,
+        locations: locations,
+        lastFetched: Date.now()
+      });
+      
+      console.log('PropertyFormModal: Retry successful');
+    } catch (e) {
+      console.error('PropertyFormModal: Retry failed:', e);
+      setOptionsError(e.message || 'Failed to load form options');
+    } finally {
+      setOptionsLoading(false);
     }
-  }, [open, propertyTypeOptions.length, generalClassOptions.length, locationOptions.length]);
+  };
 
   // Helper function to format currency
   const formatCurrency = (value) => {
@@ -552,22 +626,32 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errors.push('Tax Declaration Number is required');
     }
     
+    // Check if options are still loading
+    if (optionsLoading) {
+      errors.push('Form options are still loading. Please wait.');
+    }
+    
+    // Check if there was an error loading options
+    if (optionsError) {
+      errors.push('Failed to load form options. Please try refreshing the page.');
+    }
+    
     // Validate location selection
     if (!formData.location.trim()) {
       errors.push('Location is required');
-    } else if (!locationOptions.some(loc => loc.name === formData.location)) {
+    } else if (locationOptions.length > 0 && !locationOptions.some(loc => loc.name === formData.location)) {
       errors.push('Selected location is not valid');
     }
     
     // Validate kind of property selection
     if (!formData.kind_of_property.trim()) {
       errors.push('Kind of Property is required');
-    } else if (!propertyTypeOptions.some(pt => pt.code === formData.kind_of_property)) {
+    } else if (propertyTypeOptions.length > 0 && !propertyTypeOptions.some(pt => pt.code === formData.kind_of_property)) {
       errors.push('Selected kind of property is not valid');
     }
     
     // Validate general class selection (optional but must be valid if selected)
-    if (formData.gen_class.trim() && !generalClassOptions.some(gc => gc.code === formData.gen_class)) {
+    if (formData.gen_class.trim() && generalClassOptions.length > 0 && !generalClassOptions.some(gc => gc.code === formData.gen_class)) {
       errors.push('Selected general class is not valid');
     }
     
@@ -757,6 +841,25 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Alert>
         </Snackbar>
         <form onSubmit={handleSubmit}>
+          {/* Options Loading Error Display */}
+          {optionsError && (
+            <Alert 
+              severity="error" 
+              sx={{ mb: 2 }}
+              action={
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={retryLoadOptions}
+                  disabled={optionsLoading}
+                >
+                  {optionsLoading ? 'Retrying...' : 'Retry'}
+                </Button>
+              }
+            >
+              {optionsError}
+            </Alert>
+          )}
 
           {/* Basic Information */}
           <Card sx={{ mb: 3 }}>
@@ -967,6 +1070,24 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading locations...</MenuItem>
+                      ) : optionsError ? (
+                        <MenuItem disabled>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" color="error">
+                              Error loading locations
+                            </Typography>
+                            <Button 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                retryLoadOptions();
+                              }}
+                              sx={{ minWidth: 'auto', p: 0.5 }}
+                            >
+                              Retry
+                            </Button>
+                          </Box>
+                        </MenuItem>
                       ) : locationOptions.length === 0 ? (
                         <MenuItem disabled>No locations available</MenuItem>
                       ) : (
@@ -1230,6 +1351,24 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading property types...</MenuItem>
+                      ) : optionsError ? (
+                        <MenuItem disabled>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" color="error">
+                              Error loading property types
+                            </Typography>
+                            <Button 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                retryLoadOptions();
+                              }}
+                              sx={{ minWidth: 'auto', p: 0.5 }}
+                            >
+                              Retry
+                            </Button>
+                          </Box>
+                        </MenuItem>
                       ) : propertyTypeOptions.length === 0 ? (
                         <MenuItem disabled>No property types available</MenuItem>
                       ) : (
@@ -1275,6 +1414,24 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     >
                       {optionsLoading ? (
                         <MenuItem disabled>Loading general classes...</MenuItem>
+                      ) : optionsError ? (
+                        <MenuItem disabled>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" color="error">
+                              Error loading general classes
+                            </Typography>
+                            <Button 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                retryLoadOptions();
+                              }}
+                              sx={{ minWidth: 'auto', p: 0.5 }}
+                            >
+                              Retry
+                            </Button>
+                          </Box>
+                        </MenuItem>
                       ) : generalClassOptions.length === 0 ? (
                         <MenuItem disabled>No general classes available</MenuItem>
                       ) : (

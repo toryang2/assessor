@@ -486,7 +486,17 @@ const Layout = ({ children }) => {
           width: { md: `calc(100% - ${computedDrawerWidth}px)` },
           mt: '64px',
           background: '#f8fafc',
-          minHeight: 'calc(100vh - 64px)'
+          minHeight: 'calc(100vh - 64px)',
+          // Hide scrollbar but maintain scrolling functionality
+          '&::-webkit-scrollbar': {
+            display: 'none'
+          },
+          // For Firefox
+          scrollbarWidth: 'none',
+          // For IE and Edge
+          msOverflowStyle: 'none',
+          // Ensure scrolling still works
+          overflow: 'auto'
         }}
       >
         <AnimatePresence mode="wait">
