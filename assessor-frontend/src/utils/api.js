@@ -107,15 +107,12 @@ export const apiService = {
   // Authentication
   login: async (credentials) => {
     try {
-      console.log('🔍 API Service: Making login request to:', endpoints.login);
-      console.log('🔍 API Service: Credentials:', { username: credentials.username });
+      // Avoid logging sensitive credentials
       
       const response = await api.post(endpoints.login, credentials);
-      console.log('🔍 API Service: Login response received:', response.data);
       
       return response.data;
     } catch (error) {
-      console.error('❌ API Service: Login request failed:', error);
       throw handleApiError(error);
     }
   },

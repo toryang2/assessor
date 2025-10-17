@@ -51,6 +51,7 @@ import { statusColors } from '../../theme/theme';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 import { useReactToPrint } from 'react-to-print';
 import LoadingDots from '../LoadingDots';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -690,6 +691,19 @@ const PropertyTable = () => {
     return null;
   })();
   const [settings, setSettings] = useState(initialSettings);
+
+  // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
+  useLoadingWatchdog({
+    isLoading: loading,
+    isInitialLoad: initialLoad,
+    setLoading,
+    setInitialLoad,
+    setError,
+    componentName: 'PropertyTable',
+    timeoutMs: 20000,
+    timeoutMessage: 'Property data request timed out. Please check your connection and try again.',
+    enabled: true
+  });
 
   // Fetch revision entries
   useEffect(() => {

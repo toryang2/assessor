@@ -54,6 +54,7 @@ import { motion } from 'framer-motion';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 import { apiService } from '../../utils/api';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const Export = () => {
   const [exportType, setExportType] = useState('properties');
@@ -67,6 +68,18 @@ const Export = () => {
   const [showFieldSelection, setShowFieldSelection] = useState(false);
   const [locationOptions, setLocationOptions] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
+  
+  // Safety watchdog for initial options load (locations)
+  useLoadingWatchdog({
+    isLoading: optionsLoading,
+    isInitialLoad: optionsLoading && locationOptions.length === 0,
+    setLoading: setOptionsLoading,
+    setError,
+    componentName: 'Export',
+    timeoutMs: 20000,
+    timeoutMessage: 'Loading locations timed out. Please try again.',
+    enabled: true
+  });
   
   // Filter states
   const [filters, setFilters] = useState({

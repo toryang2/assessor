@@ -35,6 +35,7 @@ import { Receipt, Payment, Save, Cancel, Search } from '@mui/icons-material';
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -133,6 +134,31 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [taxHistoryModal, setTaxHistoryModal] = useState(false);
   const [taxHistory, setTaxHistory] = useState([]);
   const [taxHistoryLoading, setTaxHistoryLoading] = useState(false);
+
+  // Safety watchdogs for async UI states within the modal
+  useSafetyWatchdog({
+    isLoading: propertySearchLoading && open,
+    isInitialLoad: propertySearchLoading && open && propertyOptions.length === 0,
+    onTimeout: () => {
+      setPropertySearchLoading(false);
+      setToast({ open: true, message: 'Property search timed out. Please try again.', severity: 'error' });
+    },
+    timeoutMs: 15000,
+    componentName: 'RequestFormModal:PropertySearch',
+    enabled: true
+  });
+
+  useSafetyWatchdog({
+    isLoading: taxHistoryLoading && open,
+    isInitialLoad: taxHistoryLoading && open && taxHistory.length === 0,
+    onTimeout: () => {
+      setTaxHistoryLoading(false);
+      setToast({ open: true, message: 'Tax history load timed out. Please try again.', severity: 'error' });
+    },
+    timeoutMs: 20000,
+    componentName: 'RequestFormModal:TaxHistory',
+    enabled: true
+  });
 
   // Purpose options
   const purposeOptions = [

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import useLoadingWatchdog from '../hooks/useLoadingWatchdog';
 import { apiService } from '../utils/api';
 
 const AuthContext = createContext();
@@ -124,6 +125,18 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+
+  // Safety watchdog for auth loading (e.g., login)
+  useLoadingWatchdog({
+    isLoading: loading,
+    isInitialLoad: loading,
+    setLoading,
+    setError,
+    componentName: 'AuthContext',
+    timeoutMs: 15000,
+    timeoutMessage: 'Authentication timed out. Please try again.',
+    enabled: true
+  });
 
   const logout = async () => {
     try {

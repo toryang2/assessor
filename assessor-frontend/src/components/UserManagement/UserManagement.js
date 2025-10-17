@@ -54,6 +54,7 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { keyframes } from '@mui/system';
 import LoadingDots from '../LoadingDots';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const glow = keyframes`
   0% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
@@ -341,6 +342,19 @@ const UserManagement = () => {
     setSearchTerm('');
     setPage(0);
   };
+
+  // Safety watchdog for initial users load (must be before any early returns)
+  useLoadingWatchdog({
+    isLoading: loading,
+    isInitialLoad: initialLoad,
+    setLoading,
+    setInitialLoad,
+    setError,
+    componentName: 'UserManagement',
+    timeoutMs: 20000,
+    timeoutMessage: 'Users failed to load in time. Please refresh.',
+    enabled: true
+  });
 
   if (!canManage) {
     return (

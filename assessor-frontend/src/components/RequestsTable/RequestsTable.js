@@ -47,6 +47,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useReactToPrint } from 'react-to-print';
 import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import LoadingDots from '../LoadingDots';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -502,6 +503,19 @@ const RequestsTable = () => {
   
   // Settings state
   const [settings, setSettings] = useState({});
+  
+  // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
+  useLoadingWatchdog({
+    isLoading: loading,
+    isInitialLoad: initialLoad,
+    setLoading,
+    setInitialLoad,
+    setError,
+    componentName: 'RequestsTable',
+    timeoutMs: 20000,
+    timeoutMessage: 'Request data timed out. Please check your connection and try again.',
+    enabled: true
+  });
   
   // Filtered requests for client-side filtering when searching
   const filteredRequests = useMemo(() => {

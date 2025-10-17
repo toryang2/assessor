@@ -47,6 +47,7 @@ import AuditTrail from '../AuditTrail/AuditTrail';
 import UserManagement from '../UserManagement/UserManagement';
 import Export from '../Export/Export';
 import Settings from '../Settings/Settings';
+import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
 
 const drawerWidth = 320;
 
@@ -88,6 +89,19 @@ const Layout = ({ children }) => {
     }
   });
   const [isPageAccessChecked, setIsPageAccessChecked] = useState(false);
+
+  // Safety watchdog for access-check stage to avoid infinite spinner
+  useSafetyWatchdog({
+    isLoading: !isPageAccessChecked,
+    isInitialLoad: !isPageAccessChecked,
+    onTimeout: () => {
+      try { console.warn('Layout: access check timed out. Proceeding to render.'); } catch (_) {}
+      setIsPageAccessChecked(true);
+    },
+    timeoutMs: 15000,
+    componentName: 'Layout',
+    enabled: true
+  });
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

@@ -63,6 +63,7 @@ import { animations, statusColors } from '../../theme/theme';
 import { format } from 'date-fns';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 import LoadingDots from '../LoadingDots';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
@@ -77,6 +78,18 @@ const Dashboard = ({ onNavigate }) => {
   const [editingProperty, setEditingProperty] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [settings, setSettings] = useState(null);
+
+  // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
+  useLoadingWatchdog({
+    isLoading: loading,
+    isInitialLoad: !dashboardData && loading,
+    setLoading,
+    setError: () => setToast({ open: true, message: 'Dashboard data request timed out. Please check your connection and try again.', severity: 'error' }),
+    componentName: 'Dashboard',
+    timeoutMs: 15000,
+    timeoutMessage: 'Dashboard data timed out. Please check your connection and try again.',
+    enabled: true
+  });
 
   const isSmallScreen = (() => {
     try {

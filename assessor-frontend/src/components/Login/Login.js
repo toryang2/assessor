@@ -146,31 +146,26 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    console.log('🔍 Login Component: Form submitted with data:', formData);
+    // Avoid logging form credentials
     
     if (!validateForm()) {
       console.log('❌ Login Component: Form validation failed');
       return;
     }
 
-    console.log('✅ Login Component: Form validation passed, starting login process');
+    // Form validation passed
     clearError();
     setLoading(true);
     
     try {
-      console.log('🔍 Login Component: Calling login function...');
+      // Calling login function
       const result = await login(formData);
-      console.log('🔍 Login Component: Login result:', result);
-      
       if (result.success) {
-        console.log('✅ Login Component: Login successful');
         setSnackbar({ open: true, message: 'Signed in successfully', severity: 'success' });
       } else {
-        console.log('❌ Login Component: Login failed:', result.error);
         setSnackbar({ open: true, message: result.error || 'Invalid username or password', severity: 'error' });
       }
     } catch (error) {
-      console.error('❌ Login Component: Login error:', error);
       setSnackbar({ open: true, message: error.message || 'Login failed', severity: 'error' });
     } finally {
       setLoading(false);

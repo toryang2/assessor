@@ -5,6 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const DEFAULTS = {
   app_logo_url: '',
@@ -43,6 +44,7 @@ const Settings = () => {
   const [pendingHeaderPhotoPreview, setPendingHeaderPhotoPreview] = useState('');
   const [dragging, setDragging] = useState({ key: null, from: -1 });
   const [activeTab, setActiveTab] = useState(0);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -75,9 +77,22 @@ const Settings = () => {
       } catch (e) {
         // fallback to defaults silently
       }
+      setInitialLoad(false);
     };
     load();
   }, []);
+
+  // Safety watchdog for initial settings load
+  useLoadingWatchdog({
+    isLoading: initialLoad,
+    isInitialLoad: initialLoad,
+    setLoading: setInitialLoad,
+    setError: (msg) => setToast({ open: true, message: msg, severity: 'error' }),
+    componentName: 'Settings',
+    timeoutMs: 20000,
+    timeoutMessage: 'Settings failed to load in time. Please refresh.',
+    enabled: true
+  });
 
   // Add refresh function for cache busting
   const refreshData = async () => {

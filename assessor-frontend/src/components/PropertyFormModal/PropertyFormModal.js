@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import { CloudUpload } from '@mui/icons-material';
 
 import { apiService, uploadFile } from '../../utils/api';
+import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const isSmallScreen = (() => {
@@ -86,6 +87,18 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState(null);
+  
+  // Safety watchdog for options loading while modal is open
+  useLoadingWatchdog({
+    isLoading: optionsLoading && open,
+    isInitialLoad: optionsLoading && open,
+    setLoading: setOptionsLoading,
+    setError: setOptionsError,
+    componentName: 'PropertyFormModal',
+    timeoutMs: 20000,
+    timeoutMessage: 'Form options failed to load in time. Please retry.',
+    enabled: true
+  });
   
   // Keyboard navigation state for multi-character typing
   const [keyboardBuffer, setKeyboardBuffer] = useState({
