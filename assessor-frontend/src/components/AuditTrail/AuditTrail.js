@@ -334,7 +334,7 @@ const AuditTrail = () => {
         return `${k}: ${oldV} → ${newV}`;
       }).join('; ');
       const more = keys.length > 2 ? ` (+${keys.length - 2} more)` : '';
-      return taxDeclarationInfo ? `Tax Declaration:${taxDeclarationInfo} - Changed ${keys.length} field(s)` : `Changed ${keys.length} field(s): ${preview}${more}`;
+      return taxDeclarationInfo ? `Update Tax Declaration:${taxDeclarationInfo} - Changed ${keys.length} field(s)` : `Changed ${keys.length} field(s): ${preview}${more}`;
     }
     if (action === 'create') {
       try {

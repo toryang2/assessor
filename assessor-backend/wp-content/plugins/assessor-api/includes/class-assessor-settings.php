@@ -350,6 +350,78 @@ class Assessor_Settings {
 		$wpdb->delete($table, array('id' => $id), array('%d'));
 		return array('success' => true);
 	}
+
+	// Revision entries functions
+	public function get_revision_entries() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_revision_entries';
+		$entries = $wpdb->get_results(
+			"SELECT * FROM $table WHERE status = 'active' ORDER BY sort_order ASC, from_year DESC",
+			ARRAY_A
+		);
+		return array('items' => $entries);
+	}
+
+	public function save_revision_entry($request) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_revision_entries';
+		
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+
+		$revision_year = sanitize_text_field($params['revision_year'] ?? '');
+		$from_year = sanitize_text_field($params['from_year'] ?? '');
+		$to_year = sanitize_text_field($params['to_year'] ?? 'present');
+		$status = sanitize_text_field($params['status'] ?? 'active');
+		$sort_order = intval($params['sort_order'] ?? 0);
+		$id = intval($params['id'] ?? 0);
+
+		if (empty($revision_year) || empty($from_year)) {
+			return new WP_Error('missing_fields', 'Revision year and from year are required', array('status' => 400));
+		}
+
+		$data = array(
+			'revision_year' => $revision_year,
+			'from_year' => $from_year,
+			'to_year' => $to_year,
+			'status' => $status,
+			'sort_order' => $sort_order,
+			'updated_at' => current_time('mysql')
+		);
+
+		if ($id > 0) {
+			// Update existing entry
+			$wpdb->update($table, $data, array('id' => $id), array('%s', '%s', '%s', '%s', '%d', '%s'), array('%d'));
+		} else {
+			// Insert new entry
+			$data['created_at'] = current_time('mysql');
+			$wpdb->insert($table, $data, array('%s', '%s', '%s', '%s', '%d', '%s', '%s'));
+			$id = $wpdb->insert_id;
+		}
+
+		// Return updated list
+		return $this->get_revision_entries();
+	}
+
+	public function delete_revision_entry($request) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_revision_entries';
+		
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+
+		$id = intval($params['id'] ?? 0);
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Valid ID is required', array('status' => 400));
+		}
+
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		return array('success' => true);
+	}
 }
 
 
