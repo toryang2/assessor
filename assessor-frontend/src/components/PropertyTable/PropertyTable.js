@@ -1995,7 +1995,7 @@ const PropertyTable = () => {
                 </TableBody>
               </Table>
               <Table size="small" stickyHeader>
-                <colgroup>
+                {/* <colgroup>
                   <col style={{ width: '15%' }} />
                   <col style={{ width: '12%' }} />
                   <col style={{ width: '6%' }} />
@@ -2004,7 +2004,7 @@ const PropertyTable = () => {
                   <col style={{ width: '11%' }} />
                   <col style={{ width: '9%' }} />
                   <col style={{ width: '28%' }} />
-                </colgroup>
+                </colgroup> */}
                 <TableHead>
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
