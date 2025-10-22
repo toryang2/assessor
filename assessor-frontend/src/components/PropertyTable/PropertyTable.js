@@ -509,36 +509,16 @@ const PropertyTable = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
-  // Image status filter: 'all' | 'with' | 'without' (persist to sessionStorage)
-  const [imageFilter, setImageFilter] = useState(() => {
-    try {
-      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_image_filter') : null;
-      return saved === 'with' || saved === 'without' || saved === 'all' ? saved : 'all';
-    } catch (_) {
-      return 'all';
-    }
-  });
-  // Revision filter (persist to sessionStorage)
-  const [revisionFilter, setRevisionFilter] = useState(() => {
-    try {
-      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_revision_filter') : null;
-      return saved !== null ? saved : '';
-    } catch (_) {
-      return '';
-    }
-  });
+  // Image status filter: 'all' | 'with' | 'without'
+  const [imageFilter, setImageFilter] = useState('all');
+  // Revision filter
+  const [revisionFilter, setRevisionFilter] = useState('');
   const [revisionEntries, setRevisionEntries] = useState([]);
 
-  // Location filter (persist to sessionStorage). Empty string means All Locations
-  const [locationFilter, setLocationFilter] = useState(() => {
-    try {
-      const saved = (typeof window !== 'undefined') ? window.sessionStorage.getItem('assessor_location_filter') : null;
-      return saved !== null ? saved : '';
-    } catch (_) {
-      return '';
-    }
-  });
+  // Location filter. Empty string means All Locations
+  const [locationFilter, setLocationFilter] = useState('');
   const [locationOptions, setLocationOptions] = useState([]);
+
 
   const imageCounts = useMemo(() => {
     // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
@@ -855,6 +835,7 @@ const PropertyTable = () => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
+      setInitialLoad(false); // Clear initial load state immediately to prevent watchdog timeout
       setError(''); // Clear previous errors
       
       const params = {
@@ -905,6 +886,7 @@ const PropertyTable = () => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
+      setInitialLoad(false); // Clear initial load state immediately to prevent watchdog timeout
       setError(''); // Clear previous errors
       
       const params = {
@@ -951,7 +933,6 @@ const PropertyTable = () => {
     } finally {
       // Only clear loading for the latest request
       if (seq === fetchSeqRef.current) setLoading(false);
-      setInitialLoad(false);
     }
   }, [page, rowsPerPage, debouncedSearchTerm, revisionFilter, locationFilter]);
 
@@ -985,11 +966,6 @@ const PropertyTable = () => {
       return;
     }
     setImageFilter(value);
-    try {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('assessor_image_filter', String(value));
-      }
-    } catch (_) {}
     setPage(0);
   };
 
@@ -1240,6 +1216,8 @@ const PropertyTable = () => {
     setSearchTerm('');
     setPage(0);
     setImageFilter('all');
+    setRevisionFilter('');
+    setLocationFilter('');
   };
 
   if (initialLoad && loading && (!safeProperties || safeProperties.length === 0)) {
@@ -1386,11 +1364,6 @@ const PropertyTable = () => {
                           revisionEntriesLength: revisionEntries.length
                         });
                         setRevisionFilter(newValue);
-                        try {
-                          if (typeof window !== 'undefined') {
-                            window.sessionStorage.setItem('assessor_revision_filter', String(newValue ?? ''));
-                          }
-                        } catch (_) {}
                         setPage(0);
                         // Immediately fetch with the new revision + current location
                         fetchPropertiesWithFilters(newValue, locationFilter);
@@ -1428,11 +1401,6 @@ const PropertyTable = () => {
                       onChange={(e) => {
                         const newLoc = e.target.value;
                         setLocationFilter(newLoc);
-                        try {
-                          if (typeof window !== 'undefined') {
-                            window.sessionStorage.setItem('assessor_location_filter', String(newLoc ?? ''));
-                          }
-                        } catch (_) {}
                         setPage(0);
                         // Immediately fetch with current revision + new location
                         fetchPropertiesWithFilters(revisionFilter, newLoc);
