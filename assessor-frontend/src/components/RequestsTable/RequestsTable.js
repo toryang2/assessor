@@ -1133,6 +1133,8 @@ const RequestsTable = () => {
                         {request.tax_declaration_number && (
                           <Typography variant="caption" color="text.secondary" display="block">
                             TD: {request.tax_declaration_number}
+                            <br/>
+                            BARANGAY: {request.location}
                           </Typography>
                         )}
                       </TableCell>

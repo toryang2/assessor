@@ -939,7 +939,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               
               <TableContainer component={Paper} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
                 <Table size="small" stickyHeader>
-                  <colgroup>
+                  {/* <colgroup>
                     <col style={{ width: '15%' }} />
                     <col style={{ width: '12%' }} />
                     <col style={{ width: '6%' }} />
@@ -948,11 +948,12 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     <col style={{ width: '11%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '28%' }} />
-                  </colgroup>
+                  </colgroup> */}
                   <TableHead>
                     <TableRow>
                       <TableCell><strong>Tax Declaration Number</strong></TableCell>
                       <TableCell><strong>Declarant</strong></TableCell>
+                      <TableCell><strong>Barangay</strong></TableCell>
                       <TableCell><strong>Lot Number</strong></TableCell>
                       <TableCell><strong>Area (hectare)</strong></TableCell>
                       <TableCell><strong>Title Number</strong></TableCell>
@@ -980,6 +981,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             return d || b || '—';
                           })()}
                         </TableCell>
+                        <TableCell>{item.location || '—'}</TableCell>
                         <TableCell>{item.lot_number || '—'}</TableCell>
                         <TableCell>
                           {(() => {

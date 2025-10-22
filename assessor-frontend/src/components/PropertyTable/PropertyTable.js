@@ -1510,6 +1510,7 @@ const PropertyTable = () => {
               <TableRow>
                 <TableCell sx={{ width: 150 }}>Tax Declaration Number</TableCell>
                 <TableCell sx={{ width: 150 }}>Declarant</TableCell>
+                <TableCell sx={{ width: 80 }}>Barangay</TableCell>
                 <TableCell sx={{ width: 80 }}>Lot Number</TableCell>
                 <TableCell sx={{ width: 80 }}>Area (hectare)</TableCell>
                 <TableCell sx={{ width: 80 }}>Title Number</TableCell>
@@ -1539,6 +1540,7 @@ const PropertyTable = () => {
                       return declarant || business || '—';
                     })()}
                   </TableCell>
+                  <TableCell>{property.location || '—'}</TableCell>
                   <TableCell>{property.lot_number || '—'}</TableCell>
                   <TableCell>{(() => {
                     const haRaw = property.area_hectare;
@@ -1805,6 +1807,7 @@ const PropertyTable = () => {
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
                     <TableCell>Declarant</TableCell>
+                    <TableCell>Barangay</TableCell>
                     <TableCell>Lot Number</TableCell>
                     <TableCell>Area (hectare)</TableCell>
                     <TableCell>Title Number</TableCell>
@@ -1828,6 +1831,7 @@ const PropertyTable = () => {
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>
+                      <TableCell>{item.location || '—'}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
                       <TableCell>{(() => {
                         const haRaw = item.area_hectare;
@@ -1857,7 +1861,7 @@ const PropertyTable = () => {
                           return currentArea || '—';
                         }
                       })()}</TableCell>
-                      <TableCell>{item.title_number || '—'}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.title_number || '—'}</TableCell>
                       <TableCell>
                         {(() => {
                           const currentValue = item.assessed_value;
@@ -1977,6 +1981,7 @@ const PropertyTable = () => {
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
                     <TableCell>Declarant</TableCell>
+                    <TableCell>Barangay</TableCell>
                     <TableCell>Lot Number</TableCell>
                     <TableCell>Area (hectare)</TableCell>
                     <TableCell>Title Number</TableCell>
@@ -2001,6 +2006,7 @@ const PropertyTable = () => {
                         const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
                         return d && b ? `${d} / ${b}` : (d || b || '—');
                       })()}</TableCell>
+                      <TableCell>{item.location || '—'}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
                       <TableCell>{(() => {
                         const haRaw = item.area_hectare;
