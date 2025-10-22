@@ -34,9 +34,10 @@ const App = () => {
         // Consider exact 1280x720, 1366x768, portrait modes, or small viewports <= these bounds
         const matchExact720p = (scrW === 1280 && scrH === 720) || (scrW === 720 && scrH === 1280);
         const matchExact768p = (scrW === 1366 && scrH === 768) || (scrW === 768 && scrH === 1366);
-        const matchViewport = (winW <= 1280 && winH <= 720) || (winW <= 1366 && winH <= 768);
+        const matchExact1080 = (scrW === 1920 && scrH === 1080) || (scrW === 1080 && scrH === 1920);
+        const matchViewport = (winW <= 1280 && winH <= 720) || (winW <= 1366 && winH <= 768) || (winW <= 1920 && winH <= 1080);
         
-        setIsSmallScreen(Boolean(matchExact720p || matchExact768p || matchViewport));
+        setIsSmallScreen(Boolean(matchExact720p || matchExact768p || matchExact1080 || matchViewport));
       } catch (_) {
         setIsSmallScreen(false);
       }

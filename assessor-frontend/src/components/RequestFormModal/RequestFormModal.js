@@ -108,7 +108,7 @@ const normalizeDeclarantString = (name) => {
 
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const isSmallScreen = (() => {
-    try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768); } catch (_) { return false; }
+    try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080); } catch (_) { return false; }
   })();
   const { user } = useAuth();
   const [formData, setFormData] = useState({

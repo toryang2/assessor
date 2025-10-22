@@ -1950,7 +1950,7 @@ const PropertyTable = () => {
             <TableContainer component={Paper}>
               {(() => {
                 const isSmallScreen = (() => {
-                  try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768); } catch (_) { return false; }
+                  try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080); } catch (_) { return false; }
                 })();
                 return (
                   <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
