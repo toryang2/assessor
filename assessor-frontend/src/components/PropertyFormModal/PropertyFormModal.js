@@ -87,6 +87,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [documentsToDelete, setDocumentsToDelete] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState(null);
+  // Save verification state for network-related uncertainties
+  const [saveVerify, setSaveVerify] = useState({ pending: false, tdn: '', checking: false });
   
   // Safety watchdog for options loading while modal is open
   useLoadingWatchdog({
@@ -679,6 +681,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       setToast({ open: true, message: 'Please wait for form options to load before submitting', severity: 'error' });
       return;
     }
+    // If offline, notify and stop to avoid unknown save state
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setToast({ open: true, message: 'You appear to be offline. Please reconnect before saving.', severity: 'error' });
+        return;
+      }
+    } catch (_) {}
     
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
@@ -815,9 +824,41 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         setDuplicateTdnError(false);
       }
       
-      setToast({ open: true, message: msg, severity: 'error' });
+      // Detect possible network-related uncertainty (no response / timeout / offline)
+      const maybeNetwork = (() => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+        const m = String(msg || '').toLowerCase();
+        return m.includes('no response') || m.includes('network') || m.includes('timeout');
+      })();
+      if (maybeNetwork) {
+        setToast({ open: true, message: 'A network issue occurred. Save status is unknown. You can verify after reconnecting.', severity: 'warning' });
+        setSaveVerify({ pending: true, tdn: formData.tax_declaration_number, checking: false });
+      } else {
+        setToast({ open: true, message: msg, severity: 'error' });
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const verifySaveStatus = async () => {
+    if (!saveVerify.tdn) {
+      setSaveVerify({ pending: false, tdn: '', checking: false });
+      return;
+    }
+    try {
+      setSaveVerify(prev => ({ ...prev, checking: true }));
+      const res = await apiService.getPropertyByTaxNumber(saveVerify.tdn);
+      const exists = !!(res && (res.id || (Array.isArray(res) && res.length > 0)));
+      if (exists) {
+        setToast({ open: true, message: `Record for TDN ${saveVerify.tdn} is present. Save succeeded.`, severity: 'success' });
+      } else {
+        setToast({ open: true, message: `Record for TDN ${saveVerify.tdn} was not found. Please try saving again.`, severity: 'warning' });
+      }
+    } catch (e) {
+      setToast({ open: true, message: 'Could not verify due to network/server issue. Please try again later.', severity: 'error' });
+    } finally {
+      setSaveVerify({ pending: false, tdn: '', checking: false });
     }
   };
 
@@ -1599,6 +1640,25 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
             </Button>
           </Box>
         </form>
+        {/* Network/Save verification banner */}
+        {saveVerify.pending && (
+          <Alert 
+            severity="warning" 
+            sx={{ mt: 2 }}
+            action={
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={verifySaveStatus}
+                disabled={saveVerify.checking}
+              >
+                {saveVerify.checking ? 'Checking...' : 'Verify Now'}
+              </Button>
+            }
+          >
+            We detected a possible network issue while saving. Save status for TDN "{saveVerify.tdn}" is unknown.
+          </Alert>
+        )}
         {/* Image Preview Dialog */}
         <Dialog open={docPreview.open} onClose={() => setDocPreview({ open: false, src: '', filename: '' })} maxWidth="md" fullWidth>
           <DialogTitle>{docPreview.filename}</DialogTitle>
