@@ -99,7 +99,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     componentName: 'PropertyFormModal',
     timeoutMs: 20000,
     timeoutMessage: 'Form options failed to load in time. Please retry.',
-    enabled: true
+    enabled: true,
+    dependencies: [open]
   });
   
   // Keyboard navigation state for multi-character typing
@@ -411,6 +412,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     }
   }, [open]);
 
+  // Reset options arrays when modal closes to prevent flickering
+  useEffect(() => {
+    if (!open) {
+      setPropertyTypeOptions([]);
+      setGeneralClassOptions([]);
+      setLocationOptions([]);
+      setOptionsLoading(true);
+      setOptionsError(null);
+    }
+  }, [open]);
+
   // Cache for options to avoid repeated API calls
   const [optionsCache, setOptionsCache] = useState({
     propertyTypes: null,
@@ -428,23 +440,20 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   };
 
   useEffect(() => {
-    const loadOptions = async () => {
-      // Check if we have valid cached data
-      if (isCacheValid() && optionsCache.propertyTypes && optionsCache.generalClasses && optionsCache.locations) {
-        console.log('PropertyFormModal: Using cached options');
-        setPropertyTypeOptions(optionsCache.propertyTypes);
-        setGeneralClassOptions(optionsCache.generalClasses);
-        setLocationOptions(optionsCache.locations);
-        setOptionsLoading(false);
-        setOptionsError(null);
-        return;
-      }
+    // Don't load if modal is not open
+    if (!open) {
+      return;
+    }
 
+    const loadOptions = async () => {
+      // Always fetch fresh data from server when modal opens
+      // Don't rely on cache for this component since it may have stale data
+      console.log('PropertyFormModal: Fetching fresh options from server...');
+      
       setOptionsLoading(true);
       setOptionsError(null);
       
       try {
-        console.log('PropertyFormModal: Fetching fresh options from server...');
         const [typesRes, classesRes, locationsRes] = await Promise.all([
           apiService.getPropertyTypes(),
           apiService.getGeneralClasses(),
@@ -516,10 +525,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       }
     };
     
-    // Load options when modal opens
-    if (open) {
-      loadOptions();
-    }
+    // Load options when modal opens - always fetch fresh
+    loadOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -540,7 +548,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     setOptionsError(null);
     
     try {
-      console.log('PropertyFormModal: Retrying options load...');
+      console.log('PropertyFormModal: Retrying options load from server...');
       const [typesRes, classesRes, locationsRes] = await Promise.all([
         apiService.getPropertyTypes(),
         apiService.getGeneralClasses(),
@@ -558,14 +566,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       setPropertyTypeOptions(types);
       setGeneralClassOptions(classes);
       setLocationOptions(locations);
-      
-      // Update cache
-      setOptionsCache({
-        propertyTypes: types,
-        generalClasses: classes,
-        locations: locations,
-        lastFetched: Date.now()
-      });
       
       console.log('PropertyFormModal: Retry successful');
     } catch (e) {
@@ -1109,11 +1109,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   >
                     <InputLabel>Location</InputLabel>
                     <Select
-                      value={locationOptions.some(loc => loc.name === formData.location) ? formData.location : ''}
+                      value={
+                        !optionsLoading && locationOptions.length > 0 && locationOptions.some(loc => loc.name === formData.location)
+                          ? formData.location
+                          : ''
+                      }
                       label="Location"
                       onChange={(e) => handleInputChange('location', e.target.value)}
                       inputProps={{ tabIndex: 7 }}
-                      disabled={optionsLoading}
+                      disabled={optionsLoading || locationOptions.length === 0}
                       MenuProps={{
                         PaperProps: {
                           style: {
@@ -1390,11 +1394,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   >
                     <InputLabel>Kind of Property</InputLabel>
                     <Select
-                      value={propertyTypeOptions.some(pt => pt.code === formData.kind_of_property) ? formData.kind_of_property : ''}
+                      value={
+                        !optionsLoading && propertyTypeOptions.length > 0 && propertyTypeOptions.some(pt => pt.code === formData.kind_of_property)
+                          ? formData.kind_of_property
+                          : ''
+                      }
                       label="Kind of Property"
                       onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                       inputProps={{ tabIndex: 17 }}
-                      disabled={optionsLoading}
+                      disabled={optionsLoading || propertyTypeOptions.length === 0}
                       MenuProps={{
                         PaperProps: {
                           style: {
@@ -1453,11 +1461,15 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   >
                     <InputLabel>General Class</InputLabel>
                     <Select
-                      value={generalClassOptions.some(gc => gc.code === formData.gen_class) ? formData.gen_class : ''}
+                      value={
+                        !optionsLoading && generalClassOptions.length > 0 && generalClassOptions.some(gc => gc.code === formData.gen_class)
+                          ? formData.gen_class
+                          : ''
+                      }
                       label="General Class"
                       onChange={(e) => handleInputChange('gen_class', e.target.value)}
                       inputProps={{ tabIndex: 18 }}
-                      disabled={optionsLoading}
+                      disabled={optionsLoading || generalClassOptions.length === 0}
                       MenuProps={{
                         PaperProps: {
                           style: {
