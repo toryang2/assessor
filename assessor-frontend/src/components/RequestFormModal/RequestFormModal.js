@@ -162,11 +162,11 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Purpose options
   const purposeOptions = [
-    { value: 'record_verification', label: 'Record Verification' },
-    { value: 'tax_declaration', label: 'Tax Declaration' },
-    { value: 'property_assessment', label: 'Property Assessment' },
-    { value: 'certification', label: 'Certification' },
-    { value: 'other', label: 'Other' }
+    { value: 'record_verification', label: 'Record Verification' }
+    // { value: 'tax_declaration', label: 'Tax Declaration' },
+    // { value: 'property_assessment', label: 'Property Assessment' },
+    // { value: 'certification', label: 'Certification' },
+    // { value: 'other', label: 'Other' }
   ];
 
   // Initialize form with current date and user's name
@@ -483,7 +483,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           initial: { opacity: 0, y: 20 },
           animate: { opacity: 1, y: 0 },
           transition: { duration: 0.3 },
-          sx: { width: isSmallScreen ? '60vw' : undefined, maxHeight: '90vh' }
+          sx: { width: isSmallScreen ? '60vw' : undefined, maxHeight: '100vh' }
         }}
       >
         <DialogTitle sx={{ 
@@ -856,7 +856,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           variant="outlined"
                           error={validationErrors.has('prepared_by')}
                           size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
                           sx={{
                             pointerEvents: 'none',
                             '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }

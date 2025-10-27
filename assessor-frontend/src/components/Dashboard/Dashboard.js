@@ -67,7 +67,7 @@ import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
-  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit } = useAuth();
+  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit, isViewer } = useAuth();
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -413,20 +413,20 @@ const Dashboard = ({ onNavigate }) => {
     </motion.div>
   );
 
-  const QuickActionCard = ({ action, loading = false }) => (
+  const QuickActionCard = ({ action, loading = false, disabled = false }) => (
     <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={disabled ? undefined : { scale: 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.98 }}
     >
       <Card
         sx={{
           height: isSmallScreen ? 180 : 220,
-          cursor: loading ? 'not-allowed' : 'pointer',
-          opacity: loading ? 0.7 : 1,
+          cursor: loading || disabled ? 'not-allowed' : 'pointer',
+          opacity: loading || disabled ? 0.5 : 1,
           display: 'flex',
           flexDirection: 'column'
         }}
-        onClick={loading ? undefined : action.action}
+        onClick={loading || disabled ? undefined : action.action}
       >
         <CardContent sx={{ textAlign: 'center', padding: isSmallScreen ? 2 : 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', flexGrow: 1 }}>
           <Avatar
@@ -740,6 +740,7 @@ const Dashboard = ({ onNavigate }) => {
                 <QuickActionCard 
                   action={action} 
                   loading={action.title === 'Add New Property' && (loading || propertiesLoading)}
+                  disabled={action.title === 'Add New Property' && isViewer}
                 />
               </motion.div>
             </Grid>
@@ -979,6 +980,7 @@ const Dashboard = ({ onNavigate }) => {
                    setShowPropertiesList(false);
                    handleAddProperty();
                  }}
+                 disabled={isViewer}
                  sx={{ mr: 1 }}
                >
                  Add New Property

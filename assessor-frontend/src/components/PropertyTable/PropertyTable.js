@@ -492,7 +492,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 });
 
 const PropertyTable = () => {
-  const { isAdmin, isSuperAdmin, canEdit } = useAuth();
+  const { isAdmin, isSuperAdmin, canEdit, isViewer } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -1314,6 +1314,7 @@ const PropertyTable = () => {
                   size="small"
                   startIcon={<AddIcon />}
                   onClick={handleAddProperty}
+                  disabled={isViewer}
                   color="primary"
                   sx={{
                     height: 40,
@@ -2169,7 +2170,7 @@ const PropertyTable = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPrintModal(false)}>Close</Button>
-          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained" disabled={!printHistory.length || !printRef.current}>
+          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained" disabled={isViewer || !printHistory.length || !printRef.current}>
             Print
           </Button>
         </DialogActions>

@@ -422,6 +422,7 @@ const UserManagement = () => {
               <TextField
                 fullWidth
                 label="Search Users"
+                size='small'
                 value={searchTerm}
                 onChange={handleSearch}
                 placeholder="Search by username, email, or name..."
@@ -434,11 +435,13 @@ const UserManagement = () => {
                 <Select
                   value={filters.role}
                   label="Role"
+                  size='small'
                   onChange={(e) => handleFilterChange('role', e.target.value)}
                   displayEmpty
                   renderValue={(selected) => (selected && selected !== 'all' ? getRoleDisplayName(selected) : 'All')}
                 >
                   <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="superadmin">Super Administrator</MenuItem>
                   {(effectiveIsSuperAdmin) && (
                     <MenuItem value="admin">Administrator</MenuItem>
                   )}
@@ -456,6 +459,7 @@ const UserManagement = () => {
                 <Select
                   value={filters.status}
                   label="Status"
+                  size='small'
                   onChange={(e) => handleFilterChange('status', e.target.value)}
                   displayEmpty
                   renderValue={(selected) => (selected && selected !== 'all' ? selected.charAt(0).toUpperCase() + selected.slice(1) : 'All')}
@@ -472,14 +476,27 @@ const UserManagement = () => {
                 variant="outlined"
                 startIcon={<RefreshIcon />}
                 onClick={clearFilters}
-                sx={{ mr: 1 }}
+                sx={{
+                  height: 40,
+                  minHeight: 40,
+                  px: 1.5,
+                  minWidth: 'auto',
+                  width: 'auto'
+                }}
               >
                 Clear Filters
               </Button>
             </Grid>
 
             <Grid item xs={12} md={2} textAlign="right">
-              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddUser} color="primary">
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddUser} color="primary"
+              sx={{
+                height: 40,
+                minHeight: 40,
+                px: 1.5,
+                minWidth: 'auto',
+                width: 'auto'
+              }}>
                 Add User
               </Button>
             </Grid>
@@ -489,7 +506,7 @@ const UserManagement = () => {
 
       {/* Users Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 300px)' }, overflow: 'auto' }}>
           <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '300px' }} />

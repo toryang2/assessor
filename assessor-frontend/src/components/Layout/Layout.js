@@ -64,7 +64,7 @@ const Layout = ({ children }) => {
     }
   })();
   const computedDrawerWidth = isSmallScreen ? 300 : drawerWidth;
-  const { user, logout, isSuperAdmin, isAdmin, isAssessor } = useAuth();
+  const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -220,7 +220,8 @@ const Layout = ({ children }) => {
       text: 'Requests',
       icon: <ReceiptIcon />,
       badge: null,
-      show: true // Always show Requests
+      show: !isViewer, // Hide Requests for viewers
+      disabled: false
     },
     {
       text: 'Audit Trail',

@@ -467,7 +467,7 @@ const purposeOptions = [
 ];
 
 const RequestsTable = () => {
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin, isViewer } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -1168,6 +1168,7 @@ const RequestsTable = () => {
                           <IconButton
                             size="small"
                             onClick={() => handlePrintRequest(request)}
+                            disabled={isViewer}
                             title="Print Request History"
                           >
                             <PrintIcon />
@@ -1246,6 +1247,7 @@ const RequestsTable = () => {
             onClick={handlePrint}
             variant="contained"
             startIcon={<PrintIcon />}
+            disabled={isViewer}
           >
             Print
           </Button>
