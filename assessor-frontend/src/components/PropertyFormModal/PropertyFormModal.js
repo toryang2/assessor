@@ -870,7 +870,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     <Dialog 
       open={open} 
       onClose={onClose || onCancel} 
-      maxWidth={isSmallScreen ? 'sm' : 'lg'} 
+      maxWidth={isSmallScreen ? 'md' : 'lg'} 
       fullWidth
       PaperProps={{
         sx: { maxHeight: '90vh', width: isSmallScreen ? '60vw' : undefined }
