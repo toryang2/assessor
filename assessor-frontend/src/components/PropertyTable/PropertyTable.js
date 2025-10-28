@@ -258,7 +258,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
+            <strong>ADMINSTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
@@ -1149,7 +1149,7 @@ const PropertyTable = () => {
       if (spacer) spacer.style.height = '0px';
     },
     pageStyle: `
-      @page { size: A4 portrait; margin: 12mm 12mm 16mm 8mm; 
+      @page { size: A4 portrait; margin: 12mm 8mm 16mm 8mm; 
           @bottom-right {
             content: counter(page) "/" counter(pages);
             font-family: 'Arial', sans-serif;
@@ -1170,7 +1170,7 @@ const PropertyTable = () => {
           margin-top: 5mm;
           padding-top: 5mm;
         }
-        html, body { width: 210mm; }
+        html, body { width: 212mm; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         *,
         :root,
@@ -1790,7 +1790,7 @@ const PropertyTable = () => {
                     </TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
-                    <TableCell><strong>BUSINESS NAME:</strong> {sanitizeBusinessName(taxHistory[0]?.business_name) || ''}</TableCell>
+                    <TableCell><strong>ADMINISTRATOR/BUSINESS NAME:</strong> {sanitizeBusinessName(taxHistory[0]?.business_name) || ''}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {taxHistory[0]?.assessment_date}</TableCell>
                   </TableRow>
                   <TableRow sx={{ '& td': { borderBottom: 'none' } }}>
@@ -1954,7 +1954,7 @@ const PropertyTable = () => {
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>BUSINESS NAME:</strong> {sanitizeBusinessName(printHistory[0].business_name) || ''}</TableCell>
+                    <TableCell><strong>ADMINISTRATOR/BUSINESS NAME:</strong> {sanitizeBusinessName(printHistory[0].business_name) || ''}</TableCell>
                     <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
                   </TableRow>
                   <TableRow>

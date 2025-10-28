@@ -246,7 +246,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
+            <strong>ADMINISTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
@@ -612,7 +612,7 @@ const RequestsTable = () => {
           margin-top: 5mm;
           padding-top: 5mm;
         }
-        html, body { width: 210mm; }
+        html, body { width: 212mm; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         *,
         :root,

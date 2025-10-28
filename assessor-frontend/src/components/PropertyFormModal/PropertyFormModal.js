@@ -1066,12 +1066,12 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
-                    label="Business Name"
+                    label="Administrator/Business Name"
                     InputLabelProps={{ sx: { color: 'primary.main' } }}
                     value={formData.business_name}
                     onChange={(e) => handleInputChange('business_name', e.target.value)}
-                    inputProps={{ sx: { color: 'primary.main' }, style: { textTransform: 'uppercase' }, tabIndex: 6 }}
-                    placeholder="Enter business name (optional)"
+                    inputProps={{ sx: { color: 'primary.main' }, tabIndex: 6 }}
+                    placeholder="Enter administrator / business name (optional)"
                   />
                 </Grid>
 
