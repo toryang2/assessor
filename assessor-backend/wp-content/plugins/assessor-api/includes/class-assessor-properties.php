@@ -543,12 +543,15 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             error_log("🔍 CREATE: Added prefix = '$license_value'");
         }
         
+        // Normalize previous tax declaration numbers (support multiple via ';')
+        $normalized_previous_tdn = $this->normalize_previous_tax_declaration_numbers(isset($params['previous_tax_declaration_number']) ? $params['previous_tax_declaration_number'] : '');
+
         // Insert property
         $result = $wpdb->insert(
             $table_properties,
             array(
                 'tax_declaration_number' => sanitize_text_field($params['tax_declaration_number']),
-                'previous_tax_declaration_number' => sanitize_text_field($params['previous_tax_declaration_number']),
+                'previous_tax_declaration_number' => $normalized_previous_tdn,
                 'declarant_last_name' => sanitize_text_field($params['declarant_last_name']),
                 'declarant_first_name' => sanitize_text_field($params['declarant_first_name']),
                 'declarant_middle_initial' => sanitize_text_field($params['declarant_middle_initial']),
@@ -820,6 +823,9 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 continue;
             }
             if (isset($params[$field])) {
+                if ($field === 'previous_tax_declaration_number') {
+                    $update_data[$field] = $this->normalize_previous_tax_declaration_numbers($params[$field]);
+                } else
                 if ($field === 'area_hectare_old') {
                     // Allow explicit nulling when cleared on edit
                     if ($params[$field] === '' || is_null($params[$field])) {
@@ -1005,10 +1011,11 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $visited_forward = array();
         while ($head_number && !in_array($head_number, $visited_forward, true)) {
             $visited_forward[] = $head_number;
+            // Support multiple previous TDs stored as semicolon-separated list by using FIND_IN_SET on a comma-normalized string
             $next_number = $wpdb->get_var($wpdb->prepare(
                 "SELECT tax_declaration_number 
                  FROM $table_properties 
-                 WHERE previous_tax_declaration_number = %s AND status != 'deleted' 
+                 WHERE FIND_IN_SET(%s, REPLACE(previous_tax_declaration_number, ';', ',')) > 0 AND status != 'deleted' 
                  ORDER BY created_at DESC 
                  LIMIT 1",
                 $head_number
@@ -1019,14 +1026,22 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $head_number = $next_number;
         }
 
-        // 2) Build the chain backwards starting from the head (latest) down to the oldest
-        $current_number = $head_number ?: $tax_declaration_number;
-        $visited_backward = array();
-        while ($current_number && !in_array($current_number, $visited_backward, true)) {
-            $visited_backward[] = $current_number;
+        // 2) Build the tree backwards (branching): traverse all previous TDs and collect unique rows
+        $start_number = $head_number ?: $tax_declaration_number;
+        $visited = array();
+        $queue = array();
+        if ($start_number) {
+            $queue[] = $start_number;
+        }
+        $table_property_types = $wpdb->prefix . 'assessor_property_types';
+        $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+        while (!empty($queue)) {
+            $current_number = array_shift($queue);
+            if (!$current_number || isset($visited[$current_number])) {
+                continue;
+            }
+            $visited[$current_number] = true;
 
-            $table_property_types = $wpdb->prefix . 'assessor_property_types';
-            $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
             $property = $wpdb->get_row($wpdb->prepare(
                 "SELECT 
                         p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
@@ -1050,12 +1065,11 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                  LIMIT 1",
                 $current_number
             ));
-            
+
             if (!$property) {
-                break;
+                continue;
             }
-            
-            // Fallback: if memoranda is empty on the live record, try latest version memoranda
+
             $memoranda_value = $property->memoranda;
             if (empty($memoranda_value)) {
                 $memoranda_value = $wpdb->get_var($wpdb->prepare(
@@ -1064,7 +1078,6 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 ));
             }
 
-            // Business is now stored directly on properties table
             $business_name = $property->business;
 
             $history[] = array(
@@ -1105,9 +1118,23 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
                 'updated_by_name' => isset($property->updated_by_name) ? $property->updated_by_name : ''
             );
-            
-            // Move to the previous declaration number
-            $current_number = $property->previous_tax_declaration_number;
+
+            // Enqueue all previous declaration numbers (branching if multiple)
+            $prev_raw = (string)$property->previous_tax_declaration_number;
+            if ($prev_raw !== '') {
+                if (strpos($prev_raw, ';') !== false) {
+                    $tokens = array_filter(array_map('trim', explode(';', $prev_raw)), function($t){ return $t !== ''; });
+                    foreach ($tokens as $t) {
+                        if ($t && !isset($visited[$t])) {
+                            $queue[] = $t;
+                        }
+                    }
+                } else {
+                    if (!isset($visited[$prev_raw])) {
+                        $queue[] = $prev_raw;
+                    }
+                }
+            }
         }
         
         return $history;
@@ -1202,6 +1229,30 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
     private function log_audit($user_id, $action, $table_name, $record_id) {
         $audit = new Assessor_Audit();
         $audit->log_activity($user_id, $action, $table_name, $record_id);
+    }
+
+    private function normalize_previous_tax_declaration_numbers($raw) {
+        // Accept commas or semicolons, normalize to semicolons and uppercase tokens
+        $value = is_string($raw) ? $raw : '';
+        if ($value === '') {
+            return '';
+        }
+        $upper = strtoupper($value);
+        // Replace commas with semicolons and collapse repeated separators
+        $replaced = preg_replace('/[;，、]+/u', ';', str_replace(',', ';', $upper));
+        $parts = array_filter(array_map('trim', explode(';', $replaced)), function($t) { return $t !== ''; });
+        if (empty($parts)) {
+            return '';
+        }
+        $seen = array();
+        $unique = array();
+        foreach ($parts as $p) {
+            if (!isset($seen[$p])) {
+                $seen[$p] = true;
+                $unique[] = sanitize_text_field($p);
+            }
+        }
+        return implode(';', $unique);
     }
 }
 

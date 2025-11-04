@@ -240,6 +240,12 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
+              {printHistory && printHistory[0] && printHistory[0].previous_tax_declaration_number ? (
+                <div style={{ fontSize: 10, marginTop: 2 }}>
+                  <strong>PREV TD:</strong> <span>{printHistory[0].previous_tax_declaration_number}</span>
+                  {String(printHistory[0].previous_tax_declaration_number).includes(';') ? <em> (CONSOLIDATED)</em> : null}
+                </div>
+              ) : null}
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
@@ -307,10 +313,28 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
         </thead>
         <tbody>
-          {(printHistory || []).map((item, index) => (
+          {(printHistory || []).map((item, index) => {
+            // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
+            const wasConsolidatedInto = (printHistory || []).some(otherItem => {
+              if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
+                const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
+                return prevTds.includes(String(item.tax_declaration_number).trim());
+              }
+              return false;
+            });
+            // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
+            const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
+            const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
+            
+            return (
             <tr key={index}>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-                <div>{item.tax_declaration_number || ''}</div>
+                <div style={{ 
+                  color: isConsolidated ? '#ed6c02' : 'inherit',
+                  fontWeight: 600
+                }}>
+                  {item.tax_declaration_number || ''}
+                </div>
               </td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                 const d = normalizeDeclarantString(item.declarant_name);
@@ -373,7 +397,8 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 <div style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
         <tfoot>
           <tr>
@@ -544,15 +569,46 @@ const PropertyTable = () => {
       
       // Apply search filter
       if (debouncedSearchTerm) {
-        const searchUpper = debouncedSearchTerm.toUpperCase();
+        // Normalize search term: remove dots so "victoria c. dapanas" matches "victoria c dapanas"
+        const normalizedSearch = debouncedSearchTerm.replace(/\./g, '').toUpperCase();
+        
+        // Get raw database values (no dots added)
+        const rawLast = String(property.declarant_last_name || '').toUpperCase();
+        const rawFirst = String(property.declarant_first_name || '').toUpperCase();
+        const rawMiddle = String(property.declarant_middle_initial || '').toUpperCase();
+        const rawBusiness = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ').toUpperCase() : '';
+        
+        // Create combined format matching display: "LAST, FIRST MIDDLE / BUSINESS"
+        const combinedDisplayFormat = (() => {
+          const parts = [];
+          if (rawLast) parts.push(rawLast);
+          if (rawFirst) {
+            if (parts.length > 0) parts.push(', ' + rawFirst);
+            else parts.push(rawFirst);
+          }
+          if (rawMiddle) parts.push(' ' + rawMiddle);
+          const declarantStr = parts.join('');
+          if (declarantStr && rawBusiness) return `${declarantStr} / ${rawBusiness}`;
+          return declarantStr || rawBusiness || '';
+        })();
+        
+        // Create natural format: "FIRST MIDDLE LAST"
+        const naturalFormat = `${rawFirst} ${rawMiddle} ${rawLast}`.trim();
+        
+        // Create reversed format with business: "FIRST MIDDLE LAST / BUSINESS"
+        const naturalWithBusiness = naturalFormat && rawBusiness ? `${naturalFormat} / ${rawBusiness}` : (naturalFormat || rawBusiness);
+        
         const matchesSearch = 
-          (property.tax_declaration_number && String(property.tax_declaration_number).toUpperCase().includes(searchUpper)) ||
-          (property.declarant_last_name && String(property.declarant_last_name).toUpperCase().includes(searchUpper)) ||
-          (property.declarant_first_name && String(property.declarant_first_name).toUpperCase().includes(searchUpper)) ||
-          (property.declarant_middle_initial && String(property.declarant_middle_initial).toUpperCase().includes(searchUpper)) ||
-          (property.lot_number && String(property.lot_number).toUpperCase().includes(searchUpper)) ||
-          (property.title_number && String(property.title_number).toUpperCase().includes(searchUpper)) ||
-          (property.business_name && String(property.business_name).toUpperCase().includes(searchUpper));
+          (property.tax_declaration_number && String(property.tax_declaration_number).toUpperCase().includes(normalizedSearch)) ||
+          (rawLast && rawLast.includes(normalizedSearch)) ||
+          (rawFirst && rawFirst.includes(normalizedSearch)) ||
+          (rawMiddle && rawMiddle.includes(normalizedSearch)) ||
+          (combinedDisplayFormat && combinedDisplayFormat.includes(normalizedSearch)) ||
+          (naturalFormat && naturalFormat.includes(normalizedSearch)) ||
+          (naturalWithBusiness && naturalWithBusiness.includes(normalizedSearch)) ||
+          (property.lot_number && String(property.lot_number).toUpperCase().includes(normalizedSearch)) ||
+          (property.title_number && String(property.title_number).toUpperCase().includes(normalizedSearch)) ||
+          (rawBusiness && rawBusiness.includes(normalizedSearch));
         
         if (!matchesSearch) return false;
       }
@@ -938,10 +994,8 @@ const PropertyTable = () => {
 
   const handleSearch = (event) => {
     const raw = event.target.value || '';
-    const normalized = raw
-      .replace(/[\u2013\u2014]/g, '-') // en/em dash to hyphen
-      .replace(/\s*-\s*/g, '-')        // collapse spaces around hyphen
-      .trim();
+    // Only normalize special dash characters, preserve all spaces
+    const normalized = raw.replace(/[\u2013\u2014]/g, '-');
     setSearchTerm(normalized);
     setPage(0); // Reset to first page when searching
   };
@@ -1532,6 +1586,18 @@ const PropertyTable = () => {
                     >
                       {property.tax_declaration_number}
                     </Typography>
+                    {property.previous_tax_declaration_number && String(property.previous_tax_declaration_number).includes(';') && (
+                      <Box mt={0.5}>
+                        <Typography
+                          variant="caption"
+                          color="white"
+                          sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'warning.light', fontWeight: 600  }}
+                          title={`Prev TD: ${property.previous_tax_declaration_number}`}
+                        >
+                          Consolidated
+                        </Typography>
+                      </Box>
+                    )}
                   </TableCell>
                   <TableCell>
                     {(() => {
@@ -1817,14 +1883,36 @@ const PropertyTable = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
-                  {taxHistory.map((item, index) => (
+                  {taxHistory.map((item, index) => {
+                    // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
+                    const wasConsolidatedInto = taxHistory.some(otherItem => {
+                      if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
+                        const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
+                        return prevTds.includes(String(item.tax_declaration_number).trim());
+                      }
+                      return false;
+                    });
+                    // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
+                    const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
+                    const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
+                    
+                    return (
                     <TableRow key={index} hover>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600} color="primary">
+                        <Typography variant="body2" fontWeight={600} color={isConsolidated ? "warning.main" : "primary"}>
                           {item.tax_declaration_number}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {index === 0 ? 'Current' : 'Previous'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                        {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
+                          <Box mt={0.5}>
+                            <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
+                              Consolidated
+                            </Typography>
+                          </Box>
+                        ) : null}
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
@@ -1888,7 +1976,8 @@ const PropertyTable = () => {
                       </TableCell>
                       <TableCell>{item.effectivity_date || '—'}</TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -1992,14 +2081,40 @@ const PropertyTable = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
-                  {printHistory.map((item, index) => (
+                  {printHistory.map((item, index) => {
+                    // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
+                    const wasConsolidatedInto = printHistory.some(otherItem => {
+                      if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
+                        const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
+                        return prevTds.includes(String(item.tax_declaration_number).trim());
+                      }
+                      return false;
+                    });
+                    // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
+                    const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
+                    const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
+                    
+                    return (
                     <TableRow key={index} hover>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600} color="primary"> 
+                        <Typography 
+                          variant="body2" 
+                          fontWeight={600} 
+                          color={isConsolidated ? "warning.main" : "primary"}
+                        > 
                           {item.tax_declaration_number}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {index === 0 ? 'Current' : 'Previous'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                        {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
+                          <Box mt={0.5}>
+                            <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
+                              Consolidated
+                            </Typography>
+                          </Box>
+                        ) : null}
                         </Typography>
                       </TableCell>
                       <TableCell>{(() => {
@@ -2068,7 +2183,8 @@ const PropertyTable = () => {
                         </Typography>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>

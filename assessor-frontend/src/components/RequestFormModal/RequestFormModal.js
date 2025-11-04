@@ -962,14 +962,36 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
-                    {taxHistory.map((item, index) => (
+                    {taxHistory.map((item, index) => {
+                      // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
+                      const wasConsolidatedInto = taxHistory.some(otherItem => {
+                        if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
+                          const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
+                          return prevTds.includes(String(item.tax_declaration_number).trim());
+                        }
+                        return false;
+                      });
+                      // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
+                      const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
+                      const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
+                      
+                      return (
                       <TableRow key={index} hover>
                         <TableCell>
-                          <Typography variant="body2" fontWeight="600" color="primary">
+                          <Typography variant="body2" fontWeight="600" color={isConsolidated ? "warning.main" : "primary"}>
                             {item.tax_declaration_number}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {index === 0 ? 'Current' : 'Previous'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
+                              <Box mt={0.5}>
+                                <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
+                                  Consolidated
+                                </Typography>
+                              </Box>
+                            ) : null}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -1036,7 +1058,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           </Typography>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>

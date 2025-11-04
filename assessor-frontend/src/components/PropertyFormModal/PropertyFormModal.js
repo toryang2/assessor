@@ -947,7 +947,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Previous Tax Declaration Number"
                     value={formData.previous_tax_declaration_number}
                     onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
-                    helperText="Optional: Enter the previous tax declaration number to create a historical link"
+                    helperText="Optional: Use ';' to enter multiple previous TDs (consolidated)"
                     inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 2 }}
                   />
                 </Grid>
