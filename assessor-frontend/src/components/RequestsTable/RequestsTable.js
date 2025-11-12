@@ -406,7 +406,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             </div>
             <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
               {(() => {
-                const fullName = (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '';
+                const fullName = ((settings && settings.verifier_signatory_name) || printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || '';
                 if (!fullName) return '';
                 
                 // Split by comma to separate main name from suffix
@@ -423,15 +423,15 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               })()}
             </div>
             <div style={{ fontSize: 11, marginBottom: 30 }}>
-              {(printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'VERIFIER'}
+              {(settings && settings.verifier_signatory_title) || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || 'VERIFIER'}
             </div>
             <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
               <div>{'Certified correct as to available record/s:'}</div>
             </div>
             <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
               {(() => {
-                const name = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name);
-                const suffix = (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix);
+                const name = (settings && settings.municipal_assessor_name) || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || '';
+                const suffix = (settings && settings.municipal_assessor_suffix) || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || '';
                 const base = (name || '');
                 return (
                   <span>
