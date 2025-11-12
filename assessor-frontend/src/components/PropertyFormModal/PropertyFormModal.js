@@ -934,7 +934,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     // Debug: Log the current state
                     onFocus={() => console.log('TDN field focused, duplicateTdnError:', duplicateTdnError)}
                     inputProps={{ 
-                      style: { textTransform: 'uppercase' }, 
                       tabIndex: 1,
                       'data-debug': `duplicateTdnError: ${duplicateTdnError}`
                     }}
@@ -948,7 +947,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.previous_tax_declaration_number}
                     onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
                     helperText="Optional: Use ';' to enter multiple previous TDs (consolidated)"
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 2 }}
+                    inputProps={{ tabIndex: 2 }}
                   />
                 </Grid>
 
@@ -959,7 +958,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.declarant_last_name}
                     onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
                     // required
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 3 }}
+                    inputProps={{ tabIndex: 3 }}
                   />
                 </Grid>
 
@@ -969,7 +968,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Title Number"
                     value={formData.title_number}
                     onChange={(e) => handleInputChange('title_number', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 10 }}
+                    inputProps={{ tabIndex: 10 }}
                   />
                 </Grid>
                 
@@ -980,7 +979,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.declarant_first_name}
                     onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
                     // required
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 4}}
+                    inputProps={{ tabIndex: 4}}
                   />
                 </Grid>
 
@@ -1046,7 +1045,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       // allow up to 255 chars per backend change, but typical use is 1-3 letters
                       handleInputChange('declarant_middle_initial', raw);
                     }}
-                    inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 255, tabIndex: 5 }}
+                    inputProps={{ maxLength: 255, tabIndex: 5 }}
                     helperText="Please do not include a dot (.) in the middle initial."
                   />
                 </Grid>
@@ -1163,7 +1162,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="PIN"
                     value={formData.pin}
                     onChange={(e) => handleInputChange('pin', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 14 }}
+                    inputProps={{ tabIndex: 14 }}
                   />
                 </Grid>
 
@@ -1173,7 +1172,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Lot Number"
                     value={formData.lot_number}
                     onChange={(e) => handleInputChange('lot_number', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 8 }}
+                    inputProps={{ tabIndex: 8 }}
                   />
                 </Grid>
 
@@ -1183,7 +1182,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Unique Lot Number Identified"
                     value={formData.unique_lot_number_identified}
                     onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 15                      }}
+                    inputProps={{ tabIndex: 15 }}
                    />
                  </Grid>
                 <Grid item xs={12} md={6}>
@@ -1360,7 +1359,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     placeholder="Complete address"
-                    inputProps={{ style: { textTransform: 'uppercase' }, tabIndex: 16 }}
+                    inputProps={{ tabIndex: 16 }}
                   />
                 </Grid>
               </Grid>
