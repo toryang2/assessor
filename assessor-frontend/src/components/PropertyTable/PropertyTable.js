@@ -240,12 +240,6 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
-              {printHistory && printHistory[0] && printHistory[0].previous_tax_declaration_number ? (
-                <div style={{ fontSize: 10, marginTop: 2 }}>
-                  <strong>PREV TD:</strong> <span>{printHistory[0].previous_tax_declaration_number}</span>
-                  {String(printHistory[0].previous_tax_declaration_number).includes(';') ? <em> (CONSOLIDATED)</em> : null}
-                </div>
-              ) : null}
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
               <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
