@@ -159,6 +159,34 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
+  const updateUserLocally = useCallback((updates) => {
+    if (!updates) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...updates };
+      try {
+        sessionStorage.setItem('assessor_user', JSON.stringify(next));
+      } catch (e) {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }, []);
+
+  const refreshCurrentUser = useCallback(async () => {
+    try {
+      const response = await apiService.validateToken();
+      if (response?.valid && response.user) {
+        sessionStorage.setItem('assessor_user', JSON.stringify(response.user));
+        setUser(response.user);
+        return response.user;
+      }
+    } catch (err) {
+      console.error('Failed to refresh user', err);
+    }
+    return null;
+  }, []);
+
   // AFK timeout functions
   const resetAfkTimeout = useCallback(() => {
     const now = Date.now();
@@ -292,6 +320,8 @@ export const AuthProvider = ({ children }) => {
     clearError,
     afkTimeout,
     updateAfkTimeout,
+    updateUserLocally,
+    refreshCurrentUser,
   };
 
   return (

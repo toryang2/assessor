@@ -95,6 +95,7 @@ export const endpoints = {
   // Users
   users: '/users',
   user: (id) => `/users/${id}`,
+  userAvatar: (id) => `/users/${id}/avatar`,
   
   // Requests
   requests: '/requests',
@@ -462,6 +463,18 @@ export const apiService = {
   updateUser: async (id, user) => {
     try {
       const response = await api.put(endpoints.user(id), user);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  uploadUserAvatar: async (id, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await api.post(endpoints.userAvatar(id), formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

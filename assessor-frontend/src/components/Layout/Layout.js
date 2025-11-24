@@ -47,6 +47,7 @@ import AuditTrail from '../AuditTrail/AuditTrail';
 import UserManagement from '../UserManagement/UserManagement';
 import Export from '../Export/Export';
 import Settings from '../Settings/Settings';
+import Profile from '../Profile/Profile';
 import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
 
 const drawerWidth = 320;
@@ -109,6 +110,17 @@ const Layout = ({ children }) => {
 
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
+  };
+
+  const handleProfileClick = () => {
+    setCurrentPage('Profile');
+    setAnchorEl(null);
+    setMobileOpen(false);
+    try {
+      localStorage.setItem('assessor_current_page', 'Profile');
+    } catch (_) {
+      // Ignore localStorage errors
+    }
   };
 
   const handleProfileMenuClose = () => {
@@ -415,6 +427,7 @@ const Layout = ({ children }) => {
               {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Settings' && <SettingsIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Profile' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>
                 {currentPage}
               </Typography>
@@ -436,6 +449,7 @@ const Layout = ({ children }) => {
                 sx={{ ml: 1 }}
               >
                 <Avatar
+                  src={user?.avatar_url || undefined}
                   sx={{ 
                     width: 32, 
                     height: 32,
@@ -443,7 +457,7 @@ const Layout = ({ children }) => {
                     fontSize: '0.875rem'
                   }}
                 >
-                  {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                  {!user?.avatar_url && (user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U')}
                 </Avatar>
               </IconButton>
             </Tooltip>
@@ -564,6 +578,7 @@ const Layout = ({ children }) => {
                     <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
                     <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
                   </Box>}
+                {currentPage === 'Profile' && <Profile />}
               </>
             )}
           </motion.div>
@@ -601,7 +616,7 @@ const Layout = ({ children }) => {
           </Typography>
         </Box>
         
-        <MenuItem onClick={handleProfileMenuClose}>
+        <MenuItem onClick={handleProfileClick}>
           <ListItemIcon>
             <AccountCircle fontSize="small" />
           </ListItemIcon>

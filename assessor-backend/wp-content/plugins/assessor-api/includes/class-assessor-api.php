@@ -309,6 +309,11 @@ class Assessor_API {
             'callback' => array($this, 'delete_user'),
             'permission_callback' => '__return_true'
         ));
+        register_rest_route('assessor/v1', '/users/(?P<id>\d+)/avatar', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'handle_upload_avatar'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         
         // Test route (no authentication required)
         register_rest_route('assessor/v1', '/test', array(
@@ -637,6 +642,11 @@ class Assessor_API {
         $auth = new Assessor_Auth();
         // pass request to allow role-based delete protection
         return $auth->delete_user($request['id'], $request);
+    }
+
+    public function handle_upload_avatar($request) {
+        $auth = new Assessor_Auth();
+        return $auth->upload_avatar($request);
     }
     
     public function test_endpoint($request) {

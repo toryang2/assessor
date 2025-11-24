@@ -86,6 +86,7 @@ class Assessor_Auth {
                 'id' => $user->id,
                 'username' => $user->username,
                 'email' => $user->email,
+                'avatar_url' => $user->avatar_url,
                 'full_name' => $user->full_name,
                 'role' => $user->role
             )
@@ -118,7 +119,7 @@ class Assessor_Auth {
                 global $wpdb;
                 $table_users = $wpdb->prefix . 'assessor_users';
                 $user = $wpdb->get_row($wpdb->prepare(
-                    "SELECT id, username, email, full_name, role, status FROM $table_users WHERE id = %d AND status = 'active'",
+                    "SELECT id, username, email, avatar_url, full_name, role, status FROM $table_users WHERE id = %d AND status = 'active'",
                     $payload->user_id
                 ));
                 
@@ -128,7 +129,8 @@ class Assessor_Auth {
                         'user' => array(
                             'id' => $user->id,
                             'username' => $user->username,
-                            'email' => $user->email,
+                        'email' => $user->email,
+                        'avatar_url' => $user->avatar_url,
                             'full_name' => $user->full_name,
                             'role' => $user->role
                         )
@@ -267,7 +269,7 @@ class Assessor_Auth {
         $count_sql = "SELECT COUNT(*) FROM $table_users $where_sql";
         $total = !empty($vals) ? (int)$wpdb->get_var($wpdb->prepare($count_sql, $vals)) : (int)$wpdb->get_var($count_sql);
 
-        $query = "SELECT id, username, email, full_name, role, status, last_login, created_at
+        $query = "SELECT id, username, email, avatar_url, full_name, role, status, last_login, created_at
                   FROM $table_users
                   $where_sql
                   ORDER BY created_at DESC
@@ -398,6 +400,10 @@ class Assessor_Auth {
             }
         }
         if (isset($params['full_name'])) { $data['full_name'] = sanitize_text_field($params['full_name']); $formats[] = '%s'; }
+        if (isset($params['avatar_url'])) {
+            $data['avatar_url'] = esc_url_raw($params['avatar_url']);
+            $formats[] = '%s';
+        }
         if (isset($params['role'])) {
             $role = sanitize_text_field($params['role']);
             if (!in_array($role, array('superadmin','admin','assessor','verifier','editor','viewer'), true)) {
@@ -473,6 +479,85 @@ class Assessor_Auth {
         $audit = new Assessor_Audit();
         $audit->log_activity(0, 'delete', 'assessor_users', $id, null, array('event' => 'delete_user'));
         return array('success' => true);
+    }
+
+    public function upload_avatar($request) {
+        global $wpdb;
+        $user_id = isset($request['id']) ? intval($request['id']) : 0;
+        if ($user_id <= 0) {
+            return new WP_Error('invalid_user', 'Invalid user ID', array('status' => 400));
+        }
+
+        $current_user_id = $this->get_user_id_from_token($request);
+        if (!$current_user_id) {
+            return new WP_Error('unauthorized', 'Authentication required', array('status' => 401));
+        }
+
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $target_user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $user_id));
+        if (!$target_user) {
+            return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+        }
+
+        $acting_user = $wpdb->get_row($wpdb->prepare("SELECT role FROM $table_users WHERE id = %d", $current_user_id));
+        $allowed_roles = array('superadmin','admin','administrator');
+        $can_update = ($current_user_id === $user_id);
+        if (!$can_update && $acting_user && isset($acting_user->role)) {
+            $can_update = in_array(strtolower($acting_user->role), $allowed_roles, true);
+        }
+        if (!$can_update) {
+            return new WP_Error('forbidden', 'You do not have permission to update this profile', array('status' => 403));
+        }
+
+        if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
+            return new WP_Error('upload_error', 'No file uploaded or upload error occurred', array('status' => 400));
+        }
+
+        $file = $_FILES['avatar'];
+        $max_size = 5 * 1024 * 1024; // 5MB
+        if ($file['size'] > $max_size) {
+            return new WP_Error('file_too_large', 'Image exceeds 5MB limit', array('status' => 400));
+        }
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed_types = array('jpg','jpeg','png','gif','webp');
+        if (!in_array($ext, $allowed_types, true)) {
+            return new WP_Error('invalid_file_type', 'Only images are allowed (jpg, jpeg, png, gif, webp)', array('status' => 400));
+        }
+
+        $upload_dir = wp_upload_dir();
+        $folder = trailingslashit($upload_dir['basedir']) . 'assessor-profile-photos';
+        $base_url = trailingslashit($upload_dir['baseurl']) . 'assessor-profile-photos';
+        if (!file_exists($folder)) {
+            if (!wp_mkdir_p($folder)) {
+                return new WP_Error('dir_creation_failed', 'Failed to create profile upload directory', array('status' => 500));
+            }
+        }
+
+        $filename = 'avatar_' . $user_id . '_' . time() . '_' . wp_generate_password(6, false) . '.' . $ext;
+        $path = $folder . '/' . $filename;
+
+        if (!move_uploaded_file($file['tmp_name'], $path)) {
+            return new WP_Error('move_failed', 'Failed to move uploaded avatar', array('status' => 500));
+        }
+
+        $url = $base_url . '/' . $filename;
+
+        if (!empty($target_user->avatar_url)) {
+            $old_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $target_user->avatar_url);
+            $old_path = wp_normalize_path($old_path);
+            $safe_base = wp_normalize_path($folder);
+            if ($old_path && strpos($old_path, $safe_base) === 0 && file_exists($old_path)) {
+                @unlink($old_path);
+            }
+        }
+
+        $wpdb->update($table_users, array('avatar_url' => esc_url_raw($url)), array('id' => $user_id), array('%s'), array('%d'));
+
+        $audit = new Assessor_Audit();
+        $audit->log_activity($current_user_id, 'update', 'assessor_users', $user_id, null, array('event' => 'upload_avatar'));
+
+        return array('success' => true, 'avatar_url' => $url);
     }
     
     private function generate_token($user) {

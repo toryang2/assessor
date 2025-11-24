@@ -14,6 +14,7 @@ class Assessor_Database {
             username varchar(100) NOT NULL,
             password varchar(255) NOT NULL,
             email varchar(100) DEFAULT NULL,
+            avatar_url varchar(255) DEFAULT NULL,
             full_name varchar(200) NOT NULL,
             role varchar(50) NOT NULL DEFAULT 'assessor',
             status varchar(20) NOT NULL DEFAULT 'active',
@@ -300,6 +301,8 @@ class Assessor_Database {
         $this->adjust_users_email_column_and_index();
         // Ensure last_login column exists
         $this->ensure_users_last_login_column();
+        // Ensure avatar_url column exists
+        $this->ensure_users_avatar_column();
     }
     
     private function add_foreign_keys() {
@@ -457,6 +460,15 @@ class Assessor_Database {
         }
     }
 
+    private function ensure_users_avatar_column() {
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'avatar_url'", $table_users));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_users ADD COLUMN avatar_url varchar(255) DEFAULT NULL AFTER email");
+        }
+    }
+
     private function run_migrations() {
         global $wpdb;
         
@@ -509,6 +521,13 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'afk_timeout'", $table_settings));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
+        }
+
+        // Migration: Ensure avatar_url exists on users table
+        $table_users = $wpdb->prefix . 'assessor_users';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'avatar_url'", $table_users));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_users ADD COLUMN avatar_url varchar(255) DEFAULT NULL AFTER email");
         }
 
         // Migration: Ensure revision entries table exists
