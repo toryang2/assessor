@@ -183,7 +183,7 @@ const Profile = () => {
                     sx={{
                       width: 80,
                       height: 80,
-                      bgcolor: 'primary.main',
+                      bgcolor: user?.avatar_url ? '#fff' : 'primary.main',
                       fontSize: '2rem'
                     }}
                   >

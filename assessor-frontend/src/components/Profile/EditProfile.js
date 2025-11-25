@@ -159,7 +159,12 @@ const EditProfile = ({ onSave, onCancel }) => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Avatar
                 src={avatarPreview || user?.avatar_url || undefined}
-                sx={{ width: 72, height: 72, bgcolor: 'primary.main', fontSize: '1.75rem' }}
+                sx={{ 
+                  width: 72, 
+                  height: 72, 
+                  bgcolor: (avatarPreview || user?.avatar_url) ? '#fff' : 'primary.main', 
+                  fontSize: '1.75rem'
+                }}
               >
                 {(!avatarPreview && !user?.avatar_url) && avatarInitial}
               </Avatar>

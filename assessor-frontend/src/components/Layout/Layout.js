@@ -453,7 +453,7 @@ const Layout = ({ children }) => {
                   sx={{ 
                     width: 32, 
                     height: 32,
-                    bgcolor: 'primary.main',
+                    bgcolor: user?.avatar_url ? 'transparent' : 'primary.main',
                     fontSize: '0.875rem'
                   }}
                 >
