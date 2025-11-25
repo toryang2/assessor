@@ -19,39 +19,138 @@ import {
   Email as EmailIcon,
   Badge as BadgeIcon,
   Security as SecurityIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  AdminPanelSettings as AdminIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
+import { keyframes } from '@mui/system';
 import EditProfile from './EditProfile';
+
+const glow = keyframes`
+  0% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
+  50% { filter: drop-shadow(0 0 10px rgba(156, 39, 176, 0.75)) drop-shadow(0 0 4px rgba(255,255,255,0.45)); }
+  100% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
+`;
+
+const sweep = keyframes`
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+`;
 
 const Profile = () => {
   const { user } = useAuth();
   const theme = useTheme();
   const [isEditing, setIsEditing] = useState(false);
 
-  const formatRole = (role) => {
-    if (!role || typeof role !== 'string') return '';
-    const normalized = role.trim().toLowerCase();
-    if (normalized === 'assessor') return 'Municipal Assessor';
-    if (normalized === 'municipal assessor') return 'Municipal Assessor';
-    if (normalized === 'administrator') return 'Administrator';
-    if (normalized === 'admin') return 'Administrator';
-    if (normalized === 'superadmin') return 'Super Administrator';
-    return role
-      .split(/\s+/)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
+  const getRoleColor = (role) => {
+    switch (role) {
+      // For custom gold styles we return default color and style via sx
+      case 'superadmin':
+        return 'default';
+      case 'admin':
+        return 'error';
+      case 'assessor':
+        return 'default';
+      case 'verifier':
+        return 'primary';
+      case 'editor':
+        return 'secondary';
+      case 'viewer':
+        return 'info';
+      default:
+        return 'default';
+    }
   };
 
-  const getRoleColor = (role) => {
-    if (!role) return 'default';
-    const normalized = role.trim().toLowerCase();
-    if (normalized === 'superadmin') return 'error';
-    if (normalized === 'admin' || normalized === 'administrator') return 'warning';
-    if (normalized === 'assessor' || normalized === 'municipal assessor') return 'primary';
-    return 'default';
+  const getRoleChipProps = (role) => {
+    // Default props
+    const base = { color: getRoleColor(role), sx: {}, icon: null };
+    if (role === 'superadmin' || role === 'assessor') {
+      return {
+        ...base,
+        color: 'default',
+        icon: <AdminIcon />,
+        sx: {
+          backgroundImage: 'linear-gradient(135deg, #E1BEE7 0%, #CE93D8 40%, #BA68C8 70%, #9C27B0 100%)',
+          animation: `${glow} 2.2s ease-in-out infinite`,
+          color: '#fff',
+          fontWeight: 700,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6)',
+          position: 'relative',
+          overflow: 'hidden',
+          willChange: 'filter',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: '-20%',
+            left: '-50%',
+            width: '200%',
+            height: '140%',
+            background: 'linear-gradient(120deg, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0.0) 55%)',
+            animation: `${sweep} 2.4s ease-in-out infinite`,
+            pointerEvents: 'none',
+          },
+          '& .MuiChip-icon': { color: '#fff' },
+        },
+      };
+    }
+    if (role === 'admin') {
+      return { 
+        ...base, 
+        color: getRoleColor(role), 
+        icon: <AdminIcon />,
+        sx: {
+          position: 'relative',
+          overflow: 'hidden',
+          // Glass gradient overlay
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 35%, rgba(255,255,255,0.0) 60%)',
+            pointerEvents: 'none',
+          },
+          // Moving highlight sweep
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: '-20%',
+            left: '-50%',
+            width: '200%',
+            height: '140%',
+            background: 'linear-gradient(120deg, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.0) 55%)',
+            animation: `${sweep} 2.8s ease-in-out infinite`,
+            pointerEvents: 'none',
+          },
+          '& .MuiChip-icon': { color: 'inherit' },
+        }
+      };
+    }
+    if (role === 'editor') {
+      return { ...base, icon: <SecurityIcon /> };
+    }
+    if (role === 'verifier' || role === 'viewer') {
+      return { ...base, icon: <SecurityIcon /> };
+    }
+    return base;
+  };
+
+  const getRoleDisplayName = (role) => {
+    const roleNames = {
+      'superadmin': 'Super Administrator',
+      'admin': 'Administrator',
+      'assessor': 'Municipal Assessor',
+      'verifier': 'Verifier',
+      'editor': 'Editor',
+      'viewer': 'View Only'
+    };
+    return roleNames[role] || role;
+  };
+
+  const formatRole = (role) => {
+    return getRoleDisplayName(role);
   };
 
   const handleEdit = () => {
@@ -94,12 +193,18 @@ const Profile = () => {
                     <Typography variant="h5" fontWeight={600} gutterBottom>
                       {user?.full_name || user?.username || 'User'}
                     </Typography>
-                    <Chip
-                      label={formatRole(user?.role)}
-                      color={getRoleColor(user?.role)}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
+                    {(() => {
+                      const chip = getRoleChipProps(user?.role);
+                      return (
+                        <Chip
+                          label={getRoleDisplayName(user?.role)}
+                          size="small"
+                          color={chip.color}
+                          icon={chip.icon}
+                          sx={{ mt: 1, ...chip.sx }}
+                        />
+                      );
+                    })()}
                   </Box>
                 </Box>
               </CardContent>

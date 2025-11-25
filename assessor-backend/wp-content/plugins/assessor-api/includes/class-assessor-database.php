@@ -340,18 +340,6 @@ class Assessor_Database {
         $count = $wpdb->get_var("SELECT COUNT(*) FROM $table_users");
         
         if ($count == 0) {
-            $wpdb->insert(
-                $table_users,
-                array(
-                    'username' => 'admin',
-                    'password' => wp_hash_password('admin123'),
-                    'email' => 'admin@localgov.ph',
-                    'full_name' => 'System Administrator',
-                    'role' => 'admin',
-                    'status' => 'active'
-                ),
-                array('%s', '%s', '%s', '%s', '%s', '%s')
-            );
             // Create default superadmin as requested
             $wpdb->insert(
                 $table_users,
@@ -361,6 +349,19 @@ class Assessor_Database {
                     'email' => 'superadmin@localgov.ph',
                     'full_name' => 'Super Administrator',
                     'role' => 'superadmin',
+                    'status' => 'active'
+                ),
+                array('%s', '%s', '%s', '%s', '%s', '%s')
+            );
+            // Create default admin as requested
+            $wpdb->insert(
+                $table_users,
+                array(
+                    'username' => 'admin',
+                    'password' => wp_hash_password('admin123'),
+                    'email' => 'admin@localgov.ph',
+                    'full_name' => 'System Administrator',
+                    'role' => 'admin',
                     'status' => 'active'
                 ),
                 array('%s', '%s', '%s', '%s', '%s', '%s')

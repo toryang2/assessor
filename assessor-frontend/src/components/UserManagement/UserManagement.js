@@ -72,7 +72,7 @@ const UserManagement = () => {
   const effectiveIsSuperAdmin = (() => {
     if (isSuperAdmin) return true;
     try {
-      const raw = localStorage.getItem('assessor_user');
+      const raw = sessionStorage.getItem('assessor_user');
       if (!raw) return false;
       const u = JSON.parse(raw);
       return String(u?.role || '').toLowerCase() === 'superadmin';
@@ -84,7 +84,7 @@ const UserManagement = () => {
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   const fetchSeqRef = useRef(0);
   
@@ -129,18 +129,24 @@ const UserManagement = () => {
       // Ignore if a newer request has started
       if (seq !== fetchSeqRef.current) return;
       
+      let fetchedUsers = [];
       if (response && response.users) {
-        setUsers(response.users);
+        fetchedUsers = response.users;
         setTotalCount(response.pagination ? response.pagination.total : response.users.length);
       } else if (response && response.data) {
         // Fallback for different response format
-        setUsers(response.data);
+        fetchedUsers = response.data;
         setTotalCount(response.total || response.data.length);
       } else {
         console.warn('Unexpected API response format:', response);
         setUsers([]);
         setTotalCount(0);
+        return;
       }
+      
+      // Sort users by role priority
+      const sortedUsers = sortUsersByRole(fetchedUsers);
+      setUsers(sortedUsers);
     } catch (err) {
       console.error('Error fetching users:', err);
       setError(`Failed to fetch users: ${err.message || 'Unknown error'}`);
@@ -225,6 +231,32 @@ const UserManagement = () => {
     fetchUsers();
   };
 
+  const getRolePriority = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'superadmin':
+        return 1;
+      case 'assessor':
+      case 'municipal assessor':
+        return 2;
+      case 'admin':
+        return 3;
+      default:
+        return 4;
+    }
+  };
+
+  const sortUsersByRole = (users) => {
+    return [...users].sort((a, b) => {
+      const priorityA = getRolePriority(a.role);
+      const priorityB = getRolePriority(b.role);
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      // If same priority, sort alphabetically by username
+      return (a.username || '').localeCompare(b.username || '');
+    });
+  };
+
   const getRoleColor = (role) => {
     switch (role) {
       // For custom gold styles we return default color and style via sx
@@ -233,7 +265,7 @@ const UserManagement = () => {
       case 'admin':
         return 'error';
       case 'assessor':
-        return 'primary';
+        return 'default';
       case 'verifier':
         return 'primary';
       case 'editor':
@@ -248,7 +280,7 @@ const UserManagement = () => {
   const getRoleChipProps = (role) => {
     // Default props
     const base = { color: getRoleColor(role), sx: {}, icon: null };
-    if (role === 'superadmin') {
+    if (role === 'superadmin' || role === 'assessor') {
       return {
         ...base,
         color: 'default',
@@ -312,7 +344,7 @@ const UserManagement = () => {
     if (role === 'editor') {
       return { ...base, icon: <SecurityIcon /> };
     }
-    if (role === 'assessor' || role === 'verifier' || role === 'viewer') {
+    if (role === 'verifier' || role === 'viewer') {
       return { ...base, icon: <SecurityIcon /> };
     }
     return base;
@@ -589,7 +621,7 @@ const UserManagement = () => {
                         size="small"
                         onClick={() => handleEditUser(user)}
                         color="primary"
-                        disabled={user.role === 'superadmin'}
+                        disabled={user.role === 'superadmin' && !effectiveIsSuperAdmin}
                       >
                         <EditIcon />
                       </IconButton>
@@ -598,7 +630,7 @@ const UserManagement = () => {
                         size="small"
                         onClick={() => handleToggleStatus(user)}
                         color={user.status === 'active' ? 'warning' : 'success'}
-                        disabled={user.role === 'superadmin'}
+                        disabled={user.role === 'superadmin' && !effectiveIsSuperAdmin}
                       >
                         {user.status === 'active' ? <LockIcon /> : <LockOpenIcon />}
                       </IconButton>
