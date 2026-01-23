@@ -833,6 +833,9 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     } else {
                         $update_data[$field] = sanitize_text_field($params[$field]);
                     }
+                } else if (in_array($field, array('address', 'memoranda', 'supporting_documents', 'supporting_documents_old'), true)) {
+                    // Preserve newlines for textarea-like fields (MySQL TEXT supports \n)
+                    $update_data[$field] = sanitize_textarea_field($params[$field]);
                 } else if ($field === 'municipal_assessor_license') {
                     // Handle municipal_assessor_license with prefix to preserve leading zeros
                     $license_value = sanitize_text_field($params[$field]);

@@ -1069,7 +1069,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         </TableCell>
                         <TableCell>{item.effectivity_date || '—'}</TableCell>
                         <TableCell sx={{ maxWidth: 280 }}>
-                          <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {item.memoranda || '—'}
                           </Typography>
                         </TableCell>

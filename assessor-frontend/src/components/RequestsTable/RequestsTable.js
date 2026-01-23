@@ -337,7 +337,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                  : '0.00'}</td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
-                 <div style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
+                 <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
                </td>
              </tr>
            ))}
@@ -645,8 +645,8 @@ const RequestsTable = () => {
       table { page-break-inside: auto; }
       tr { page-break-inside: auto; break-inside: auto; }
       td { page-break-inside: auto; }
-      /* Allow memoranda content to split */
-      td:last-child { white-space: normal; text-align: left; }
+      /* Preserve memoranda line breaks while still allowing wrapping/splitting */
+      td:last-child { white-space: pre-wrap; text-align: left; }
     `
   });
 
