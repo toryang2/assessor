@@ -222,9 +222,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Handle property search input change
   const handlePropertySearchChange = (event, newValue) => {
-    // Convert to uppercase for display
-    const upperCaseValue = newValue ? newValue.toUpperCase() : '';
-    setPropertySearchTerm(upperCaseValue);
+    // Don't convert to uppercase immediately - let CSS handle visual display
+    setPropertySearchTerm(newValue || '');
     
     if (newValue && newValue.length >= 2) {
       // Use original value for search to maintain case-insensitive functionality
@@ -368,9 +367,17 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
     setLoading(true);
     try {
-      // Prepare the data for saving
+      // Prepare the data for saving with uppercase applied to appropriate fields
       const requestData = {
-        ...formData,
+        client_name: uppercaseFieldValue('client_name', formData.client_name),
+        client_address: uppercaseFieldValue('client_address', formData.client_address),
+        contact_number: uppercaseFieldValue('contact_number', formData.contact_number),
+        remarks: uppercaseFieldValue('remarks', formData.remarks),
+        receipt_number: uppercaseFieldValue('receipt_number', formData.receipt_number),
+        place_issued: uppercaseFieldValue('place_issued', formData.place_issued),
+        prepared_by: uppercaseFieldValue('prepared_by', formData.prepared_by),
+        purpose: formData.purpose,
+        date_issued: formData.date_issued,
         property_id: selectedProperty?.id,
         amount_paid: parseFloat(formData.amount_paid),
         created_at: new Date().toISOString()
@@ -419,19 +426,27 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     }
   };
 
+  // Helper function to uppercase field values on submit
+  const uppercaseFieldValue = (field, value) => {
+    const uppercaseFields = new Set([
+      'client_name',
+      'client_address',
+      'contact_number',
+      'remarks',
+      'receipt_number',
+      'place_issued',
+      'prepared_by'
+    ]);
+    
+    if (uppercaseFields.has(field) && typeof value === 'string') {
+      return value.toUpperCase();
+    }
+    return value;
+  };
+
   // Handle form field changes
   const handleChange = (field) => (event) => {
-    let value = event.target.value;
-    
-    // Convert to uppercase for specific fields (except purpose)
-    const uppercaseFields = [
-      'client_name', 'client_address', 'contact_number', 'remarks',
-      'receipt_number', 'place_issued', 'prepared_by'
-    ];
-    
-    if (uppercaseFields.includes(field)) {
-      value = value.toUpperCase();
-    }
+    const value = event.target.value;
     
     setFormData(prev => ({
       ...prev,
@@ -536,6 +551,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                            error={validationErrors.has('property_selection')}
                            size={isSmallScreen ? 'small' : 'medium'}
                            margin={isSmallScreen ? 'dense' : 'normal'}
+                           inputProps={{ ...params.inputProps, style: { textTransform: 'uppercase' } }}
                            InputProps={{
                              ...params.InputProps,
                              endAdornment: (

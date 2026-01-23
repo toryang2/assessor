@@ -596,43 +596,49 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return isNaN(num) ? '' : num;
   };
 
-     const handleInputChange = (field, value) => {
-     // Clear duplicate TDN error when user starts typing in TDN field
-     if (field === 'tax_declaration_number' && duplicateTdnError) {
-       setDuplicateTdnError(false);
-     }
-     
-     const uppercaseFields = new Set([
-       'tax_declaration_number',
-       'previous_tax_declaration_number',
-       'declarant_last_name',
-       'declarant_first_name',
-       'declarant_middle_initial',
-       'business_name',
-       'location',
-       'lot_number',
-       'unique_lot_number_identified',
-       'title_number',
-       'pin',
-       'address',
-       'kind_of_property',
-       'gen_class',
-       'memoranda'
-     ]);
-     let nextValue = (typeof value === 'string' && uppercaseFields.has(field)) ? value.toUpperCase() : value;
+  // Helper function to uppercase field values on submit
+  const uppercaseFieldValue = (field, value) => {
+    const uppercaseFields = new Set([
+      'tax_declaration_number',
+      'previous_tax_declaration_number',
+      'declarant_last_name',
+      'declarant_first_name',
+      'declarant_middle_initial',
+      'business_name',
+      'location',
+      'lot_number',
+      'unique_lot_number_identified',
+      'title_number',
+      'pin',
+      'address',
+      'kind_of_property',
+      'gen_class',
+      'memoranda'
+    ]);
+    
+    if (uppercaseFields.has(field) && typeof value === 'string') {
+      return value.toUpperCase();
+    }
+    return value;
+  };
 
-           // Handle area field updates - only update the selected unit
-      if (field === 'area_hectare') {
-        // Only update hectares, don't sync with sqm
-        setFormData(prev => ({ ...prev, area_hectare: nextValue }));
-      } else if (field === 'area_sqm') {
-        // Only update sqm, don't sync with hectares
-        setFormData(prev => ({ ...prev, area_sqm: nextValue }));
-      } else {
-        setFormData(prev => ({ ...prev, [field]: nextValue }));
-      }
-     
-   };
+  const handleInputChange = (field, value) => {
+    // Clear duplicate TDN error when user starts typing in TDN field
+    if (field === 'tax_declaration_number' && duplicateTdnError) {
+      setDuplicateTdnError(false);
+    }
+    
+    // Handle area field updates - only update the selected unit
+    if (field === 'area_hectare') {
+      // Only update hectares, don't sync with sqm
+      setFormData(prev => ({ ...prev, area_hectare: value }));
+    } else if (field === 'area_sqm') {
+      // Only update sqm, don't sync with hectares
+      setFormData(prev => ({ ...prev, area_sqm: value }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+  };
 
   const validateForm = () => {
     const errors = [];
@@ -713,31 +719,31 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
       // Only submit the selected unit; blank the other
       const submitData = {
-        tax_declaration_number: formData.tax_declaration_number,
-        previous_tax_declaration_number: formData.previous_tax_declaration_number,
-        declarant_last_name: formData.declarant_last_name,
-        declarant_first_name: formData.declarant_first_name,
-        declarant_middle_initial: formData.declarant_middle_initial,
-        business_name: formData.business_name,
-        location: formData.location,
-        lot_number: formData.lot_number,
-        unique_lot_number_identified: formData.unique_lot_number_identified,
+        tax_declaration_number: uppercaseFieldValue('tax_declaration_number', formData.tax_declaration_number),
+        previous_tax_declaration_number: uppercaseFieldValue('previous_tax_declaration_number', formData.previous_tax_declaration_number),
+        declarant_last_name: uppercaseFieldValue('declarant_last_name', formData.declarant_last_name),
+        declarant_first_name: uppercaseFieldValue('declarant_first_name', formData.declarant_first_name),
+        declarant_middle_initial: uppercaseFieldValue('declarant_middle_initial', formData.declarant_middle_initial),
+        business_name: uppercaseFieldValue('business_name', formData.business_name),
+        location: uppercaseFieldValue('location', formData.location),
+        lot_number: uppercaseFieldValue('lot_number', formData.lot_number),
+        unique_lot_number_identified: uppercaseFieldValue('unique_lot_number_identified', formData.unique_lot_number_identified),
         area_hectare: formData.area_unit === 'hectares'
           ? (formData.area_hectare === '' ? '' : Number(formData.area_hectare))
           : '',
         area_sqm: formData.area_unit === 'sqm'
           ? (formData.area_sqm === '' ? '' : Number(formData.area_sqm))
           : '',
-        title_number: formData.title_number,
+        title_number: uppercaseFieldValue('title_number', formData.title_number),
         assessed_value: formData.assessed_value === '' ? '' : Number(formData.assessed_value),
         assessed_value_old: formData.assessed_value_old,
         effectivity_date: formData.effectivity_date,
-        pin: formData.pin,
-        address: formData.address,
+        pin: uppercaseFieldValue('pin', formData.pin),
+        address: uppercaseFieldValue('address', formData.address),
         assessment_date: cleanAssessmentDate(formData.assessment_date),
-        kind_of_property: formData.kind_of_property,
-        gen_class: formData.gen_class,
-        memoranda: formData.memoranda,
+        kind_of_property: uppercaseFieldValue('kind_of_property', formData.kind_of_property),
+        gen_class: uppercaseFieldValue('gen_class', formData.gen_class),
+        memoranda: uppercaseFieldValue('memoranda', formData.memoranda),
         supporting_documents: supportingDocsString,
         // Pass old area text if provided; allow explicit null on clear when updating
         ...(property ? { area_hectare_old: (formData.area_hectare_old === '' ? '' : (formData.area_hectare_old ?? '')) } : { area_hectare_old: formData.area_hectare_old ?? '' }),
@@ -935,7 +941,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     onFocus={() => console.log('TDN field focused, duplicateTdnError:', duplicateTdnError)}
                     inputProps={{ 
                       tabIndex: 1,
-                      'data-debug': `duplicateTdnError: ${duplicateTdnError}`
+                      'data-debug': `duplicateTdnError: ${duplicateTdnError}`,
+                      style: { textTransform: 'uppercase' }
                     }}
                   />
                 </Grid>
@@ -947,7 +954,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.previous_tax_declaration_number}
                     onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
                     helperText="Optional: Use ';' to enter multiple previous TDs (consolidated)"
-                    inputProps={{ tabIndex: 2 }}
+                    inputProps={{ tabIndex: 2, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
@@ -958,7 +965,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.declarant_last_name}
                     onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
                     // required
-                    inputProps={{ tabIndex: 3 }}
+                    inputProps={{ tabIndex: 3, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
@@ -968,7 +975,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Title Number"
                     value={formData.title_number}
                     onChange={(e) => handleInputChange('title_number', e.target.value)}
-                    inputProps={{ tabIndex: 10 }}
+                    inputProps={{ tabIndex: 10, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
                 
@@ -979,7 +986,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.declarant_first_name}
                     onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
                     // required
-                    inputProps={{ tabIndex: 4}}
+                    inputProps={{ tabIndex: 4, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
@@ -1041,11 +1048,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Declarant Middle Name/Initial"
                     value={formData.declarant_middle_initial}
                     onChange={(e) => {
-                      const raw = String(e.target.value || '').toUpperCase().replace(/\./g, '');
+                      const raw = String(e.target.value || '').replace(/\./g, '');
                       // allow up to 255 chars per backend change, but typical use is 1-3 letters
                       handleInputChange('declarant_middle_initial', raw);
                     }}
-                    inputProps={{ maxLength: 255, tabIndex: 5 }}
+                    inputProps={{ maxLength: 255, tabIndex: 5, style: { textTransform: 'uppercase' } }}
                     helperText="Please do not include a dot (.) in the middle initial."
                   />
                 </Grid>
@@ -1069,7 +1076,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     InputLabelProps={{ sx: { color: 'primary.main' } }}
                     value={formData.business_name}
                     onChange={(e) => handleInputChange('business_name', e.target.value)}
-                    inputProps={{ sx: { color: 'primary.main' }, tabIndex: 6 }}
+                    inputProps={{ sx: { color: 'primary.main' }, tabIndex: 6, style: { textTransform: 'uppercase' } }}
                     placeholder="Enter administrator / business name (optional)"
                   />
                 </Grid>
@@ -1162,7 +1169,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="PIN"
                     value={formData.pin}
                     onChange={(e) => handleInputChange('pin', e.target.value)}
-                    inputProps={{ tabIndex: 14 }}
+                    inputProps={{ tabIndex: 14, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
@@ -1172,7 +1179,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Lot Number"
                     value={formData.lot_number}
                     onChange={(e) => handleInputChange('lot_number', e.target.value)}
-                    inputProps={{ tabIndex: 8 }}
+                    inputProps={{ tabIndex: 8, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
@@ -1182,7 +1189,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     label="Unique Lot Number Identified"
                     value={formData.unique_lot_number_identified}
                     onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
-                    inputProps={{ tabIndex: 15 }}
+                    inputProps={{ tabIndex: 15, style: { textTransform: 'uppercase' } }}
                    />
                  </Grid>
                 <Grid item xs={12} md={6}>
@@ -1359,7 +1366,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     value={formData.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     placeholder="Complete address"
-                    inputProps={{ tabIndex: 16 }}
+                    inputProps={{ tabIndex: 16, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
               </Grid>
@@ -1527,7 +1534,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     placeholder="Additional notes or memoranda"
                     multiline
                     rows={3}
-                    inputProps={{ tabIndex: 19 }}
+                    inputProps={{ tabIndex: 19, style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
 
