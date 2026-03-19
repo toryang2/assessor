@@ -166,6 +166,7 @@ class Assessor_Database {
             header_province varchar(255) DEFAULT '',
             header_municipality varchar(255) DEFAULT '',
             header_office varchar(255) DEFAULT '',
+            request_place_issued_default varchar(255) DEFAULT '',
             verifier_signatory_name varchar(255) DEFAULT '',
             verifier_signatory_title varchar(255) DEFAULT '',
             municipal_assessor_name varchar(255) DEFAULT '',
@@ -222,6 +223,22 @@ class Assessor_Database {
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY code (code),
+            KEY status (status),
+            KEY sort_order (sort_order)
+        ) $charset_collate;";
+
+        // Request purposes table (Purpose + Amount Paid)
+        $table_request_purposes = $wpdb->prefix . 'assessor_request_purposes';
+        $sql_request_purposes = "CREATE TABLE $table_request_purposes (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            purpose varchar(150) NOT NULL,
+            amount decimal(10,2) NOT NULL DEFAULT 0.00,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY purpose (purpose),
             KEY status (status),
             KEY sort_order (sort_order)
         ) $charset_collate;";
@@ -283,6 +300,7 @@ class Assessor_Database {
         dbDelta($sql_property_types);
         dbDelta($sql_general_classes);
         dbDelta($sql_locations);
+        dbDelta($sql_request_purposes);
         dbDelta($sql_requests);
         dbDelta($sql_revision_entries);
         
@@ -523,6 +541,53 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'afk_timeout'", $table_settings));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
+        }
+
+        // Migration: Add request_place_issued_default column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'request_place_issued_default'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN request_place_issued_default varchar(255) DEFAULT '' AFTER header_office");
+        }
+
+        // Cleanup: remove legacy purpose fields from settings table (migrated to assessor_request_purposes)
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'request_purposes'", $table_settings));
+        if ($column) {
+            $wpdb->query("ALTER TABLE $table_settings DROP COLUMN request_purposes");
+        }
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'request_purpose_amounts'", $table_settings));
+        if ($column) {
+            $wpdb->query("ALTER TABLE $table_settings DROP COLUMN request_purpose_amounts");
+        }
+
+        // Normalize existing request purposes: spaces -> underscores (skip conflicts)
+        $table_request_purposes = $wpdb->prefix . 'assessor_request_purposes';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_request_purposes));
+        if (!empty($table_exists)) {
+            $rows = $wpdb->get_results("SELECT id, purpose FROM $table_request_purposes WHERE purpose LIKE '% %'", ARRAY_A);
+            if (!empty($rows)) {
+                foreach ($rows as $r) {
+                    $id = intval($r['id']);
+                    $old = isset($r['purpose']) ? (string)$r['purpose'] : '';
+                    $normalized = trim(preg_replace('/\s+/', ' ', $old));
+                    $new = str_replace(' ', '_', $normalized);
+                    if ($new === '' || $new === $old) continue;
+
+                    $conflict = $wpdb->get_var($wpdb->prepare(
+                        "SELECT id FROM $table_request_purposes WHERE LOWER(purpose) = LOWER(%s) AND id != %d LIMIT 1",
+                        $new,
+                        $id
+                    ));
+                    if ($conflict) continue;
+
+                    $wpdb->update(
+                        $table_request_purposes,
+                        array('purpose' => $new),
+                        array('id' => $id),
+                        array('%s'),
+                        array('%d')
+                    );
+                }
+            }
         }
 
         // Migration: Ensure avatar_url exists on users table

@@ -137,6 +137,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const [taxHistoryModal, setTaxHistoryModal] = useState(false);
   const [taxHistory, setTaxHistory] = useState([]);
   const [taxHistoryLoading, setTaxHistoryLoading] = useState(false);
+  const [purposeOptions, setPurposeOptions] = useState([]);
+  const [purposeAmountMap, setPurposeAmountMap] = useState({});
 
   // Safety watchdogs for async UI states within the modal
   useSafetyWatchdog({
@@ -163,14 +165,15 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     enabled: true
   });
 
-  // Purpose options
-  const purposeOptions = [
-    { value: 'record_verification', label: 'Record Verification' }
-    // { value: 'tax_declaration', label: 'Tax Declaration' },
-    // { value: 'property_assessment', label: 'Property Assessment' },
-    // { value: 'certification', label: 'Certification' },
-    // { value: 'other', label: 'Other' }
-  ];
+  const buildPurposeAmountMap = (items) => {
+    const map = {};
+    for (const it of items || []) {
+      if (!it?.value) continue;
+      const n = Number(it?.amount);
+      map[it.value] = !isNaN(n) ? n : 0;
+    }
+    return map;
+  };
 
   // Initialize form with current date and user's name
   useEffect(() => {
@@ -182,7 +185,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         date_issued: today,
         place_issued: '',
         prepared_by: user?.full_name || user?.username || '',
-        purpose: purposeOptions[0]?.value || '',
+        purpose: '',
         client_name: '',
         client_address: '',
         contact_number: '',
@@ -192,6 +195,71 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       setSelectedProperty(property);
     }
   }, [open, user, property]);
+
+  // Load request defaults (purpose list + place issued) from settings
+  useEffect(() => {
+    const loadRequestDefaults = async () => {
+      try {
+        const [settings, purposesRes] = await Promise.all([
+          apiService.getSettings(),
+          apiService.getRequestPurposes()
+        ]);
+        const activeItems = (purposesRes?.items || []).filter(x => x.status === 'active');
+        if (activeItems.length > 0) {
+          const opts = activeItems.map(p => ({
+            value: String(p.purpose || ''),
+            label: String(p.purpose || ''),
+            amount: Number(p.amount) || 0
+          }));
+          setPurposeOptions(opts);
+          const map = buildPurposeAmountMap(opts);
+          setPurposeAmountMap(map);
+
+          setFormData(prev => {
+            const desiredPurpose = prev.purpose || opts[0]?.value || '';
+            const next = {
+              ...prev,
+              purpose: desiredPurpose,
+              place_issued: prev.place_issued || (settings?.request_place_issued_default || '')
+            };
+            if (!isOfficialRequest && desiredPurpose && map[desiredPurpose] !== undefined) {
+              next.amount_paid = Number(map[desiredPurpose]).toFixed(2);
+            }
+            return next;
+          });
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            place_issued: prev.place_issued || (settings?.request_place_issued_default || '')
+          }));
+        }
+      } catch (_) {
+        // ignore; fallback to defaults
+      }
+    };
+
+    if (open) loadRequestDefaults();
+  }, [open]);
+
+  const handlePurposeChange = (event) => {
+    const value = event.target.value;
+    setFormData(prev => {
+      const next = { ...prev, purpose: value };
+      if (!isOfficialRequest && value && purposeAmountMap[value] !== undefined) {
+        const amt = Number(purposeAmountMap[value]);
+        if (!isNaN(amt)) next.amount_paid = amt.toFixed(2);
+      }
+      return next;
+    });
+
+    if (validationErrors.has('purpose')) {
+      setValidationErrors(prev => {
+        const next = new Set(prev);
+        next.delete('purpose');
+        return next;
+      });
+    }
+  };
 
   // Search for properties
   const searchProperties = async (searchTerm) => {
@@ -856,7 +924,11 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                               setIsOfficialRequest(checked);
                               setFormData(prev => ({
                                 ...prev,
-                                amount_paid: checked ? '0.00' : '',
+                                amount_paid: checked
+                                  ? '0.00'
+                                  : (prev.purpose && purposeAmountMap[prev.purpose] !== undefined
+                                      ? Number(purposeAmountMap[prev.purpose]).toFixed(2)
+                                      : ''),
                                 receipt_number: checked ? 'Official Use' : ''
                               }));
 
@@ -936,13 +1008,20 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
-                          label="Place Issued *"
+                          label="Place Issued"
                           value={formData.place_issued}
                           onChange={handleChange('place_issued')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          InputProps={{ readOnly: true, style: isSmallScreen ? { fontSize: '0.9rem' } : undefined }}
+                          inputProps={{ tabIndex: -1 }}
+                          variant="outlined"
+                          // inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('place_issued')}
                           size={isSmallScreen ? 'small' : 'medium'}
                           margin={isSmallScreen ? 'dense' : 'normal'}
+                          sx={{
+                            pointerEvents: 'none',
+                            '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }
+                          }}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -950,7 +1029,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           <InputLabel>Purpose *</InputLabel>
                           <Select
                             value={formData.purpose}
-                            onChange={handleChange('purpose')}
+                            onChange={handlePurposeChange}
                             label="Purpose *">
                             {purposeOptions.map((option) => (
                               <MenuItem key={option.value} value={option.value}>
@@ -963,7 +1042,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
-                          label="Prepared By *"
+                          label="Prepared By"
                           value={formData.prepared_by}
                           onChange={handleChange('prepared_by')}
                           InputProps={{ readOnly: true, style: isSmallScreen ? { fontSize: '0.9rem' } : undefined }}

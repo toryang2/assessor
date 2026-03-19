@@ -22,6 +22,7 @@ class Assessor_Settings {
 				'header_province' => 'BUKIDNON',
 				'header_municipality' => 'KITAOTAO',
 				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
+				'request_place_issued_default' => '',
 				'verifier_signatory_name' => '',
 				'verifier_signatory_title' => '',
 				'municipal_assessor_name' => '',
@@ -47,7 +48,7 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','header_office','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$integer_keys = array('afk_timeout');
 		$data = array();
@@ -419,6 +420,86 @@ class Assessor_Settings {
 			return new WP_Error('invalid_id', 'Valid ID is required', array('status' => 400));
 		}
 
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		return array('success' => true);
+	}
+
+	// Request purposes (Purpose + Amount Paid)
+	public function get_request_purposes() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_request_purposes';
+		$rows = $wpdb->get_results("SELECT id, purpose, amount, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, purpose ASC", ARRAY_A);
+		return array('items' => $rows);
+	}
+
+	public function save_request_purpose($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+
+		$purpose = isset($params['purpose']) ? sanitize_text_field($params['purpose']) : '';
+		// Normalize: store with underscores; convert spaces to underscores for consistency
+		$purpose = trim(preg_replace('/\s+/', ' ', $purpose));
+		$purpose = str_replace(' ', '_', $purpose);
+		$amount = isset($params['amount']) ? $params['amount'] : 0;
+		$status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
+		$sort_order = isset($params['sort_order']) ? intval($params['sort_order']) : 0;
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+
+		if ($purpose === '') {
+			return new WP_Error('invalid_input', 'Purpose is required', array('status' => 400));
+		}
+		if (!is_numeric($amount)) {
+			return new WP_Error('invalid_input', 'Amount must be numeric', array('status' => 400));
+		}
+		$amount = round((float)$amount, 2);
+		if ($amount < 0) {
+			return new WP_Error('invalid_input', 'Amount cannot be negative', array('status' => 400));
+		}
+		if (!in_array($status, array('active','disabled'), true)) {
+			$status = 'active';
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_request_purposes';
+
+		// Prevent duplicates (case-insensitive)
+		$existing = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(purpose) = LOWER(%s) LIMIT 1", $purpose), ARRAY_A);
+		if ($existing && intval($existing['id']) !== $id) {
+			return new WP_Error('duplicate_purpose', 'Purpose already exists', array('status' => 400, 'code' => 'duplicate_purpose'));
+		}
+
+		$data = array(
+			'purpose' => $purpose,
+			'amount' => $amount,
+			'status' => $status,
+			'sort_order' => $sort_order,
+			'updated_at' => current_time('mysql')
+		);
+
+		if ($id > 0) {
+			$wpdb->update($table, $data, array('id' => $id), array('%s','%f','%s','%d','%s'), array('%d'));
+		} else {
+			$data['created_at'] = current_time('mysql');
+			$wpdb->insert($table, $data, array('%s','%f','%s','%d','%s','%s'));
+		}
+
+		return $this->get_request_purposes();
+	}
+
+	public function delete_request_purpose($request) {
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_request_purposes';
 		$wpdb->delete($table, array('id' => $id), array('%d'));
 		return array('success' => true);
 	}

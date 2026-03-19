@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Assessor History Archiving API
  * Description: REST API for Assessor History Archiving System
- * Version: 1.0.9
+ * Version: 1.1.0
  * Author: toryang2
  * Author URI: https://github.com/toryang2
  * Text Domain: assessor-api

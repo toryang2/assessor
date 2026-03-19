@@ -276,6 +276,23 @@ class Assessor_API {
             'callback' => array($this, 'delete_revision_entry'),
             'permission_callback' => array($this, 'check_auth')
         ));
+
+        // Request purposes routes (Purpose + Amount Paid)
+        register_rest_route('assessor/v1', '/settings/request-purposes', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_request_purposes'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/request-purposes', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_request_purpose'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/request-purposes/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_request_purpose'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         error_log('🔍 Assessor API: Settings routes registered');
         
         // Audit trail routes
@@ -619,6 +636,21 @@ class Assessor_API {
     public function delete_revision_entry($request) {
         $settings = new Assessor_Settings();
         return $settings->delete_revision_entry($request);
+    }
+
+    public function get_request_purposes($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_request_purposes();
+    }
+
+    public function save_request_purpose($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_request_purpose($request);
+    }
+
+    public function delete_request_purpose($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_request_purpose($request);
     }
     
     public function get_audit_trail($request) {

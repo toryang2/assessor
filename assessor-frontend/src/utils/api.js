@@ -85,6 +85,8 @@ export const endpoints = {
   generalClasses: '/settings/general-classes',
   locations: '/settings/locations',
   revisionEntries: '/settings/revision-entries',
+  requestPurposes: '/settings/request-purposes',
+  requestPurposesDelete: '/settings/request-purposes/delete',
   
   // Export
   export: '/export',
@@ -258,6 +260,30 @@ export const apiService = {
   getPropertyTypes: async () => {
     try {
       const response = await api.get(endpoints.propertyTypes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getRequestPurposes: async () => {
+    try {
+      const response = await api.get(endpoints.requestPurposes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  saveRequestPurpose: async (payload) => {
+    try {
+      const response = await api.post(endpoints.requestPurposes, payload);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  deleteRequestPurpose: async (id) => {
+    try {
+      const response = await api.post(endpoints.requestPurposesDelete, { id });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

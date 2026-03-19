@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab } from '@mui/material';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,6 +17,7 @@ const DEFAULTS = {
   header_province: 'BUKIDNON',
   header_municipality: 'KITAOTAO',
   header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR',
+  request_place_issued_default: '',
   verifier_signatory_name: '',
   verifier_signatory_title: '',
   municipal_assessor_name: '',
@@ -38,6 +43,11 @@ const Settings = () => {
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
   const [revisionEntries, setRevisionEntries] = useState([]);
   const [newRevisionEntry, setNewRevisionEntry] = useState({ revision_year: '', from_year: '', to_year: '' });
+  const [requestPurposes, setRequestPurposes] = useState([]);
+  const [newRequestPurpose, setNewRequestPurpose] = useState({ purpose: '', amount: '0.00' });
+  const [editingRequestPurposeId, setEditingRequestPurposeId] = useState(null);
+  const [editRequestPurposeDraft, setEditRequestPurposeDraft] = useState({ purpose: '', amount: '0.00' });
+  const [deletePurposeDialog, setDeletePurposeDialog] = useState({ open: false, row: null });
   const [pendingLogoFile, setPendingLogoFile] = useState(null);
   const [pendingLogoPreview, setPendingLogoPreview] = useState('');
   const [pendingHeaderPhotoFile, setPendingHeaderPhotoFile] = useState(null);
@@ -45,6 +55,54 @@ const Settings = () => {
   const [dragging, setDragging] = useState({ key: null, from: -1 });
   const [activeTab, setActiveTab] = useState(0);
   const [initialLoad, setInitialLoad] = useState(true);
+
+  // Keyboard shortcuts while editing a request purpose row
+  useEffect(() => {
+    if (!editingRequestPurposeId) return;
+
+    const onKeyDown = (e) => {
+      // Don't interfere with delete confirmation dialog
+      if (deletePurposeDialog?.open) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelEditRequestPurpose();
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        // Allow multiline/modified enters to behave normally
+        if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+        e.preventDefault();
+        const row = (requestPurposes || []).find(r => r.id === editingRequestPurposeId);
+        if (row) saveEditRequestPurpose(row);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [editingRequestPurposeId, requestPurposes, deletePurposeDialog?.open, editRequestPurposeDraft]);
+
+  // Keyboard shortcuts for delete confirmation dialog
+  useEffect(() => {
+    if (!deletePurposeDialog?.open) return;
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDeleteRequestPurpose();
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+        e.preventDefault();
+        doDeleteRequestPurpose();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [deletePurposeDialog?.open, deletePurposeDialog?.row]);
 
   useEffect(() => {
     const load = async () => {
@@ -56,6 +114,7 @@ const Settings = () => {
           header_province: data.header_province || DEFAULTS.header_province,
           header_municipality: data.header_municipality || DEFAULTS.header_municipality,
           header_office: data.header_office || DEFAULTS.header_office,
+          request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
           verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
           verifier_signatory_title: data.verifier_signatory_title || DEFAULTS.verifier_signatory_title,
           municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
@@ -74,6 +133,9 @@ const Settings = () => {
         setGeneralClasses(classesRes?.items || []);
         setLocations(locationsRes?.items || []);
         setRevisionEntries(revisionEntriesRes?.items || []);
+
+        const requestPurposesRes = await apiService.getRequestPurposes();
+        setRequestPurposes(requestPurposesRes?.items || []);
       } catch (e) {
         // fallback to defaults silently
       }
@@ -104,6 +166,7 @@ const Settings = () => {
         header_province: data.header_province || DEFAULTS.header_province,
         header_municipality: data.header_municipality || DEFAULTS.header_municipality,
         header_office: data.header_office || DEFAULTS.header_office,
+        request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
         verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
         verifier_signatory_title: data.verifier_signatory_title || DEFAULTS.verifier_signatory_title,
         municipal_assessor_name: data.municipal_assessor_name || DEFAULTS.municipal_assessor_name,
@@ -122,6 +185,9 @@ const Settings = () => {
       setGeneralClasses(classesRes?.items || []);
       setLocations(locationsRes?.items || []);
       setRevisionEntries(revisionEntriesRes?.items || []);
+
+      const requestPurposesRes = await apiService.getRequestPurposes();
+      setRequestPurposes(requestPurposesRes?.items || []);
     } catch (e) {
       // fallback to defaults silently
     }
@@ -191,6 +257,7 @@ const Settings = () => {
         header_province: form.header_province,
         header_municipality: form.header_municipality,
         header_office: form.header_office,
+        request_place_issued_default: form.request_place_issued_default,
         verifier_signatory_name: form.verifier_signatory_name,
         verifier_signatory_title: form.verifier_signatory_title,
         municipal_assessor_name: form.municipal_assessor_name,
@@ -268,6 +335,10 @@ const Settings = () => {
         const next = reorder(revisionEntries);
         setRevisionEntries(next);
         await Promise.all(next.map((item, idx) => apiService.saveRevisionEntry({ id: item.id, revision_year: item.revision_year, from_year: item.from_year, to_year: item.to_year, status: item.status, sort_order: idx + 1 })));
+      } else if (key === 'requestPurposes') {
+        const next = reorder(requestPurposes);
+        setRequestPurposes(next);
+        await Promise.all(next.map((item, idx) => apiService.saveRequestPurpose({ id: item.id, purpose: item.purpose, amount: item.amount, status: item.status, sort_order: idx + 1 })));
       }
     } finally {
       setDragging({ key: null, from: -1 });
@@ -361,6 +432,100 @@ const Settings = () => {
       }
     } catch (err) {
       setToast({ open: true, message: 'Failed to save revision entry.', severity: 'error' });
+    }
+  };
+
+  const addRequestPurpose = async () => {
+    if (!newRequestPurpose.purpose?.trim()) {
+      setToast({ open: true, message: 'Purpose is required.', severity: 'error' });
+      return;
+    }
+    const n = Number(newRequestPurpose.amount);
+    if (newRequestPurpose.amount === '' || isNaN(n) || n < 0) {
+      setToast({ open: true, message: 'Amount must be a valid number (0 or higher).', severity: 'error' });
+      return;
+    }
+    try {
+      const res = await apiService.saveRequestPurpose({
+        purpose: newRequestPurpose.purpose.trim().replace(/\s+/g, '_'),
+        amount: n,
+        status: 'active',
+        sort_order: (requestPurposes?.length || 0) + 1
+      });
+      setRequestPurposes(res?.items || []);
+      setNewRequestPurpose({ purpose: '', amount: '0.00' });
+      setToast({ open: true, message: 'Request purpose saved.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: err?.message || 'Failed to save request purpose.', severity: 'error' });
+    }
+  };
+
+  const beginEditRequestPurpose = (row) => {
+    setEditingRequestPurposeId(row.id);
+    setEditRequestPurposeDraft({
+      purpose: row.purpose ?? '',
+      amount: (() => {
+        const n = Number(row.amount);
+        return isNaN(n) ? '0.00' : n.toFixed(2);
+      })()
+    });
+  };
+
+  const cancelEditRequestPurpose = () => {
+    setEditingRequestPurposeId(null);
+    setEditRequestPurposeDraft({ purpose: '', amount: '0.00' });
+  };
+
+  const saveEditRequestPurpose = async (row) => {
+    const purpose = String(editRequestPurposeDraft.purpose || '').trim().replace(/\s+/g, '_');
+    const amountNum = Number(editRequestPurposeDraft.amount);
+
+    if (!purpose) {
+      setToast({ open: true, message: 'Purpose is required.', severity: 'error' });
+      return;
+    }
+    if (editRequestPurposeDraft.amount === '' || isNaN(amountNum) || amountNum < 0) {
+      setToast({ open: true, message: 'Amount must be a valid number (0 or higher).', severity: 'error' });
+      return;
+    }
+
+    try {
+      const res = await apiService.saveRequestPurpose({
+        id: row.id,
+        purpose,
+        amount: amountNum,
+        status: row.status,
+        sort_order: row.sort_order || 0
+      });
+      setRequestPurposes(res?.items || []);
+      setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
+      cancelEditRequestPurpose();
+    } catch (err) {
+      setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
+    }
+  };
+
+  const confirmDeleteRequestPurpose = (row) => {
+    setDeletePurposeDialog({ open: true, row });
+  };
+
+  const closeDeleteRequestPurpose = () => {
+    // Keep row data until dialog finishes closing to avoid UI flicker ("—")
+    setDeletePurposeDialog(prev => ({ ...prev, open: false }));
+  };
+
+  const doDeleteRequestPurpose = async () => {
+    const row = deletePurposeDialog.row;
+    if (!row?.id) return closeDeleteRequestPurpose();
+    try {
+      await apiService.deleteRequestPurpose(row.id);
+      const res = await apiService.getRequestPurposes();
+      setRequestPurposes(res?.items || []);
+      setToast({ open: true, message: 'Request purpose deleted.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: err?.message || 'Failed to delete request purpose.', severity: 'error' });
+    } finally {
+      closeDeleteRequestPurpose();
     }
   };
 
@@ -837,15 +1002,269 @@ const Settings = () => {
     </Grid>
   );
 
+  const renderRequestPaymentInfos = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} md={6} lg={5}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Request Payment Infos</Typography>
+        <TextField
+          fullWidth
+          size="small"
+          label="Default Place Issued"
+          value={form.request_place_issued_default || ''}
+          onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
+          helperText="This will be used as the default value for 'Place Issued' in the Request Form."
+          sx={{ mb: 2 }}
+        />
+        <Divider sx={{ mb: 2 }} />
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>Purposes & Amounts</Typography>
+        <Grid container spacing={1} alignItems="flex-start">
+          <Grid item xs={12} sm={7}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Purpose"
+              value={newRequestPurpose.purpose}
+              onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={5}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Amount"
+              type="number"
+              value={newRequestPurpose.amount}
+              onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, amount: e.target.value }))}
+              inputProps={{ min: 0, step: 0.01 }}
+              onBlur={() => {
+                const n = Number(newRequestPurpose.amount);
+                if (!isNaN(n) && n >= 0) {
+                  setNewRequestPurpose(prev => ({ ...prev, amount: n.toFixed(2) }));
+                }
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button fullWidth variant="outlined" onClick={addRequestPurpose}>Add</Button>
+          </Grid>
+        </Grid>
+      </Grid>
+      <Grid item xs={12} md={6} lg={7}>
+        <Typography variant="h6" sx={{ mb: 2, opacity: 0 }}>.</Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 40 }} />
+                <TableCell>Purpose</TableCell>
+                <TableCell sx={{ width: 160 }}>Amount</TableCell>
+                <TableCell sx={{ width: 170 }}>Status</TableCell>
+                <TableCell sx={{ width: 120 }} align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(requestPurposes || []).map((p, index) => {
+                const isEditing = editingRequestPurposeId === p.id;
+                return (
+                  <TableRow
+                    key={p.id}
+                    hover
+                    draggable={!isEditing}
+                    onDragStart={() => handleDragStart('requestPurposes', index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDrop('requestPurposes', index)}
+                    sx={{ '& td': { verticalAlign: 'middle' } }}
+                  >
+                    <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary' }} title={isEditing ? '' : 'Drag to reorder'}>
+                      <DragIndicatorIcon fontSize="small" />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                      {isEditing ? (
+                        <TextField
+                          size="small"
+                          value={editRequestPurposeDraft.purpose}
+                          onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              saveEditRequestPurpose(p);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              cancelEditRequestPurpose();
+                            }
+                          }}
+                          fullWidth
+                        />
+                      ) : (
+                        p.purpose
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={editRequestPurposeDraft.amount}
+                          onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, amount: e.target.value }))}
+                          inputProps={{ min: 0, step: 0.01 }}
+                          onBlur={() => {
+                            const n = Number(editRequestPurposeDraft.amount);
+                            if (!isNaN(n) && n >= 0) {
+                              setEditRequestPurposeDraft(prev => ({ ...prev, amount: n.toFixed(2) }));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              saveEditRequestPurpose(p);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              cancelEditRequestPurpose();
+                            }
+                          }}
+                          sx={{ width: 140 }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {(() => {
+                            const n = Number(p.amount);
+                            return isNaN(n) ? String(p.amount ?? '') : n.toFixed(2);
+                          })()}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <FormControlLabel
+                        sx={{ m: 0 }}
+                        control={
+                          <Switch
+                            size="small"
+                            checked={p.status === 'active'}
+                            disabled={isEditing}
+                            onChange={async (e) => {
+                              try {
+                                const res = await apiService.saveRequestPurpose({
+                                  id: p.id,
+                                  purpose: p.purpose,
+                                  amount: Number(p.amount) || 0,
+                                  status: e.target.checked ? 'active' : 'disabled',
+                                  sort_order: p.sort_order || 0
+                                });
+                                setRequestPurposes(res?.items || []);
+                                setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
+                              } catch (err) {
+                                setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
+                              }
+                            }}
+                          />
+                        }
+                        label={p.status === 'active' ? 'Active' : 'Disabled'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      {!isEditing ? (
+                        <>
+                          <IconButton aria-label="edit" onClick={() => beginEditRequestPurpose(p)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton aria-label="delete" onClick={async () => {
+                            confirmDeleteRequestPurpose(p);
+                          }}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </>
+                      ) : (
+                        <>
+                          <IconButton aria-label="save" onClick={() => saveEditRequestPurpose(p)}>
+                            <CheckIcon />
+                          </IconButton>
+                          <IconButton aria-label="cancel" onClick={cancelEditRequestPurpose}>
+                            <CloseIcon />
+                          </IconButton>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Grid>
+      <Grid item xs={12} textAlign="right">
+        <Button variant="contained" onClick={handleSave}>Save</Button>
+      </Grid>
+    </Grid>
+  );
+
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <Dialog
+        open={deletePurposeDialog.open}
+        onClose={closeDeleteRequestPurpose}
+        TransitionProps={{
+          onExited: () => setDeletePurposeDialog({ open: false, row: null })
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          Delete
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, bgcolor: 'warning.50' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.dark' }}>
+              This action cannot be undone.
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Tip: disable the purpose instead if you don’t want to lose it.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 1, columnGap: 2 }}>
+            <Typography variant="body2" color="text.secondary">Purpose</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
+              {deletePurposeDialog.row?.purpose || '—'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">Amount</Typography>
+            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {(() => {
+                const n = Number(deletePurposeDialog.row?.amount);
+                return isNaN(n) ? '—' : n.toFixed(2);
+              })()}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteRequestPurpose} variant="outlined">
+            Cancel
+          </Button>
+          <Button onClick={doDeleteRequestPurpose} variant="contained" color="error" autoFocus>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Snackbar
         open={toast.open}
-        autoHideDuration={3000}
+        autoHideDuration={toast.severity === 'error' ? 7000 : toast.severity === 'warning' ? 6000 : 3500}
         onClose={() => setToast(prev => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
+        <Alert
+          onClose={() => setToast(prev => ({ ...prev, open: false }))}
+          severity={toast.severity}
+          sx={{
+            width: '100%',
+            alignItems: 'flex-start',
+            '& .MuiAlert-message': {
+              width: '100%',
+              overflowWrap: 'anywhere',
+              maxHeight: '60vh',
+              overflowY: 'auto'
+            }
+          }}
+        >
           {toast.message}
         </Alert>
       </Snackbar>
@@ -856,12 +1275,14 @@ const Settings = () => {
             <Tab label="General Settings" />
             <Tab label="Data Management" />
             <Tab label="Revision Settings" />
+            <Tab label="Request Payment Info" />
           </Tabs>
         </Box>
         <CardContent>
           {activeTab === 0 && renderGeneralSettings()}
           {activeTab === 1 && renderDataManagement()}
           {activeTab === 2 && renderRevisionSettings()}
+          {activeTab === 3 && renderRequestPaymentInfos()}
         </CardContent>
       </Card>
     </Box>
