@@ -554,40 +554,93 @@ export const handleApiError = (error) => {
     const { status, data } = error.response;
     
     if (data && data.message) {
-      return new Error(data.message);
+      const e = new Error(data.message);
+      e.status = status;
+      e.data = data;
+      return e;
     }
     
     switch (status) {
       case 400:
         // Check for specific error types
         if (data && data.code === 'duplicate_tax_number') {
-          return new Error('Tax Declaration Number already exists. Please use a different number.');
+          const e = new Error('Tax Declaration Number already exists. Please use a different number.');
+          e.status = status;
+          e.data = data;
+          return e;
         }
         if (data && data.code === 'duplicate_receipt') {
-          return new Error('This receipt number already exists. Please use a different receipt number.');
+          const e = new Error('This receipt number already exists. Please use a different receipt number.');
+          e.status = status;
+          e.data = data;
+          return e;
         }
         if (data && data.code === 'missing_field') {
-          return new Error(`Required field missing: ${data.message}`);
+          const e = new Error(`Required field missing: ${data.message}`);
+          e.status = status;
+          e.data = data;
+          return e;
         }
         if (data && data.code === 'invalid_amount') {
-          return new Error('Amount must be a positive number.');
+          const e = new Error('Amount must be a positive number.');
+          e.status = status;
+          e.data = data;
+          return e;
         }
         if (data && data.code === 'invalid_date') {
-          return new Error('Please enter a valid date.');
+          const e = new Error('Please enter a valid date.');
+          e.status = status;
+          e.data = data;
+          return e;
         }
-        return new Error('Bad request. Please check your input.');
+        {
+          const e = new Error('Bad request. Please check your input.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       case 401:
-        return new Error('Unauthorized. Please log in again.');
+        {
+          const e = new Error('Unauthorized. Please log in again.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       case 403:
-        return new Error('Access denied. You do not have permission for this action.');
+        {
+          const e = new Error('Access denied. You do not have permission for this action.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       case 404:
-        return new Error('Resource not found.');
+        {
+          const e = new Error('Resource not found.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       case 422:
-        return new Error('Validation error. Please check your input.');
+        {
+          const e = new Error('Validation error. Please check your input.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       case 500:
-        return new Error('Server error. Please try again later.');
+        {
+          const e = new Error('Server error. Please try again later.');
+          e.status = status;
+          e.data = data;
+          return e;
+        }
       default:
-        return new Error(`Request failed with status ${status}`);
+        {
+          const e = new Error(`Request failed with status ${status}`);
+          e.status = status;
+          e.data = data;
+          return e;
+        }
     }
   } else if (error.request) {
     // Request was made but no response received

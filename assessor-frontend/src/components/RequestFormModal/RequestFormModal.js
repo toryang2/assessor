@@ -3,6 +3,8 @@ import {
   Box,
   TextField,
   Grid,
+  Checkbox,
+  FormControlLabel,
   FormControl,
   InputLabel,
   Select,
@@ -123,6 +125,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     contact_number: '',
     remarks: ''
   });
+  const [isOfficialRequest, setIsOfficialRequest] = useState(false);
 
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
@@ -185,6 +188,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         contact_number: '',
         remarks: ''
       });
+      setIsOfficialRequest(false);
       setSelectedProperty(property);
     }
   }, [open, user, property]);
@@ -307,14 +311,16 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errorFields.add('property_selection');
     }
 
-    if (!formData.amount_paid || parseFloat(formData.amount_paid) <= 0) {
-      missingFields.push('Amount Paid');
-      errorFields.add('amount_paid');
-    }
+    if (!isOfficialRequest) {
+      if (!formData.amount_paid || parseFloat(formData.amount_paid) <= 0) {
+        missingFields.push('Amount Paid');
+        errorFields.add('amount_paid');
+      }
 
-    if (!formData.receipt_number?.trim()) {
-      missingFields.push('Receipt Number');
-      errorFields.add('receipt_number');
+      if (!formData.receipt_number?.trim()) {
+        missingFields.push('Receipt Number');
+        errorFields.add('receipt_number');
+      }
     }
 
     if (!formData.date_issued) {
@@ -367,19 +373,25 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
     setLoading(true);
     try {
+      // Send "0.00" (string) for official requests to avoid server-side
+      // required checks that treat numeric 0 as empty (e.g., PHP empty()).
+      const finalAmountPaid = isOfficialRequest ? '0.00' : parseFloat(formData.amount_paid);
+      const finalReceiptNumber = isOfficialRequest ? 'Official Use' : uppercaseFieldValue('receipt_number', formData.receipt_number);
+
       // Prepare the data for saving with uppercase applied to appropriate fields
       const requestData = {
         client_name: uppercaseFieldValue('client_name', formData.client_name),
         client_address: uppercaseFieldValue('client_address', formData.client_address),
         contact_number: uppercaseFieldValue('contact_number', formData.contact_number),
         remarks: uppercaseFieldValue('remarks', formData.remarks),
-        receipt_number: uppercaseFieldValue('receipt_number', formData.receipt_number),
+        receipt_number: finalReceiptNumber,
         place_issued: uppercaseFieldValue('place_issued', formData.place_issued),
-        prepared_by: uppercaseFieldValue('prepared_by', formData.prepared_by),
+        prepared_by: formData.prepared_by,
         purpose: formData.purpose,
         date_issued: formData.date_issued,
         property_id: selectedProperty?.id,
-        amount_paid: parseFloat(formData.amount_paid),
+        amount_paid: finalAmountPaid,
+        is_official_request: isOfficialRequest ? 1 : 0,
         created_at: new Date().toISOString()
       };
 
@@ -416,9 +428,45 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
     } catch (error) {
       console.error('Error saving request form:', error);
+      const extractErrorMessages = (err) => {
+        const data = err?.response?.data || err?.data;
+
+        // Prefer structured backend errors if present
+        if (data) {
+          if (Array.isArray(data.errors)) {
+            return data.errors.filter(Boolean).map(String);
+          }
+          if (data.errors && typeof data.errors === 'object') {
+            const out = [];
+            for (const v of Object.values(data.errors)) {
+              if (Array.isArray(v)) out.push(...v);
+              else if (v) out.push(v);
+            }
+            if (out.length) return out.filter(Boolean).map(String);
+          }
+          if (Array.isArray(data.message)) {
+            return data.message.filter(Boolean).map(String);
+          }
+          if (typeof data.message === 'string' && data.message.trim()) {
+            return [data.message.trim()];
+          }
+        }
+
+        if (typeof err?.message === 'string' && err.message.trim()) {
+          // Support newline-delimited messages as bullets
+          if (err.message.includes('\n')) {
+            return err.message.split('\n').map(s => s.trim()).filter(Boolean);
+          }
+          return [err.message.trim()];
+        }
+
+        return ['Error saving request form'];
+      };
+
+      const messages = extractErrorMessages(error);
       setToast({
         open: true,
-        message: error.response?.data?.message || 'Error saving request form',
+        message: messages.length > 1 ? messages : messages[0],
         severity: 'error'
       });
     } finally {
@@ -477,6 +525,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       contact_number: '',
       remarks: ''
     });
+    setIsOfficialRequest(false);
     setValidationErrors(new Set());
     setSelectedProperty(null);
     setPropertySearchTerm('');
@@ -768,15 +817,63 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Grid item xs={12}>
                 <Card variant="outlined">
                   <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1,
-                      color: 'primary.main' 
-                    }}>
-                      <Payment />
-                      Payment Information
-                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                        mb: 0.5
+                      }}
+                    >
+                      <Typography
+                        variant="h6"
+                        gutterBottom={false}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          color: 'primary.main'
+                        }}
+                      >
+                        <Payment />
+                        Payment Information
+                      </Typography>
+
+                      <FormControlLabel
+                        sx={{
+                          m: 0,
+                          '& .MuiFormControlLabel-label': {
+                            fontSize: isSmallScreen ? '0.8rem' : '0.9rem'
+                          }
+                        }}
+                        control={(
+                          <Checkbox
+                            size={isSmallScreen ? 'small' : 'medium'}
+                            checked={isOfficialRequest}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setIsOfficialRequest(checked);
+                              setFormData(prev => ({
+                                ...prev,
+                                amount_paid: checked ? '0.00' : '',
+                                receipt_number: checked ? 'Official Use' : ''
+                              }));
+
+                              if (checked) {
+                                setValidationErrors(prev => {
+                                  const next = new Set(prev);
+                                  next.delete('amount_paid');
+                                  next.delete('receipt_number');
+                                  return next;
+                                });
+                              }
+                            }}
+                          />
+                        )}
+                        label="Official Request"
+                      />
+                    </Box>
                     <Divider sx={{ mb: 2 }} />
                     
                     <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
@@ -787,6 +884,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           type="number"
                           value={formData.amount_paid}
                           onChange={handleChange('amount_paid')}
+                          disabled={isOfficialRequest}
                           InputProps={{
                             startAdornment: <InputAdornment position="start">₱</InputAdornment>,
                           }}
@@ -794,6 +892,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           error={validationErrors.has('amount_paid')}
                           placeholder="0.00"
                           onBlur={() => {
+                            if (isOfficialRequest) return;
                             const v = formData.amount_paid;
                             if (v === '' || v === null || v === undefined) return;
                             const n = Number(v);
@@ -816,6 +915,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           onChange={handleChange('receipt_number')}
                           inputProps={{style: { textTransform: 'uppercase' }}}
                           error={validationErrors.has('receipt_number')}
+                          disabled={isOfficialRequest}
                           size={isSmallScreen ? 'small' : 'medium'}
                           margin={isSmallScreen ? 'dense' : 'normal'}
                         />
@@ -1115,9 +1215,28 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         <Alert
           onClose={() => setToast(prev => ({ ...prev, open: false }))}
           severity={toast.severity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            alignItems: 'flex-start',
+            '& .MuiAlert-message': {
+              width: '100%',
+              overflowWrap: 'anywhere',
+              maxHeight: '60vh',
+              overflowY: 'auto'
+            }
+          }}
         >
-          {toast.message}
+          {Array.isArray(toast.message) ? (
+            <Box component="ul" sx={{ m: 0, pl: 2 }}>
+              {toast.message.map((m, idx) => (
+                <Box component="li" key={idx} sx={{ mb: 0.25 }}>
+                  {m}
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            toast.message
+          )}
         </Alert>
       </Snackbar>
     </>

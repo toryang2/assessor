@@ -22,6 +22,7 @@ class Assessor_Requests {
             property_id bigint(20) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
+            is_official_request tinyint(1) NOT NULL DEFAULT 0,
             date_issued date NOT NULL,
             place_issued varchar(255) NOT NULL,
             prepared_by varchar(255) NOT NULL,
@@ -88,17 +89,25 @@ class Assessor_Requests {
         );
         
         $data = wp_parse_args($data, $defaults);
+
+        // Official requests: bypass payment requirements
+        $is_official_request = !empty($data['is_official_request']) && in_array($data['is_official_request'], array(1, '1', true, 'true', 'yes', 'on'), true);
+        if ($is_official_request) {
+            $data['amount_paid'] = 0.00;
+            $data['receipt_number'] = 'Official Use';
+        }
         
         // Validate required fields
         $required_fields = array('amount_paid', 'receipt_number', 'date_issued', 'place_issued', 'prepared_by', 'purpose', 'client_name');
         foreach ($required_fields as $field) {
-            if (empty($data[$field])) {
+            // Don't treat numeric 0 as missing; allow official requests to use 0.00
+            if (!isset($data[$field]) || $data[$field] === '' || $data[$field] === null) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400, 'code' => 'missing_field'));
             }
         }
         
         // Validate amount
-        if (!is_numeric($data['amount_paid']) || $data['amount_paid'] <= 0) {
+        if (!is_numeric($data['amount_paid']) || ($is_official_request ? ($data['amount_paid'] < 0) : ($data['amount_paid'] <= 0))) {
             return new WP_Error('invalid_amount', 'Amount paid must be a positive number', array('status' => 400, 'code' => 'invalid_amount'));
         }
         
@@ -108,13 +117,15 @@ class Assessor_Requests {
         }
         
         // Check if receipt number already exists
-        $existing = $this->db->get_var($this->db->prepare(
-            "SELECT id FROM {$this->table_name} WHERE receipt_number = %s",
-            $data['receipt_number']
-        ));
-        
-        if ($existing) {
-            return new WP_Error('duplicate_receipt', 'Receipt number already exists', array('status' => 400, 'code' => 'duplicate_receipt'));
+        if (!$is_official_request) {
+            $existing = $this->db->get_var($this->db->prepare(
+                "SELECT id FROM {$this->table_name} WHERE receipt_number = %s",
+                $data['receipt_number']
+            ));
+            
+            if ($existing) {
+                return new WP_Error('duplicate_receipt', 'Receipt number already exists', array('status' => 400, 'code' => 'duplicate_receipt'));
+            }
         }
         
         $insert_data = array(
@@ -130,6 +141,7 @@ class Assessor_Requests {
             'contact_number' => sanitize_text_field($data['contact_number']),
             'email' => sanitize_email($data['email']),
             'remarks' => sanitize_textarea_field($data['remarks']),
+            'is_official_request' => $is_official_request ? 1 : 0,
             'created_by' => $data['created_by'],
             'updated_by' => $data['updated_by'],
             'created_at' => $data['created_at'],
@@ -149,6 +161,7 @@ class Assessor_Requests {
             '%s', // contact_number
             '%s', // email
             '%s', // remarks
+            '%d', // is_official_request
             '%d', // created_by
             '%d', // updated_by
             '%s', // created_at
