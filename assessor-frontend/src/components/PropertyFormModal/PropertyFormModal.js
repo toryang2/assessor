@@ -58,7 +58,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     business_name: '',
     location: '',
     lot_number: '',
-    unique_lot_number_identified: '',
+    survey_number: '',
     area_hectare: '',
     area_sqm: '',
     area_unit: 'hectares',
@@ -274,7 +274,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         business_name: property.business_name || '',
         location: property.location || '',
         lot_number: property.lot_number || '',
-        unique_lot_number_identified: property.unique_lot_number_identified || '',
+        survey_number: property.survey_number || property.unique_lot_number_identified || '',
         area_hectare: (() => {
           const v = property.area_hectare;
           const n = Number(v);
@@ -365,7 +365,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
          business_name: '',
          location: '',
          lot_number: '',
-         unique_lot_number_identified: '',
+         survey_number: '',
          area_hectare: '',
          area_sqm: '',
          area_unit: 'hectares',
@@ -607,7 +607,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       'business_name',
       'location',
       'lot_number',
-      'unique_lot_number_identified',
+      'survey_number',
       'title_number',
       'pin',
       'address',
@@ -727,7 +727,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         business_name: uppercaseFieldValue('business_name', formData.business_name),
         location: uppercaseFieldValue('location', formData.location),
         lot_number: uppercaseFieldValue('lot_number', formData.lot_number),
-        unique_lot_number_identified: uppercaseFieldValue('unique_lot_number_identified', formData.unique_lot_number_identified),
+        survey_number: uppercaseFieldValue('survey_number', formData.survey_number),
+        unique_lot_number_identified: uppercaseFieldValue('survey_number', formData.survey_number),
         area_hectare: formData.area_unit === 'hectares'
           ? (formData.area_hectare === '' ? '' : Number(formData.area_hectare))
           : '',
@@ -881,7 +882,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       fullWidth
       PaperProps={{
         sx: {
-          maxHeight: '95vh',
+          maxHeight: '90vh',
           width: isSmallScreen ? '85vw' : '96vw',
           maxWidth: 'none'
         }
@@ -1089,9 +1090,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
                 <Grid item xs={12} md={3}>
                   <TextField
-                    label="Unique Lot Number Identified"
-                    value={formData.unique_lot_number_identified}
-                    onChange={(e) => handleInputChange('unique_lot_number_identified', e.target.value)}
+                    label="Survey Number"
+                    value={formData.survey_number}
+                    onChange={(e) => handleInputChange('survey_number', e.target.value)}
                     inputProps={{ style: { textTransform: 'uppercase' } }}
                    />
                  </Grid>
@@ -1547,8 +1548,8 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           </Card>
 
           {/* Supporting Documents */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
+          <Card sx={{ mb: 1 }}>
+            <CardContent sx={{ pb: 0, '&:last-child': { pb: 0 } }}>
               <Typography variant="h6" gutterBottom>
                 Supporting Documents
               </Typography>
@@ -1561,7 +1562,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     onChange={(e) => handleInputChange('memoranda', e.target.value)}
                     placeholder="Additional notes or memoranda"
                     multiline
-                    rows={10}
+                    rows={9}
                     inputProps={{ style: { textTransform: 'uppercase' } }}
                     sx={{
                       '& .MuiInputBase-multiline': {
@@ -1621,9 +1622,9 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         sx={{
                           mt: 0.5,
                           ml: 0,
-                          height: 100,
-                          minHeight: 100,
-                          maxHeight: 100,
+                          height: 80,
+                          minHeight: 80,
+                          maxHeight: 80,
                           overflowY: 'auto',
                           overflowX: 'hidden',
                           pr: 0.5

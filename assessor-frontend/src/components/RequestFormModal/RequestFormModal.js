@@ -453,7 +453,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         contact_number: uppercaseFieldValue('contact_number', formData.contact_number),
         remarks: uppercaseFieldValue('remarks', formData.remarks),
         receipt_number: finalReceiptNumber,
-        place_issued: uppercaseFieldValue('place_issued', formData.place_issued),
+        place_issued: formData.place_issued,
         prepared_by: formData.prepared_by,
         purpose: formData.purpose,
         date_issued: formData.date_issued,
@@ -1137,6 +1137,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     <col style={{ width: '15%' }} />
                     <col style={{ width: '12%' }} />
                     <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '11%' }} />
@@ -1149,6 +1150,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       <TableCell><strong>Declarant</strong></TableCell>
                       <TableCell><strong>Barangay</strong></TableCell>
                       <TableCell><strong>Lot Number</strong></TableCell>
+                      <TableCell><strong>Survey Number</strong></TableCell>
                       <TableCell><strong>Area (hectare)</strong></TableCell>
                       <TableCell><strong>Title Number</strong></TableCell>
                       <TableCell><strong>Assessed Value</strong></TableCell>
@@ -1199,6 +1201,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         </TableCell>
                         <TableCell>{item.location || '—'}</TableCell>
                         <TableCell>{item.lot_number || '—'}</TableCell>
+                        <TableCell>{item.survey_number || '—'}</TableCell>
                         <TableCell>
                           {(() => {
                             const haRaw = item.area_hectare;

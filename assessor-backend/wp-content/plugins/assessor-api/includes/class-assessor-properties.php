@@ -547,6 +547,13 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $normalized_previous_tdn = $this->normalize_previous_tax_declaration_numbers(isset($params['previous_tax_declaration_number']) ? $params['previous_tax_declaration_number'] : '');
 
         // Insert property
+        $survey_number = '';
+        if (isset($params['survey_number'])) {
+            $survey_number = sanitize_text_field($params['survey_number']);
+        } else if (isset($params['unique_lot_number_identified'])) {
+            $survey_number = sanitize_text_field($params['unique_lot_number_identified']);
+        }
+
         $result = $wpdb->insert(
             $table_properties,
             array(
@@ -558,7 +565,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'business' => sanitize_text_field($params['business_name']),
                 'location' => sanitize_textarea_field($params['location']),
                 'lot_number' => sanitize_text_field($params['lot_number']),
-                'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified']),
+                'unique_lot_number_identified' => sanitize_text_field($params['unique_lot_number_identified'] ?? ''),
+                'survey_number' => $survey_number,
                 'area_hectare' => isset($params['area_hectare']) && $params['area_hectare'] !== '' ? floatval($params['area_hectare']) : null,
                 'area_hectare_old' => sanitize_text_field($params['area_hectare_old'] ?? ''),
                 'area_sqm' => isset($params['area_sqm']) && $params['area_sqm'] !== '' ? floatval($params['area_sqm']) : null,
@@ -587,7 +595,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'created_at' => isset($params['created_at']) ? $params['created_at'] : date('Y-m-d H:i:s'),
                 'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
         );
         
         if ($result === false) {
@@ -633,6 +641,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'location' => $created->location,
                 'lot_number' => $created->lot_number,
                 'unique_lot_number_identified' => $created->unique_lot_number_identified,
+                'survey_number' => isset($created->survey_number) ? $created->survey_number : $created->unique_lot_number_identified,
                 'area_hectare' => $created->area_hectare,
                 'area_hectare_old' => $created->area_hectare_old,
                 'area_sqm' => isset($created->area_sqm) ? $created->area_sqm : null,
@@ -692,6 +701,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'location',
             'lot_number',
             'unique_lot_number_identified',
+            'survey_number',
             'area_hectare',
             'area_hectare_old',
             'area_sqm',
@@ -808,7 +818,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         $allowed_fields = array(
             'tax_declaration_number', 'previous_tax_declaration_number', 'declarant_last_name', 'declarant_first_name', 
-            'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified',
+            'declarant_middle_initial', 'business', 'location', 'lot_number', 'unique_lot_number_identified', 'survey_number',
             'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number', 'assessed_value', 'assessed_value_old', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
             'supporting_documents', 'supporting_documents_old', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
@@ -934,6 +944,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'location' => $property->location,
             'lot_number' => $property->lot_number,
             'unique_lot_number_identified' => $property->unique_lot_number_identified,
+            'survey_number' => isset($property->survey_number) ? $property->survey_number : $property->unique_lot_number_identified,
             'area_hectare' => $property->area_hectare,
             'area_hectare_old' => $property->area_hectare_old,
             'title_number' => $property->title_number,
@@ -1050,7 +1061,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                         p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
-                        p.location, p.lot_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
+                        p.location, p.lot_number, p.unique_lot_number_identified, p.survey_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
                         p.assessed_value, p.assessed_value_old, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at, p.updated_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
@@ -1092,6 +1103,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'business_name' => $business_name,
                 'location' => $property->location,
                 'lot_number' => $property->lot_number,
+                'unique_lot_number_identified' => isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : '',
+                'survey_number' => isset($property->survey_number) && $property->survey_number !== '' ? $property->survey_number : (isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : ''),
                 'area_hectare' => $property->area_hectare,
                 'area_hectare_old' => $property->area_hectare_old,
                 'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
@@ -1196,6 +1209,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'location' => $property_data->location,
                 'lot_number' => $property_data->lot_number,
                 'unique_lot_number_identified' => $property_data->unique_lot_number_identified,
+                'survey_number' => isset($property_data->survey_number) ? $property_data->survey_number : $property_data->unique_lot_number_identified,
                 'area_hectare' => $property_data->area_hectare,
                 'area_hectare_old' => $property_data->area_hectare_old,
                 'area_sqm' => isset($property_data->area_sqm) ? $property_data->area_sqm : null,
@@ -1220,7 +1234,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
     

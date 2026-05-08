@@ -118,6 +118,7 @@ class Assessor_Versions {
                 'location' => $property_data->location,
                 'lot_number' => $property_data->lot_number,
                 'unique_lot_number_identified' => $property_data->unique_lot_number_identified,
+                'survey_number' => isset($property_data->survey_number) ? $property_data->survey_number : $property_data->unique_lot_number_identified,
                 'area_hectare' => $property_data->area_hectare,
                 'title_number' => $property_data->title_number,
                 'assessed_value' => $property_data->assessed_value,
@@ -134,7 +135,7 @@ class Assessor_Versions {
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
         );
     }
 }

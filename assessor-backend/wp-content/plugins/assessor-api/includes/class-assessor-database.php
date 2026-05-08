@@ -39,6 +39,7 @@ class Assessor_Database {
             location text NOT NULL,
             lot_number varchar(100),
             unique_lot_number_identified varchar(100),
+            survey_number varchar(100),
             area_hectare decimal(10,4),
             area_hectare_old varchar(255),
             area_sqm decimal(15,2),
@@ -89,6 +90,7 @@ class Assessor_Database {
             location text NOT NULL,
             lot_number varchar(100),
             unique_lot_number_identified varchar(100),
+            survey_number varchar(100),
             area_hectare decimal(10,4),
             area_hectare_old varchar(255),
             area_sqm decimal(15,2),
@@ -501,6 +503,11 @@ class Assessor_Database {
         
         // Migration: Add area_hectare_old column to properties table
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'survey_number'", $table_properties));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_properties ADD COLUMN survey_number varchar(100) DEFAULT NULL AFTER unique_lot_number_identified");
+        }
+
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'area_hectare_old'", $table_properties));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_properties ADD COLUMN area_hectare_old varchar(255) DEFAULT NULL AFTER area_hectare");
@@ -508,10 +515,19 @@ class Assessor_Database {
         
         // Migration: Add area_hectare_old column to property_versions table
         $table_versions = $wpdb->prefix . 'assessor_property_versions';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'survey_number'", $table_versions));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_versions ADD COLUMN survey_number varchar(100) DEFAULT NULL AFTER unique_lot_number_identified");
+        }
+
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'area_hectare_old'", $table_versions));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_versions ADD COLUMN area_hectare_old varchar(255) DEFAULT NULL AFTER area_hectare");
         }
+
+        // Migration: seed survey_number from unique_lot_number_identified for existing rows
+        $wpdb->query("UPDATE $table_properties SET survey_number = unique_lot_number_identified WHERE (survey_number IS NULL OR survey_number = '') AND unique_lot_number_identified IS NOT NULL AND unique_lot_number_identified != ''");
+        $wpdb->query("UPDATE $table_versions SET survey_number = unique_lot_number_identified WHERE (survey_number IS NULL OR survey_number = '') AND unique_lot_number_identified IS NOT NULL AND unique_lot_number_identified != ''");
 
         // Migration: Add supporting_documents_old column to properties table
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'supporting_documents_old'", $table_properties));

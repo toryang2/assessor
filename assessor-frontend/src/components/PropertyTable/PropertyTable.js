@@ -290,6 +290,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '32%' }} />
@@ -299,6 +300,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
@@ -336,6 +338,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 return d && b ? `${d} / ${b}` : (d || b || '');
               })()}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                 const haRaw = item.area_hectare;
                 const sqmRaw = item.area_sqm;
@@ -1561,6 +1564,7 @@ const PropertyTable = () => {
                 <TableCell sx={{ width: 150 }}>Declarant</TableCell>
                 <TableCell sx={{ width: 80 }}>Barangay</TableCell>
                 <TableCell sx={{ width: 80 }}>Lot Number</TableCell>
+                <TableCell sx={{ width: 80 }}>Survey Number</TableCell>
                 <TableCell sx={{ width: 80 }}>Area (hectare)</TableCell>
                 <TableCell sx={{ width: 80 }}>Title Number</TableCell>
                 <TableCell sx={{ width: 120 }}>Assessed Value</TableCell>
@@ -1603,6 +1607,7 @@ const PropertyTable = () => {
                   </TableCell>
                   <TableCell>{property.location || '—'}</TableCell>
                   <TableCell>{property.lot_number || '—'}</TableCell>
+                  <TableCell>{property.survey_number || '—'}</TableCell>
                   <TableCell>{(() => {
                     const haRaw = property.area_hectare;
                     const sqmRaw = property.area_sqm;
@@ -2067,6 +2072,7 @@ const PropertyTable = () => {
                     <TableCell>Declarant</TableCell>
                     <TableCell>Barangay</TableCell>
                     <TableCell>Lot Number</TableCell>
+                    <TableCell>Survey Number</TableCell>
                     <TableCell>Area (hectare)</TableCell>
                     <TableCell>Title Number</TableCell>
                     <TableCell>Assessed Value</TableCell>
@@ -2118,6 +2124,7 @@ const PropertyTable = () => {
                       })()}</TableCell>
                       <TableCell>{item.location || '—'}</TableCell>
                       <TableCell>{item.lot_number || '—'}</TableCell>
+                      <TableCell>{item.survey_number || '—'}</TableCell>
                       <TableCell>{(() => {
                         const haRaw = item.area_hectare;
                         const sqmRaw = item.area_sqm;
