@@ -957,11 +957,20 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           )}
 
           {/* Tax Declaration Information */}
-          <Box sx={{ mb: 0 }}>
+          <Box sx={{ mb: 0, ml: 2 }}>
             <Typography variant="h6" gutterBottom>
               Tax Declaration Information
             </Typography>
-            <Grid container spacing={isSmallScreen ? 1 : 2}>
+            <Grid
+                container
+                spacing={isSmallScreen ? 1 : 2}
+                sx={{
+                  '& > .MuiGrid-item': {
+                    flexBasis: { md: '19.8%' },
+                    maxWidth: { md: '19.8%' }
+                  }
+                }}
+              >
               <Grid item xs={12} md={3}>
                 <TextField
                   label="Tax Declaration Number"
@@ -1009,7 +1018,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                 container
                 spacing={isSmallScreen ? 1 : 2}
                 sx={{
-                  '& > .MuiGrid-item': {
+                  '& > .MuiGrid-item:not(.full-width-row)': {
                     flexBasis: { md: '20%' },
                     maxWidth: { md: '20%' }
                   }
@@ -1045,7 +1054,6 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       handleInputChange('declarant_middle_initial', raw);
                     }}
                     inputProps={{ maxLength: 255, style: { textTransform: 'uppercase' } }}
-                    helperText="Please do not include a dot (.) in the middle initial."
                   />
                 </Grid>
 
@@ -1400,17 +1408,13 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     </Select>
                   </FormControl>
                 </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Kind of Property */}
-          <Card sx={{ mb: 1.5 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Kind of Property
-              </Typography>
-              <Grid container spacing={isSmallScreen ? 1.5 : 2}>
+                
+                <Grid item xs={12} className="full-width-row">
+                  <Typography variant="h6" gutterBottom>
+                    Kind of Property
+                  </Typography>
+                </Grid>
+              
                 <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
                   <FormControl 
                     fullWidth 
@@ -1547,14 +1551,38 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
             </CardContent>
           </Card>
 
+          {/* Kind of Property */}
+          {/* <Card sx={{ mb: 1.5 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Kind of Property
+              </Typography>
+              <Grid
+                container
+                spacing={isSmallScreen ? 1.5 : 2}
+                sx={{
+                  '& > .MuiGrid-item': {
+                    flexBasis: { md: '20%' },
+                    maxWidth: { md: '20%' }
+                  }
+                }}
+              >
+                
+              </Grid>
+            </CardContent>
+          </Card> */}
+
           {/* Supporting Documents */}
           <Card sx={{ mb: 1 }}>
             <CardContent sx={{ pb: 0, '&:last-child': { pb: 0 } }}>
               <Typography variant="h6" gutterBottom>
                 Supporting Documents
               </Typography>
-              <Grid container spacing={isSmallScreen ? 1.5 : 2}>
-                <Grid item xs={12} md={8}>
+              <Grid
+                container
+                spacing={isSmallScreen ? 1.5 : 2}
+              >
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Memoranda"
@@ -1562,7 +1590,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                     onChange={(e) => handleInputChange('memoranda', e.target.value)}
                     placeholder="Additional notes or memoranda"
                     multiline
-                    rows={9}
+                    rows={7}
                     inputProps={{ style: { textTransform: 'uppercase' } }}
                     sx={{
                       '& .MuiInputBase-multiline': {
@@ -1575,7 +1603,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12}>
                   <input
                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                     style={{ display: 'none' }}
