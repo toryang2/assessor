@@ -39,7 +39,7 @@ class Assessor_Settings {
 			$settings['municipal_assessor_license'] = (string) $settings['municipal_assessor_license'];
 			error_log('🔍 SETTINGS: After string cast = ' . var_export($settings['municipal_assessor_license'], true));
 		}
-		return $settings;
+		return Assessor_Public_API::append_public_api_settings($settings);
 	}
 
 	public function save_settings($request) {

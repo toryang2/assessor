@@ -176,6 +176,7 @@ class Assessor_Database {
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
             afk_timeout int DEFAULT 30,
+            public_api_enabled tinyint(1) NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
@@ -289,6 +290,30 @@ class Assessor_Database {
             KEY status (status),
             KEY sort_order (sort_order)
         ) $charset_collate;";
+
+        $table_api_keys = $wpdb->prefix . 'assessor_api_keys';
+        $sql_api_keys = "CREATE TABLE $table_api_keys (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            name varchar(150) NOT NULL,
+            api_scope varchar(80) NOT NULL DEFAULT 'public_properties',
+            api_key varchar(80) NOT NULL,
+            secret_hash varchar(255) NOT NULL,
+            secret_encrypted text NULL,
+            key_hash varchar(255) NOT NULL DEFAULT '',
+            key_prefix varchar(30) NOT NULL DEFAULT '',
+            status varchar(20) NOT NULL DEFAULT 'active',
+            created_by mediumint(9) DEFAULT NULL,
+            last_used_at datetime NULL,
+            last_used_ip varchar(45) DEFAULT '',
+            revoked_at datetime NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY api_key (api_key),
+            KEY api_scope (api_scope),
+            KEY status (status),
+            KEY created_by (created_by),
+            KEY created_at (created_at)
+        ) $charset_collate;";
         
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -305,6 +330,7 @@ class Assessor_Database {
         dbDelta($sql_request_purposes);
         dbDelta($sql_requests);
         dbDelta($sql_revision_entries);
+        dbDelta($sql_api_keys);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();
@@ -559,6 +585,12 @@ class Assessor_Database {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN afk_timeout int DEFAULT 30 AFTER municipal_assessor_license");
         }
 
+        // Migration: Public API master switch on settings row
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'public_api_enabled'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN public_api_enabled tinyint(1) NOT NULL DEFAULT 0");
+        }
+
         // Migration: Add request_place_issued_default column to settings table
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'request_place_issued_default'", $table_settings));
         if (!$column) {
@@ -604,6 +636,50 @@ class Assessor_Database {
                     );
                 }
             }
+        }
+
+        $table_api_keys = $wpdb->prefix . 'assessor_api_keys';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_api_keys));
+        if (!$table_exists) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql_api_keys = "CREATE TABLE $table_api_keys (
+                id bigint(20) NOT NULL AUTO_INCREMENT,
+                name varchar(150) NOT NULL,
+                api_scope varchar(80) NOT NULL DEFAULT 'public_properties',
+                api_key varchar(80) NOT NULL,
+                secret_hash varchar(255) NOT NULL,
+                secret_encrypted text NULL,
+                key_hash varchar(255) NOT NULL DEFAULT '',
+                key_prefix varchar(30) NOT NULL DEFAULT '',
+                status varchar(20) NOT NULL DEFAULT 'active',
+                created_by mediumint(9) DEFAULT NULL,
+                last_used_at datetime NULL,
+                last_used_ip varchar(45) DEFAULT '',
+                revoked_at datetime NULL,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY api_key (api_key),
+                KEY api_scope (api_scope),
+                KEY status (status),
+                KEY created_by (created_by),
+                KEY created_at (created_at)
+            ) $charset_collate;";
+            $wpdb->query($sql_api_keys);
+        }
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'api_key'", $table_api_keys));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_api_keys ADD COLUMN api_key varchar(80) NOT NULL DEFAULT '' AFTER api_scope");
+        }
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'secret_hash'", $table_api_keys));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_api_keys ADD COLUMN secret_hash varchar(255) NOT NULL DEFAULT '' AFTER api_key");
+        }
+        $wpdb->query("UPDATE $table_api_keys SET api_key = key_prefix WHERE (api_key IS NULL OR api_key = '') AND key_prefix != ''");
+        $wpdb->query("UPDATE $table_api_keys SET secret_hash = key_hash WHERE (secret_hash IS NULL OR secret_hash = '') AND key_hash != ''");
+        $wpdb->query("UPDATE $table_api_keys SET status = 'disabled' WHERE status = 'revoked'");
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'secret_encrypted'", $table_api_keys));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_api_keys ADD COLUMN secret_encrypted text NULL AFTER secret_hash");
         }
 
         // Migration: Ensure avatar_url exists on users table

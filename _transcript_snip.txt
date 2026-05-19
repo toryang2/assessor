@@ -1,0 +1,75 @@
+<?php
+/**
+ * Plugin Name: Assessor Messenger Bot
+ * Description: Facebook Messenger webhook for public property search (uses Assessor Public API).
+ * Version: 1.0.0
+ * Author: Assessor
+ * Requires Plugins: assessor-api
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+define('ASSESSOR_MESSENGER_DIR', plugin_dir_path(__FILE__));
+define('ASSESSOR_MESSENGER_VERSION', '1.0.0');
+
+require_once ASSESSOR_MESSENGER_DIR . 'includes/class-messenger-config.php';
+require_once ASSESSOR_MESSENGER_DIR . 'includes/class-messenger-handler.php';
+require_once ASSESSOR_MESSENGER_DIR . 'includes/class-messenger-webhook.php';
+
+function assessor_messenger_bot_init() {
+    Assessor_Messenger_Webhook::init();
+}
+add_action('plugins_loaded', 'assessor_messenger_bot_init');
+
+register_activation_hook(__FILE__, function () {
+    flush_rewrite_rules();
+});
+
+register_deactivation_hook(__FILE__, function () {
+    flush_rewrite_rules();
+});
+
+add_action('admin_menu', function () {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    add_options_page(
+        'Messenger Bot',
+        'Messenger Bot',
+        'manage_options',
+        'assessor-messenger-bot',
+        'assessor_messenger_render_admin_page'
+    );
+});
+
+function assessor_messenger_render_admin_page() {
+    $config = Assessor_Messenger_Config::load();
+    $webhook = Assessor_Messenger_Webhook::get_webhook_url();
+    ?>
+    <motion.div class="wrap">
+        <h1>Assessor Facebook Messenger Bot</h1>
+        <p>Use this webhook URL in Meta Developer Console (Messenger → Configuration).</p>
+        <table class="form-table">
+            <tr>
+                <th>Webhook URL</th>
+                <td><code><?php echo esc_html($webhook); ?></code></td>
+            </tr>
+            <tr>
+                <th>API base (from .env)</th>
+                <td><code><?php echo esc_html($config['api_url']); ?></code></td>
+            </tr>
+            <tr>
+                <th>Verify token set</th>
+                <td><?php echo !empty($config['verify_token']) ? 'Yes' : '<span style="color:red">No — set FB_VERIFY_TOKEN in .env</span>'; ?></td>
+            </tr>
+            <tr>
+                <th>Page token set</th>
+                <td><?php echo !empty($config['page_access_token']) ? 'Yes' : '<span style="color:red">No — set FB_PAGE_ACCESS_TOKEN in .env</span>'; ?></td>
+            </tr>
+        </table>
+        <p>Edit <code><?php echo esc_html(ASSESSOR_MESSENGER_DIR . '.env'); ?></code></p>
+    </div>
+    <?php
+}

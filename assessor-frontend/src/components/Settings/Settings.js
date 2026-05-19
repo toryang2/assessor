@@ -1,15 +1,196 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
+
+const DEFAULT_API_SECRET_LENGTH = 48;
+
+const maskApiSecret = (length) => '•'.repeat(length || DEFAULT_API_SECRET_LENGTH);
+
+/** Decode one_time_credential from create-key API (avoids WAF stripping "secret" fields). */
+const decodeOneTimeCredential = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return '';
+  try {
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    return atob(normalized);
+  } catch {
+    return '';
+  }
+};
+
+const readHeaderCredential = (headers, name) => {
+  if (!headers || typeof headers !== 'object') return '';
+  const value = headers[name] ?? headers[name.toLowerCase()];
+  return decodeOneTimeCredential(value);
+};
+
+/** Split create-key payload on real or literal newlines (production hosts vary). */
+const splitCredentialLines = (raw) => {
+  if (raw == null) return [];
+  return String(raw)
+    .replace(/<[^>]*>/g, '')
+    .split(/\\n|\r\n|\n|\r/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+};
+
+/** Parse plain-text create-key body (key + secret + id). */
+const parsePlainCredentialText = (raw) => {
+  const parts = splitCredentialLines(raw);
+  if (parts.length >= 2 && parts[0].startsWith('assessor_')) {
+    return {
+      id: parts[2] != null ? parseInt(parts[2], 10) : undefined,
+      api_key: parts[0],
+      api_secret: parts[1],
+    };
+  }
+  return null;
+};
+
+/** Ensure key and secret are separate (handles combined blob in one field). */
+const normalizeCredentialPair = (apiKey, apiSecret) => {
+  const keyStr = apiKey != null ? String(apiKey) : '';
+  const secretStr = apiSecret != null ? String(apiSecret) : '';
+
+  if (secretStr && keyStr.startsWith('assessor_') && !keyStr.includes('\n') && !keyStr.includes('\\n')) {
+    return { apiKey: keyStr, apiSecret: secretStr };
+  }
+
+  const parsed = parsePlainCredentialText(keyStr) || parsePlainCredentialText(`${keyStr}\n${secretStr}`);
+  if (parsed) {
+    return { apiKey: parsed.api_key, apiSecret: secretStr || parsed.api_secret };
+  }
+
+  const parts = splitCredentialLines(keyStr);
+  if (parts.length >= 2 && parts[0].startsWith('assessor_')) {
+    return {
+      apiKey: parts[0],
+      apiSecret: secretStr || parts[1],
+    };
+  }
+
+  return { apiKey: keyStr, apiSecret: secretStr };
+};
+
+/** Normalize POST /settings/public-api-keys create response (shape varies by deploy). */
+const extractCreatedApiCredentials = (res, items, fallbackName) => {
+  if (typeof res === 'string') {
+    const plain = parsePlainCredentialText(res);
+    if (plain) {
+      return {
+        id: plain.id ?? null,
+        ...normalizeCredentialPair(plain.api_key, plain.api_secret),
+        name: fallbackName,
+      };
+    }
+  }
+
+  const headers = (res && typeof res === 'object' && res.headers) ? res.headers : {};
+  const headerKey = readHeaderCredential(headers, 'x-assessor-one-time-key');
+  const headerSecret = readHeaderCredential(headers, 'x-assessor-one-time-credential');
+  const headerId = headers['x-assessor-key-id'] ?? headers['X-Assessor-Key-Id'];
+
+  const raw = res && typeof res === 'object' ? res : {};
+  let payload;
+  if (typeof raw.data === 'string') {
+    payload = parsePlainCredentialText(raw.data) || {};
+  } else if (raw.data && typeof raw.data === 'object') {
+    payload = raw.data;
+  } else {
+    payload = {};
+  }
+  const nested = payload.item && typeof payload.item === 'object' ? payload.item : payload;
+  const creds = payload.credentials && typeof payload.credentials === 'object' ? payload.credentials : null;
+  const sorted = [...(items || [])].sort((a, b) => Number(b.id) - Number(a.id));
+  const id = payload.id ?? nested.id ?? creds?.id ?? (headerId != null ? parseInt(headerId, 10) : null) ?? null;
+  const fromList = id != null
+    ? sorted.find((k) => String(k.id) === String(id))
+    : sorted[0];
+
+  let apiKey =
+    headerKey ||
+    payload.api_key ||
+    payload.apiKey ||
+    payload.plain_key ||
+    nested.api_key ||
+    nested.apiKey ||
+    creds?.key ||
+    fromList?.api_key ||
+    '';
+  let apiSecret =
+    headerSecret ||
+    payload.api_secret ||
+    payload.apiSecret ||
+    payload.plain_secret ||
+    nested.api_secret ||
+    nested.apiSecret ||
+    payload.secret ||
+    nested.secret ||
+    creds?.token ||
+    decodeOneTimeCredential(payload.one_time_credential) ||
+    '';
+
+  const normalized = normalizeCredentialPair(apiKey, apiSecret);
+  const name = payload.name || nested.name || fromList?.name || fallbackName;
+
+  return { id, apiKey: normalized.apiKey, apiSecret: normalized.apiSecret, name };
+};
+
+const apiKeyNameCellHoverSx = {
+  '& .api-key-name-hover-action': {
+    opacity: 0,
+    transition: 'opacity 0.15s ease',
+  },
+  '&:hover .api-key-name-hover-action': {
+    opacity: 1,
+  },
+};
+
+const apiKeyValueCellHoverSx = {
+  '& .api-key-value-hover-action': {
+    opacity: 0,
+    transition: 'opacity 0.15s ease',
+  },
+  '&:hover .api-key-value-hover-action': {
+    opacity: 1,
+  },
+};
+
+const apiKeySecretCellHoverSx = {
+  '& .api-key-secret-hover-action': {
+    opacity: 0,
+    transition: 'opacity 0.15s ease',
+  },
+  '&:hover .api-key-secret-hover-action': {
+    opacity: 1,
+  },
+};
+
+const apiKeySecretTextSx = (charCount) => ({
+  fontFamily: 'monospace',
+  fontSize: '0.8rem',
+  width: `${charCount}ch`,
+  maxWidth: '100%',
+  minWidth: `${charCount}ch`,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  display: 'inline-block',
+  verticalAlign: 'middle',
+  lineHeight: 1.5,
+});
 
 const DEFAULTS = {
   app_logo_url: '',
@@ -55,6 +236,37 @@ const Settings = () => {
   const [dragging, setDragging] = useState({ key: null, from: -1 });
   const [activeTab, setActiveTab] = useState(0);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [publicApiKeys, setPublicApiKeys] = useState([]);
+  const [newPublicApiKeyName, setNewPublicApiKeyName] = useState('');
+  const [publicApiBusy, setPublicApiBusy] = useState(false);
+  const [newKeyDialog, setNewKeyDialog] = useState({
+    open: false,
+    apiKey: '',
+    apiSecret: '',
+    name: '',
+    dialogKey: 0,
+    secretMissing: false,
+  });
+  const [revealedApiSecrets, setRevealedApiSecrets] = useState({});
+  const [revealSecretDialog, setRevealSecretDialog] = useState({
+    open: false,
+    keyId: null,
+    keyName: '',
+    password: '',
+    loading: false,
+    error: '',
+  });
+  const [editingApiKeyId, setEditingApiKeyId] = useState(null);
+  const [editApiKeyNameDraft, setEditApiKeyNameDraft] = useState('');
+  const [deleteApiKeyDialog, setDeleteApiKeyDialog] = useState({ open: false, row: null });
+  const [apiKeyMenuAnchor, setApiKeyMenuAnchor] = useState({ el: null, row: null });
+  const [apiKeyDateSort, setApiKeyDateSort] = useState('desc');
+  const revealPasswordInputRef = useRef(null);
+
+  const newKeyDialogCreds = useMemo(
+    () => normalizeCredentialPair(newKeyDialog.apiKey, newKeyDialog.apiSecret),
+    [newKeyDialog.apiKey, newKeyDialog.apiSecret]
+  );
 
   // Keyboard shortcuts while editing a request purpose row
   useEffect(() => {
@@ -136,6 +348,9 @@ const Settings = () => {
 
         const requestPurposesRes = await apiService.getRequestPurposes();
         setRequestPurposes(requestPurposesRes?.items || []);
+
+        const keysRes = await apiService.getPublicApiKeys();
+        setPublicApiKeys(keysRes?.items || []);
       } catch (e) {
         // fallback to defaults silently
       }
@@ -188,10 +403,31 @@ const Settings = () => {
 
       const requestPurposesRes = await apiService.getRequestPurposes();
       setRequestPurposes(requestPurposesRes?.items || []);
+
+      const keysRes = await apiService.getPublicApiKeys();
+      setPublicApiKeys(keysRes?.items || []);
     } catch (e) {
       // fallback to defaults silently
     }
   };
+
+  const formatApiKeyDate = (value) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const sortedPublicApiKeys = useMemo(() => {
+    const items = [...(publicApiKeys || [])];
+    items.sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (ta === tb) return 0;
+      return apiKeyDateSort === 'asc' ? ta - tb : tb - ta;
+    });
+    return items;
+  }, [publicApiKeys, apiKeyDateSort]);
 
   if (!canManage) {
     return (
@@ -532,6 +768,498 @@ const Settings = () => {
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
+
+  const closeNewKeyDialog = () => {
+    setNewKeyDialog({
+      open: false,
+      apiKey: '',
+      apiSecret: '',
+      name: '',
+      dialogKey: 0,
+      secretMissing: false,
+    });
+  };
+
+  const handleApiKeyDateSort = () => {
+    setApiKeyDateSort((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast({ open: true, message: 'Copied to clipboard.', severity: 'success' });
+    } catch (e) {
+      setToast({ open: true, message: 'Failed to copy.', severity: 'error' });
+    }
+  };
+
+  const openRevealSecretDialog = (key) => {
+    setRevealSecretDialog({
+      open: true,
+      keyId: key.id,
+      keyName: key.name || '',
+      password: '',
+      loading: false,
+      error: '',
+    });
+  };
+
+  const closeRevealSecretDialog = () => {
+    setRevealSecretDialog({
+      open: false,
+      keyId: null,
+      keyName: '',
+      password: '',
+      loading: false,
+      error: '',
+    });
+  };
+
+  const hideRevealedApiSecret = (keyId) => {
+    setRevealedApiSecrets((prev) => {
+      const next = { ...prev };
+      delete next[keyId];
+      return next;
+    });
+  };
+
+  const handleApiSecretVisibility = (key) => {
+    if (revealedApiSecrets[key.id]) {
+      hideRevealedApiSecret(key.id);
+      return;
+    }
+    openRevealSecretDialog(key);
+  };
+
+  const submitRevealSecret = async () => {
+    const { keyId, password } = revealSecretDialog;
+    if (!keyId || !password.trim()) {
+      setRevealSecretDialog((prev) => ({ ...prev, error: 'Enter your account password.' }));
+      return;
+    }
+    setRevealSecretDialog((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const res = await apiService.revealPublicApiSecret(keyId, password);
+      const secret = res.api_secret || '';
+      if (secret) {
+        setRevealedApiSecrets((prev) => ({ ...prev, [keyId]: secret }));
+      }
+      closeRevealSecretDialog();
+    } catch (err) {
+      setRevealSecretDialog((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Could not reveal API secret.',
+      }));
+    }
+  };
+
+  const togglePublicApiKeyStatus = async (row, enabled) => {
+    setPublicApiBusy(true);
+    try {
+      await apiService.updatePublicApiKey(row.id, { enabled });
+      const keysRes = await apiService.getPublicApiKeys();
+      setPublicApiKeys(keysRes?.items || []);
+      setToast({
+        open: true,
+        message: enabled ? 'API key enabled.' : 'API key disabled.',
+        severity: 'success',
+      });
+    } catch (err) {
+      setToast({
+        open: true,
+        message: err.message || 'Failed to update API key status.',
+        severity: 'error',
+      });
+    } finally {
+      setPublicApiBusy(false);
+    }
+  };
+
+  const getApiSecretCharCount = (key, revealedSecret) => {
+    if (revealedSecret) return revealedSecret.length;
+    return key.api_secret_length || DEFAULT_API_SECRET_LENGTH;
+  };
+
+  const startEditApiKeyName = (key) => {
+    setEditingApiKeyId(key.id);
+    setEditApiKeyNameDraft(key.name || '');
+  };
+
+  const cancelEditApiKeyName = () => {
+    setEditingApiKeyId(null);
+    setEditApiKeyNameDraft('');
+  };
+
+  const saveEditApiKeyName = async (key) => {
+    const name = (editApiKeyNameDraft || '').trim();
+    if (!name) {
+      setToast({ open: true, message: 'Key name cannot be empty.', severity: 'error' });
+      return;
+    }
+    setPublicApiBusy(true);
+    try {
+      await apiService.updatePublicApiKey(key.id, { name });
+      const keysRes = await apiService.getPublicApiKeys();
+      setPublicApiKeys(keysRes?.items || []);
+      cancelEditApiKeyName();
+      setToast({ open: true, message: 'Key name updated.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: err.message || 'Failed to update key name.', severity: 'error' });
+    } finally {
+      setPublicApiBusy(false);
+    }
+  };
+
+  const openApiKeyMenu = (event, row) => {
+    setApiKeyMenuAnchor({ el: event.currentTarget, row });
+  };
+
+  const closeApiKeyMenu = () => {
+    setApiKeyMenuAnchor({ el: null, row: null });
+  };
+
+  const confirmDeleteApiKey = (row) => {
+    closeApiKeyMenu();
+    setDeleteApiKeyDialog({ open: true, row });
+  };
+
+  const closeDeleteApiKeyDialog = () => {
+    setDeleteApiKeyDialog((prev) => ({ ...prev, open: false }));
+  };
+
+  const doDeleteApiKey = async () => {
+    const row = deleteApiKeyDialog.row;
+    if (!row?.id) {
+      closeDeleteApiKeyDialog();
+      return;
+    }
+    setPublicApiBusy(true);
+    try {
+      await apiService.revokePublicApiKey(row.id);
+      const keysRes = await apiService.getPublicApiKeys();
+      setPublicApiKeys(keysRes?.items || []);
+      setRevealedApiSecrets((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      setToast({ open: true, message: 'API key deleted.', severity: 'success' });
+    } catch (err) {
+      setToast({ open: true, message: err.message || 'Failed to delete API key.', severity: 'error' });
+    } finally {
+      setPublicApiBusy(false);
+      setDeleteApiKeyDialog({ open: false, row: null });
+    }
+  };
+
+  const createPublicApiKey = async () => {
+    setPublicApiBusy(true);
+    try {
+      const label = (newPublicApiKeyName || '').trim() || 'Public Website Key';
+      const res = await apiService.generatePublicApiKey({
+        name: label,
+        api_scope: 'public_properties',
+      });
+      const keysRes = await apiService.getPublicApiKeys();
+      const items = keysRes?.items || [];
+      setPublicApiKeys(items);
+      setNewPublicApiKeyName('');
+      const extracted = extractCreatedApiCredentials(res, items, label);
+      const { apiKey, apiSecret } = normalizeCredentialPair(extracted.apiKey, extracted.apiSecret);
+      setNewKeyDialog({
+        open: true,
+        apiKey,
+        apiSecret,
+        name: extracted.name,
+        dialogKey: Date.now(),
+        secretMissing: !apiSecret,
+      });
+    } catch (err) {
+      setToast({
+        open: true,
+        message: err.message || 'Failed to generate API key.',
+        severity: 'error',
+      });
+    } finally {
+      setPublicApiBusy(false);
+    }
+  };
+
+  const renderPublicApiKeys = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12}>
+        <Typography variant="h6" gutterBottom>
+          Public API Keys
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Each integration gets an API key and API secret (letters and numbers only). Secrets are stored as a secure hash; use the eye icon and your account password to reveal a secret in the table.
+        </Typography>
+      </Grid>
+
+      <Grid item xs={12}>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 2 }}>
+            <Grid item xs={12} md={8}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Key name"
+                value={newPublicApiKeyName}
+                onChange={(e) => setNewPublicApiKeyName(e.target.value)}
+                placeholder="e.g. Main Website Production"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    createPublicApiKey();
+                  }
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button
+                fullWidth
+                variant="contained"
+                disabled={publicApiBusy}
+                onClick={createPublicApiKey}
+              >
+                Create API Key
+              </Button>
+            </Grid>
+          </Grid>
+
+          <TableContainer>
+            <Table
+              size="small"
+              sx={{ tableLayout: 'fixed', width: '100%' }}
+            >
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ width: '18%' }}>Key name</TableCell>
+                  <TableCell sx={{ width: '12%' }}>
+                    <TableSortLabel
+                      active
+                      direction={apiKeyDateSort}
+                      onClick={handleApiKeyDateSort}
+                    >
+                      Date Created
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ width: '22%' }}>API key</TableCell>
+                  <TableCell sx={{ width: '30%' }}>API secret</TableCell>
+                  <TableCell sx={{ width: '8%' }} align="center">Status</TableCell>
+                  <TableCell sx={{ width: '10%' }} align="right" />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedPublicApiKeys.map((key) => {
+                  const isActive = key.status === 'active';
+                  const revealedSecret = revealedApiSecrets[key.id];
+                  const secretCharCount = getApiSecretCharCount(key, revealedSecret);
+                  const secretDisplay = revealedSecret || maskApiSecret(secretCharCount);
+                  const isEditingName = editingApiKeyId === key.id;
+                  return (
+                    <TableRow key={key.id} hover>
+                      <TableCell sx={{ overflow: 'hidden', verticalAlign: 'middle', ...apiKeyNameCellHoverSx }}>
+                        {isEditingName ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 32 }}>
+                            <TextField
+                              size="small"
+                              value={editApiKeyNameDraft}
+                              disabled={publicApiBusy}
+                              onChange={(e) => setEditApiKeyNameDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  saveEditApiKeyName(key);
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  cancelEditApiKeyName();
+                                }
+                              }}
+                              autoFocus
+                              sx={{ flex: 1 }}
+                            />
+                            <IconButton size="small" aria-label="Save name" disabled={publicApiBusy} onClick={() => saveEditApiKeyName(key)}>
+                              <CheckIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" aria-label="Cancel edit" onClick={cancelEditApiKeyName}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ) : (
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', maxWidth: '100%', verticalAlign: 'middle' }}>
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              sx={{
+                                fontWeight: 600,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                            >
+                              {key.name}
+                            </Typography>
+                            {canManage && (
+                              <IconButton
+                                className="api-key-name-hover-action"
+                                size="small"
+                                aria-label="Edit key name"
+                                disabled={publicApiBusy}
+                                onClick={() => startEditApiKeyName(key)}
+                                sx={{ color: 'text.secondary', flexShrink: 0, ml: 0.25, width: 24, height: 24 }}
+                              >
+                                <EditIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ overflow: 'hidden', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatApiKeyDate(key.created_at)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ overflow: 'hidden', verticalAlign: 'middle', ...apiKeyValueCellHoverSx }}>
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', maxWidth: '100%' }}>
+                          <Box
+                            component="code"
+                            sx={{
+                              fontSize: '0.8rem',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              minWidth: 0,
+                            }}
+                            title={key.api_key || ''}
+                          >
+                            {key.api_key || '—'}
+                          </Box>
+                          {canManage && key.api_key && (
+                            <IconButton
+                              className="api-key-value-hover-action"
+                              size="small"
+                              aria-label="Copy API key"
+                              disabled={publicApiBusy}
+                              onClick={() => copyToClipboard(key.api_key)}
+                              sx={{ color: 'text.secondary', flexShrink: 0, ml: 0.25, width: 24, height: 24 }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={{ overflow: 'hidden', verticalAlign: 'middle', ...apiKeySecretCellHoverSx }}>
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', maxWidth: '100%' }}>
+                          <Box
+                            component="span"
+                            title={revealedSecret ? undefined : 'Hidden'}
+                            sx={{
+                              ...apiKeySecretTextSx(secretCharCount),
+                              color: revealedSecret ? 'text.primary' : 'text.secondary',
+                            }}
+                          >
+                            {secretDisplay}
+                          </Box>
+                          {canManage && (
+                            <>
+                              <IconButton
+                                className="api-key-secret-hover-action"
+                                size="small"
+                                aria-label={revealedSecret ? 'Hide API secret' : 'Reveal API secret'}
+                                disabled={publicApiBusy}
+                                onClick={() => handleApiSecretVisibility(key)}
+                                sx={{ color: 'text.secondary', flexShrink: 0, ml: 0.25, width: 24, height: 24 }}
+                              >
+                                {revealedSecret ? (
+                                  <VisibilityOffIcon sx={{ fontSize: 16 }} />
+                                ) : (
+                                  <VisibilityIcon sx={{ fontSize: 16 }} />
+                                )}
+                              </IconButton>
+                              {revealedSecret && (
+                                <IconButton
+                                  className="api-key-secret-hover-action"
+                                  size="small"
+                                  aria-label="Copy API secret"
+                                  disabled={publicApiBusy}
+                                  onClick={() => copyToClipboard(revealedSecret)}
+                                  sx={{ color: 'text.secondary', flexShrink: 0, ml: 0.25, width: 24, height: 24 }}
+                                >
+                                  <ContentCopyIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              )}
+                            </>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell align="center" sx={{ verticalAlign: 'middle' }}>
+                        <Switch
+                          size="small"
+                          checked={isActive}
+                          disabled={publicApiBusy}
+                          onChange={(e) => togglePublicApiKeyStatus(key, e.target.checked)}
+                        />
+                      </TableCell>
+                      <TableCell align="right" sx={{ verticalAlign: 'middle', width: 48, p: 0.5 }}>
+                        {canManage && (
+                          <IconButton
+                            size="small"
+                            aria-label="API key actions"
+                            disabled={publicApiBusy}
+                            onClick={(e) => openApiKeyMenu(e, key)}
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {(!publicApiKeys || publicApiKeys.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      No API keys yet. Create one to allow external property search.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Menu
+            anchorEl={apiKeyMenuAnchor.el}
+            open={Boolean(apiKeyMenuAnchor.el)}
+            onClose={closeApiKeyMenu}
+          >
+            <MenuItem
+              onClick={() => confirmDeleteApiKey(apiKeyMenuAnchor.row)}
+              sx={{ color: 'error.main' }}
+            >
+              Delete
+            </MenuItem>
+          </Menu>
+        </Paper>
+      </Grid>
+
+      <Grid item xs={12}>
+        <Alert severity="info" variant="outlined">
+          <Typography variant="subtitle2" gutterBottom>
+            API usage
+          </Typography>
+          <Typography variant="body2" component="div">
+            <Box component="code" sx={{ display: 'block', mb: 0.5 }}>
+              GET /wp-json/assessor/v1/public/properties
+            </Box>
+            Send <Box component="code" display="inline">X-API-Key</Box> and <Box component="code" display="inline">X-API-Secret</Box> headers (or <Box component="code" display="inline">api_key</Box> and <Box component="code" display="inline">api_secret</Box> query parameters).
+          </Typography>
+        </Alert>
+      </Grid>
+    </Grid>
+  );
 
   const renderGeneralSettings = () => (
     <Grid container spacing={2}>
@@ -1203,6 +1931,166 @@ const Settings = () => {
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <Dialog
+        open={deleteApiKeyDialog.open}
+        onClose={closeDeleteApiKeyDialog}
+        TransitionProps={{
+          onExited: () => setDeleteApiKeyDialog({ open: false, row: null }),
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          Delete API key
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Delete <strong>{deleteApiKeyDialog.row?.name || 'this API key'}</strong>? External integrations using it will stop working.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteApiKeyDialog} variant="outlined" disabled={publicApiBusy}>
+            Cancel
+          </Button>
+          <Button onClick={doDeleteApiKey} variant="contained" color="error" disabled={publicApiBusy} autoFocus>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={revealSecretDialog.open}
+        onClose={closeRevealSecretDialog}
+        maxWidth="sm"
+        fullWidth
+        disableAutoFocus
+        TransitionProps={{
+          onEntered: () => {
+            revealPasswordInputRef.current?.focus();
+          },
+        }}
+      >
+        <DialogTitle>Confirm your password</DialogTitle>
+        <DialogContent>
+          {revealSecretDialog.keyName && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Reveal API secret for: <strong>{revealSecretDialog.keyName}</strong>
+            </Typography>
+          )}
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Enter your account password. The secret will appear in the table.
+          </Typography>
+          {revealSecretDialog.error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {revealSecretDialog.error}
+            </Alert>
+          )}
+          <TextField
+            fullWidth
+            type="password"
+            label="Your password"
+            inputRef={revealPasswordInputRef}
+            value={revealSecretDialog.password}
+            disabled={revealSecretDialog.loading}
+            onChange={(e) => setRevealSecretDialog((prev) => ({
+              ...prev,
+              password: e.target.value,
+              error: '',
+            }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submitRevealSecret();
+              }
+            }}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeRevealSecretDialog} disabled={revealSecretDialog.loading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={revealSecretDialog.loading}
+            onClick={submitRevealSecret}
+          >
+            {revealSecretDialog.loading ? 'Verifying…' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        key={newKeyDialog.dialogKey || 'new-api-key-closed'}
+        open={newKeyDialog.open}
+        onClose={() => {}}
+        disableEscapeKeyDown
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          API credentials created
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2, p: 1.25, borderRadius: 1, bgcolor: 'warning.50' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.dark' }}>
+              Copy the API key and API secret now. The secret will not be shown again.
+            </Typography>
+          </Box>
+          {newKeyDialog.name && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Key name: <strong>{newKeyDialog.name}</strong>
+            </Typography>
+          )}
+          {newKeyDialog.secretMissing && !newKeyDialogCreds.apiSecret && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              The API secret was blocked from the response (common on production hosting). Use the eye icon in the table with your account password to reveal it, or ask your host to allow API key create responses for{' '}
+              <Box component="code" sx={{ fontSize: '0.8rem' }}>/wp-json/assessor/v1/settings/public-api-keys</Box>.
+            </Alert>
+          )}
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+            API key
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
+            <Box component="code" sx={{ flex: 1, wordBreak: 'break-all', fontSize: '0.85rem' }}>
+              {newKeyDialogCreds.apiKey || '—'}
+            </Box>
+            <IconButton
+              size="small"
+              aria-label="Copy API key"
+              disabled={!newKeyDialogCreds.apiKey}
+              onClick={() => copyToClipboard(newKeyDialogCreds.apiKey)}
+            >
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+          </Paper>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+            API secret (password)
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+            <Box component="code" sx={{ flex: 1, wordBreak: 'break-all', fontSize: '0.85rem' }}>
+              {newKeyDialogCreds.apiSecret || '—'}
+            </Box>
+            <IconButton
+              size="small"
+              aria-label="Copy API secret"
+              disabled={!newKeyDialogCreds.apiSecret}
+              onClick={() => copyToClipboard(newKeyDialogCreds.apiSecret)}
+            >
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+          </Paper>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="outlined"
+            startIcon={<ContentCopyIcon />}
+            disabled={!newKeyDialogCreds.apiKey && !newKeyDialogCreds.apiSecret}
+            onClick={() => copyToClipboard(`API Key: ${newKeyDialogCreds.apiKey}\nAPI Secret: ${newKeyDialogCreds.apiSecret}`)}
+          >
+            Copy both
+          </Button>
+          <Button variant="contained" onClick={closeNewKeyDialog} autoFocus>
+            I have saved the credentials
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
         open={deletePurposeDialog.open}
         onClose={closeDeleteRequestPurpose}
         TransitionProps={{
@@ -1276,6 +2164,7 @@ const Settings = () => {
             <Tab label="Data Management" />
             <Tab label="Revision Settings" />
             <Tab label="Request Payment Info" />
+            <Tab label="API Keys" />
           </Tabs>
         </Box>
         <CardContent>
@@ -1283,6 +2172,7 @@ const Settings = () => {
           {activeTab === 1 && renderDataManagement()}
           {activeTab === 2 && renderRevisionSettings()}
           {activeTab === 3 && renderRequestPaymentInfos()}
+          {activeTab === 4 && renderPublicApiKeys()}
         </CardContent>
       </Card>
     </Box>

@@ -87,6 +87,7 @@ export const endpoints = {
   revisionEntries: '/settings/revision-entries',
   requestPurposes: '/settings/request-purposes',
   requestPurposesDelete: '/settings/request-purposes/delete',
+  publicApiKeys: '/settings/public-api-keys',
   
   // Export
   export: '/export',
@@ -292,6 +293,76 @@ export const apiService = {
   saveSettings: async (settings) => {
     try {
       const response = await api.post(endpoints.settings, settings);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getPublicApiKeys: async () => {
+    try {
+      const response = await api.get(endpoints.publicApiKeys);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  generatePublicApiKey: async (payload) => {
+    try {
+      const response = await api.post(endpoints.publicApiKeys, payload || {});
+      let data = response.data;
+      if (typeof data === 'string') {
+        const parts = data
+          .replace(/<[^>]*>/g, '')
+          .split(/\\n|\r\n|\n|\r/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (parts.length >= 2 && parts[0].startsWith('assessor_')) {
+          data = {
+            success: true,
+            id: parts[2] != null ? parseInt(parts[2], 10) : undefined,
+            api_key: parts[0],
+            api_secret: parts[1],
+          };
+        } else {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            data = {};
+          }
+        }
+      }
+      return { data, headers: response.headers || {} };
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  updatePublicApiKey: async (id, payload) => {
+    try {
+      const response = await api.put(`${endpoints.publicApiKeys}/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  revokePublicApiKey: async (id) => {
+    try {
+      const response = await api.delete(`${endpoints.publicApiKeys}/${id}`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  revealPublicApiSecret: async (id, password) => {
+    try {
+      const response = await api.post(`${endpoints.publicApiKeys}/${id}/reveal-secret`, { password });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  setPublicApiEnabled: async (enabled) => {
+    try {
+      const response = await api.post('/settings/public-api-enabled', { enabled });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

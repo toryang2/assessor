@@ -63,8 +63,13 @@ class Assessor_API {
             $headers['Access-Control-Allow-Credentials'] = 'true';
             $headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
             // Allow common headers used by the frontend, including cache-busting headers
-            $headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With, Cache-Control, Pragma, Expires, Accept, Origin';
-            
+            $headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With, Cache-Control, Pragma, Expires, Accept, Origin, X-API-Key, X-API-Secret';
+            $expose = 'X-Assessor-One-Time-Key, X-Assessor-One-Time-Credential, X-Assessor-Key-Id';
+            if (!empty($headers['Access-Control-Expose-Headers'])) {
+                $expose = $headers['Access-Control-Expose-Headers'] . ', ' . $expose;
+            }
+            $headers['Access-Control-Expose-Headers'] = $expose;
+
             // Add cache control headers to prevent caching
             $headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
             $headers['Pragma'] = 'no-cache';
@@ -147,6 +152,53 @@ class Assessor_API {
             'methods' => 'GET',
             'callback' => array($this, 'get_property_by_tax_number'),
             'permission_callback' => array($this, 'check_auth')
+        ));
+
+        $public_api = new Assessor_Public_API();
+        register_rest_route('assessor/v1', '/public/properties', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'public_search_properties'),
+            'permission_callback' => array($public_api, 'check_api_key'),
+        ));
+        register_rest_route('assessor/v1', '/public/properties/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'public_get_property'),
+            'permission_callback' => array($public_api, 'check_api_key'),
+        ));
+        register_rest_route('assessor/v1', '/public/properties/by-tax-number/(?P<tax_number>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'public_get_property_by_tax_number'),
+            'permission_callback' => array($public_api, 'check_api_key'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-keys', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'list_public_api_keys'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-keys', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'generate_public_api_key'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-keys/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'update_public_api_key'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-keys/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'revoke_public_api_key'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-keys/(?P<id>\d+)/reveal-secret', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'reveal_public_api_secret'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/settings/public-api-enabled', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'set_public_api_enabled'),
+            'permission_callback' => array($this, 'check_manager'),
         ));
         
         // Version history routes
@@ -455,6 +507,51 @@ class Assessor_API {
     public function get_property_by_tax_number($request) {
         $properties = new Assessor_Properties();
         return $properties->get_property_by_tax_number($request['tax_number']);
+    }
+
+    public function public_search_properties($request) {
+        $public = new Assessor_Public_API();
+        return $public->search_properties($request);
+    }
+
+    public function public_get_property($request) {
+        $public = new Assessor_Public_API();
+        return $public->get_property_by_id($request);
+    }
+
+    public function public_get_property_by_tax_number($request) {
+        $public = new Assessor_Public_API();
+        return $public->get_property_by_tax_number($request);
+    }
+
+    public function generate_public_api_key($request) {
+        $public = new Assessor_Public_API();
+        return $public->generate_api_key($request);
+    }
+
+    public function list_public_api_keys($request) {
+        $public = new Assessor_Public_API();
+        return $public->list_api_keys($request);
+    }
+
+    public function update_public_api_key($request) {
+        $public = new Assessor_Public_API();
+        return $public->update_api_key($request);
+    }
+
+    public function revoke_public_api_key($request) {
+        $public = new Assessor_Public_API();
+        return $public->revoke_api_key($request);
+    }
+
+    public function reveal_public_api_secret($request) {
+        $public = new Assessor_Public_API();
+        return $public->reveal_api_secret($request);
+    }
+
+    public function set_public_api_enabled($request) {
+        $public = new Assessor_Public_API();
+        return $public->set_enabled($request);
     }
     
     public function get_property_versions($request) {

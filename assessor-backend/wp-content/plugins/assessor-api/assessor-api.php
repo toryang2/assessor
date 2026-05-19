@@ -38,6 +38,7 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-audit.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-export.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-settings.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-requests.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-public-api.php';
 
 // Initialize the plugin
 function assessor_api_init() {

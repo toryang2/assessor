@@ -63,7 +63,7 @@ const Login = () => {
 
 
   // Clear error when component mounts
-  const [year, setYear] = useState('2025');
+  const [year, setYear] = useState('');
 
   useEffect(() => {
     // Get current year in Asia/Manila timezone
@@ -74,20 +74,9 @@ const Login = () => {
 
     const parts = formatter.formatToParts(new Date());
     const yearPart = parts.find(p => p.type === 'year');
+  
     if (yearPart) {
-      const currentYear = parseInt(yearPart.value);
-      const appStartYear = 2025;
-      
-      // If current year is 2025, show just 2025
-      // If current year is 2026 or later, show 2025-currentYear
-      if (currentYear === appStartYear) {
-        setYear('2025');
-      } else if (currentYear > appStartYear) {
-        setYear(`2025-${currentYear}`);
-      } else {
-        // Fallback for edge cases
-        setYear('2025');
-      }
+      setYear(yearPart.value);
     }
   }, []);
   
