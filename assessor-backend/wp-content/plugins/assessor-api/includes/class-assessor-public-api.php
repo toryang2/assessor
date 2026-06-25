@@ -248,7 +248,7 @@ class Assessor_Public_API {
         if (!$this->has_search_criteria($params)) {
             return new WP_Error(
                 'search_required',
-                'Provide a search term (q, min 2 characters) or at least one filter: tax_declaration_number, declarant_last_name, declarant_first_name, lot_number, title_number, pin, or location.',
+                'Provide either a search term q (min 2 characters) OR tax_declaration_number (min 2 characters), plus optional filters: declarant_last_name, declarant_first_name, lot_number, title_number, pin, location, or business.',
                 array('status' => 400)
             );
         }
@@ -265,6 +265,22 @@ class Assessor_Public_API {
                 return new WP_Error('search_too_short', 'Search term q must be at least 2 characters.', array('status' => 400));
             }
         }
+
+        $tax_param = isset($params['tax_declaration_number']) ? trim((string) $params['tax_declaration_number']) : '';
+        if ($tax_param !== '' && strlen($tax_param) < 2) {
+            return new WP_Error('search_too_short', 'tax_declaration_number must be at least 2 characters.', array('status' => 400));
+        }
+
+        if (!empty($params['q']) && $tax_param !== '') {
+            return new WP_Error(
+                'combined_search_not_supported',
+                'Combined name + tax declaration search is disabled. Use either q OR tax_declaration_number, not both.',
+                array('status' => 400)
+            );
+        }
+
+        unset($params['current_tdn_only']);
+        $params['current_tdn_only'] = 1;
 
         $internal_request = new WP_REST_Request('GET', '/assessor/v1/properties');
         foreach ($params as $key => $value) {
@@ -305,7 +321,7 @@ class Assessor_Public_API {
 
     public function get_property_by_tax_number($request) {
         $properties = new Assessor_Properties();
-        $property = $properties->get_property_by_tax_number($request['tax_number']);
+        $property = $properties->get_property_by_tax_number($request['tax_number'], true);
 
         if (is_wp_error($property)) {
             return $property;
@@ -336,6 +352,9 @@ class Assessor_Public_API {
 
         foreach ($filters as $field) {
             if (!empty($params[$field])) {
+                if ($field === 'tax_declaration_number' && strlen(trim($params[$field])) < 2) {
+                    continue;
+                }
                 return true;
             }
         }

@@ -30,55 +30,17 @@ class Assessor_Properties {
         $where_conditions = array();
         $where_values = array();
         
-        // Unified free-text search across common fields
-        if (!empty($params['q'])) {
+        // Unified free-text search (staff) vs public search blocks (explicit q and/or tax_declaration_number; no "name TD" in one string).
+        $public_where_reserved = array('handled' => false);
+        if (!empty($params['current_tdn_only'])) {
+            $this->apply_public_property_search_where_block($params, $where_conditions, $where_values, $table_properties, $public_where_reserved);
+        } elseif (!empty($params['q'])) {
             $q_raw = trim($params['q']);
-            $q = '%' . $wpdb->esc_like($q_raw) . '%';
-            $or_sql = array(
-                "p.tax_declaration_number LIKE %s",
-                "p.declarant_last_name LIKE %s",
-                "p.declarant_first_name LIKE %s",
-                "p.lot_number LIKE %s",
-                "p.title_number LIKE %s",
-                "p.business LIKE %s"
-            );
-            $or_vals = array_fill(0, count($or_sql), $q);
-
-            // Support combined declarant name queries (e.g., "Last, First", "First Last", with optional middle initial)
-            // Normalize query for name patterns
-            $q_no_spaces = preg_replace('/\s+/', ' ', $q_raw);
-            $q_no_dot = str_replace('.', '', $q_no_spaces);
-
-            // Patterns to match (using CONCAT and TRIM to avoid double spaces):
-            // 1) "Last, First" and "Last, First MI"
-            $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name) LIKE %s";
-            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
-            $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, '')) LIKE %s";
-            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
-
-            // 2) "First Last" and "First MI Last"
-            $or_sql[] = "CONCAT(p.declarant_first_name, ' ', p.declarant_last_name) LIKE %s";
-            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
-            $or_sql[] = "CONCAT(p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, ''), ' ', p.declarant_last_name) LIKE %s";
-            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
-
-            // 3) "Last First" (without comma)
-            $or_sql[] = "CONCAT(p.declarant_last_name, ' ', p.declarant_first_name) LIKE %s";
-            $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
-
-            // Also match numeric-only searches against TDN without hyphens/spaces (e.g., '12312' matches '22-010-0001-12312')
-            $q_digits_raw = preg_replace('/[^0-9]/', '', $q_raw);
-            if ($q_digits_raw !== '') {
-                $or_sql[] = "REPLACE(REPLACE(p.tax_declaration_number, '-', ''), ' ', '') LIKE %s";
-                $or_vals[] = '%' . $wpdb->esc_like($q_digits_raw) . '%';
-            }
-
-            $where_conditions[] = '(' . implode(' OR ', $or_sql) . ')';
-            $where_values = array_merge($where_values, $or_vals);
+            $this->apply_whole_string_q_search($q_raw, $where_conditions, $where_values);
         }
 
-        if (!empty($params['tax_declaration_number'])) {
-            $where_conditions[] = "p.tax_declaration_number LIKE %s";
+        if (!$public_where_reserved['handled'] && !empty($params['tax_declaration_number'])) {
+            $where_conditions[] = 'p.tax_declaration_number LIKE %s';
             $where_values[] = '%' . $wpdb->esc_like($params['tax_declaration_number']) . '%';
         }
         
@@ -198,6 +160,18 @@ class Assessor_Properties {
         
         // Always exclude deleted properties
         $where_conditions[] = "p.status != 'deleted'";
+
+        // Only current (head) tax declarations — exclude superseded records in a TDN chain
+        if (!empty($params['current_tdn_only'])) {
+            $where_conditions[] = "NOT EXISTS (
+                SELECT 1 FROM $table_properties p_newer
+                WHERE p_newer.status != 'deleted'
+                  AND (
+                    p_newer.previous_tax_declaration_number = p.tax_declaration_number
+                    OR FIND_IN_SET(p.tax_declaration_number, REPLACE(p_newer.previous_tax_declaration_number, ';', ',')) > 0
+                  )
+            )";
+        }
         
         $where_clause = '';
         if (!empty($where_conditions)) {
@@ -1155,9 +1129,49 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         return $history;
     }
-    
-    public function get_property_by_tax_number($tax_declaration_number) {
+
+    /**
+     * Walk forward along previous_tax_declaration_number links to the latest (current) TDN.
+     */
+    public function resolve_head_tax_declaration_number($tax_declaration_number) {
         global $wpdb;
+
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $head_number = trim((string) $tax_declaration_number);
+        if ($head_number === '') {
+            return '';
+        }
+
+        $visited_forward = array();
+        while ($head_number && !in_array($head_number, $visited_forward, true)) {
+            $visited_forward[] = $head_number;
+            $next_number = $wpdb->get_var($wpdb->prepare(
+                "SELECT tax_declaration_number
+                 FROM $table_properties
+                 WHERE FIND_IN_SET(%s, REPLACE(previous_tax_declaration_number, ';', ',')) > 0
+                   AND status != 'deleted'
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+                $head_number
+            ));
+            if (!$next_number) {
+                break;
+            }
+            $head_number = $next_number;
+        }
+
+        return $head_number;
+    }
+    
+    public function get_property_by_tax_number($tax_declaration_number, $resolve_to_current = false) {
+        global $wpdb;
+
+        if ($resolve_to_current) {
+            $tax_declaration_number = $this->resolve_head_tax_declaration_number($tax_declaration_number);
+            if ($tax_declaration_number === '') {
+                return null;
+            }
+        }
         
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $table_users = $wpdb->prefix . 'assessor_users';
@@ -1246,6 +1260,204 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
     private function log_audit($user_id, $action, $table_name, $record_id) {
         $audit = new Assessor_Audit();
         $audit->log_activity($user_id, $action, $table_name, $record_id);
+    }
+
+    /**
+     * Public API only (current_tdn_only): supports one search type at a time.
+     * - q alone: name search, OR TD-only when q is one whole TD-shaped token.
+     * - tax_declaration_number alone: TD chain -> current row(s).
+     * - both q + tax_declaration_number: intentionally unsupported.
+     */
+    private function apply_public_property_search_where_block($params, &$where_conditions, &$where_values, $table_properties, array &$reserved) {
+        global $wpdb;
+
+        $q_raw = isset($params['q']) ? trim((string) $params['q']) : '';
+        $tax_td = isset($params['tax_declaration_number']) ? trim((string) $params['tax_declaration_number']) : '';
+
+        $q_ok = strlen($q_raw) >= 2;
+        $tax_ok = strlen($tax_td) >= 2;
+
+        $reserved['handled'] = false;
+
+        if ($tax_ok && $q_ok) {
+            // Disabled by public API validation; keep defensive no-results behavior here.
+            $where_conditions[] = '1=0';
+            $reserved['handled'] = true;
+            return;
+        }
+
+        if ($tax_ok && !$q_ok) {
+            $head_ids = $this->find_heads_for_td_token($tax_td, $table_properties);
+            $this->append_where_property_id_in_clause($head_ids, $where_conditions, $where_values);
+            $reserved['handled'] = true;
+            return;
+        }
+
+        if ($q_ok && !$tax_ok) {
+            if ($this->is_entire_string_td_token($q_raw)) {
+                $head_ids = $this->find_heads_for_td_token($q_raw, $table_properties);
+                $this->append_where_property_id_in_clause($head_ids, $where_conditions, $where_values);
+            } else {
+                $this->apply_public_name_only_search($q_raw, $where_conditions, $where_values);
+            }
+            $reserved['handled'] = true;
+            return;
+        }
+
+        // no q/tax search terms here — let other filters (location, pin, …) apply
+    }
+
+    private function append_where_property_id_in_clause($head_ids, &$where_conditions, &$where_values) {
+        $head_ids = array_values(array_unique(array_filter(array_map('intval', (array) $head_ids))));
+        if (empty($head_ids)) {
+            $where_conditions[] = '1=0';
+            return;
+        }
+        $placeholders = implode(',', array_fill(0, count($head_ids), '%d'));
+        $where_conditions[] = 'p.id IN (' . $placeholders . ')';
+        foreach ($head_ids as $id) {
+            $where_values[] = $id;
+        }
+    }
+
+    private function is_entire_string_td_token($s) {
+        $s = trim((string) $s);
+        if (strlen($s) < 3) {
+            return false;
+        }
+
+        return (bool) preg_match('/^([A-Za-z]-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*|\d+(?:-\d+)+)$/u', $s);
+    }
+
+    /** Resolve one TD token to current head property id(s). */
+    private function find_heads_for_td_token($td, $table_properties) {
+        global $wpdb;
+
+        $td_like = '%' . $wpdb->esc_like($td) . '%';
+        $td_digits = preg_replace('/[^0-9]/', '', $td);
+        $match = '('
+            . 'p.tax_declaration_number = %s'
+            . ' OR p.tax_declaration_number LIKE %s'
+            . ' OR p.previous_tax_declaration_number LIKE %s'
+            . ' OR FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, \';\', \',\')) > 0';
+        $vals = array($td, $td_like, $td_like, $td);
+        if ($td_digits !== '') {
+            $match .= ' OR REPLACE(REPLACE(p.tax_declaration_number, \'-\', \'\'), \' \', \'\') = %s';
+            $vals[] = $td_digits;
+        }
+        $match .= ')';
+
+        $sql = "SELECT DISTINCT p.tax_declaration_number
+                FROM $table_properties p
+                WHERE p.status != 'deleted' AND $match";
+        $tdns = $wpdb->get_col($wpdb->prepare($sql, $vals));
+
+        $head_ids = array();
+        foreach ($tdns as $tdn) {
+            $head_tdn = $this->resolve_head_tax_declaration_number($tdn);
+            if ($head_tdn === '') {
+                continue;
+            }
+            $hid = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_properties
+                 WHERE tax_declaration_number = %s AND status != 'deleted'
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+                $head_tdn
+            ));
+            if ($hid) {
+                $head_ids[] = (int) $hid;
+            }
+        }
+
+        return array_values(array_unique($head_ids));
+    }
+
+    /** Name-only: current rows whose declarant / combined fields match whole phrase (no digit-only OR on full string). */
+    private function apply_public_name_only_search($q_raw, &$where_conditions, &$where_values) {
+        global $wpdb;
+
+        $q = '%' . $wpdb->esc_like($q_raw) . '%';
+        $blob = $this->get_property_search_blob_sql('p');
+
+        $or_sql = array(
+            $blob . ' LIKE %s',
+            'p.declarant_last_name LIKE %s',
+            'p.declarant_first_name LIKE %s',
+            'p.business LIKE %s',
+        );
+        $or_vals = array_fill(0, count($or_sql), $q);
+
+        $q_no_dot = str_replace('.', '', preg_replace('/\s+/', ' ', $q_raw));
+        $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_first_name, ' ', p.declarant_last_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_last_name, ' ', p.declarant_first_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+
+        $where_conditions[] = '(' . implode(' OR ', $or_sql) . ')';
+        $where_values = array_merge($where_values, $or_vals);
+    }
+
+    /** Combined searchable text for one property row (whole-query matching). */
+    private function get_property_search_blob_sql($alias) {
+        $a = preg_replace('/[^a-z_]/', '', $alias);
+        if ($a === '') {
+            $a = 'p';
+        }
+
+        return "CONCAT_WS(' ',
+            COALESCE({$a}.tax_declaration_number, ''),
+            COALESCE({$a}.previous_tax_declaration_number, ''),
+            COALESCE({$a}.declarant_last_name, ''),
+            COALESCE({$a}.declarant_first_name, ''),
+            COALESCE({$a}.declarant_middle_initial, ''),
+            COALESCE({$a}.business, ''),
+            COALESCE({$a}.location, ''),
+            COALESCE({$a}.lot_number, ''),
+            COALESCE({$a}.title_number, ''),
+            COALESCE({$a}.pin, '')
+        )";
+    }
+
+    /** Staff webapp search: entire query string matched as one phrase (unchanged behavior). */
+    private function apply_whole_string_q_search($q_raw, &$where_conditions, &$where_values) {
+        global $wpdb;
+
+        $q = '%' . $wpdb->esc_like($q_raw) . '%';
+        $or_sql = array(
+            'p.tax_declaration_number LIKE %s',
+            'p.declarant_last_name LIKE %s',
+            'p.declarant_first_name LIKE %s',
+            'p.lot_number LIKE %s',
+            'p.title_number LIKE %s',
+            'p.business LIKE %s',
+        );
+        $or_vals = array_fill(0, count($or_sql), $q);
+
+        $q_no_spaces = preg_replace('/\s+/', ' ', $q_raw);
+        $q_no_dot = str_replace('.', '', $q_no_spaces);
+
+        $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_last_name, ', ', p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, '')) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_first_name, ' ', p.declarant_last_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_first_name, ' ', COALESCE(p.declarant_middle_initial, ''), ' ', p.declarant_last_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+        $or_sql[] = "CONCAT(p.declarant_last_name, ' ', p.declarant_first_name) LIKE %s";
+        $or_vals[] = '%' . $wpdb->esc_like($q_no_dot) . '%';
+
+        $q_digits_raw = preg_replace('/[^0-9]/', '', $q_raw);
+        if ($q_digits_raw !== '') {
+            $or_sql[] = "REPLACE(REPLACE(p.tax_declaration_number, '-', ''), ' ', '') LIKE %s";
+            $or_vals[] = '%' . $wpdb->esc_like($q_digits_raw) . '%';
+        }
+
+        $where_conditions[] = '(' . implode(' OR ', $or_sql) . ')';
+        $where_values = array_merge($where_values, $or_vals);
     }
 
     private function normalize_previous_tax_declaration_numbers($raw) {
