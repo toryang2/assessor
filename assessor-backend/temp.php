@@ -1,0 +1,1 @@
+<?php function foo() { if(true){ } else { $insert_before = "/* That's all, stop editing!"; if (strpos($content, $insert_before) !== false) { $new_content = str_replace($insert_before, $new_define . "\n\n" . $insert_before, $content); } else { $new_content = rtrim($content) . "\n" . $new_define . "\n"; } } } ?>

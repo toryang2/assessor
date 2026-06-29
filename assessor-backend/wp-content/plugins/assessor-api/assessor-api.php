@@ -39,6 +39,8 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-export.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-settings.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-requests.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-public-api.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync-receiver.php';
 
 // Initialize the plugin
 function assessor_api_init() {
@@ -50,6 +52,9 @@ function assessor_api_init() {
 }
 add_action('init', 'assessor_api_init');
 
+// Sync is triggered by the frontend when a user is logged in.
+// No WP-Cron scheduling needed.
+
 // Activation hook
 register_activation_hook(__FILE__, 'assessor_api_activate');
 function assessor_api_activate() {
@@ -60,6 +65,7 @@ function assessor_api_activate() {
 // Deactivation hook
 register_deactivation_hook(__FILE__, 'assessor_api_deactivate');
 function assessor_api_deactivate() {
-    // Cleanup if needed
+    // Deregister sync cron job
+    Assessor_Sync::deregister_cron();
 }
 

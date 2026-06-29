@@ -59,6 +59,16 @@ class Assessor_Properties {
             $where_values[] = '%' . $wpdb->esc_like($params['location']) . '%';
         }
         
+        if (!empty($params['kind_of_property'])) {
+            $where_conditions[] = "p.kind_of_property = %s";
+            $where_values[] = $params['kind_of_property'];
+        }
+        
+        if (!empty($params['gen_class'])) {
+            $where_conditions[] = "p.gen_class = %s";
+            $where_values[] = $params['gen_class'];
+        }
+        
         // Added support for lot_number and title_number in search
         if (!empty($params['lot_number'])) {
             $where_conditions[] = "p.lot_number LIKE %s";
@@ -646,6 +656,11 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $audit = new Assessor_Audit();
         $audit->log_activity($user_id, 'create', 'assessor_properties', $property_id, null, $new_values);
         
+        // Enqueue for sync to live site (only on local builds, and not when the write came from sync itself)
+        if (class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_property($property_id, 'upsert');
+        }
+
         return $this->get_property($property_id);
     }
     
@@ -878,7 +893,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $audit = new Assessor_Audit();
             $audit->log_activity($user_id, 'update', 'assessor_properties', $id, $old_values, $new_values);
         }
-        
+
+        // Enqueue for sync to live site (only on local builds, and not when the write came from sync itself)
+        if (class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_property(intval($id), 'upsert');
+        }
+
         return $this->get_property($id);
     }
     

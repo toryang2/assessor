@@ -220,6 +220,23 @@ class Assessor_Auth {
             return false;
         }
     }
+
+    public function verify_superadmin($request) {
+        $token = $this->get_token_from_request($request);
+        if (!$token) {
+            return new WP_Error('unauthorized', 'Authentication required.', array('status' => 401));
+        }
+        try {
+            $payload = $this->verify_token_signature($token);
+            if ($payload && isset($payload->role) && strtolower($payload->role) === 'superadmin') {
+                return true;
+            }
+            return new WP_Error('forbidden', 'Superadmin access required.', array('status' => 403));
+        } catch (Exception $e) {
+            return new WP_Error('unauthorized', 'Invalid token.', array('status' => 401));
+        }
+    }
+
     
     public function get_user_id_from_token($request) {
         $token = $this->get_token_from_request($request);

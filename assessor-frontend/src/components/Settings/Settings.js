@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, CircularProgress } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -209,7 +209,7 @@ const DEFAULTS = {
 };
 
 const Settings = () => {
-  const { canManage, afkTimeout, updateAfkTimeout } = useAuth();
+  const { canManage, isSuperAdmin, afkTimeout, updateAfkTimeout } = useAuth();
   const [form, setForm] = useState({
     ...DEFAULTS,
     afk_timeout: afkTimeout || DEFAULTS.afk_timeout
@@ -262,6 +262,34 @@ const Settings = () => {
   const [apiKeyMenuAnchor, setApiKeyMenuAnchor] = useState({ el: null, row: null });
   const [apiKeyDateSort, setApiKeyDateSort] = useState('desc');
   const revealPasswordInputRef = useRef(null);
+
+  // Sync settings state
+  const [syncConfig, setSyncConfig] = useState(null);
+  const [syncConfigLoading, setSyncConfigLoading] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState('');
+  const [tokenGenerating, setTokenGenerating] = useState(false);
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [syncSettingsMsg, setSyncSettingsMsg] = useState({ type: '', text: '' });
+  const [pastedToken, setPastedToken] = useState('');
+
+  // Load sync config when user opens the Sync tab
+  const [syncConfigError, setSyncConfigError] = useState(null);
+  useEffect(() => {
+    if (activeTab === 5 && canManage && !syncConfig && !syncConfigLoading) {
+      (async () => {
+        setSyncConfigLoading(true);
+        setSyncConfigError(null);
+        try {
+          const data = await apiService.getSyncConfig();
+          setSyncConfig(data);
+        } catch (e) {
+          console.error('Sync config error:', e);
+          setSyncConfigError(e.message || 'Unknown error');
+        }
+        setSyncConfigLoading(false);
+      })();
+    }
+  }, [activeTab, canManage]);
 
   const newKeyDialogCreds = useMemo(
     () => normalizeCredentialPair(newKeyDialog.apiKey, newKeyDialog.apiSecret),
@@ -1261,7 +1289,220 @@ const Settings = () => {
     </Grid>
   );
 
+  const loadSyncConfig = async () => {
+    setSyncConfigLoading(true);
+    setSyncConfigError(null);
+    try {
+      const data = await apiService.getSyncConfig();
+      setSyncConfig(data);
+    } catch (e) {
+      console.error('Refresh Sync config error:', e);
+      setSyncConfigError(e.message || 'Unknown error');
+      setSyncConfig(null);
+    }
+    setSyncConfigLoading(false);
+  };
+
+  const handleGenerateToken = async () => {
+    setTokenGenerating(true);
+    setSyncSettingsMsg({ type: '', text: '' });
+    try {
+      const res = await apiService.generateSyncToken();
+      setGeneratedToken(res.token || '');
+    } catch (e) {
+      setSyncSettingsMsg({ type: 'error', text: e.message || 'Failed to generate token.' });
+    }
+    setTokenGenerating(false);
+  };
+
+  const handleSaveToken = async (tokenToSave) => {
+    if (!tokenToSave) return;
+    setTokenSaving(true);
+    setSyncSettingsMsg({ type: '', text: '' });
+    try {
+      await apiService.saveSyncToken(tokenToSave);
+      setSyncSettingsMsg({ type: 'success', text: 'Token saved to wp-config.php! Reload the server for changes to take effect.' });
+      loadSyncConfig();
+    } catch (e) {
+      setSyncSettingsMsg({ type: 'error', text: e.message || 'Failed to save token.' });
+    }
+    setTokenSaving(false);
+  };
+
+  const renderSyncSettings = () => {
+    const activeToken = generatedToken || pastedToken;
+    const configSnippet = activeToken
+      ? `// Local wp-config.php\ndefine('ASSESSOR_IS_LOCAL_BUILD', true);\ndefine('ASSESSOR_LIVE_SITE_URL', 'https://your-live-domain.com');\ndefine('ASSESSOR_SYNC_TOKEN', '${activeToken}');\n\n// Live wp-config.php\ndefine('ASSESSOR_SYNC_TOKEN', '${activeToken}');`
+      : `// Local wp-config.php\ndefine('ASSESSOR_IS_LOCAL_BUILD', true);\ndefine('ASSESSOR_LIVE_SITE_URL', 'https://your-live-domain.com');\ndefine('ASSESSOR_SYNC_TOKEN', 'YOUR_TOKEN_HERE');\n\n// Live wp-config.php\ndefine('ASSESSOR_SYNC_TOKEN', 'YOUR_TOKEN_HERE');`;
+
+    return (
+      <Grid container spacing={3}>
+        {/* Status Panel */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Sync Status</Typography>
+          {syncConfigLoading ? (
+            <CircularProgress size={24} />
+          ) : syncConfig ? (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">Mode</Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Box component="span" sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 2, fontSize: '0.8rem', fontWeight: 600, bgcolor: syncConfig.is_local_build ? 'primary.light' : 'grey.300', color: syncConfig.is_local_build ? 'primary.contrastText' : 'text.secondary' }}>
+                      {syncConfig.is_local_build ? 'Local Build' : 'Live Server'}
+                    </Box>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">Sync Token</Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Box component="span" sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 2, fontSize: '0.8rem', fontWeight: 600, bgcolor: syncConfig.has_token ? 'success.light' : 'error.light', color: syncConfig.has_token ? 'success.contrastText' : 'error.contrastText' }}>
+                      {syncConfig.has_token ? '✓ Configured' : '✗ Not Set'}
+                    </Box>
+                  </Box>
+                </Grid>
+                {syncConfig.live_url && (
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="caption" color="text.secondary">Live URL</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, wordBreak: 'break-all', fontSize: '0.8rem' }}>{syncConfig.live_url}</Typography>
+                  </Grid>
+                )}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Typography variant="caption" color="text.secondary">Last Push / Pull</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
+                    {syncConfig.last_push ? `↑ ${syncConfig.last_push}` : '↑ Never'}<br />
+                    {syncConfig.last_pull ? `↓ ${syncConfig.last_pull}` : '↓ Never'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+          ) : (
+            <Alert severity="warning">
+              Could not load sync config. Error: {syncConfigError || 'Unknown API error'}. 
+              Please check the browser console or server logs.
+            </Alert>
+          )}
+          <Button size="small" variant="text" onClick={loadSyncConfig} disabled={syncConfigLoading} sx={{ mt: 1 }}>
+            Refresh Status
+          </Button>
+        </Grid>
+
+        <Grid item xs={12}><Divider /></Grid>
+
+        {/* Token Generator */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Sync Token Management</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Both servers must share the same token. <strong>Generate it on one server, then paste and save it on the other.</strong>
+          </Typography>
+
+          {/* Generate section */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>Generate a New Token</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Creates a 64-character cryptographically secure hex token. It will <strong>not</strong> be saved automatically — click "Save to This Server" below.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                value={generatedToken}
+                placeholder="Click Generate to create a token..."
+                InputProps={{ readOnly: true, sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
+                sx={{ flex: 1, minWidth: 260 }}
+              />
+              <IconButton
+                size="small"
+                disabled={!generatedToken}
+                title="Copy token"
+                onClick={() => { navigator.clipboard.writeText(generatedToken); setToast({ open: true, message: 'Token copied!', severity: 'success' }); }}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+              <Button variant="outlined" size="small" onClick={handleGenerateToken} disabled={tokenGenerating} startIcon={tokenGenerating ? <CircularProgress size={16} /> : null}>
+                {tokenGenerating ? 'Generating...' : 'Generate New Token'}
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
+                color="success"
+                disabled={!generatedToken || tokenSaving}
+                onClick={() => handleSaveToken(generatedToken)}
+                startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
+              >
+                {tokenSaving ? 'Saving...' : 'Save to This Server'}
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Paste section */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>Paste Token from Another Server</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              If the token was generated on another server, paste it here and save it to this server's wp-config.php.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                value={pastedToken}
+                onChange={(e) => setPastedToken(e.target.value.trim())}
+                placeholder="Paste token here..."
+                InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
+                sx={{ flex: 1, minWidth: 260 }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                color="success"
+                disabled={!pastedToken || pastedToken.length < 32 || tokenSaving}
+                onClick={() => handleSaveToken(pastedToken)}
+                startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
+              >
+                {tokenSaving ? 'Saving...' : 'Save to This Server'}
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Status messages */}
+          {syncSettingsMsg.text && (
+            <Alert severity={syncSettingsMsg.type || 'info'} sx={{ mt: 1 }} onClose={() => setSyncSettingsMsg({ type: '', text: '' })}>
+              {syncSettingsMsg.text}
+            </Alert>
+          )}
+        </Grid>
+
+        <Grid item xs={12}><Divider /></Grid>
+
+        {/* Manual Instructions */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Manual wp-config.php Snippet</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            If the automatic save doesn't work (e.g., file permissions), add these lines manually to each server's wp-config.php:
+          </Typography>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', position: 'relative' }}>
+            <Box component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', m: 0, color: 'text.primary' }}>
+              {configSnippet}
+            </Box>
+            <IconButton
+              size="small"
+              sx={{ position: 'absolute', top: 8, right: 8 }}
+              title="Copy snippet"
+              onClick={() => { navigator.clipboard.writeText(configSnippet); setToast({ open: true, message: 'Snippet copied!', severity: 'success' }); }}
+            >
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+          </Paper>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            After saving the token, changes take effect immediately on most servers. If it doesn't work right away, wait 1-2 minutes for your server's PHP cache (OPcache) to refresh, or restart your local server if using XAMPP/WAMP.
+          </Alert>
+        </Grid>
+      </Grid>
+    );
+  };
+
   const renderGeneralSettings = () => (
+
     <Grid container spacing={2}>
       <Grid item xs={12}>
         <Grid container spacing={2} alignItems="flex-start">
@@ -2159,12 +2400,13 @@ const Settings = () => {
 
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs">
+          <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs" variant="scrollable" scrollButtons="auto">
             <Tab label="General Settings" />
             <Tab label="Data Management" />
             <Tab label="Revision Settings" />
             <Tab label="Request Payment Info" />
             <Tab label="API Keys" />
+            {canManage && <Tab label="Sync" />}
           </Tabs>
         </Box>
         <CardContent>
@@ -2173,6 +2415,7 @@ const Settings = () => {
           {activeTab === 2 && renderRevisionSettings()}
           {activeTab === 3 && renderRequestPaymentInfos()}
           {activeTab === 4 && renderPublicApiKeys()}
+          {activeTab === 5 && canManage && renderSyncSettings()}
         </CardContent>
       </Card>
     </Box>

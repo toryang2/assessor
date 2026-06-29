@@ -314,7 +314,36 @@ class Assessor_Database {
             KEY created_by (created_by),
             KEY created_at (created_at)
         ) $charset_collate;";
-        
+
+        // Sync queue table — used on LOCAL builds to track properties pending upload to the live site.
+        // On the live site this table exists but stays empty (live pushes nothing upstream).
+        $table_sync_queue = $wpdb->prefix . 'assessor_sync_queue';
+        $sql_sync_queue = "CREATE TABLE $table_sync_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            property_id mediumint(9) NOT NULL,
+            operation varchar(20) NOT NULL DEFAULT 'upsert',
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            attempts int NOT NULL DEFAULT 0,
+            last_error text NULL,
+            queued_at datetime DEFAULT CURRENT_TIMESTAMP,
+            synced_at datetime NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY property_op (property_id, operation),
+            KEY status (status),
+            KEY queued_at (queued_at)
+        ) $charset_collate;";
+
+        // Sync meta table — one row per site, stores timestamps for last successful push/pull.
+        $table_sync_meta = $wpdb->prefix . 'assessor_sync_meta';
+        $sql_sync_meta = "CREATE TABLE $table_sync_meta (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            meta_key varchar(80) NOT NULL,
+            meta_value text NULL,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY meta_key (meta_key)
+        ) $charset_collate;";
+
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
@@ -331,6 +360,8 @@ class Assessor_Database {
         dbDelta($sql_requests);
         dbDelta($sql_revision_entries);
         dbDelta($sql_api_keys);
+        dbDelta($sql_sync_queue);
+        dbDelta($sql_sync_meta);
         
         // Add foreign key constraints separately
         $this->add_foreign_keys();

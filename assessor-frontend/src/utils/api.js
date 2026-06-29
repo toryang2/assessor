@@ -104,6 +104,13 @@ export const endpoints = {
   requests: '/requests',
   request: (id) => `/requests/${id}`,
   requestStatistics: '/requests/statistics',
+
+  // Sync
+  syncPushNow: '/sync/push-now',
+  syncQueueStatus: '/sync/queue-status',
+  syncConfig: '/sync/config',
+  syncGenerateToken: '/sync/generate-token',
+  syncSaveToken: '/sync/save-token',
 };
 
 // API functions
@@ -640,7 +647,43 @@ export const apiService = {
       throw handleApiError(error);
     }
   },
+  
+  // Sync
+  triggerSync: async () => {
+    try {
+      const response = await api.post(endpoints.syncPushNow);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
 
+  getSyncConfig: async () => {
+    try {
+      const response = await api.get(endpoints.syncConfig);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  generateSyncToken: async () => {
+    try {
+      const response = await api.post(endpoints.syncGenerateToken);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  saveSyncToken: async (token) => {
+    try {
+      const response = await api.post(endpoints.syncSaveToken, { token });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
 
 };
 

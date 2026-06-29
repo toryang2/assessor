@@ -49,6 +49,8 @@ import Export from '../Export/Export';
 import Settings from '../Settings/Settings';
 import Profile from '../Profile/Profile';
 import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
+import SyncModal from '../SyncModal/SyncModal';
+import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
 
 const drawerWidth = 320;
 
@@ -65,7 +67,7 @@ const Layout = ({ children }) => {
     }
   })();
   const computedDrawerWidth = isSmallScreen ? 300 : drawerWidth;
-  const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer } = useAuth();
+  const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer, syncStatus } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -80,6 +82,7 @@ const Layout = ({ children }) => {
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(() => {
     // On reload, restore last page if saved; otherwise default to Dashboard
     try {
@@ -435,6 +438,16 @@ const Layout = ({ children }) => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title="Data Synchronization">
+              <IconButton 
+                color="inherit" 
+                size="small"
+                onClick={() => setSyncModalOpen(true)}
+              >
+                <AnimatedCloudIcon status={syncStatus} />
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Notifications">
               <IconButton color="inherit" size="small">
                 <Badge badgeContent={0} color="error">
@@ -632,6 +645,11 @@ const Layout = ({ children }) => {
           Logout
         </MenuItem>
       </Menu>
+
+      <SyncModal 
+        open={syncModalOpen} 
+        onClose={() => setSyncModalOpen(false)} 
+      />
     </Box>
   );
 };

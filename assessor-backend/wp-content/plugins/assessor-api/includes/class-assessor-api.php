@@ -441,6 +441,79 @@ class Assessor_API {
             'callback' => array($this, 'get_request_statistics'),
             'permission_callback' => array($this, 'check_auth')
         ));
+
+        // -------------------------------------------------------------------------
+        // Sync routes (bidirectional local <-> live)
+        // -------------------------------------------------------------------------
+        $sync_receiver = new Assessor_Sync_Receiver();
+
+        // Public health check — local uses this to test connectivity (no auth needed)
+        register_rest_route('assessor/v1', '/sync/health', array(
+            'methods'             => 'GET',
+            'callback'            => array($sync_receiver, 'health'),
+            'permission_callback' => '__return_true',
+        ));
+
+        // Live site: receive a batch push from a local build
+        register_rest_route('assessor/v1', '/sync/push', array(
+            'methods'             => 'POST',
+            'callback'            => array($sync_receiver, 'receive_push'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
+        // Live site: serve records changed since a timestamp (for local pull)
+        register_rest_route('assessor/v1', '/sync/pull', array(
+            'methods'             => 'GET',
+            'callback'            => array($sync_receiver, 'serve_pull'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
+        // Local admin: queue status dashboard
+        register_rest_route('assessor/v1', '/sync/queue-status', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_queue_status'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        // Local admin: trigger immediate push + pull
+        register_rest_route('assessor/v1', '/sync/push-now', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_push_now'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        // Local admin: reset failed items back to pending
+        register_rest_route('assessor/v1', '/sync/clear-failed', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_clear_failed'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        // Live site: receive a full config table snapshot from a local build
+        register_rest_route('assessor/v1', '/sync/push-config', array(
+            'methods'             => 'POST',
+            'callback'            => array($sync_receiver, 'receive_config_push'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
+        // Sync token management (superadmin, admin, assessor)
+        register_rest_route('assessor/v1', '/sync/config', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_get_config'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/generate-token', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_generate_token'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/save-token', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_save_token'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
     }
     
     public function check_auth($request) {
@@ -455,6 +528,10 @@ class Assessor_API {
     public function check_manager($request) {
         $auth = new Assessor_Auth();
         return $auth->verify_manager($request);
+    }
+    public function check_superadmin($request) {
+        $auth = new Assessor_Auth();
+        return $auth->verify_superadmin($request);
     }
     
     // Route handlers
@@ -498,7 +575,56 @@ class Assessor_API {
         $properties = new Assessor_Properties();
         return $properties->delete_property($request['id'], $request);
     }
+
+    // -------------------------------------------------------------------------
+    // Sync handler methods (delegates to Assessor_Sync)
+    // -------------------------------------------------------------------------
+
+    /** GET /assessor/v1/sync/queue-status — returns pending/synced/failed counts */
+    public function sync_queue_status($request) {
+        return Assessor_Sync::get_queue_status();
+    }
+
+    /** POST /assessor/v1/sync/push-now — triggers an immediate push + pull */
+    public function sync_push_now($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'Sync Now is only available on local builds. Define ASSESSOR_IS_LOCAL_BUILD=true in wp-config.php.',
+                array('status' => 400)
+            );
+        }
+        return Assessor_Sync::manual_sync();
+    }
+
+    /** POST /assessor/v1/sync/clear-failed — resets failed queue items to pending */
+    public function sync_clear_failed($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'Sync queue management is only available on local builds.',
+                array('status' => 400)
+            );
+        }
+        Assessor_Sync::clear_failed();
+        return array('success' => true, 'message' => 'Failed items reset to pending.');
+    }
     
+    /** GET /assessor/v1/sync/config */
+    public function sync_get_config($request) {
+        return Assessor_Sync::rest_get_sync_config($request);
+    }
+
+    /** POST /assessor/v1/sync/generate-token */
+    public function sync_generate_token($request) {
+        return Assessor_Sync::rest_generate_token($request);
+    }
+
+    /** POST /assessor/v1/sync/save-token */
+    public function sync_save_token($request) {
+        return Assessor_Sync::rest_save_token($request);
+    }
+
     public function get_tax_declaration_history($request) {
         $properties = new Assessor_Properties();
         return $properties->get_tax_declaration_history($request['tax_number']);

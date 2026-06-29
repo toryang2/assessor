@@ -541,6 +541,11 @@ const PropertyTable = () => {
   const [locationFilter, setLocationFilter] = useState('');
   const [locationOptions, setLocationOptions] = useState([]);
 
+  // Kind and Class filters
+  const [kindFilter, setKindFilter] = useState('');
+  const [kindOptions, setKindOptions] = useState([]);
+  const [classFilter, setClassFilter] = useState('');
+  const [classOptions, setClassOptions] = useState([]);
 
   const imageCounts = useMemo(() => {
     // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
@@ -755,36 +760,47 @@ const PropertyTable = () => {
     fetchRevisionEntries();
   }, []);
 
-  // Fetch location options (same API source as in PropertyFormModal)
+  // Fetch location options, property types, and general classes
   useEffect(() => {
-    const fetchLocations = async () => {
+    const fetchDropdowns = async () => {
       try {
-        const res = await apiService.getLocations();
-        const items = Array.isArray(res?.items) ? res.items : [];
-        const active = items.filter(i => i.status === 'active');
-        setLocationOptions(active);
+        const [locRes, kindRes, classRes] = await Promise.all([
+          apiService.getLocations(),
+          apiService.getPropertyTypes(),
+          apiService.getGeneralClasses()
+        ]);
+        
+        const locItems = Array.isArray(locRes?.items) ? locRes.items : [];
+        const kindItems = Array.isArray(kindRes?.items) ? kindRes.items : [];
+        const classItems = Array.isArray(classRes?.items) ? classRes.items : [];
+        
+        setLocationOptions(locItems.filter(i => i.status === 'active'));
+        setKindOptions(kindItems.filter(i => i.status === 'active'));
+        setClassOptions(classItems.filter(i => i.status === 'active'));
       } catch (e) {
-        console.error('Failed to fetch locations:', e);
+        console.error('Failed to fetch dropdowns:', e);
         setLocationOptions([]);
+        setKindOptions([]);
+        setClassOptions([]);
       }
     };
-    fetchLocations();
+    fetchDropdowns();
   }, []);
 
   // Fetch properties for pagination (only when not searching and image filter is 'all')
-  // Revision and location filters use server-side filtering, so they're handled by fetchPropertiesWithFilters
+  // Revision, location, kind, and class filters use server-side filtering
   useEffect(() => {
     if (!debouncedSearchTerm && imageFilter === 'all') {
-      if (revisionFilter || locationFilter) {
-        // Use server-side filtering when revision or location filters are active
-        fetchPropertiesWithFilters(revisionFilter, locationFilter);
+      if (revisionFilter || locationFilter || kindFilter || classFilter) {
+        // Use server-side filtering when filters are active
+        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter);
       } else {
         // Use regular fetchProperties when no filters are active
         fetchProperties();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter]);
+  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter]);
 
   // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
   const fetchAllDataset = useCallback(async () => {
@@ -795,6 +811,8 @@ const PropertyTable = () => {
         q: debouncedSearchTerm || '',
         revision_id: revisionFilter || '',
         location: locationFilter || '',
+        kind_of_property: kindFilter || '',
+        gen_class: classFilter || '',
         _t: Date.now()
       };
       const response = await apiService.getProperties(params);
@@ -809,7 +827,7 @@ const PropertyTable = () => {
     } finally {
       setLoadingAll(false);
     }
-  }, [debouncedSearchTerm, revisionFilter, locationFilter]);
+  }, [debouncedSearchTerm, revisionFilter, locationFilter, kindFilter, classFilter]);
 
   useEffect(() => {
     // Always refresh the all-properties dataset when filters change so
@@ -817,7 +835,7 @@ const PropertyTable = () => {
     // This includes when switching back to "All Revisions" (empty string).
     fetchAllDataset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, imageFilter, revisionFilter, locationFilter]);
+  }, [debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter]);
 
   // Fetch full dataset for image counts on initial load
   useEffect(() => {
@@ -884,7 +902,7 @@ const PropertyTable = () => {
 
 
   const fetchSeqRef = useRef(0);
-  const fetchPropertiesWithFilters = useCallback(async (revisionId, locationName) => {
+  const fetchPropertiesWithFilters = useCallback(async (revisionId, locationName, kindName, className) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -897,6 +915,8 @@ const PropertyTable = () => {
         q: debouncedSearchTerm || '',
         revision_id: revisionId || '',
         location: locationName || '',
+        kind_of_property: kindName || '',
+        gen_class: className || '',
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       };
@@ -948,6 +968,8 @@ const PropertyTable = () => {
         q: debouncedSearchTerm || '',
         revision_id: revisionFilter || '',
         location: locationFilter || '',
+        kind_of_property: kindFilter || '',
+        gen_class: classFilter || '',
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
@@ -987,7 +1009,7 @@ const PropertyTable = () => {
       // Only clear loading for the latest request
       if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [page, rowsPerPage, debouncedSearchTerm, revisionFilter, locationFilter]);
+  }, [page, rowsPerPage, debouncedSearchTerm, revisionFilter, locationFilter, kindFilter, classFilter]);
 
   const handleSearch = (event) => {
     const raw = event.target.value || '';
@@ -1410,15 +1432,10 @@ const PropertyTable = () => {
                       value={revisionFilter}
                       onChange={(e) => {
                         const newValue = e.target.value;
-                        console.log('🔍 REVISION DROPDOWN CHANGE:', {
-                          selectedValue: newValue,
-                          revisionEntries: revisionEntries,
-                          revisionEntriesLength: revisionEntries.length
-                        });
                         setRevisionFilter(newValue);
                         setPage(0);
-                        // Immediately fetch with the new revision + current location
-                        fetchPropertiesWithFilters(newValue, locationFilter);
+                        // Immediately fetch with the new revision + current location, kind, class
+                        fetchPropertiesWithFilters(newValue, locationFilter, kindFilter, classFilter);
                       }}
                       label="Revision"
                       displayEmpty
@@ -1454,8 +1471,8 @@ const PropertyTable = () => {
                         const newLoc = e.target.value;
                         setLocationFilter(newLoc);
                         setPage(0);
-                        // Immediately fetch with current revision + new location
-                        fetchPropertiesWithFilters(revisionFilter, newLoc);
+                        // Immediately fetch with current revision + new location + current kind, class
+                        fetchPropertiesWithFilters(revisionFilter, newLoc, kindFilter, classFilter);
                       }}
                       label="Location"
                       displayEmpty
@@ -1472,6 +1489,76 @@ const PropertyTable = () => {
                       {locationOptions.map((loc) => (
                         <MenuItem key={loc.code || loc.name} value={loc.name}>
                           {loc.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ 
+                    minWidth: { xs: 120, sm: 150 },
+                    width: { xs: '100%', sm: 'auto' },
+                    '@media (min-width: 1280px)': { minWidth: 160 },
+                    '@media (min-width: 1920px)': { minWidth: 180 }
+                  }}>
+                    <InputLabel shrink>Kind</InputLabel>
+                    <Select
+                      value={kindFilter}
+                      onChange={(e) => {
+                        const newKind = e.target.value;
+                        setKindFilter(newKind);
+                        setPage(0);
+                        fetchPropertiesWithFilters(revisionFilter, locationFilter, newKind, classFilter);
+                      }}
+                      label="Kind"
+                      displayEmpty
+                      renderValue={(selected) => {
+                        const v = selected === undefined || selected === null ? '' : selected;
+                        if (v === '') return 'All Kinds';
+                        const found = (kindOptions || []).find(k => String(k.code) === String(v));
+                        return found ? found.name : 'All Kinds';
+                      }}
+                    >
+                      <MenuItem value="" selected={kindFilter === ''}>
+                        <em>All Kinds</em>
+                      </MenuItem>
+                      {kindOptions.map((k) => (
+                        <MenuItem key={k.code || k.name} value={k.code}>
+                          {k.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ 
+                    minWidth: { xs: 120, sm: 150 },
+                    width: { xs: '100%', sm: 'auto' },
+                    '@media (min-width: 1280px)': { minWidth: 160 },
+                    '@media (min-width: 1920px)': { minWidth: 180 }
+                  }}>
+                    <InputLabel shrink>Class</InputLabel>
+                    <Select
+                      value={classFilter}
+                      onChange={(e) => {
+                        const newClass = e.target.value;
+                        setClassFilter(newClass);
+                        setPage(0);
+                        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, newClass);
+                      }}
+                      label="Class"
+                      displayEmpty
+                      renderValue={(selected) => {
+                        const v = selected === undefined || selected === null ? '' : selected;
+                        if (v === '') return 'All Classes';
+                        const found = (classOptions || []).find(c => String(c.code) === String(v));
+                        return found ? found.name : 'All Classes';
+                      }}
+                    >
+                      <MenuItem value="" selected={classFilter === ''}>
+                        <em>All Classes</em>
+                      </MenuItem>
+                      {classOptions.map((c) => (
+                        <MenuItem key={c.code || c.name} value={c.code}>
+                          {c.name}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1568,6 +1655,8 @@ const PropertyTable = () => {
                 <TableCell sx={{ width: 80 }}>Area (hectare)</TableCell>
                 <TableCell sx={{ width: 80 }}>Title Number</TableCell>
                 <TableCell sx={{ width: 120 }}>Assessed Value</TableCell>
+                <TableCell sx={{ width: 100 }}>Kind</TableCell>
+                <TableCell sx={{ width: 100 }}>Class</TableCell>
                 <TableCell sx={{ width: 80 }}>Effectivity</TableCell>
                 <TableCell>Memoranda</TableCell>
                 <TableCell sx={{ width: 140 }}>Actions</TableCell>
@@ -1662,6 +1751,8 @@ const PropertyTable = () => {
                       })()}
                     </Typography>
                   </TableCell>
+                  <TableCell>{property.kind_of_property_name || property.kind_of_property || '—'}</TableCell>
+                  <TableCell>{property.gen_class_name || property.gen_class || '—'}</TableCell>
                   <TableCell>{property.effectivity_date || '—'}</TableCell>
                   <TableCell sx={{ width: 280, maxWidth: 280, verticalAlign: 'top' }}>
                     <Typography

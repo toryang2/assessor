@@ -87,6 +87,9 @@ class Assessor_Settings {
 		} else {
 			$wpdb->insert($table, $data);
 		}
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_settings');
+		}
 		return $this->get_settings();
 	}
 
@@ -238,6 +241,9 @@ class Assessor_Settings {
 		} else {
 			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
 		}
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_property_types');
+		}
 		return $this->get_property_types();
 	}
 
@@ -253,6 +259,9 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
 		$wpdb->delete($table, array('id' => $id), array('%d'));
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_property_types');
+		}
 		return array('success' => true);
 	}
 
@@ -286,6 +295,9 @@ class Assessor_Settings {
 		} else {
 			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
 		}
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_general_classes');
+		}
 		return $this->get_general_classes();
 	}
 
@@ -301,6 +313,9 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
 		$wpdb->delete($table, array('id' => $id), array('%d'));
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_general_classes');
+		}
 		return array('success' => true);
 	}
 
@@ -334,6 +349,9 @@ class Assessor_Settings {
 		} else {
 			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
 		}
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_locations');
+		}
 		return $this->get_locations();
 	}
 
@@ -349,10 +367,12 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
 		$wpdb->delete($table, array('id' => $id), array('%d'));
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_locations');
+		}
 		return array('success' => true);
 	}
 
-	// Revision entries functions
 	public function get_revision_entries() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_revision_entries';
@@ -403,6 +423,9 @@ class Assessor_Settings {
 		}
 
 		// Return updated list
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_revision_entries');
+		}
 		return $this->get_revision_entries();
 	}
 
@@ -421,6 +444,9 @@ class Assessor_Settings {
 		}
 
 		$wpdb->delete($table, array('id' => $id), array('%d'));
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_revision_entries');
+		}
 		return array('success' => true);
 	}
 
@@ -484,6 +510,9 @@ class Assessor_Settings {
 			$data['created_at'] = current_time('mysql');
 			$wpdb->insert($table, $data, array('%s','%f','%s','%d','%s','%s'));
 		}
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_request_purposes');
+		}
 
 		return $this->get_request_purposes();
 	}
@@ -501,6 +530,9 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_request_purposes';
 		$wpdb->delete($table, array('id' => $id), array('%d'));
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_request_purposes');
+		}
 		return array('success' => true);
 	}
 }

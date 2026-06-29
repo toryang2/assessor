@@ -94,6 +94,42 @@ The plugin creates a default admin user:
 
 **⚠️ Important**: Change the default password immediately after installation!
 
+## Bidirectional Sync Setup (Local ↔ Live)
+
+The Assessor system supports automatic bidirectional synchronization between offline local builds and the live online server. Syncing is triggered automatically in the background whenever a staff member is logged in to the local build.
+
+### 1. Generate a Secure Sync Token
+Run this command in any terminal to generate a secure secret token:
+```bash
+openssl rand -base64 48
+```
+*(Copy the output string)*
+
+### 2. Configure the Live Server
+Edit the `wp-config.php` file on your **live** WordPress site and add your generated token. Add this above the `/* That's all, stop editing! */` line:
+```php
+define('ASSESSOR_SYNC_TOKEN', 'paste-your-secret-token-here');
+```
+
+### 3. Configure the Local Server
+Edit the `wp-config.php` file on your **local** WordPress build. Add the same token, declare that this is a local build, and point it to the live site:
+```php
+define('ASSESSOR_IS_LOCAL_BUILD', true);
+define('ASSESSOR_LIVE_SITE_URL', 'https://your-live-website.com');
+define('ASSESSOR_SYNC_TOKEN', 'paste-same-secret-token-here');
+```
+
+### 4. Initialize Database Tables
+After adding the configuration, you must initialize the sync tracking tables. You can do this by either:
+- **Deactivating and Reactivating** the Assessor API plugin in WordPress Admin, OR
+- **Visiting the setup endpoint** in your browser for both sites:
+  - `https://your-live-website.com/wp-json/assessor/v1/setup-database`
+  - `http://localhost/wp-json/assessor/v1/setup-database`
+
+### How it Works
+- The sync engine pushes queued local changes and pulls live changes every 5 minutes in the background, but **only while an assessor is actively logged into the frontend app**.
+- If the local system loses internet for a week, all offline changes will queue up and securely sync to the live site automatically as soon as internet is restored and a staff member logs in.
+
 ## API Endpoints
 
 ### Authentication

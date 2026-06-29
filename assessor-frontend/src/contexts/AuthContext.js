@@ -27,6 +27,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
+  // Sync state management
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'failed' | 'incomplete'
+  const [syncMessage, setSyncMessage] = useState(null);
+  const isSyncingRef = useRef(false);
+  
   // AFK timeout management
   const timeoutRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
@@ -295,6 +300,57 @@ export const AuthProvider = ({ children }) => {
     };
   }, [token, user, trackActivity, resetAfkTimeout]);
 
+  // Refactored runSync to be exposed
+  const triggerManualSync = useCallback(async () => {
+    if (isSyncingRef.current) return;
+    
+    isSyncingRef.current = true;
+    setSyncStatus('syncing');
+    setSyncMessage(null);
+
+    try {
+      console.log('🔄 AuthContext: Triggering background sync...');
+      const response = await apiService.triggerSync();
+      console.log('✅ AuthContext: Background sync completed', response);
+      
+      if (response && response.success !== false) {
+        setSyncStatus('success');
+        setSyncMessage(response.message || 'Sync completed successfully');
+      } else {
+        setSyncStatus('failed');
+        setSyncMessage(response?.message || 'Sync failed');
+      }
+      return response;
+    } catch (err) {
+      console.error('❌ AuthContext: Background sync failed', err);
+      setSyncStatus('failed');
+      setSyncMessage(err.message || 'Connection error during sync');
+      throw err;
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, []);
+
+  // Sync polling (triggers every 5 minutes when authenticated)
+  const userId = user?.id;
+  useEffect(() => {
+    if (!token || !userId) return;
+
+    let syncInterval;
+
+    // Run sync immediately on login/load, then every 5 minutes
+    triggerManualSync().catch(e => console.error("Background sync error:", e));
+    syncInterval = setInterval(() => {
+      triggerManualSync().catch(e => console.error("Background sync interval error:", e));
+    }, 5 * 60 * 1000);
+
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+    };
+  }, [token, userId, triggerManualSync]);
+
   const isAuthenticated = !!token && !!user;
   const isSuperAdmin = user?.role === 'superadmin';
   const isAdmin = user?.role === 'admin' || user?.role === 'administrator';
@@ -322,6 +378,9 @@ export const AuthProvider = ({ children }) => {
     updateAfkTimeout,
     updateUserLocally,
     refreshCurrentUser,
+    syncStatus,
+    syncMessage,
+    triggerManualSync,
   };
 
   return (
