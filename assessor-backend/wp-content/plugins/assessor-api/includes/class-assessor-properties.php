@@ -451,6 +451,23 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
         
+        // Rewrite URLs for local build offline viewing
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD && defined('ASSESSOR_LIVE_SITE_URL')) {
+            $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
+            $upload_dir = wp_upload_dir();
+            $local_base = rtrim($upload_dir['baseurl'], '/');
+            
+            foreach ($properties as &$prop) {
+                if (!empty($prop->supporting_documents)) {
+                    $prop->supporting_documents = str_replace($live_domain . '/wp-content/uploads', $local_base, $prop->supporting_documents);
+                }
+                if (!empty($prop->supporting_documents_old)) {
+                    $prop->supporting_documents_old = str_replace($live_domain . '/wp-content/uploads', $local_base, $prop->supporting_documents_old);
+                }
+            }
+            unset($prop); // Break reference
+        }
+
         return array(
             'properties' => $properties,
             'pagination' => array(
@@ -489,6 +506,20 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         if (!$property) {
             return new WP_Error('property_not_found', 'Property not found', array('status' => 404));
+        }
+
+        // Rewrite URLs for local build offline viewing
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD && defined('ASSESSOR_LIVE_SITE_URL')) {
+            $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
+            $upload_dir = wp_upload_dir();
+            $local_base = rtrim($upload_dir['baseurl'], '/');
+            
+            if (!empty($property->supporting_documents)) {
+                $property->supporting_documents = str_replace($live_domain . '/wp-content/uploads', $local_base, $property->supporting_documents);
+            }
+            if (!empty($property->supporting_documents_old)) {
+                $property->supporting_documents_old = str_replace($live_domain . '/wp-content/uploads', $local_base, $property->supporting_documents_old);
+            }
         }
         
         return $property;

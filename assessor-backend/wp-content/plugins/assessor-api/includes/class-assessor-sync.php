@@ -52,12 +52,19 @@ class Assessor_Sync {
         if (!wp_next_scheduled('assessor_sync_cron')) {
             wp_schedule_event(time(), 'assessor_every_5_min', 'assessor_sync_cron');
         }
+        if (!wp_next_scheduled('assessor_sync_files_cron')) {
+            wp_schedule_event(time(), 'assessor_every_2_min', 'assessor_sync_files_cron');
+        }
     }
 
     public static function add_cron_interval($schedules) {
         $schedules['assessor_every_5_min'] = array(
             'interval' => 300,
             'display'  => __('Every 5 Minutes (Assessor Sync)'),
+        );
+        $schedules['assessor_every_2_min'] = array(
+            'interval' => 120,
+            'display'  => __('Every 2 Minutes (Assessor File Sync)'),
         );
         return $schedules;
     }
@@ -66,6 +73,10 @@ class Assessor_Sync {
         $timestamp = wp_next_scheduled('assessor_sync_cron');
         if ($timestamp) {
             wp_unschedule_event($timestamp, 'assessor_sync_cron');
+        }
+        $timestamp2 = wp_next_scheduled('assessor_sync_files_cron');
+        if ($timestamp2) {
+            wp_unschedule_event($timestamp2, 'assessor_sync_files_cron');
         }
     }
 
@@ -299,11 +310,27 @@ class Assessor_Sync {
             foreach ($pending as $qi) {
                 $pid = intval($qi['property_id']);
                 if (isset($prop_map[$pid])) {
+                    $prop_data = $prop_map[$pid];
+                    
+                    // Attach local documents with base64 encoded physical files
+                    $table_docs = $wpdb->prefix . 'assessor_documents';
+                    $docs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_docs WHERE property_id = %d", $pid), ARRAY_A);
+                    if ($docs) {
+                        foreach ($docs as &$doc) {
+                            if (!empty($doc['file_path']) && file_exists($doc['file_path'])) {
+                                $doc['file_data'] = base64_encode(file_get_contents($doc['file_path']));
+                            } else {
+                                $doc['file_data'] = null;
+                            }
+                        }
+                    }
+                    $prop_data['assessor_documents'] = $docs ? $docs : array();
+
                     $records[] = array(
                         'queue_id' => intval($qi['queue_id']),
                         'attempts' => intval($qi['attempts']),
-                        'tax_num'  => $prop_map[$pid]['tax_declaration_number'],
-                        'data'     => $prop_map[$pid],
+                        'tax_num'  => $prop_data['tax_declaration_number'],
+                        'data'     => $prop_data,
                     );
                 }
             }
@@ -571,6 +598,7 @@ class Assessor_Sync {
             if ($wpdb->last_error) {
                 return 'error updating ' . $tax_num . ': ' . $wpdb->last_error;
             }
+            $local_property_id = intval($local['id']);
         } else {
             unset($safe['id']);
             if (empty($safe['created_by'])) {
@@ -582,6 +610,31 @@ class Assessor_Sync {
             $result = $wpdb->insert($table, $safe);
             if ($result === false) {
                 return 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
+            }
+            $local_property_id = $wpdb->insert_id;
+        }
+
+        // Sync documents if present
+        if (isset($remote['assessor_documents']) && is_array($remote['assessor_documents'])) {
+            $table_docs = $wpdb->prefix . 'assessor_documents';
+            foreach ($remote['assessor_documents'] as $doc) {
+                $doc_safe = array(
+                    'property_id'       => $local_property_id,
+                    'filename'          => sanitize_file_name($doc['filename']),
+                    'original_filename' => sanitize_text_field($doc['original_filename']),
+                    'file_path'         => sanitize_text_field($doc['file_path']),
+                    'file_type'         => sanitize_text_field($doc['file_type']),
+                    'description'       => sanitize_textarea_field($doc['description'] ?? ''),
+                    'uploaded_at'       => sanitize_text_field($doc['uploaded_at']),
+                    'uploaded_by'       => 0 // 0 means synced by system
+                );
+
+                $existing_doc = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_docs WHERE filename = %s LIMIT 1", $doc['filename']));
+                if ($existing_doc) {
+                    $wpdb->update($table_docs, $doc_safe, array('id' => $existing_doc));
+                } else {
+                    $wpdb->insert($table_docs, $doc_safe);
+                }
             }
         }
 
@@ -619,7 +672,104 @@ class Assessor_Sync {
     }
 
     // -------------------------------------------------------------------------
-    // Helpers
+    // File Downloading (Cron)
+    // -------------------------------------------------------------------------
+
+    public static function download_missing_files() {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return;
+        }
+        
+        global $wpdb;
+        $table_docs = $wpdb->prefix . 'assessor_documents';
+        $table_prop = $wpdb->prefix . 'assessor_properties';
+        $upload_dir = wp_upload_dir();
+        $basedir = rtrim($upload_dir['basedir'], '/');
+        $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
+        
+        $downloaded = 0;
+        $max_downloads = 10;
+        
+        // 1. Check assessor_documents table
+        $docs = $wpdb->get_results("SELECT id, file_path FROM $table_docs ORDER BY id DESC", ARRAY_A);
+        if ($docs) {
+            foreach ($docs as $doc) {
+                if ($downloaded >= $max_downloads) break;
+                
+                if (!empty($doc['file_path']) && !file_exists($doc['file_path'])) {
+                    if (strpos($doc['file_path'], $basedir) === 0) {
+                        $relative = substr($doc['file_path'], strlen($basedir));
+                        $live_url = $live_domain . '/wp-content/uploads' . str_replace('\\', '/', $relative);
+                        
+                        $response = wp_remote_get($live_url, array(
+                            'timeout' => 30, 'sslverify' => false,
+                            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        ));
+                        
+                        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                            $dir = dirname($doc['file_path']);
+                            if (!file_exists($dir)) wp_mkdir_p($dir);
+                            file_put_contents($doc['file_path'], wp_remote_retrieve_body($response));
+                            $downloaded++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 2. Check legacy supporting_documents in properties table
+        if ($downloaded < $max_downloads) {
+            $props = $wpdb->get_results("SELECT id, supporting_documents, supporting_documents_old FROM $table_prop ORDER BY id DESC", ARRAY_A);
+            if ($props) {
+                foreach ($props as $prop) {
+                    if ($downloaded >= $max_downloads) break;
+                    
+                    $docs1 = json_decode($prop['supporting_documents'], true);
+                    if (!is_array($docs1)) $docs1 = array();
+                    
+                    $docs2 = array();
+                    if (!empty($prop['supporting_documents_old'])) {
+                        // Sometimes this is JSON, sometimes a string
+                        $decoded = json_decode($prop['supporting_documents_old'], true);
+                        if (is_array($decoded)) {
+                            $docs2 = $decoded;
+                        } else {
+                            $docs2 = array($prop['supporting_documents_old']);
+                        }
+                    }
+                    
+                    $all_docs = array_merge($docs1, $docs2);
+                    foreach ($all_docs as $url) {
+                        if (empty($url) || !is_string($url)) continue;
+                        
+                        // Check if it's a live site URL
+                        if (strpos($url, $live_domain . '/wp-content/uploads') !== false) {
+                            $relative = str_replace($live_domain . '/wp-content/uploads', '', $url);
+                            $local_path = $basedir . $relative;
+                            
+                            if (!file_exists($local_path)) {
+                                $response = wp_remote_get($url, array(
+                                    'timeout' => 30, 'sslverify' => false,
+                                    'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                                ));
+                                
+                                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                                    $dir = dirname($local_path);
+                                    if (!file_exists($dir)) wp_mkdir_p($dir);
+                                    file_put_contents($local_path, wp_remote_retrieve_body($response));
+                                    $downloaded++;
+                                    if ($downloaded >= $max_downloads) break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sync Logic
     // -------------------------------------------------------------------------
 
     /**

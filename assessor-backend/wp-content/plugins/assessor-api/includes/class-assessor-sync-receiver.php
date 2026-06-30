@@ -165,6 +165,7 @@ class Assessor_Sync_Receiver {
             if ($updated === false) {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
             }
+            $live_property_id = intval($existing['id']);
         } else {
             // INSERT new record
             unset($safe['id']);
@@ -177,6 +178,45 @@ class Assessor_Sync_Receiver {
             $inserted = $wpdb->insert($table, $safe);
             if ($inserted === false) {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
+            }
+            $live_property_id = $wpdb->insert_id;
+        }
+
+        // Process pushed documents
+        if (!empty($record['assessor_documents']) && is_array($record['assessor_documents'])) {
+            $table_docs = $wpdb->prefix . 'assessor_documents';
+            $upload_dir = wp_upload_dir();
+            $base_dir = $upload_dir['basedir'] . '/assessor-documents';
+            
+            $tdn_safe = preg_replace('/[^A-Za-z0-9_.\-]/', '_', $tax_num);
+            if (empty($tdn_safe)) {
+                $tdn_safe = (string)$live_property_id;
+            }
+            $property_dir = $base_dir . '/' . $tdn_safe;
+            if (!file_exists($property_dir)) {
+                wp_mkdir_p($property_dir);
+            }
+            
+            foreach ($record['assessor_documents'] as $doc) {
+                $existing_doc = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_docs WHERE filename = %s LIMIT 1", $doc['filename']));
+                
+                if (!empty($doc['file_data']) && !$existing_doc) {
+                    $file_data = base64_decode($doc['file_data']);
+                    if ($file_data !== false) {
+                        $file_path = $property_dir . '/' . sanitize_file_name($doc['filename']);
+                        file_put_contents($file_path, $file_data);
+                        
+                        $wpdb->insert($table_docs, array(
+                            'property_id' => $live_property_id,
+                            'filename' => sanitize_file_name($doc['filename']),
+                            'original_filename' => sanitize_text_field($doc['original_filename']),
+                            'file_path' => $file_path,
+                            'file_type' => sanitize_text_field($doc['file_type']),
+                            'description' => sanitize_textarea_field($doc['description'] ?? ''),
+                            'uploaded_by' => 0
+                        ));
+                    }
+                }
             }
         }
 
@@ -230,8 +270,22 @@ class Assessor_Sync_Receiver {
             $records = array();
         }
 
+        $table_docs = $wpdb->prefix . 'assessor_documents';
+
         // Strip internal IDs that should not overwrite local user assignments
-        $safe_records = array_map(array($this, 'sanitize_outgoing_record'), $records);
+        $safe_records = array();
+        foreach ($records as $record) {
+            $safe = $this->sanitize_outgoing_record($record);
+            
+            // Attach documents metadata (excluding local-only uploaded_by)
+            $docs = $wpdb->get_results(
+                $wpdb->prepare("SELECT filename, original_filename, file_path, file_type, description, uploaded_at FROM $table_docs WHERE property_id = %d", $record['id']),
+                ARRAY_A
+            );
+            $safe['assessor_documents'] = $docs ? $docs : array();
+            
+            $safe_records[] = $safe;
+        }
 
         return array(
             'records'   => $safe_records,

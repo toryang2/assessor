@@ -49,11 +49,14 @@ function assessor_api_init() {
     error_log('🔍 Assessor API: Plugin class instantiated!');
     $assessor_api->init();
     error_log('🔍 Assessor API: Plugin init completed!');
+    
+    // Register sync cron
+    Assessor_Sync::register_cron();
 }
 add_action('init', 'assessor_api_init');
 
-// Sync is triggered by the frontend when a user is logged in.
-// No WP-Cron scheduling needed.
+// Hook the background file downloader
+add_action('assessor_sync_files_cron', array('Assessor_Sync', 'download_missing_files'));
 
 // Activation hook
 register_activation_hook(__FILE__, 'assessor_api_activate');
