@@ -210,16 +210,18 @@ class Assessor_Sync_Receiver {
             return new WP_Error('invalid_since', '"since" must be a valid datetime string (YYYY-MM-DD ...).', array('status' => 400));
         }
 
-        $limit = isset($params['limit']) ? min(1000, max(1, intval($params['limit']))) : 500;
+        $limit  = isset($params['limit']) ? min(2000, max(1, intval($params['limit']))) : 500;
+        $offset = isset($params['offset']) ? max(0, intval($params['offset'])) : 0;
 
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_properties';
 
         $records = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM $table WHERE updated_at > %s ORDER BY updated_at ASC LIMIT %d",
+                "SELECT * FROM $table WHERE updated_at > %s ORDER BY updated_at ASC LIMIT %d OFFSET %d",
                 $since,
-                $limit
+                $limit,
+                $offset
             ),
             ARRAY_A
         );
@@ -327,6 +329,7 @@ class Assessor_Sync_Receiver {
             'assessed_value', 'assessed_value_old', 'effectivity_date',
             'pin', 'address', 'assessment_date',
             'kind_of_property', 'gen_class', 'memoranda', 'supporting_documents',
+            'supporting_documents_old', 'change_reason',
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
@@ -356,6 +359,7 @@ class Assessor_Sync_Receiver {
             'assessed_value', 'assessed_value_old', 'effectivity_date',
             'pin', 'address', 'assessment_date',
             'kind_of_property', 'gen_class', 'memoranda', 'supporting_documents',
+            'supporting_documents_old', 'change_reason',
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',

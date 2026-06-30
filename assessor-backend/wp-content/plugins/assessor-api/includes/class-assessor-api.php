@@ -594,7 +594,9 @@ class Assessor_API {
                 array('status' => 400)
             );
         }
-        return Assessor_Sync::manual_sync();
+        $params     = $request->get_json_params();
+        $force_full = !empty($params['force_full']);
+        return Assessor_Sync::manual_sync($force_full);
     }
 
     /** POST /assessor/v1/sync/clear-failed — resets failed queue items to pending */

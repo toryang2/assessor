@@ -649,9 +649,10 @@ export const apiService = {
   },
   
   // Sync
-  triggerSync: async () => {
+  triggerSync: async (forceFull = false) => {
     try {
-      const response = await api.post(endpoints.syncPushNow);
+      const body = forceFull ? { force_full: true } : {};
+      const response = await api.post(endpoints.syncPushNow, body);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

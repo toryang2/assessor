@@ -209,28 +209,37 @@ class Assessor_Sync {
 
     /**
      * Triggered by admin "Sync Now" REST endpoint — runs push + pull immediately.
+     *
+     * @param bool $force_full When true, ignores last_pull_at and re-pulls ALL records
+     *                         from the live site from the beginning of time.
+     *                         Use this to recover from an incomplete initial sync.
      */
-    public static function manual_sync() {
-        if (!self::is_online()) {
-            return array(
-                'success' => false,
-                'message' => 'No internet connection. Cannot reach the live site.',
-                'push'    => null,
-                'config'  => null,
-                'pull'    => null,
-            );
+    public static function manual_sync($force_full = false) {
+        // A full resync of 12,000+ records can easily take >30 seconds, exceeding default PHP max_execution_time
+        set_time_limit(0);
+        // Ensure the sync finishes in the background even if the frontend/proxy times out the request
+        ignore_user_abort(true);
+
+        if ($force_full) {
+            // Reset the pull cursor so every record on the live site is fetched again.
+            self::set_meta('last_pull_at', '2000-01-01 00:00:00');
         }
 
         $push   = self::push_pending();
         $config = self::push_pending_config();
-        $pull   = self::pull_from_live();
+        $pull   = self::pull_from_live($force_full);
+
+        $message = $force_full
+            ? 'Full resync completed. All records pulled from live site.'
+            : 'Sync completed.';
 
         return array(
-            'success' => true,
-            'message' => 'Sync completed.',
-            'push'    => $push,
-            'config'  => $config,
-            'pull'    => $pull,
+            'success'    => true,
+            'message'    => $message,
+            'force_full' => $force_full,
+            'push'       => $push,
+            'config'     => $config,
+            'pull'       => $pull,
         );
     }
 
@@ -248,114 +257,135 @@ class Assessor_Sync {
         $table_queue      = $wpdb->prefix . 'assessor_sync_queue';
         $table_properties = $wpdb->prefix . 'assessor_properties';
 
-        $pending = $wpdb->get_results(
-            "SELECT q.id AS queue_id, q.property_id, q.attempts
-             FROM $table_queue q
-             WHERE q.status = 'pending' AND q.operation = 'upsert'
-             ORDER BY q.queued_at ASC
-             LIMIT 100",
-            ARRAY_A
-        );
+        $total_pushed  = 0;
+        $total_skipped = 0;
+        $total_errors  = array();
 
-        if (empty($pending)) {
-            return array('pushed' => 0, 'skipped' => 0, 'errors' => array());
-        }
+        // Loop until all pending records have been sent (100 per batch).
+        while (true) {
+            $pending = $wpdb->get_results(
+                "SELECT q.id AS queue_id, q.property_id, q.attempts
+                 FROM $table_queue q
+                 WHERE q.status = 'pending' AND q.operation = 'upsert'
+                 ORDER BY q.queued_at ASC
+                 LIMIT 100",
+                ARRAY_A
+            );
 
-        // Collect full property rows
-        $ids          = array_map('intval', array_column($pending, 'property_id'));
-        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
-        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-        $properties = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $table_properties WHERE id IN ($placeholders)",
-                $ids
-            ),
-            ARRAY_A
-        );
-
-        // Map property_id -> row
-        $prop_map = array();
-        foreach ($properties as $p) {
-            $prop_map[$p['id']] = $p;
-        }
-
-        // Build records array keeping queue_id + tax number for response matching
-        $records = array();
-        foreach ($pending as $qi) {
-            $pid = intval($qi['property_id']);
-            if (isset($prop_map[$pid])) {
-                $records[] = array(
-                    'queue_id' => intval($qi['queue_id']),
-                    'attempts' => intval($qi['attempts']),
-                    'tax_num'  => $prop_map[$pid]['tax_declaration_number'],
-                    'data'     => $prop_map[$pid],
-                );
+            if (empty($pending)) {
+                break; // No more pending records — done.
             }
-        }
 
-        if (empty($records)) {
-            return array('pushed' => 0, 'skipped' => 0, 'errors' => array('Properties not found for queued IDs'));
-        }
+            // Collect full property rows
+            $ids          = array_map('intval', array_column($pending, 'property_id'));
+            $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+            // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+            $properties = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM $table_properties WHERE id IN ($placeholders)",
+                    $ids
+                ),
+                ARRAY_A
+            );
 
-        $payload  = array('records' => array_column($records, 'data'));
-        $response = self::live_api_request('POST', '/assessor/v1/sync/push', $payload);
+            // Map property_id -> row
+            $prop_map = array();
+            foreach ($properties as $p) {
+                $prop_map[$p['id']] = $p;
+            }
 
-        if (is_wp_error($response)) {
-            $err_msg = $response->get_error_message();
+            // Build records array keeping queue_id + tax number for response matching
+            $records = array();
             foreach ($pending as $qi) {
+                $pid = intval($qi['property_id']);
+                if (isset($prop_map[$pid])) {
+                    $records[] = array(
+                        'queue_id' => intval($qi['queue_id']),
+                        'attempts' => intval($qi['attempts']),
+                        'tax_num'  => $prop_map[$pid]['tax_declaration_number'],
+                        'data'     => $prop_map[$pid],
+                    );
+                }
+            }
+
+            if (empty($records)) {
+                // All queued IDs in this batch were missing from the properties table — mark failed.
+                foreach ($pending as $qi) {
+                    $wpdb->update(
+                        $table_queue,
+                        array(
+                            'status'     => 'failed',
+                            'attempts'   => intval($qi['attempts']) + 1,
+                            'last_error' => 'Property row not found',
+                        ),
+                        array('id' => intval($qi['queue_id'])),
+                        array('%s', '%d', '%s'),
+                        array('%d')
+                    );
+                }
+                $total_errors[] = 'Properties not found for queued IDs';
+                continue; // Try next batch
+            }
+
+            $payload  = array('records' => array_column($records, 'data'));
+            $response = self::live_api_request('POST', '/assessor/v1/sync/push', $payload);
+
+            if (is_wp_error($response)) {
+                $err_msg = $response->get_error_message();
+                foreach ($pending as $qi) {
+                    $wpdb->update(
+                        $table_queue,
+                        array(
+                            'status'     => 'failed',
+                            'attempts'   => intval($qi['attempts']) + 1,
+                            'last_error' => $err_msg,
+                        ),
+                        array('id' => intval($qi['queue_id'])),
+                        array('%s', '%d', '%s'),
+                        array('%d')
+                    );
+                }
+                $total_errors[] = $err_msg;
+                break; // Network error — stop trying; will retry on next sync cycle.
+            }
+
+            $body    = json_decode(wp_remote_retrieve_body($response), true);
+            $results = isset($body['results']) ? $body['results'] : array();
+
+            foreach ($records as $rec) {
+                $res_item   = isset($results[$rec['tax_num']]) ? $results[$rec['tax_num']] : array('status' => 'error', 'message' => 'No response from live site');
+                $res_status = isset($res_item['status']) ? $res_item['status'] : 'error';
+
+                if ($res_status === 'synced') {
+                    $queue_status = 'synced';
+                    $total_pushed++;
+                } elseif ($res_status === 'skipped') {
+                    $queue_status = 'skipped';
+                    $total_skipped++;
+                } else {
+                    $queue_status = 'failed';
+                    $total_errors[] = $rec['tax_num'] . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
+                }
+
                 $wpdb->update(
                     $table_queue,
                     array(
-                        'status'     => 'failed',
-                        'attempts'   => intval($qi['attempts']) + 1,
-                        'last_error' => $err_msg,
+                        'status'     => $queue_status,
+                        'attempts'   => $rec['attempts'] + 1,
+                        'last_error' => $queue_status === 'failed' ? (isset($res_item['message']) ? $res_item['message'] : 'unknown') : null,
+                        'synced_at'  => $queue_status !== 'failed' ? current_time('mysql') : null,
                     ),
-                    array('id' => intval($qi['queue_id'])),
-                    array('%s', '%d', '%s'),
+                    array('id' => $rec['queue_id']),
+                    array('%s', '%d', '%s', '%s'),
                     array('%d')
                 );
             }
-            return array('pushed' => 0, 'skipped' => 0, 'errors' => array($err_msg));
+        } // end while
+
+        if ($total_pushed > 0 || $total_skipped > 0 || !empty($total_errors)) {
+            self::set_meta('last_push_at', current_time('mysql'));
         }
-
-        $body    = json_decode(wp_remote_retrieve_body($response), true);
-        $results = isset($body['results']) ? $body['results'] : array();
-
-        $pushed = 0;
-        $skipped = 0;
-        $errors  = array();
-
-        foreach ($records as $rec) {
-            $res_item   = isset($results[$rec['tax_num']]) ? $results[$rec['tax_num']] : array('status' => 'error', 'message' => 'No response from live site');
-            $res_status = isset($res_item['status']) ? $res_item['status'] : 'error';
-
-            if ($res_status === 'synced') {
-                $queue_status = 'synced';
-                $pushed++;
-            } elseif ($res_status === 'skipped') {
-                $queue_status = 'skipped';
-                $skipped++;
-            } else {
-                $queue_status = 'failed';
-                $errors[] = $rec['tax_num'] . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
-            }
-
-            $wpdb->update(
-                $table_queue,
-                array(
-                    'status'     => $queue_status,
-                    'attempts'   => $rec['attempts'] + 1,
-                    'last_error' => $queue_status === 'failed' ? (isset($res_item['message']) ? $res_item['message'] : 'unknown') : null,
-                    'synced_at'  => $queue_status !== 'failed' ? current_time('mysql') : null,
-                ),
-                array('id' => $rec['queue_id']),
-                array('%s', '%d', '%s', '%s'),
-                array('%d')
-            );
-        }
-
-        self::set_meta('last_push_at', current_time('mysql'));
-        return array('pushed' => $pushed, 'skipped' => $skipped, 'errors' => $errors);
+        return array('pushed' => $total_pushed, 'skipped' => $total_skipped, 'errors' => $total_errors);
     }
 
     // -------------------------------------------------------------------------
@@ -414,48 +444,89 @@ class Assessor_Sync {
     // -------------------------------------------------------------------------
 
     /**
-     * Fetch records changed on the live site since the last pull and apply locally.
+     * Fetch recently changed records from the live site and upsert locally.
      *
+     * @param bool $force_full If true, passes the flag to apply_remote_record to force overwrite.
      * @return array { pulled, skipped, errors }
      */
-    public static function pull_from_live() {
+    public static function pull_from_live($force_full = false) {
         $last_pull = self::get_meta('last_pull_at');
         $since     = $last_pull ? $last_pull : '2000-01-01 00:00:00';
-
-        $response = self::live_api_request('GET', '/assessor/v1/sync/pull', array('since' => $since));
-
-        if (is_wp_error($response)) {
-            return array('pulled' => 0, 'skipped' => 0, 'errors' => array($response->get_error_message()));
-        }
-
-        $body    = json_decode(wp_remote_retrieve_body($response), true);
-        $records = isset($body['records']) ? $body['records'] : array();
-
-        if (empty($records)) {
-            self::set_meta('last_pull_at', current_time('mysql'));
-            return array('pulled' => 0, 'skipped' => 0, 'errors' => array());
-        }
 
         $pulled  = 0;
         $skipped = 0;
         $errors  = array();
+        $page_limit = 2000; // Max allowed by live site. Helps bypass identical timestamp batches.
+        $sync_start = ''; // Capture the server_ts from the first response
 
         // Tell property-save hooks not to re-enqueue these writes
         self::$syncing = true;
 
-        foreach ($records as $remote) {
-            $result = self::apply_remote_record($remote);
-            if ($result === 'synced') {
-                $pulled++;
-            } elseif ($result === 'skipped') {
-                $skipped++;
+        // Paginate: keep pulling pages until we get a short page.
+        while (true) {
+            $response = self::live_api_request(
+                'GET',
+                '/assessor/v1/sync/pull',
+                array('since' => $since, 'limit' => $page_limit)
+            );
+
+            if (is_wp_error($response)) {
+                $errors[] = $response->get_error_message();
+                break; // Network error — stop; will retry on next cycle.
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            
+            // Capture the exact time the pull started on the live server
+            if (empty($sync_start) && !empty($body['server_ts'])) {
+                $sync_start = $body['server_ts'];
+            }
+
+            $records = isset($body['records']) ? $body['records'] : array();
+
+            if (empty($records)) {
+                break; // No more records on this page — done.
+            }
+
+            foreach ($records as $remote) {
+                $result = self::apply_remote_record($remote, $force_full);
+                if ($result === 'synced') {
+                    $pulled++;
+                } elseif ($result === 'skipped') {
+                    $skipped++;
+                } else {
+                    $errors[] = $result;
+                }
+            }
+
+            $count = count($records);
+
+            if ($count < $page_limit) {
+                break; // Last page — fewer records than page size means no more pages.
+            }
+
+            // Advance cursor: use the updated_at of the last record in this page as the new since.
+            $last_record = end($records);
+            if (!empty($last_record['updated_at'])) {
+                if ($since === $last_record['updated_at']) {
+                    // Infinite loop protection: if the last record has the exact same timestamp as the beginning,
+                    // we cannot advance safely without skipping. We must break and let the user know, or just break.
+                    // But with limit=2000, this is highly unlikely.
+                    $since = date('Y-m-d H:i:s', strtotime($last_record['updated_at']) + 1);
+                } else {
+                    $since = $last_record['updated_at'];
+                }
             } else {
-                $errors[] = $result;
+                break;
             }
         }
 
         self::$syncing = false;
-        self::set_meta('last_pull_at', current_time('mysql'));
+        
+        // Update the cursor only if we successfully connected and got a server timestamp
+        if (!empty($sync_start)) {
+            self::set_meta('last_pull_at', $sync_start);
+        }
 
         return array('pulled' => $pulled, 'skipped' => $skipped, 'errors' => $errors);
     }
@@ -464,9 +535,11 @@ class Assessor_Sync {
      * Apply a single record from the live site to the local database.
      * Last-write-wins: only writes if remote updated_at > local updated_at.
      *
+     * @param array $remote The record array from the live site.
+     * @param bool $force_full If true, ignores timestamps and forces an overwrite of the local record.
      * @return string 'synced' | 'skipped' | error message
      */
-    private static function apply_remote_record($remote) {
+    private static function apply_remote_record($remote, $force_full = false) {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_properties';
 
@@ -486,8 +559,8 @@ class Assessor_Sync {
         $remote_ts = isset($remote['updated_at']) ? strtotime($remote['updated_at']) : 0;
         $local_ts  = $local ? strtotime($local['updated_at']) : 0;
 
-        // Skip if local is same age or newer
-        if ($local && $local_ts >= $remote_ts) {
+        // Skip if local is same age or newer (unless forcing a full resync)
+        if (!$force_full && $local && $local_ts >= $remote_ts) {
             return 'skipped';
         }
 
@@ -525,10 +598,11 @@ class Assessor_Sync {
             'declarant_last_name', 'declarant_first_name', 'declarant_middle_initial',
             'business', 'business_name', 'location', 'lot_number',
             'unique_lot_number_identified', 'survey_number',
-            'area_hectare', 'area_sqm', 'title_number',
-            'assessed_value', 'effectivity_date', 'pin', 'address',
+            'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number',
+            'assessed_value', 'assessed_value_old', 'effectivity_date', 'pin', 'address',
             'assessment_date', 'kind_of_property', 'gen_class',
-            'memoranda', 'supporting_documents', 'status',
+            'memoranda', 'supporting_documents', 'supporting_documents_old', 'status',
+            'change_reason',
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
@@ -556,12 +630,15 @@ class Assessor_Sync {
             return false;
         }
         $url      = rtrim(ASSESSOR_LIVE_SITE_URL, '/') . '/wp-json/assessor/v1/sync/health';
-        $response = wp_remote_head($url, array('timeout' => 5, 'sslverify' => false));
+        // Use GET — the health endpoint only accepts GET; HEAD returns 405.
+        // Increase timeout to 10s to accommodate slow/shared-hosting cold starts.
+        $response = wp_remote_get($url, array('timeout' => 10, 'sslverify' => false));
         if (is_wp_error($response)) {
             return false;
         }
         $code = wp_remote_retrieve_response_code($response);
-        return $code >= 200 && $code < 300;
+        // Accept 2xx AND 3xx — a redirect (e.g. HTTP→HTTPS) still means the host is reachable.
+        return $code >= 200 && $code < 400;
     }
 
     /**
@@ -587,6 +664,7 @@ class Assessor_Sync {
             'method'    => strtoupper($method),
             'timeout'   => 30,
             'sslverify' => false,
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'headers'   => array(
                 'X-Sync-Token' => ASSESSOR_SYNC_TOKEN,
                 'Content-Type' => 'application/json',

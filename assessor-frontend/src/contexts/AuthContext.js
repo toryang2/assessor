@@ -301,7 +301,7 @@ export const AuthProvider = ({ children }) => {
   }, [token, user, trackActivity, resetAfkTimeout]);
 
   // Refactored runSync to be exposed
-  const triggerManualSync = useCallback(async () => {
+  const triggerManualSync = useCallback(async (forceFull = false) => {
     if (isSyncingRef.current) return;
     
     isSyncingRef.current = true;
@@ -309,8 +309,8 @@ export const AuthProvider = ({ children }) => {
     setSyncMessage(null);
 
     try {
-      console.log('🔄 AuthContext: Triggering background sync...');
-      const response = await apiService.triggerSync();
+      console.log('🔄 AuthContext: Triggering background sync...', forceFull ? '(FULL RESYNC)' : '');
+      const response = await apiService.triggerSync(forceFull);
       console.log('✅ AuthContext: Background sync completed', response);
       
       if (response && response.success !== false) {

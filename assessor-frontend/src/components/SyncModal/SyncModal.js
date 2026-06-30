@@ -9,9 +9,11 @@ import {
   Box,
   CircularProgress,
   IconButton,
-  Alert
+  Alert,
+  Tooltip,
+  Divider
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudSync as CloudSyncIcon } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
@@ -21,6 +23,10 @@ const SyncModal = ({ open, onClose }) => {
 
   const handleSyncNow = () => {
     triggerManualSync();
+  };
+
+  const handleFullResync = () => {
+    triggerManualSync(true);
   };
 
   const renderStatusIcon = () => {
@@ -42,6 +48,8 @@ const SyncModal = ({ open, onClose }) => {
     }
   };
 
+  const isSyncing = syncStatus === 'syncing';
+
   return (
     <Dialog 
       open={open} 
@@ -59,7 +67,7 @@ const SyncModal = ({ open, onClose }) => {
         <Typography variant="h6" fontWeight={600}>
           Data Synchronization
         </Typography>
-        <IconButton onClick={onClose} size="small" disabled={syncStatus === 'syncing'}>
+        <IconButton onClick={onClose} size="small" disabled={isSyncing}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -87,7 +95,7 @@ const SyncModal = ({ open, onClose }) => {
 
           {syncStatus === 'idle' && (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ maxWidth: '80%' }}>
-              Click "Sync Now" to manually push local changes and pull the latest updates from the live server. Background sync runs automatically every 5 minutes.
+              Click <strong>Sync Now</strong> to push local changes and pull recent updates from the live server. Background sync runs automatically every 5 minutes.
             </Typography>
           )}
 
@@ -99,27 +107,52 @@ const SyncModal = ({ open, onClose }) => {
               {syncMessage}
             </Alert>
           )}
+
+          <Divider sx={{ width: '100%', mt: 3, mb: 2 }} />
+
+          <Box sx={{ width: '100%', px: 1 }}>
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              <strong>Full Resync</strong> — Use this if local data is missing records from the live server (e.g. first-time setup or incomplete initial sync). This re-downloads <em>all</em> properties from the live site, which may take a few minutes.
+            </Typography>
+          </Box>
           
         </Box>
       </DialogContent>
       
-      <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', gap: 1 }}>
         <Button 
           onClick={onClose} 
           color="inherit" 
-          disabled={syncStatus === 'syncing'}
+          disabled={isSyncing}
+          sx={{ mr: 'auto' }}
         >
           Close
         </Button>
+
+        <Tooltip title="Re-download ALL records from the live site. Use when local data is incomplete." arrow>
+          <span>
+            <Button
+              onClick={handleFullResync}
+              variant="outlined"
+              color="warning"
+              disabled={isSyncing}
+              startIcon={isSyncing ? <CircularProgress size={18} color="inherit" /> : <CloudSyncIcon />}
+              sx={{ borderRadius: 2, px: 2 }}
+            >
+              Full Resync
+            </Button>
+          </span>
+        </Tooltip>
+
         <Button 
           onClick={handleSyncNow} 
           variant="contained" 
           color="primary"
-          disabled={syncStatus === 'syncing'}
-          startIcon={syncStatus === 'syncing' ? <CircularProgress size={20} color="inherit" /> : <AnimatedCloudIcon status="idle" size={20} />}
+          disabled={isSyncing}
+          startIcon={isSyncing ? <CircularProgress size={20} color="inherit" /> : <AnimatedCloudIcon status="idle" size={20} />}
           sx={{ borderRadius: 2, px: 3 }}
         >
-          {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+          {isSyncing ? 'Syncing...' : 'Sync Now'}
         </Button>
       </DialogActions>
     </Dialog>
