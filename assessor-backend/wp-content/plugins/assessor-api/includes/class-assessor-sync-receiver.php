@@ -123,6 +123,8 @@ class Assessor_Sync_Receiver {
             }
         }
 
+        update_option('assessor_last_local_push', current_time('mysql'));
+
         return array(
             'results' => $results,
             'summary' => array(
@@ -180,6 +182,11 @@ class Assessor_Sync_Receiver {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
             }
             $live_property_id = $wpdb->insert_id;
+        }
+
+        if (class_exists('Assessor_Audit')) {
+            $audit = new Assessor_Audit();
+            $audit->log_activity(0, 'SYNC_FROM_LOCAL', $table, $live_property_id, null, array('tax_declaration_number' => $tax_num));
         }
 
         // Process pushed documents
@@ -286,6 +293,8 @@ class Assessor_Sync_Receiver {
             
             $safe_records[] = $safe;
         }
+
+        update_option('assessor_last_local_pull', current_time('mysql'));
 
         return array(
             'records'   => $safe_records,

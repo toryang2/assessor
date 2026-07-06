@@ -894,6 +894,8 @@ class Assessor_Sync {
             'live_url'       => $live_url,
             'last_push'      => self::get_meta('last_push_at'),
             'last_pull'      => self::get_meta('last_pull_at'),
+            'last_local_pull' => get_option('assessor_last_local_pull', null),
+            'last_local_push' => get_option('assessor_last_local_push', null),
         );
     }
 

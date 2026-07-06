@@ -648,6 +648,16 @@ export const apiService = {
     }
   },
   
+  // Audit
+  getAuditTrail: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.audit, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
   // Sync
   triggerSync: async (forceFull = false) => {
     try {

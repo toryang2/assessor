@@ -588,10 +588,10 @@ class Assessor_API {
     /** POST /assessor/v1/sync/push-now — triggers an immediate push + pull */
     public function sync_push_now($request) {
         if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
-            return new WP_Error(
-                'not_local_build',
-                'Sync Now is only available on local builds. Define ASSESSOR_IS_LOCAL_BUILD=true in wp-config.php.',
-                array('status' => 400)
+            return array(
+                'success' => true,
+                'message' => 'Live server is receiving updates.',
+                'is_live' => true
             );
         }
         $params     = $request->get_json_params();
