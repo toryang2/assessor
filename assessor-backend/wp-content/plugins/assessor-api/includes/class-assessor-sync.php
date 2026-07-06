@@ -38,7 +38,6 @@ class Assessor_Sync {
         'assessor_property_types'    => 'code',
         'assessor_request_purposes'  => 'purpose',
         'assessor_revision_entries'  => 'revision_year',
-        'assessor_settings'          => null, // single-row table, full replace
     );
 
     // -------------------------------------------------------------------------

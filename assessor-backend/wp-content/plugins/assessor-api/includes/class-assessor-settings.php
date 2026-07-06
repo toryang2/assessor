@@ -87,9 +87,7 @@ class Assessor_Settings {
 		} else {
 			$wpdb->insert($table, $data);
 		}
-		if (class_exists('Assessor_Sync')) {
-			Assessor_Sync::enqueue_config_table('assessor_settings');
-		}
+		// Sync removed for settings
 		return $this->get_settings();
 	}
 

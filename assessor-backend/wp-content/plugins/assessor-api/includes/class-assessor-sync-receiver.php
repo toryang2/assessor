@@ -330,7 +330,6 @@ class Assessor_Sync_Receiver {
             'assessor_property_types',
             'assessor_request_purposes',
             'assessor_revision_entries',
-            'assessor_settings',
         );
 
         if (!in_array($table_suffix, $allowed_tables, true)) {
