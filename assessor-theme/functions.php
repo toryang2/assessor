@@ -9,6 +9,25 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Dynamically use HTTP_HOST for siteurl and home to allow local network access
+add_filter('option_siteurl', 'assessor_dynamic_url');
+add_filter('option_home', 'assessor_dynamic_url');
+add_filter('site_url', 'assessor_dynamic_url');
+add_filter('home_url', 'assessor_dynamic_url');
+add_filter('template_directory_uri', 'assessor_dynamic_url');
+add_filter('stylesheet_directory_uri', 'assessor_dynamic_url');
+
+function assessor_dynamic_url($url) {
+    if (empty($url)) return $url;
+    if (isset($_SERVER['HTTP_HOST'])) {
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'];
+        // Safely replace localhost or 127.0.0.1 with the actual HTTP_HOST
+        return preg_replace('#^https?://(?:localhost|127\.0\.0\.1)(:\d+)?#i', $protocol . $host, $url);
+    }
+    return $url;
+}
+
 // Remove WordPress admin bar for non-admin users
 if (!current_user_can('administrator')) {
     add_filter('show_admin_bar', '__return_false');

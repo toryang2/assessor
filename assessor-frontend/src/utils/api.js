@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost/wp-json/assessor/v1',
+  baseURL: window.REACT_APP_BASE_URL || process.env.REACT_APP_API_URL || 'http://localhost/wp-json/assessor/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

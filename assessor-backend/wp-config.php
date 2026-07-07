@@ -103,7 +103,11 @@ define('DONOTCACHEOBJECT', true);
 
 /* Add any custom values between this line and the "stop editing" line. */
 
-
+if (isset($_SERVER['HTTP_HOST'])) {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    define('WP_HOME', $protocol . $_SERVER['HTTP_HOST']);
+    define('WP_SITEURL', $protocol . $_SERVER['HTTP_HOST']);
+}
 
 /* That's all, stop editing! Happy publishing. */
 
