@@ -379,7 +379,7 @@ class Assessor_Sync_Receiver {
 
     /**
      * Columns accepted from an incoming (local -> live) push.
-     * Excludes local user IDs that have no meaning on the live site.
+     * Includes local user IDs so that authorship is preserved on the live site.
      */
     private function sanitize_incoming_record($record) {
         $allowed = array(
@@ -396,6 +396,7 @@ class Assessor_Sync_Receiver {
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'updated_at', 'created_at',
+            'created_by', 'updated_by',
         );
 
         $safe = array();
@@ -409,7 +410,7 @@ class Assessor_Sync_Receiver {
 
     /**
      * Columns sent to local builds in a pull response.
-     * We send all core property fields but NOT local user IDs.
+     * Includes local user IDs so authorship is preserved.
      */
     private function sanitize_outgoing_record($record) {
         $allowed = array(
@@ -426,6 +427,7 @@ class Assessor_Sync_Receiver {
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'updated_at', 'created_at',
+            'created_by', 'updated_by',
         );
 
         $safe = array();

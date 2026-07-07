@@ -233,6 +233,7 @@ class Assessor_Sync {
         if ($force_full) {
             // Reset the pull cursor so every record on the live site is fetched again.
             self::set_meta('last_pull_at', '2000-01-01 00:00:00');
+            self::set_meta('pull_offset', 0);
         }
 
         $push   = self::push_pending();
@@ -478,12 +479,16 @@ class Assessor_Sync {
     public static function pull_from_live($force_full = false) {
         $last_pull = self::get_meta('last_pull_at');
         $since     = $last_pull ? $last_pull : '2000-01-01 00:00:00';
-
+        
         $pulled  = 0;
         $skipped = 0;
         $errors  = array();
-        $page_limit = 2000; // Max allowed by live site. Helps bypass identical timestamp batches.
+        $page_limit = 500; // Reduced from 2000 to 500 to prevent server timeouts/memory limits on large syncs
         $sync_start = ''; // Capture the server_ts from the first response
+        $pull_completed_successfully = true;
+        
+        // Fetch the saved offset so we can resume exactly where we left off if Apache kills us
+        $offset = (int) self::get_meta('pull_offset');
 
         // Tell property-save hooks not to re-enqueue these writes
         self::$syncing = true;
@@ -493,11 +498,12 @@ class Assessor_Sync {
             $response = self::live_api_request(
                 'GET',
                 '/assessor/v1/sync/pull',
-                array('since' => $since, 'limit' => $page_limit)
+                array('since' => $since, 'limit' => $page_limit, 'offset' => $offset)
             );
 
             if (is_wp_error($response)) {
                 $errors[] = $response->get_error_message();
+                $pull_completed_successfully = false;
                 break; // Network error — stop; will retry on next cycle.
             }
 
@@ -531,27 +537,23 @@ class Assessor_Sync {
                 break; // Last page — fewer records than page size means no more pages.
             }
 
-            // Advance cursor: use the updated_at of the last record in this page as the new since.
-            $last_record = end($records);
-            if (!empty($last_record['updated_at'])) {
-                if ($since === $last_record['updated_at']) {
-                    // Infinite loop protection: if the last record has the exact same timestamp as the beginning,
-                    // we cannot advance safely without skipping. We must break and let the user know, or just break.
-                    // But with limit=2000, this is highly unlikely.
-                    $since = date('Y-m-d H:i:s', strtotime($last_record['updated_at']) + 1);
-                } else {
-                    $since = $last_record['updated_at'];
-                }
-            } else {
-                break;
-            }
+            // Advance cursor using offset instead of updating $since. 
+            // Updating $since drops records with the exact same timestamp!
+            $offset += $page_limit;
+            
+            // CHECKPOINT: Save progress immediately after every page.
+            // If Apache or PHP kills this script halfway through 12,000 records, 
+            // the next sync will resume exactly at this offset instead of starting over!
+            self::set_meta('pull_offset', $offset);
         }
 
         self::$syncing = false;
         
-        // Update the cursor only if we successfully connected and got a server timestamp
-        if (!empty($sync_start)) {
+        // At the very end, if we completed everything successfully without errors, 
+        // we can set the cursor to the exact time the sync started and RESET the offset.
+        if ($pull_completed_successfully && !empty($sync_start)) {
             self::set_meta('last_pull_at', $sync_start);
+            self::set_meta('pull_offset', 0);
         }
 
         return array('pulled' => $pulled, 'skipped' => $skipped, 'errors' => $errors);
@@ -659,6 +661,7 @@ class Assessor_Sync {
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
             'updated_at', 'created_at',
+            'created_by', 'updated_by', // Allow syncing user IDs
         );
 
         $safe = array();
@@ -811,7 +814,7 @@ class Assessor_Sync {
 
         $args = array(
             'method'    => strtoupper($method),
-            'timeout'   => 30,
+            'timeout'   => 120, // Increased from 30 to 120 to allow large page generations on the live server
             'sslverify' => false,
             'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'headers'   => array(

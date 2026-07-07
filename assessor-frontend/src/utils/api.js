@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: window.REACT_APP_BASE_URL || process.env.REACT_APP_API_URL || 'http://localhost/wp-json/assessor/v1',
-  timeout: 30000,
+  timeout: 300000, // 5 minutes to allow for large data syncs
   headers: {
     'Content-Type': 'application/json',
   },
