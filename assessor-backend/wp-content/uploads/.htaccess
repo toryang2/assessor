@@ -1,0 +1,9 @@
+# Allow any origin to load images and documents from this directory.
+# This is needed so that machines accessing the app via the LAN IP
+# (e.g. 192.168.1.76 accessing 192.168.1.33) can load images without CORS errors.
+
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Origin, Accept, Content-Type"
+</IfModule>

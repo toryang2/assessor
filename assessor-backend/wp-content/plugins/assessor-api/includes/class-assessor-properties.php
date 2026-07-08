@@ -451,18 +451,19 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
         
-        // Rewrite URLs for local build offline viewing
-        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD && defined('ASSESSOR_LIVE_SITE_URL')) {
-            $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
-            $upload_dir = wp_upload_dir();
-            $local_base = rtrim($upload_dir['baseurl'], '/');
+        // Rewrite image URLs dynamically based on requesting host
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
+            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+            $current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+            $local_base = rtrim($protocol . $current_host, '/');
+            $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
             
             foreach ($properties as &$prop) {
                 if (!empty($prop->supporting_documents)) {
-                    $prop->supporting_documents = str_replace($live_domain . '/wp-content/uploads', $local_base, $prop->supporting_documents);
+                    $prop->supporting_documents = $this->rewrite_document_urls($prop->supporting_documents, $live_domain, $local_base);
                 }
                 if (!empty($prop->supporting_documents_old)) {
-                    $prop->supporting_documents_old = str_replace($live_domain . '/wp-content/uploads', $local_base, $prop->supporting_documents_old);
+                    $prop->supporting_documents_old = $this->rewrite_document_urls($prop->supporting_documents_old, $live_domain, $local_base);
                 }
             }
             unset($prop); // Break reference
@@ -508,17 +509,18 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             return new WP_Error('property_not_found', 'Property not found', array('status' => 404));
         }
 
-        // Rewrite URLs for local build offline viewing
-        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD && defined('ASSESSOR_LIVE_SITE_URL')) {
-            $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
-            $upload_dir = wp_upload_dir();
-            $local_base = rtrim($upload_dir['baseurl'], '/');
+        // Rewrite image URLs dynamically based on requesting host
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
+            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+            $current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+            $local_base = rtrim($protocol . $current_host, '/');
+            $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
             
             if (!empty($property->supporting_documents)) {
-                $property->supporting_documents = str_replace($live_domain . '/wp-content/uploads', $local_base, $property->supporting_documents);
+                $property->supporting_documents = $this->rewrite_document_urls($property->supporting_documents, $live_domain, $local_base);
             }
             if (!empty($property->supporting_documents_old)) {
-                $property->supporting_documents_old = str_replace($live_domain . '/wp-content/uploads', $local_base, $property->supporting_documents_old);
+                $property->supporting_documents_old = $this->rewrite_document_urls($property->supporting_documents_old, $live_domain, $local_base);
             }
         }
         
@@ -1509,6 +1511,50 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
         $where_conditions[] = '(' . implode(' OR ', $or_sql) . ')';
         $where_values = array_merge($where_values, $or_vals);
+    }
+
+    /**
+     * Safely rewrites relative URLs or live server URLs to use the current host's URL.
+     */
+    private function rewrite_document_urls($json_or_string, $live_domain, $local_base) {
+        if (empty($json_or_string)) {
+            return $json_or_string;
+        }
+
+        $decoded = json_decode($json_or_string, true);
+        
+        $rewrite_single = function($url) use ($local_base) {
+            $url = trim($url);
+            if (empty($url)) return $url;
+            
+            // If it starts with /wp-content, prepend local_base
+            if (strpos($url, '/wp-content/uploads/') === 0) {
+                return $local_base . $url;
+            }
+            
+            // If it's an absolute URL containing /wp-content/uploads/, replace the domain
+            if (preg_match('/^https?:\/\/[^\/]+(\/wp-content\/uploads\/.*)$/i', $url, $matches)) {
+                return $local_base . $matches[1];
+            }
+            
+            return $url;
+        };
+        
+        if (is_array($decoded)) {
+            // It's a valid JSON array of URLs
+            foreach ($decoded as &$url) {
+                $url = $rewrite_single($url);
+            }
+            // Use wp_json_encode but preserve slashes if possible
+            return wp_json_encode($decoded, JSON_UNESCAPED_SLASHES);
+        } else {
+            // It's a pipe-separated string or just a raw URL string
+            $parts = explode('|', $json_or_string);
+            foreach ($parts as &$part) {
+                $part = $rewrite_single($part);
+            }
+            return implode('|', $parts);
+        }
     }
 
     private function normalize_previous_tax_declaration_numbers($raw) {

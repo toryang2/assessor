@@ -111,6 +111,10 @@ export const endpoints = {
   syncConfig: '/sync/config',
   syncGenerateToken: '/sync/generate-token',
   syncSaveToken: '/sync/save-token',
+  syncClearFailed: '/sync/clear-failed',
+  syncMissingFilesList: '/sync/missing-files-list',
+  syncDownloadBatch: '/sync/download-batch',
+  syncDownloadStatus: '/sync/download-status',
 };
 
 // API functions
@@ -690,6 +694,42 @@ export const apiService = {
   saveSyncToken: async (token) => {
     try {
       const response = await api.post(endpoints.syncSaveToken, { token });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getDownloadStatus: async () => {
+    try {
+      const response = await api.get(endpoints.syncDownloadStatus);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  triggerFileDownload: async () => {
+    try {
+      const response = await api.post(endpoints.syncDownloadFiles, {}, { timeout: 600000 });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getMissingFilesList: async () => {
+    try {
+      const response = await api.get(endpoints.syncMissingFilesList);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  downloadBatch: async (files) => {
+    try {
+      const response = await api.post(endpoints.syncDownloadBatch, { files }, { timeout: 120000 });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

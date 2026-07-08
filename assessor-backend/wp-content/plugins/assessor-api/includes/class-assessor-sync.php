@@ -594,6 +594,19 @@ class Assessor_Sync {
 
         $safe = self::sanitize_sync_record($remote);
 
+        // Rewrite live-site URLs to relative paths so they work from any machine
+        // e.g. https://archive.massokitaotao.net/wp-content/uploads/assessor/...
+        //   -> /wp-content/uploads/assessor/...
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD && defined('ASSESSOR_LIVE_SITE_URL')) {
+            $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
+            $url_fields = array('supporting_documents', 'supporting_documents_old');
+            foreach ($url_fields as $field) {
+                if (!empty($safe[$field])) {
+                    $safe[$field] = str_replace($live_domain, '', $safe[$field]);
+                }
+            }
+        }
+
         if ($local) {
             $wpdb->update($table, $safe, array('id' => intval($local['id'])));
             if ($wpdb->last_error) {
@@ -677,9 +690,9 @@ class Assessor_Sync {
     // File Downloading (Cron)
     // -------------------------------------------------------------------------
 
-    public static function download_missing_files() {
+    public static function download_missing_files($max_downloads = 50) {
         if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
-            return;
+            return array('downloaded' => 0, 'failed' => 0, 'remaining' => 0);
         }
         
         global $wpdb;
@@ -687,87 +700,266 @@ class Assessor_Sync {
         $table_prop = $wpdb->prefix . 'assessor_properties';
         $upload_dir = wp_upload_dir();
         $basedir = rtrim($upload_dir['basedir'], '/');
-        $live_domain = rtrim(ASSESSOR_LIVE_SITE_URL, '/');
+        $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
         
         $downloaded = 0;
-        $max_downloads = 10;
+        $failed = 0;
         
         // 1. Check assessor_documents table
         $docs = $wpdb->get_results("SELECT id, file_path FROM $table_docs ORDER BY id DESC", ARRAY_A);
         if ($docs) {
             foreach ($docs as $doc) {
-                if ($downloaded >= $max_downloads) break;
+                if (($downloaded + $failed) >= $max_downloads) break;
                 
                 if (!empty($doc['file_path']) && !file_exists($doc['file_path'])) {
                     if (strpos($doc['file_path'], $basedir) === 0) {
                         $relative = substr($doc['file_path'], strlen($basedir));
                         $live_url = $live_domain . '/wp-content/uploads' . str_replace('\\', '/', $relative);
                         
-                        $response = wp_remote_get($live_url, array(
-                            'timeout' => 30, 'sslverify' => false,
-                            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        ));
-                        
-                        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                            $dir = dirname($doc['file_path']);
-                            if (!file_exists($dir)) wp_mkdir_p($dir);
-                            file_put_contents($doc['file_path'], wp_remote_retrieve_body($response));
+                        if (self::download_single_file($live_url, $doc['file_path'])) {
                             $downloaded++;
+                        } else {
+                            $failed++;
                         }
                     }
                 }
             }
         }
         
-        // 2. Check legacy supporting_documents in properties table
-        if ($downloaded < $max_downloads) {
+        // 2. Check supporting_documents in properties table
+        // URLs may be stored as:
+        //   (a) relative paths: /wp-content/uploads/assessor/lot-pictures/file.jpg
+        //   (b) absolute live URLs: https://archive.massokitaotao.net/wp-content/uploads/assessor/...
+        if (($downloaded + $failed) < $max_downloads) {
             $props = $wpdb->get_results("SELECT id, supporting_documents, supporting_documents_old FROM $table_prop ORDER BY id DESC", ARRAY_A);
             if ($props) {
                 foreach ($props as $prop) {
-                    if ($downloaded >= $max_downloads) break;
+                    if (($downloaded + $failed) >= $max_downloads) break;
                     
-                    $docs1 = json_decode($prop['supporting_documents'], true);
-                    if (!is_array($docs1)) $docs1 = array();
-                    
-                    $docs2 = array();
-                    if (!empty($prop['supporting_documents_old'])) {
-                        // Sometimes this is JSON, sometimes a string
-                        $decoded = json_decode($prop['supporting_documents_old'], true);
-                        if (is_array($decoded)) {
-                            $docs2 = $decoded;
-                        } else {
-                            $docs2 = array($prop['supporting_documents_old']);
-                        }
-                    }
-                    
-                    $all_docs = array_merge($docs1, $docs2);
-                    foreach ($all_docs as $url) {
-                        if (empty($url) || !is_string($url)) continue;
+                    $all_urls = self::extract_urls_from_supporting_docs($prop);
+                    foreach ($all_urls as $url) {
+                        if (($downloaded + $failed) >= $max_downloads) break;
                         
-                        // Check if it's a live site URL
-                        if (strpos($url, $live_domain . '/wp-content/uploads') !== false) {
+                        $local_path = null;
+                        $download_url = null;
+                        
+                        // Case (a): relative path like /wp-content/uploads/assessor/...
+                        if (strpos($url, '/wp-content/uploads/') === 0) {
+                            $relative = str_replace('/wp-content/uploads', '', $url);
+                            $local_path = $basedir . $relative;
+                            $download_url = $live_domain . $url;
+                        }
+                        // Case (b): absolute live URL
+                        elseif (!empty($live_domain) && strpos($url, $live_domain . '/wp-content/uploads') !== false) {
                             $relative = str_replace($live_domain . '/wp-content/uploads', '', $url);
                             $local_path = $basedir . $relative;
-                            
-                            if (!file_exists($local_path)) {
-                                $response = wp_remote_get($url, array(
-                                    'timeout' => 30, 'sslverify' => false,
-                                    'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                                ));
-                                
-                                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                                    $dir = dirname($local_path);
-                                    if (!file_exists($dir)) wp_mkdir_p($dir);
-                                    file_put_contents($local_path, wp_remote_retrieve_body($response));
-                                    $downloaded++;
-                                    if ($downloaded >= $max_downloads) break 2;
-                                }
+                            $download_url = $url;
+                        }
+                        
+                        if ($local_path && $download_url && !file_exists($local_path)) {
+                            if (self::download_single_file($download_url, $local_path)) {
+                                $downloaded++;
+                            } else {
+                                $failed++;
                             }
                         }
                     }
                 }
             }
         }
+        
+        // Count remaining missing files for status reporting
+        $remaining = self::count_missing_files();
+        
+        return array('downloaded' => $downloaded, 'failed' => $failed, 'remaining' => $remaining);
+    }
+
+    /**
+     * Download a single file from a remote URL to a local path.
+     */
+    private static function download_single_file($url, $local_path) {
+        $response = wp_remote_get($url, array(
+            'timeout'    => 5,
+            'sslverify'  => false,
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ));
+        
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $dir = dirname($local_path);
+            if (!file_exists($dir)) wp_mkdir_p($dir);
+            file_put_contents($local_path, wp_remote_retrieve_body($response));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extract all image/document URLs from a property's supporting_documents fields.
+     */
+    private static function extract_urls_from_supporting_docs($prop) {
+        $urls = array();
+        
+        foreach (array('supporting_documents', 'supporting_documents_old') as $field) {
+            if (empty($prop[$field])) continue;
+            
+            $decoded = json_decode($prop[$field], true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $item) {
+                    if (is_string($item) && !empty($item)) {
+                        $urls[] = $item;
+                    }
+                }
+            } elseif (is_string($prop[$field]) && !empty($prop[$field])) {
+                // Could be a pipe-delimited string or a single URL
+                $parts = explode('|', $prop[$field]);
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if (!empty($part)) {
+                        $urls[] = $part;
+                    }
+                }
+            }
+        }
+        
+        return $urls;
+    }
+
+    /**
+     * Count files that still need to be downloaded.
+     */
+    public static function count_missing_files() {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return 0;
+        }
+        
+        global $wpdb;
+        $table_prop = $wpdb->prefix . 'assessor_properties';
+        $upload_dir = wp_upload_dir();
+        $basedir = rtrim($upload_dir['basedir'], '/');
+        $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
+        $missing = 0;
+        
+        $props = $wpdb->get_results("SELECT supporting_documents, supporting_documents_old FROM $table_prop", ARRAY_A);
+        if ($props) {
+            foreach ($props as $prop) {
+                $all_urls = self::extract_urls_from_supporting_docs($prop);
+                foreach ($all_urls as $url) {
+                    $local_path = null;
+                    if (strpos($url, '/wp-content/uploads/') === 0) {
+                        $relative = str_replace('/wp-content/uploads', '', $url);
+                        $local_path = $basedir . $relative;
+                    } elseif (!empty($live_domain) && strpos($url, $live_domain . '/wp-content/uploads') !== false) {
+                        $relative = str_replace($live_domain . '/wp-content/uploads', '', $url);
+                        $local_path = $basedir . $relative;
+                    }
+                    if ($local_path && !file_exists($local_path)) {
+                        $missing++;
+                    }
+                }
+            }
+        }
+        
+        return $missing;
+    }
+
+    /**
+     * Bulk download — called manually from the admin to download missing files.
+     * Processes 25 files per call so the frontend can receive live progress updates.
+     * @deprecated Use get_missing_files_list and download_specific_batch instead.
+     */
+    public static function bulk_download_files() {
+        set_time_limit(0);
+        ignore_user_abort(true);
+        
+        return self::download_missing_files(25);
+    }
+
+    /**
+     * Get a complete list of all missing files to be downloaded by the frontend.
+     */
+    public static function get_missing_files_list() {
+        set_time_limit(0);
+        
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return array('missing_files' => array());
+        }
+        
+        global $wpdb;
+        $table_docs = $wpdb->prefix . 'assessor_documents';
+        $table_prop = $wpdb->prefix . 'assessor_properties';
+        $upload_dir = wp_upload_dir();
+        $basedir = rtrim($upload_dir['basedir'], '/');
+        $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
+        
+        $missing_files = array();
+        
+        // 1. Check assessor_documents table
+        $docs = $wpdb->get_results("SELECT id, file_path FROM $table_docs ORDER BY id DESC", ARRAY_A);
+        if ($docs) {
+            foreach ($docs as $doc) {
+                if (!empty($doc['file_path']) && !file_exists($doc['file_path'])) {
+                    if (strpos($doc['file_path'], $basedir) === 0) {
+                        $relative = substr($doc['file_path'], strlen($basedir));
+                        $live_url = $live_domain . '/wp-content/uploads' . str_replace('\\', '/', $relative);
+                        $missing_files[] = array('url' => $live_url, 'path' => $doc['file_path']);
+                    }
+                }
+            }
+        }
+        
+        // 2. Check supporting_documents in properties table
+        $props = $wpdb->get_results("SELECT id, supporting_documents, supporting_documents_old FROM $table_prop ORDER BY id DESC", ARRAY_A);
+        if ($props) {
+            foreach ($props as $prop) {
+                $all_urls = self::extract_urls_from_supporting_docs($prop);
+                foreach ($all_urls as $url) {
+                    $local_path = null;
+                    $download_url = null;
+                    
+                    if (strpos($url, '/wp-content/uploads/') === 0) {
+                        $relative = str_replace('/wp-content/uploads', '', $url);
+                        $local_path = $basedir . $relative;
+                        $download_url = $live_domain . $url;
+                    } elseif (!empty($live_domain) && strpos($url, $live_domain . '/wp-content/uploads') !== false) {
+                        $relative = str_replace($live_domain . '/wp-content/uploads', '', $url);
+                        $local_path = $basedir . $relative;
+                        $download_url = $url;
+                    }
+                    
+                    if ($local_path && $download_url && !file_exists($local_path)) {
+                        $missing_files[] = array('url' => $download_url, 'path' => $local_path);
+                    }
+                }
+            }
+        }
+        
+        return array('missing_files' => $missing_files);
+    }
+
+    /**
+     * Download a specific array of files sent from the frontend.
+     */
+    public static function download_specific_batch($files) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return array('downloaded' => 0, 'failed' => 0);
+        }
+
+        $downloaded = 0;
+        $failed = 0;
+
+        foreach ($files as $file) {
+            if (empty($file['url']) || empty($file['path'])) {
+                $failed++;
+                continue;
+            }
+            if (self::download_single_file($file['url'], $file['path'])) {
+                $downloaded++;
+            } else {
+                $failed++;
+            }
+        }
+
+        return array('downloaded' => $downloaded, 'failed' => $failed);
     }
 
     // -------------------------------------------------------------------------

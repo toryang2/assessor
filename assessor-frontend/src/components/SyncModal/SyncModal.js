@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,7 +19,9 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip
+  Chip,
+  Grid,
+  LinearProgress
 } from '@mui/material';
 import { Close as CloseIcon, CloudSync as CloudSyncIcon } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -132,6 +134,13 @@ const SyncModal = ({ open, onClose }) => {
   const [syncConfig, setSyncConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
+  // File download state
+  const [fileDownloadStatus, setFileDownloadStatus] = useState(null); // { missing_files }
+  const [fileDownloadStatusLoading, setFileDownloadStatusLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ downloaded: 0, failed: 0, remaining: 0, total: 0, isFetching: false });
+  const downloadAbortRef = useRef(false);
+
   useEffect(() => {
     if (open) {
       setLoadingConfig(true);
@@ -141,6 +150,106 @@ const SyncModal = ({ open, onClose }) => {
         .finally(() => setLoadingConfig(false));
     }
   }, [open]);
+
+  const loadDownloadStatus = async () => {
+    setFileDownloadStatusLoading(true);
+    try {
+      const res = await apiService.getDownloadStatus();
+      setFileDownloadStatus(res);
+      setDownloadProgress(prev => ({ ...prev, remaining: res.missing_files, total: res.missing_files }));
+    } catch (e) {
+      console.error('Failed to load download status', e);
+    }
+    setFileDownloadStatusLoading(false);
+  };
+
+  useEffect(() => {
+    if (open && syncConfig?.is_local_build) {
+      loadDownloadStatus();
+    }
+  }, [open, syncConfig]);
+
+  const handleBulkDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadProgress({ downloaded: 0, failed: 0, remaining: 0, total: 0, isFetching: true });
+    downloadAbortRef.current = false;
+    
+    let missingFiles = [];
+    try {
+      const data = await apiService.getMissingFilesList();
+      missingFiles = data.missing_files || [];
+    } catch (e) {
+      console.error(`Error fetching files: ${e.message}`);
+      setIsDownloading(false);
+      return;
+    }
+
+    let currentRemaining = missingFiles.length;
+    if (currentRemaining === 0) {
+      await loadDownloadStatus();
+      currentRemaining = downloadProgress.remaining;
+    }
+    
+    setDownloadProgress({ downloaded: 0, failed: 0, remaining: currentRemaining, total: currentRemaining, isFetching: false });
+
+    const concurrency = 5;
+    let currentIndex = 0;
+
+    const downloadNext = async () => {
+      if (downloadAbortRef.current) return;
+      
+      const idx = currentIndex++;
+      if (idx >= missingFiles.length) return;
+      
+      const file = missingFiles[idx];
+      
+      try {
+        const res = await apiService.downloadBatch([file]);
+        
+        const downloadedThis = res.downloaded || 0;
+        const failedThis = res.failed || 0;
+        
+        setDownloadProgress(prev => ({
+          ...prev,
+          downloaded: prev.downloaded + downloadedThis,
+          failed: prev.failed + failedThis,
+          remaining: Math.max(0, prev.remaining - 1)
+        }));
+        
+        setFileDownloadStatus(prev => ({ 
+          ...prev, 
+          missing_files: Math.max(0, (prev?.missing_files || 0) - 1) 
+        }));
+
+      } catch (e) {
+        console.error(`Error during download: ${e.message}`);
+        // Count as failed
+        setDownloadProgress(prev => ({
+          ...prev,
+          failed: prev.failed + 1,
+          remaining: Math.max(0, prev.remaining - 1)
+        }));
+      }
+      
+      // Queue next
+      await downloadNext();
+    };
+    
+    // Start workers
+    const workers = [];
+    for (let w = 0; w < concurrency; w++) {
+      workers.push(downloadNext());
+    }
+    
+    await Promise.all(workers);
+    
+    setIsDownloading(false);
+  };
+
+  const stopBulkDownload = () => {
+    downloadAbortRef.current = true;
+  };
 
   const handleSyncNow = () => triggerManualSync();
   const handleFullResync = () => triggerManualSync(true);
@@ -227,6 +336,111 @@ const SyncModal = ({ open, onClose }) => {
               <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                 <strong>Full Resync</strong> — Use this if local data is missing records from the live server (e.g. first-time setup or incomplete initial sync). This re-downloads <em>all</em> properties from the live site, which may take a few minutes.
               </Typography>
+            </Box>
+
+            <Divider sx={{ width: '100%', mt: 3, mb: 2 }} />
+
+            <Box sx={{ width: '100%', px: 1 }}>
+              <Typography variant="h6" gutterBottom>Bulk Image Downloader</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                This tool uses concurrent background workers to continuously download all missing images one by one at maximum speed.
+              </Typography>
+              
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+                  <Box>
+                    <Typography variant="subtitle2">Files Missing Locally:</Typography>
+                    <Typography variant="h5">
+                      {fileDownloadStatusLoading ? <CircularProgress size={24} /> : (fileDownloadStatus?.missing_files ?? '?')}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                      variant="outlined" 
+                      onClick={loadDownloadStatus} 
+                      disabled={fileDownloadStatusLoading || isDownloading}
+                      size="small"
+                    >
+                      Refresh Count
+                    </Button>
+                    {!isDownloading ? (
+                      <Button 
+                        variant="contained" 
+                        color="primary" 
+                        onClick={handleBulkDownload}
+                        disabled={!fileDownloadStatus || fileDownloadStatus.missing_files === 0}
+                      >
+                        Start Bulk Download
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="contained" 
+                        color="error" 
+                        onClick={stopBulkDownload}
+                      >
+                        Stop Downloading
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Progress Stats */}
+                {downloadProgress.total > 0 && (
+                  <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Downloaded</Typography>
+                        <Typography variant="body1" color="success.main" fontWeight="bold">{downloadProgress.downloaded}</Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Failed</Typography>
+                        <Typography variant="body1" color="error.main" fontWeight="bold">{downloadProgress.failed}</Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Remaining</Typography>
+                        <Typography variant="body1" fontWeight="bold">{downloadProgress.remaining}</Typography>
+                      </Grid>
+                    </Grid>
+                    
+                    {/* Linear Progress Bar */}
+                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
+                      <Box sx={{ width: '100%', mr: 1 }}>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={downloadProgress.total > 0 ? Math.min(100, Math.round(((downloadProgress.total - downloadProgress.remaining) / downloadProgress.total) * 100)) : 0} 
+                          sx={{ height: 8, borderRadius: 4 }}
+                        />
+                      </Box>
+                      <Box sx={{ minWidth: 35 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {downloadProgress.total > 0 ? Math.min(100, Math.round(((downloadProgress.total - downloadProgress.remaining) / downloadProgress.total) * 100)) : 0}%
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Single Status Line */}
+                {(isDownloading || downloadProgress.downloaded > 0 || downloadProgress.failed > 0) && (
+                  <Box sx={{ 
+                    mt: 2,
+                    p: 2, 
+                    bgcolor: '#f5f5f5', 
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    {isDownloading && <CircularProgress size={20} />}
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                      {downloadProgress.isFetching ? 
+                        "Scanning database and files to generate download list. This may take a moment..." : 
+                        `Downloaded ${downloadProgress.downloaded} files, ${downloadProgress.failed} failed. ${downloadProgress.remaining} remaining.`
+                      }
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
             </Box>
           </Box>
         )}

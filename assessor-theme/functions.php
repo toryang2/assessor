@@ -28,6 +28,34 @@ function assessor_dynamic_url($url) {
     return $url;
 }
 
+// Also rewrite wp_upload_dir() URLs so image paths use the requesting host
+add_filter('upload_dir', 'assessor_dynamic_upload_dir');
+function assessor_dynamic_upload_dir($dirs) {
+    if (isset($_SERVER['HTTP_HOST'])) {
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'];
+        $dirs['url']     = preg_replace('#^https?://(?:localhost|127\.0\.0\.1)(:\d+)?#i', $protocol . $host, $dirs['url']);
+        $dirs['baseurl'] = preg_replace('#^https?://(?:localhost|127\.0\.0\.1)(:\d+)?#i', $protocol . $host, $dirs['baseurl']);
+    }
+    return $dirs;
+}
+
+// Add CORS headers for image/upload requests so they load from any LAN machine
+add_action('send_headers', 'assessor_uploads_cors_headers');
+function assessor_uploads_cors_headers() {
+    // Only add CORS for upload file requests
+    $request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+    if (strpos($request_uri, '/wp-content/uploads/') !== false) {
+        if (isset($_SERVER['HTTP_ORIGIN'])) {
+            header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+        } else {
+            header("Access-Control-Allow-Origin: *");
+        }
+        header("Access-Control-Allow-Methods: GET, OPTIONS");
+        header("Access-Control-Allow-Headers: Origin, Accept, Content-Type");
+    }
+}
+
 // Remove WordPress admin bar for non-admin users
 if (!current_user_can('administrator')) {
     add_filter('show_admin_bar', '__return_false');

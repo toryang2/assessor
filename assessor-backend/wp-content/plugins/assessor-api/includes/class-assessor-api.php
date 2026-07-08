@@ -117,6 +117,7 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_auth')
         ));
         
+
         register_rest_route('assessor/v1', '/properties', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_property'),
@@ -496,6 +497,34 @@ class Assessor_API {
             'permission_callback' => array($sync_receiver, 'verify_sync_token'),
         ));
 
+        // Local admin: bulk download missing image files from live
+        register_rest_route('assessor/v1', '/sync/download-files', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_download_files'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        // Local admin: check how many files are still missing
+        register_rest_route('assessor/v1', '/sync/download-status', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_download_status'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        // Local admin: get a list of all missing files
+        register_rest_route('assessor/v1', '/sync/missing-files-list', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_missing_files_list'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        // Local admin: download a specific batch of files
+        register_rest_route('assessor/v1', '/sync/download-batch', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_download_batch'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
         // Sync token management (superadmin, admin, assessor)
         register_rest_route('assessor/v1', '/sync/config', array(
             'methods'             => 'GET',
@@ -585,6 +614,8 @@ class Assessor_API {
         return Assessor_Sync::get_queue_status();
     }
 
+
+
     /** POST /assessor/v1/sync/push-now — triggers an immediate push + pull */
     public function sync_push_now($request) {
         if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
@@ -610,6 +641,60 @@ class Assessor_API {
         }
         Assessor_Sync::clear_failed();
         return array('success' => true, 'message' => 'Failed items reset to pending.');
+    }
+
+    /** POST /assessor/v1/sync/download-files — bulk download missing images from live */
+    public function sync_download_files($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'File download is only available on local builds.',
+                array('status' => 400)
+            );
+        }
+        return Assessor_Sync::bulk_download_files();
+    }
+
+    /** GET /assessor/v1/sync/missing-files-list — get a list of all missing files */
+    public function sync_missing_files_list($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'File download is only available on local builds.',
+                array('status' => 400)
+            );
+        }
+        return Assessor_Sync::get_missing_files_list();
+    }
+
+    /** POST /assessor/v1/sync/download-batch — process a specific batch of files */
+    public function sync_download_batch($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'File download is only available on local builds.',
+                array('status' => 400)
+            );
+        }
+        $params = $request->get_json_params();
+        if (empty($params['files']) || !is_array($params['files'])) {
+            return new WP_Error('invalid_params', 'Missing or invalid files array.', array('status' => 400));
+        }
+        return Assessor_Sync::download_specific_batch($params['files']);
+    }
+
+    /** GET /assessor/v1/sync/download-status — check how many files are missing */
+    public function sync_download_status($request) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return new WP_Error(
+                'not_local_build',
+                'File download status is only available on local builds.',
+                array('status' => 400)
+            );
+        }
+        return array(
+            'missing_files' => Assessor_Sync::count_missing_files(),
+        );
     }
     
     /** GET /assessor/v1/sync/config */
