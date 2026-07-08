@@ -39,6 +39,25 @@ class Assessor_Settings {
 			$settings['municipal_assessor_license'] = (string) $settings['municipal_assessor_license'];
 			error_log('🔍 SETTINGS: After string cast = ' . var_export($settings['municipal_assessor_license'], true));
 		}
+		
+		// Rewrite URLs dynamically based on requesting host for local builds
+		if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
+			$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+			$current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+			$local_base = rtrim($protocol . $current_host, '/');
+			
+			if (!empty($settings['app_logo_url'])) {
+				if (preg_match('/^https?:\/\/[^\/]+(\/wp-content\/uploads\/.*)$/i', $settings['app_logo_url'], $matches)) {
+					$settings['app_logo_url'] = $local_base . $matches[1];
+				}
+			}
+			if (!empty($settings['header_photo_url'])) {
+				if (preg_match('/^https?:\/\/[^\/]+(\/wp-content\/uploads\/.*)$/i', $settings['header_photo_url'], $matches)) {
+					$settings['header_photo_url'] = $local_base . $matches[1];
+				}
+			}
+		}
+
 		return Assessor_Public_API::append_public_api_settings($settings);
 	}
 

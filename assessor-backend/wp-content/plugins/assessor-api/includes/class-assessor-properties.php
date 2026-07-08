@@ -1179,7 +1179,24 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 }
             }
         }
-        
+        // Rewrite URLs for local build offline viewing
+        if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
+            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+            $current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+            $local_base = rtrim($protocol . $current_host, '/');
+            $live_domain = defined('ASSESSOR_LIVE_SITE_URL') ? rtrim(ASSESSOR_LIVE_SITE_URL, '/') : '';
+            
+            foreach ($history as &$item) {
+                if (!empty($item['supporting_documents'])) {
+                    $item['supporting_documents'] = $this->rewrite_document_urls($item['supporting_documents'], $live_domain, $local_base);
+                }
+                if (!empty($item['supporting_documents_old'])) {
+                    $item['supporting_documents_old'] = $this->rewrite_document_urls($item['supporting_documents_old'], $live_domain, $local_base);
+                }
+            }
+            unset($item);
+        }
+
         return $history;
     }
 
