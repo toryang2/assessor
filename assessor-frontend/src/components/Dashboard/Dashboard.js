@@ -604,7 +604,7 @@ const Dashboard = ({ onNavigate }) => {
         variants={animations.stagger}
       >
         <Grid container spacing={3} sx={{ marginBottom: 4 }} alignItems="stretch">
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <StatCard
               title="Total Records Added"
               value={dashboardData?.total_properties || 0}
@@ -614,7 +614,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeActiveRecordsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <StatCard
               title="Total RPTs"
               value={dashboardData?.version_counts || 0}
@@ -624,7 +624,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeRPTsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={4}>
             <StatCard
               title="Total Requests"
               value={dashboardData?.requests_count || 0}
@@ -632,16 +632,6 @@ const Dashboard = ({ onNavigate }) => {
               color="#f59e0b"
               subtitle="Monthly Requests"
               trend={computeRequestsTrend()}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Recent Updates"
-              value={dashboardData?.recent_activity?.length || 0}
-              icon={<Update />}
-              color="#8b5cf6"
-              subtitle="Last 24 hours"
-              trend="+15% this week"
             />
           </Grid>
         </Grid>
