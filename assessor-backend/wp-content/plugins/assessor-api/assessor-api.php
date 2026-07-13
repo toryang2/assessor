@@ -41,6 +41,7 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-requests.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-public-api.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync-receiver.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-hardware-lock.php';
 
 // Initialize the plugin
 function assessor_api_init() {

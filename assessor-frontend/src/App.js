@@ -12,6 +12,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login/Login';
 import Dashboard from './components/Dashboard/Dashboard';
 import Layout from './components/Layout/Layout';
+import { apiService } from './utils/api';
+
+import HardwareLockScreen from './components/HardwareLock/HardwareLockScreen';
 
 // Simple App Component - No Routing
 const SimpleApp = () => {
@@ -22,6 +25,41 @@ const SimpleApp = () => {
 // Main App Component
 const App = () => {
   const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [isHardwareLocked, setIsHardwareLocked] = useState(false);
+  const [isLockChecking, setIsLockChecking] = useState(true);
+
+  useEffect(() => {
+    const handleHardwareLock = () => {
+      setIsHardwareLocked(true);
+    };
+    const handleHardwareUnlock = () => {
+      setIsHardwareLocked(false);
+    };
+
+    window.addEventListener('hardware_locked', handleHardwareLock);
+    window.addEventListener('hardware_unlocked', handleHardwareUnlock);
+
+    return () => {
+      window.removeEventListener('hardware_locked', handleHardwareLock);
+      window.removeEventListener('hardware_unlocked', handleHardwareUnlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkLockStatus = async () => {
+      try {
+        const status = await apiService.getHardwareLockStatus();
+        if (status && status.locked) {
+          setIsHardwareLocked(true);
+        }
+      } catch (err) {
+        console.error('Failed to check hardware lock status', err);
+      } finally {
+        setIsLockChecking(false);
+      }
+    };
+    checkLockStatus();
+  }, []);
 
   useEffect(() => {
     const detectSmallScreen = () => {
@@ -94,9 +132,13 @@ const App = () => {
         <GlobalStyles styles={{ html: { fontSize: '14px' } }} />
       )}
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <AuthProvider>
-          <SimpleApp />
-        </AuthProvider>
+        {isLockChecking ? null : isHardwareLocked ? (
+          <HardwareLockScreen onUnlocked={() => setIsHardwareLocked(false)} />
+        ) : (
+          <AuthProvider>
+            <SimpleApp />
+          </AuthProvider>
+        )}
       </LocalizationProvider>
     </ThemeProvider>
   );

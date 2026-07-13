@@ -12,7 +12,31 @@ class Assessor_API {
         add_action('rest_api_init', array($this, 'attach_assessor_cors_headers'));
         // Ensure database tables exist
         $this->ensure_database_tables();
+        
+        // Check hardware lock
+        add_filter('rest_pre_dispatch', array($this, 'check_hardware_lock'), 10, 3);
+        
         error_log('🔍 Assessor API Class: init method completed!');
+    }
+
+    public function check_hardware_lock($result, $server, $request) {
+        $route = $request->get_route();
+        
+        // Only protect our namespace
+        if (strpos($route, '/assessor/v1/') !== 0) {
+            return $result;
+        }
+        
+        // Exempt the hardware lock endpoints
+        if (strpos($route, '/hardware-lock/') !== false) {
+            return $result;
+        }
+        
+        if (!Assessor_Hardware_Lock::is_unlocked()) {
+            return new WP_Error('hardware_locked', 'Hardware locked. Activation required.', array('status' => 403));
+        }
+        
+        return $result;
     }
 
     private function ensure_database_tables() {
@@ -80,6 +104,20 @@ class Assessor_API {
     
     public function register_routes() {
         error_log('🔍 Assessor API Class: register_routes method called!');
+
+        // Hardware lock routes
+        $hw_lock = new Assessor_Hardware_Lock();
+        register_rest_route('assessor/v1', '/hardware-lock/status', array(
+            'methods' => 'GET',
+            'callback' => array($hw_lock, 'get_status'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/hardware-lock/activate', array(
+            'methods' => 'POST',
+            'callback' => array($hw_lock, 'activate'),
+            'permission_callback' => '__return_true'
+        ));
+        
         // Authentication routes
         register_rest_route('assessor/v1', '/login', array(
             'methods' => 'POST',

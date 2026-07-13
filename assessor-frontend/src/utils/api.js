@@ -115,6 +115,10 @@ export const endpoints = {
   syncMissingFilesList: '/sync/missing-files-list',
   syncDownloadBatch: '/sync/download-batch',
   syncDownloadStatus: '/sync/download-status',
+
+  // Hardware Lock
+  hardwareLockStatus: '/hardware-lock/status',
+  hardwareLockActivate: '/hardware-lock/activate',
 };
 
 // API functions
@@ -736,6 +740,25 @@ export const apiService = {
     }
   },
 
+  // Hardware Lock
+  getHardwareLockStatus: async () => {
+    try {
+      const response = await api.get(endpoints.hardwareLockStatus);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  activateHardwareLock: async (activationKey) => {
+    try {
+      const response = await api.post(endpoints.hardwareLockActivate, { activation_key: activationKey });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
 };
 
 // Error handling utility
@@ -799,6 +822,14 @@ export const handleApiError = (error) => {
         }
       case 403:
         {
+          if (data && data.code === 'hardware_locked') {
+             // Handle hardware locked state globally
+             window.dispatchEvent(new Event('hardware_locked'));
+             const e = new Error('Hardware locked. Activation required.');
+             e.status = status;
+             e.data = data;
+             return e;
+          }
           const e = new Error('Access denied. You do not have permission for this action.');
           e.status = status;
           e.data = data;
