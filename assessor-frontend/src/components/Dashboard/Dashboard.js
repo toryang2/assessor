@@ -56,7 +56,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { apiService } from '../../utils/api';
+import { apiService, etracsService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCacheBuster } from '../../hooks/useCacheBuster';
 import { animations, statusColors } from '../../theme/theme';
@@ -70,6 +70,7 @@ const Dashboard = ({ onNavigate }) => {
   const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit, isViewer } = useAuth();
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
+  const [etracsStats, setEtracsStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
@@ -107,6 +108,7 @@ const Dashboard = ({ onNavigate }) => {
       fetchDashboardData();
       fetchProperties();
       fetchSettings();
+      fetchEtracsStats();
     }
   }, [authLoading, isAuthenticated]);
 
@@ -165,6 +167,15 @@ const Dashboard = ({ onNavigate }) => {
       setSettings(data);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching settings:', error);
+    }
+  };
+
+  const fetchEtracsStats = async () => {
+    try {
+      const data = await etracsService.getStats();
+      setEtracsStats(data);
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching ETRACS stats:', error);
     }
   };
 
@@ -604,7 +615,7 @@ const Dashboard = ({ onNavigate }) => {
         variants={animations.stagger}
       >
         <Grid container spacing={3} sx={{ marginBottom: 4 }} alignItems="stretch">
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total Records Added"
               value={dashboardData?.total_properties || 0}
@@ -614,7 +625,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeActiveRecordsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total RPTs"
               value={dashboardData?.version_counts || 0}
@@ -624,7 +635,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeRPTsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Total Requests"
               value={dashboardData?.requests_count || 0}
@@ -632,6 +643,16 @@ const Dashboard = ({ onNavigate }) => {
               color="#f59e0b"
               subtitle="Monthly Requests"
               trend={computeRequestsTrend()}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="ETRACS FAAS"
+              value={etracsStats?.total || 0}
+              icon={<Assignment />}
+              color="#8b5cf6"
+              subtitle="Total ETRACS Records"
+              trend={etracsStats?.current ? `${etracsStats.current} current` : null}
             />
           </Grid>
         </Grid>

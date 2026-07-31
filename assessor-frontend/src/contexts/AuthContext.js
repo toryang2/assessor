@@ -143,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     enabled: true
   });
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (token) {
         await apiService.logout();
@@ -158,7 +158,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setError(null);
     }
-  };
+  }, [token]);
 
   const clearError = () => {
     setError(null);

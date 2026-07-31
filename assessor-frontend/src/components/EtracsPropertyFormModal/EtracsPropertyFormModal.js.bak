@@ -1,0 +1,622 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  TextField,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Typography,
+  Alert,
+  Divider,
+  Card,
+  CardContent,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Switch,
+  FormControlLabel,
+  Autocomplete
+} from '@mui/material';
+import { motion } from 'framer-motion';
+import { etracsService, apiService } from '../../utils/api';
+
+const defaultFormData = {
+  // FAAS fields
+  tdno: '',
+  utdno: '',
+  pin_type: 'NEW',
+  section: '',
+  parcel: '',
+  claim_no: '',
+  txntype_code: 'GR',
+  effectivity_year: '',
+  effectivity_qtr: '',
+  owner_name: '',
+  owner_address: '',
+  administrator_name: '',
+  administrator_address: '',
+  beneficiary_name: '',
+  beneficiary_address: '',
+  pin: '',
+  title_type: '',
+  title_no: '',
+  title_date: '',
+  prevtdno: '',
+  prev_owner: '',
+  prev_assessed_value: '',
+  prev_market_value: '',
+  prev_area_hectare: '',
+  prev_area_sqm: '',
+  prev_effectivity: '',
+  memoranda: '',
+  back_tax_years: 0,
+  ry_ordinance_no: '',
+  ry_ordinance_date: '',
+  date_approved: '',
+  year_issued: '',
+  public_land: 0,
+  // RPU fields
+  rpu_type: 'LAND',
+  classification: '',
+  ry: '',
+  total_market_value: '',
+  total_assessed_value: '',
+  taxable: 1,
+  // Real Property fields
+  cadastral_lot_no: '',
+  survey_no: '',
+  block_no: '',
+  barangay: '',
+  municipality: '',
+  province: '',
+  total_area_hectare: '',
+  total_area_sqm: '',
+  north: '',
+  south: '',
+  east: '',
+  west: '',
+};
+
+const rpuTypes = [
+  { code: 'LAND', label: 'Land' },
+  { code: 'BLDG', label: 'Building' },
+  { code: 'MACH', label: 'Machinery' },
+  { code: 'PLANTTREE', label: 'Plant/Tree' },
+  { code: 'MISC', label: 'Miscellaneous' },
+];
+
+const titleTypes = ['', 'OCT', 'TCT', 'CLOA', 'EP', 'FPA', 'MSA'];
+
+const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionTypes = [] }) => {
+  const isEditing = !!property;
+  const [formData, setFormData] = useState({ ...defaultFormData });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+  const [duplicateError, setDuplicateError] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  // New dependencies state
+  const [settings, setSettings] = useState(null);
+  const [barangays, setBarangays] = useState([]);
+  const [propertyTypes, setPropertyTypes] = useState([]);
+  const [revisionEntries, setRevisionEntries] = useState([]);
+
+  useEffect(() => {
+    if (open) {
+      setActiveStep(0);
+      
+      // Fetch dependencies
+      Promise.all([
+        apiService.getSettings(),
+        apiService.getLocations(),
+        apiService.getPropertyTypes(),
+        apiService.getRevisionEntries()
+      ]).then(([settingsRes, locationsRes, typesRes, revisionsRes]) => {
+        setSettings(settingsRes || {});
+        setBarangays(locationsRes?.items || []);
+        setPropertyTypes(typesRes?.items || []);
+        setRevisionEntries(revisionsRes?.items || []);
+      }).catch(console.error);
+
+      if (property) {
+        // Map existing property data to form
+        setFormData({
+          ...defaultFormData,
+          ...Object.fromEntries(
+            Object.keys(defaultFormData).map((key) => [
+              key,
+              property[key] !== null && property[key] !== undefined ? property[key] : defaultFormData[key],
+            ])
+          ),
+          // Map joined fields
+          cadastral_lot_no: property.cadastral_lot_no || '',
+          survey_no: property.survey_no || '',
+          block_no: property.block_no || '',
+          barangay: property.barangay || '',
+          total_area_hectare: property.total_area_hectare || '',
+          total_area_sqm: property.total_area_sqm || '',
+          rpu_type: property.rpu_type || 'LAND',
+          classification: property.classification || '',
+          ry: property.revision_year || property.ry || '',
+          total_market_value: property.total_market_value || '',
+          total_assessed_value: property.total_assessed_value || '',
+          north: property.north || '',
+          south: property.south || '',
+          east: property.east || '',
+          west: property.west || '',
+          pin: property.pin || property.rp_pin || '',
+        });
+      } else {
+        setFormData({ ...defaultFormData });
+      }
+      setError(null);
+      setDuplicateError(false);
+      setEntityOptions([]);
+      setFaasOptions([]);
+    }
+  }, [open, property]);
+
+  const [entityOptions, setEntityOptions] = useState([]);
+  const [faasOptions, setFaasOptions] = useState([]);
+
+  // Fetch entities for autocomplete
+  const fetchEntities = async (query) => {
+    try {
+      const res = await etracsService.getEntities({ q: query, per_page: 50 });
+      setEntityOptions(res.data || []);
+    } catch (e) {
+      console.warn('Failed to fetch entities', e);
+    }
+  };
+
+  // Fetch FAAS for autocomplete
+  const fetchFaas = async (query) => {
+    if (!query || query.length < 3) return;
+    try {
+      const res = await etracsService.getFaasList({ q: query, per_page: 20 });
+      setFaasOptions(res.data || []);
+    } catch (e) {
+      console.warn('Failed to fetch previous FAAS', e);
+    }
+  };
+
+  // Debounced effect for entities
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => fetchEntities(formData.owner_name), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [formData.owner_name, open]);
+
+  // Debounced effect for previous FAAS
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => fetchFaas(formData.prevtdno), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [formData.prevtdno, open]);
+
+  const handlePrevFaasSelect = (event, newValue) => {
+    if (newValue) {
+      if (typeof newValue === 'string') {
+        setFormData(prev => ({ ...prev, prevtdno: newValue }));
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        prevtdno: newValue.tdno || '',
+        prev_owner: newValue.owner_name || newValue.taxpayer_name || '',
+        prev_assessed_value: newValue.total_assessed_value || '',
+        prev_market_value: newValue.total_market_value || '',
+        prev_area_hectare: newValue.total_area_hectare || '',
+        prev_area_sqm: newValue.total_area_sqm || '',
+        prev_effectivity: `${newValue.effectivity_year || ''}${newValue.effectivity_qtr ? ` Q${newValue.effectivity_qtr}` : ''}`,
+        pin: newValue.pin || newValue.rp_pin || '',
+        cadastral_lot_no: newValue.cadastral_lot_no || '',
+        survey_no: newValue.survey_no || '',
+        block_no: newValue.block_no || '',
+        barangay: newValue.barangay || '',
+        total_area_hectare: newValue.total_area_hectare || '',
+        total_area_sqm: newValue.total_area_sqm || ''
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, prevtdno: '' }));
+    }
+  };
+
+  const handleChange = (field) => (e) => {
+    const value = e.target.type === 'checkbox' ? (e.target.checked ? 1 : 0) : e.target.value;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === 'tdno') setDuplicateError(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.tdno || !formData.owner_name) {
+      setError('TD Number and Owner Name are required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (isEditing) {
+        await etracsService.updateFaas(property.id, formData);
+        setToast({ open: true, message: 'Record updated successfully', severity: 'success' });
+      } else {
+        await etracsService.createFaas(formData);
+        setToast({ open: true, message: 'Record created successfully', severity: 'success' });
+      }
+
+      onSave?.();
+    } catch (err) {
+      const msg = err.message || 'Failed to save record';
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
+        setDuplicateError(true);
+        setError('Tax Declaration Number already exists');
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const SectionHeader = ({ title }) => (
+    <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 2, mb: 1, color: 'primary.main' }}>
+      {title}
+    </Typography>
+  );
+
+  return (
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper">
+        <DialogTitle sx={{ fontWeight: 700, borderBottom: '1px solid #eee' }}>
+          {isEditing ? 'Edit FAAS Record' : 'New FAAS Record'}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+            {/* TD Information */}
+            <SectionHeader title="Tax Declaration Information" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth size="small" label="TD Number *"
+                      value={formData.tdno} onChange={handleChange('tdno')}
+                      error={duplicateError}
+                      helperText={duplicateError ? 'This TD# already exists' : ''}
+                      disabled={!!property}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Transaction Type</InputLabel>
+                      <Select value={formData.txntype_code} onChange={handleChange('txntype_code')} label="Transaction Type">
+                        {transactionTypes.map((t) => (
+                          <MenuItem key={t.code} value={t.code}>{t.code} — {t.name}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Effectivity Year" type="number" value={formData.effectivity_year} onChange={handleChange('effectivity_year')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Effectivity Qtr</InputLabel>
+                      <Select value={formData.effectivity_qtr} onChange={handleChange('effectivity_qtr')} label="Effectivity Qtr">
+                        <MenuItem value={0}>—</MenuItem>
+                        <MenuItem value={1}>Q1</MenuItem>
+                        <MenuItem value={2}>Q2</MenuItem>
+                        <MenuItem value={3}>Q3</MenuItem>
+                        <MenuItem value={4}>Q4</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Date Approved" type="date" InputLabelProps={{ shrink: true }} value={formData.date_approved} onChange={handleChange('date_approved')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Year Issued" type="number" value={formData.year_issued} onChange={handleChange('year_issued')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Owner Information */}
+            <SectionHeader title="Owner / Taxpayer Information" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Autocomplete
+                      freeSolo
+                      options={entityOptions}
+                      filterOptions={(x) => x}
+                      getOptionLabel={(option) => {
+                        if (!option) return '';
+                        if (typeof option === 'string') return option;
+                        return option.name || option.entity_name || '';
+                      }}
+                      inputValue={formData.owner_name || ''}
+                      onInputChange={(e, val) => setFormData(prev => ({ ...prev, owner_name: val }))}
+                      onChange={(e, val) => {
+                        if (val && typeof val !== 'string') {
+                          setFormData(prev => ({
+                            ...prev,
+                            owner_name: val.entity_name || val.name,
+                            owner_address: val.address_text || val.entity_address || prev.owner_address,
+                          }));
+                        } else if (!val) {
+                          setFormData(prev => ({ ...prev, owner_name: '' }));
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField {...params} fullWidth size="small" label="Taxpayer / Owner Name *" />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Owner Address" value={formData.owner_address} onChange={handleChange('owner_address')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Administrator & Beneficiary */}
+            <SectionHeader title="Administrator & Beneficiary" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Administrator Name" value={formData.administrator_name} onChange={handleChange('administrator_name')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Administrator Address" value={formData.administrator_address} onChange={handleChange('administrator_address')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Beneficiary Name" value={formData.beneficiary_name} onChange={handleChange('beneficiary_name')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Beneficiary Address" value={formData.beneficiary_address} onChange={handleChange('beneficiary_address')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Property Location */}
+            <SectionHeader title="Property Location" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="PIN" value={formData.pin} onChange={handleChange('pin')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Barangay" value={formData.barangay} onChange={handleChange('barangay')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Municipality" value={formData.municipality} onChange={handleChange('municipality')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Province" value={formData.province} onChange={handleChange('province')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Cadastral Lot No." value={formData.cadastral_lot_no} onChange={handleChange('cadastral_lot_no')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Survey No." value={formData.survey_no} onChange={handleChange('survey_no')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Block No." value={formData.block_no} onChange={handleChange('block_no')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <FormControlLabel
+                      control={<Switch checked={!!formData.public_land} onChange={(e) => setFormData(prev => ({ ...prev, public_land: e.target.checked ? 1 : 0 }))} />}
+                      label="Public Land"
+                    />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Area & Boundaries */}
+            <SectionHeader title="Area & Boundaries" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Total Area (hectare)" type="number" inputProps={{ step: '0.000001' }} value={formData.total_area_hectare} onChange={handleChange('total_area_hectare')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Total Area (sqm)" type="number" inputProps={{ step: '0.01' }} value={formData.total_area_sqm} onChange={handleChange('total_area_sqm')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="North" value={formData.north} onChange={handleChange('north')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="South" value={formData.south} onChange={handleChange('south')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="East" value={formData.east} onChange={handleChange('east')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="West" value={formData.west} onChange={handleChange('west')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* RPU / Appraisal */}
+            <SectionHeader title="RPU / Appraisal" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>RPU Type</InputLabel>
+                      <Select value={formData.rpu_type} onChange={handleChange('rpu_type')} label="RPU Type">
+                        {rpuTypes.map((t) => (
+                          <MenuItem key={t.code} value={t.code}>{t.label}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Classification" value={formData.classification} onChange={handleChange('classification')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Revision Year" type="number" value={formData.ry} onChange={handleChange('ry')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <FormControlLabel
+                      control={<Switch checked={!!formData.taxable} onChange={(e) => setFormData(prev => ({ ...prev, taxable: e.target.checked ? 1 : 0 }))} />}
+                      label="Taxable"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Total Market Value" type="number" inputProps={{ step: '0.01' }} value={formData.total_market_value} onChange={handleChange('total_market_value')} />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField fullWidth size="small" label="Total Assessed Value" type="number" inputProps={{ step: '0.01' }} value={formData.total_assessed_value} onChange={handleChange('total_assessed_value')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Title */}
+            <SectionHeader title="Title Information" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Title Type</InputLabel>
+                      <Select value={formData.title_type} onChange={handleChange('title_type')} label="Title Type">
+                        {titleTypes.map((t) => (
+                          <MenuItem key={t} value={t}>{t || '— None —'}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Title No." value={formData.title_no} onChange={handleChange('title_no')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Title Date" type="date" InputLabelProps={{ shrink: true }} value={formData.title_date} onChange={handleChange('title_date')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Previous Record */}
+            <SectionHeader title="Previous Record" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <Autocomplete
+                      freeSolo
+                      options={faasOptions}
+                      filterOptions={(x) => x}
+                      getOptionLabel={(option) => {
+                        if (!option) return '';
+                        if (typeof option === 'string') return option;
+                        return option.tdno || '';
+                      }}
+                      inputValue={formData.prevtdno || ''}
+                      onInputChange={(e, val) => setFormData(prev => ({ ...prev, prevtdno: val }))}
+                      onChange={handlePrevFaasSelect}
+                      renderOption={(props, option) => {
+                        const isString = typeof option === 'string';
+                        return (
+                          <li {...props} key={props.key || (isString ? option : option.tdno)}>
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>{isString ? option : option.tdno}</Typography>
+                              {!isString && <Typography variant="caption" color="text.secondary">{option.owner_name || option.taxpayer_name}</Typography>}
+                            </Box>
+                          </li>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField {...params} fullWidth size="small" label="Previous TD No." />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Previous Owner" value={formData.prev_owner} onChange={handleChange('prev_owner')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Prev. Effectivity" value={formData.prev_effectivity} onChange={handleChange('prev_effectivity')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Prev. Market Value" value={formData.prev_market_value} onChange={handleChange('prev_market_value')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Prev. Assessed Value" value={formData.prev_assessed_value} onChange={handleChange('prev_assessed_value')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Prev. Area (ha)" value={formData.prev_area_hectare} onChange={handleChange('prev_area_hectare')} />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField fullWidth size="small" label="Prev. Area (sqm)" value={formData.prev_area_sqm} onChange={handleChange('prev_area_sqm')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Ordinance & Memoranda */}
+            <SectionHeader title="Ordinance & Memoranda" />
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Ordinance No." value={formData.ry_ordinance_no} onChange={handleChange('ry_ordinance_no')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Ordinance Date" type="date" InputLabelProps={{ shrink: true }} value={formData.ry_ordinance_date} onChange={handleChange('ry_ordinance_date')} />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField fullWidth size="small" label="Back Tax Years" type="number" value={formData.back_tax_years} onChange={handleChange('back_tax_years')} />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField fullWidth size="small" label="Memoranda" multiline rows={3} value={formData.memoranda} onChange={handleChange('memoranda')} />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button onClick={onClose} variant="outlined">Cancel</Button>
+              <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+                {loading ? 'Saving...' : isEditing ? 'Update Record' : 'Create Record'}
+              </Button>
+            </Box>
+          </motion.div>
+        </DialogContent>
+      </Dialog>
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={toast.severity} sx={{ width: '100%' }}>{toast.message}</Alert>
+      </Snackbar>
+    </>
+  );
+};
+
+export default EtracsPropertyFormModal;

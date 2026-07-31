@@ -197,15 +197,20 @@ const DEFAULTS = {
   header_photo_url: '',
   header_province: 'BUKIDNON',
   header_municipality: 'KITAOTAO',
+  lgu_pin: '059-10',
   header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR',
   request_place_issued_default: '',
   verifier_signatory_name: '',
   verifier_signatory_title: '',
-  municipal_assessor_name: '',
   municipal_assessor_license: '',
   municipal_assessor_title: '',
   municipal_assessor_suffix: '',
-  afk_timeout: 30
+  afk_timeout: 30,
+  assessor_etracs_db_host: 'localhost',
+  assessor_etracs_db_port: '3306',
+  assessor_etracs_db_user: 'root',
+  assessor_etracs_db_password: '',
+  assessor_etracs_db_name: 'etracs254_kitaotao'
 };
 
 const Settings = () => {
@@ -221,7 +226,7 @@ const Settings = () => {
   const [newType, setNewType] = useState({ code: '', name: '' });
   const [newClass, setNewClass] = useState({ code: '', name: '' });
   const [locations, setLocations] = useState([]);
-  const [newLocation, setNewLocation] = useState({ code: '', name: '' });
+  const [newLocation, setNewLocation] = useState({ code: '', name: '', pin: '' });
   const [revisionEntries, setRevisionEntries] = useState([]);
   const [newRevisionEntry, setNewRevisionEntry] = useState({ revision_year: '', from_year: '', to_year: '' });
   const [requestPurposes, setRequestPurposes] = useState([]);
@@ -271,6 +276,7 @@ const Settings = () => {
   const [tokenSaving, setTokenSaving] = useState(false);
   const [syncSettingsMsg, setSyncSettingsMsg] = useState({ type: '', text: '' });
   const [pastedToken, setPastedToken] = useState('');
+  const [etracsPulling, setEtracsPulling] = useState(false);
 
   // Load sync config when user opens the Sync tab
   const [syncConfigError, setSyncConfigError] = useState(null);
@@ -353,6 +359,7 @@ const Settings = () => {
           header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
           header_province: data.header_province || DEFAULTS.header_province,
           header_municipality: data.header_municipality || DEFAULTS.header_municipality,
+          lgu_pin: data.lgu_pin || DEFAULTS.lgu_pin,
           header_office: data.header_office || DEFAULTS.header_office,
           request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
           verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
@@ -361,7 +368,12 @@ const Settings = () => {
           municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
           municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
           municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
-          afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
+          afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout,
+          assessor_etracs_db_host: data.assessor_etracs_db_host || DEFAULTS.assessor_etracs_db_host,
+          assessor_etracs_db_port: data.assessor_etracs_db_port || DEFAULTS.assessor_etracs_db_port,
+          assessor_etracs_db_user: data.assessor_etracs_db_user || DEFAULTS.assessor_etracs_db_user,
+          assessor_etracs_db_password: data.assessor_etracs_db_password || '',
+          assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
         });
         const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
           apiService.getPropertyTypes(),
@@ -408,6 +420,7 @@ const Settings = () => {
         header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
         header_province: data.header_province || DEFAULTS.header_province,
         header_municipality: data.header_municipality || DEFAULTS.header_municipality,
+        lgu_pin: data.lgu_pin || DEFAULTS.lgu_pin,
         header_office: data.header_office || DEFAULTS.header_office,
         request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
         verifier_signatory_name: data.verifier_signatory_name || DEFAULTS.verifier_signatory_name,
@@ -416,7 +429,12 @@ const Settings = () => {
         municipal_assessor_license: data.municipal_assessor_license || DEFAULTS.municipal_assessor_license,
         municipal_assessor_title: data.municipal_assessor_title || DEFAULTS.municipal_assessor_title,
         municipal_assessor_suffix: data.municipal_assessor_suffix || DEFAULTS.municipal_assessor_suffix,
-        afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout
+        afk_timeout: data.afk_timeout ?? afkTimeout ?? DEFAULTS.afk_timeout,
+        assessor_etracs_db_host: data.assessor_etracs_db_host || DEFAULTS.assessor_etracs_db_host,
+        assessor_etracs_db_port: data.assessor_etracs_db_port || DEFAULTS.assessor_etracs_db_port,
+        assessor_etracs_db_user: data.assessor_etracs_db_user || DEFAULTS.assessor_etracs_db_user,
+        assessor_etracs_db_password: data.assessor_etracs_db_password || '',
+        assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
       });
       const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
         apiService.getPropertyTypes(),
@@ -520,6 +538,7 @@ const Settings = () => {
       const payload = {
         header_province: form.header_province,
         header_municipality: form.header_municipality,
+        lgu_pin: form.lgu_pin,
         header_office: form.header_office,
         request_place_issued_default: form.request_place_issued_default,
         verifier_signatory_name: form.verifier_signatory_name,
@@ -528,7 +547,12 @@ const Settings = () => {
         municipal_assessor_license: form.municipal_assessor_license,
         municipal_assessor_title: form.municipal_assessor_title,
         municipal_assessor_suffix: form.municipal_assessor_suffix,
-        afk_timeout: form.afk_timeout ?? 30
+        afk_timeout: form.afk_timeout ?? 30,
+        assessor_etracs_db_host: form.assessor_etracs_db_host,
+        assessor_etracs_db_port: form.assessor_etracs_db_port,
+        assessor_etracs_db_user: form.assessor_etracs_db_user,
+        assessor_etracs_db_password: form.assessor_etracs_db_password,
+        assessor_etracs_db_name: form.assessor_etracs_db_name,
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
@@ -646,12 +670,12 @@ const Settings = () => {
       return;
     }
     try {
-      const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, status: 'active' });
+      const res = await apiService.saveLocation({ code: newLocation.code, name: newLocation.name, pin: newLocation.pin, status: 'active' });
       setLocations(res?.items || []);
-      setNewLocation({ code: '', name: '' });
-      setToast({ open: true, message: 'Location saved.', severity: 'success' });
+      setNewLocation({ code: '', name: '', pin: '' });
+      setToast({ open: true, message: 'Barangay saved.', severity: 'success' });
     } catch (err) {
-      setToast({ open: true, message: 'Failed to save location.', severity: 'error' });
+      setToast({ open: true, message: 'Failed to save barangay.', severity: 'error' });
     }
   };
 
@@ -1501,6 +1525,107 @@ const Settings = () => {
     );
   };
 
+  const handleEtracsPull = async () => {
+    setEtracsPulling(true);
+    try {
+      const res = await apiService.pullEtracsSync();
+      setToast({
+        open: true,
+        message: `ETRACS Pull Successful! Stats: Entities(${res.stats?.entity || 0}) RealProperty(${res.stats?.real_property || 0}) RPU(${res.stats?.rpu || 0}) FAAS(${res.stats?.faas || 0})`,
+        severity: 'success'
+      });
+    } catch (e) {
+      setToast({ open: true, message: e.message || 'Failed to pull ETRACS data.', severity: 'error' });
+    } finally {
+      setEtracsPulling(false);
+    }
+  };
+
+  const renderEtracsSyncSettings = () => {
+    return (
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>ETRACS Database Connection</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Configure the connection to the external ETRACS MySQL database to import entities, real properties, RPUs, and FAAS records.
+          </Typography>
+          
+          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Database Host"
+                  value={form.assessor_etracs_db_host || ''}
+                  onChange={(e) => handleChange('assessor_etracs_db_host', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Port"
+                  value={form.assessor_etracs_db_port || ''}
+                  onChange={(e) => handleChange('assessor_etracs_db_port', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Database User"
+                  value={form.assessor_etracs_db_user || ''}
+                  onChange={(e) => handleChange('assessor_etracs_db_user', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Database Password"
+                  type="password"
+                  value={form.assessor_etracs_db_password || ''}
+                  onChange={(e) => handleChange('assessor_etracs_db_password', e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Database Name"
+                  value={form.assessor_etracs_db_name || ''}
+                  onChange={(e) => handleChange('assessor_etracs_db_name', e.target.value)}
+                />
+              </Grid>
+            </Grid>
+            <Box sx={{ mt: 2, textAlign: 'right' }}>
+              <Button variant="contained" onClick={handleSave}>Save Connection Settings</Button>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12}><Divider /></Grid>
+
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Data Synchronization</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Pull the latest real property and entity data from ETRACS. This operation may take some time depending on the database size.
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleEtracsPull}
+            disabled={etracsPulling}
+            startIcon={etracsPulling ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {etracsPulling ? 'Pulling Data...' : 'Pull Latest Data'}
+          </Button>
+        </Grid>
+      </Grid>
+    );
+  };
+
   const renderGeneralSettings = () => (
 
     <Grid container spacing={2}>
@@ -1581,15 +1706,24 @@ const Settings = () => {
                     onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Municipality"
-                    value={form.header_municipality.toUpperCase()}
-                    onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
-                  />
-                </Grid>
+                                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Municipality"
+                      value={form.header_municipality.toUpperCase()}
+                      onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="LGU Base PIN"
+                      value={form.lgu_pin || ''}
+                      onChange={(e) => handleChange('lgu_pin', e.target.value)}
+                    />
+                  </Grid>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -1805,17 +1939,23 @@ const Settings = () => {
       </Grid>
 
       <Grid item xs={12} md={6} lg={4}>
-        <Typography variant="h6">Locations</Typography>
+        <Typography variant="h6">Barangays</Typography>
         <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Code" required value={newLocation.code}
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth size="small" label="Barangay Code" required value={newLocation.code}
               onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Name" required value={newLocation.name}
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth size="small" label="Barangay Name" required value={newLocation.name}
               onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField fullWidth size="small" label="Barangay PIN" value={newLocation.pin}
+              onChange={(e) => setNewLocation({ ...newLocation, pin: e.target.value.toUpperCase() })}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
             />
           </Grid>
@@ -1831,9 +1971,9 @@ const Settings = () => {
                   await apiService.deleteLocation(l.id);
                   const res = await apiService.getLocations();
                   setLocations(res?.items || []);
-                  setToast({ open: true, message: 'Location deleted.', severity: 'success' });
+                  setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
                 } catch (err) {
-                  setToast({ open: true, message: 'Failed to delete location.', severity: 'error' });
+                  setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
                 }
               }}>
                 <DeleteIcon />
@@ -1842,14 +1982,14 @@ const Settings = () => {
               <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
                 <DragIndicatorIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} />
+              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} secondary={`Code: ${l.code} | PIN: ${l.pin || 'N/A'}`} />
               <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
                 try {
-                  const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                  const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
                   setLocations(updated?.items || []);
-                  setToast({ open: true, message: 'Location updated.', severity: 'success' });
+                  setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
                 } catch (err) {
-                  setToast({ open: true, message: 'Failed to update location.', severity: 'error' });
+                  setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
                 }
               }} />} label={l.status === 'active' ? 'Active' : 'Disabled'} />
             </ListItem>
@@ -2406,7 +2546,8 @@ const Settings = () => {
             <Tab label="Revision Settings" />
             <Tab label="Request Payment Info" />
             <Tab label="API Keys" />
-            {canManage && <Tab label="Sync" />}
+            {canManage && <Tab label="Remote Sync" />}
+            {canManage && <Tab label="ETRACS Data Sync" />}
           </Tabs>
         </Box>
         <CardContent>
@@ -2416,6 +2557,7 @@ const Settings = () => {
           {activeTab === 3 && renderRequestPaymentInfos()}
           {activeTab === 4 && renderPublicApiKeys()}
           {activeTab === 5 && canManage && renderSyncSettings()}
+          {activeTab === 6 && canManage && renderEtracsSyncSettings()}
         </CardContent>
       </Card>
     </Box>

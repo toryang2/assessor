@@ -33,7 +33,9 @@ import {
   FileDownload,
   Archive,
   Settings as SettingsIcon,
-  Receipt as ReceiptIcon
+  Receipt as ReceiptIcon,
+  Description as DescriptionIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
@@ -42,6 +44,8 @@ import { useCacheBuster } from '../../hooks/useCacheBuster';
 import LoadingDots from '../LoadingDots';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
+import EtracsPropertyTable from '../EtracsPropertyTable/EtracsPropertyTable';
+import EtracsEntityTable from '../EtracsEntityTable/EtracsEntityTable';
 import RequestsTable from '../RequestsTable/RequestsTable';
 import AuditTrail from '../AuditTrail/AuditTrail';
 import UserManagement from '../UserManagement/UserManagement';
@@ -195,7 +199,7 @@ const Layout = ({ children }) => {
 
   // Helper function to check if user can access a specific page
   const canAccessPage = (pageName) => {
-    const restrictedPages = ['Audit Trail', 'Export', 'User Management', 'Settings'];
+    const restrictedPages = ['Audit Trail', 'Export', 'User Management', 'Settings', 'ETRACS Properties', 'Taxpayers'];
     if (restrictedPages.includes(pageName)) {
       return isSuperAdmin || isAdmin || isAssessor;
     }
@@ -230,6 +234,18 @@ const Layout = ({ children }) => {
       icon: <Business />,
       badge: null,
       show: true // Always show Properties
+    },
+    {
+      text: 'ETRACS Properties',
+      icon: <DescriptionIcon />,
+      badge: null,
+      show: isSuperAdmin || isAdmin
+    },
+    {
+      text: 'Taxpayers',
+      icon: <PeopleIcon />,
+      badge: null,
+      show: isSuperAdmin || isAdmin
     },
     {
       text: 'Requests',
@@ -425,6 +441,8 @@ const Layout = ({ children }) => {
             >
               {currentPage === 'Dashboard' && <DashboardIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Properties' && <Business sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'ETRACS Properties' && <DescriptionIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
+              {currentPage === 'Taxpayers' && <PeopleIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Requests' && <ReceiptIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Audit Trail' && <History sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Export' && <FileDownload sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
@@ -570,6 +588,16 @@ const Layout = ({ children }) => {
               <>
                 {currentPage === 'Dashboard' && <Dashboard onNavigate={handleNavigation} />}
                 {currentPage === 'Properties' && <PropertyTable />}
+                {currentPage === 'ETRACS Properties' && canAccessPage('ETRACS Properties') ? <EtracsPropertyTable /> : 
+                  currentPage === 'ETRACS Properties' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
+                {currentPage === 'Taxpayers' && canAccessPage('Taxpayers') ? <EtracsEntityTable /> : 
+                  currentPage === 'Taxpayers' && <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Typography variant="h5" color="text.secondary" gutterBottom>Access Denied</Typography>
+                    <Typography variant="body1" color="text.secondary">You don't have permission to access this page.</Typography>
+                  </Box>}
                 {currentPage === 'Requests' && <RequestsTable />}
                 {currentPage === 'Audit Trail' && canAccessPage('Audit Trail') ? <AuditTrail /> : 
                   currentPage === 'Audit Trail' && <Box sx={{ textAlign: 'center', py: 8 }}>

@@ -119,6 +119,22 @@ export const endpoints = {
   // Hardware Lock
   hardwareLockStatus: '/hardware-lock/status',
   hardwareLockActivate: '/hardware-lock/activate',
+
+  // ETRACS Module
+  etracsFaas: '/etracs/faas',
+  etracsFaasItem: (id) => `/etracs/faas/${id}`,
+  etracsFaasCancel: (id) => `/etracs/faas/${id}/cancel`,
+  etracsFaasSignatory: (id) => `/etracs/faas/${id}/signatory`,
+  etracsStats: '/etracs/stats',
+  etracsTransactionTypes: '/etracs/transaction-types',
+  etracsEntities: '/etracs/entities',
+  etracsEntityItem: (id) => `/etracs/entities/${id}`,
+  etracsPullSync: '/etracs/pull',
+  etracsBarangay: '/etracs/barangay',
+  etracsClassifications: '/etracs/classifications',
+  etracsExemptionTypes: '/etracs/exemption-types',
+  etracsRpuAssessment: (rpuid) => `/etracs/rpu/${rpuid}/assessment`,
+  etracsRpuDetail: (rpuid) => `/etracs/rpu/${rpuid}/detail`,
 };
 
 // API functions
@@ -656,15 +672,7 @@ export const apiService = {
     }
   },
   
-  // Audit
-  getAuditTrail: async (params = {}) => {
-    try {
-      const response = await api.get(endpoints.audit, { params });
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
+
   
   // Sync
   triggerSync: async (forceFull = false) => {
@@ -759,6 +767,15 @@ export const apiService = {
     }
   },
 
+  // ETRACS Sync
+  pullEtracsSync: async () => {
+    try {
+      const response = await api.post(endpoints.etracsPullSync, {}, { timeout: 300000 });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
 };
 
 // Error handling utility
@@ -891,6 +908,179 @@ export const downloadFile = (url, filename) => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+// ──────────────────────────────────────────
+// ETRACS API Service Methods
+// ──────────────────────────────────────────
+export const etracsService = {
+  // FAAS CRUD
+  getFaasList: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsFaas, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getFaas: async (id) => {
+    try {
+      const response = await api.get(endpoints.etracsFaasItem(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  createFaas: async (data) => {
+    try {
+      const response = await api.post(endpoints.etracsFaas, data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  updateFaas: async (id, data) => {
+    try {
+      const response = await api.put(endpoints.etracsFaasItem(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  deleteFaas: async (id) => {
+    try {
+      const response = await api.delete(endpoints.etracsFaasItem(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  cancelFaas: async (id, data) => {
+    try {
+      const response = await api.post(endpoints.etracsFaasCancel(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  // Stats
+  getStats: async () => {
+    try {
+      const response = await api.get(endpoints.etracsStats);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  // Transaction types
+  getTransactionTypes: async () => {
+    try {
+      const response = await api.get(endpoints.etracsTransactionTypes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  // Entities
+  getEntities: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsEntities, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  createEntity: async (data) => {
+    try {
+      const response = await api.post(endpoints.etracsEntities, data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  updateEntity: async (id, data) => {
+    try {
+      const response = await api.put(endpoints.etracsEntityItem(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  deleteEntity: async (id) => {
+    try {
+      const response = await api.delete(endpoints.etracsEntityItem(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  pullSync: async () => {
+    try {
+      const response = await api.post(endpoints.etracsPullSync);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  
+  // ── New lookups and detail endpoints ──
+  
+  getBarangays: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsBarangay, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getClassifications: async () => {
+    try {
+      const response = await api.get(endpoints.etracsClassifications);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getExemptionTypes: async () => {
+    try {
+      const response = await api.get(endpoints.etracsExemptionTypes);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getRpuAssessment: async (rpuid) => {
+    try {
+      const response = await api.get(endpoints.etracsRpuAssessment(rpuid));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getRpuDetail: async (rpuid) => {
+    try {
+      const response = await api.get(endpoints.etracsRpuDetail(rpuid));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getFaasSignatory: async (id) => {
+    try {
+      const response = await api.get(endpoints.etracsFaasSignatory(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  updateFaasSignatory: async (id, data) => {
+    try {
+      const response = await api.put(endpoints.etracsFaasSignatory(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
 };
 
 export default api;
