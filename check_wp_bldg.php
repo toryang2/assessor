@@ -2,25 +2,25 @@
 define('WP_USE_THEMES', false);
 require_once('c:/xampp/htdocs/wp-load.php');
 global $wpdb;
-
-$tdno = '22-010-0024-00234';
-$faas = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}assessor_faas WHERE tdno = '$tdno'");
-if (!$faas) die('FAAS not found in WP');
-
-$rpuid = $faas->rpuid;
-echo "RPU ID in WP: $rpuid\n";
-
-$bldgrpu = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}assessor_bldgrpu WHERE objid = '$rpuid'", ARRAY_A);
-print_r(['bldgrpu' => $bldgrpu]);
-
-$structType = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}assessor_bldgrpu_structuraltype WHERE bldgrpuid = '$rpuid'", ARRAY_A);
-print_r(['structType' => $structType]);
-
-$uses = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}assessor_bldguse WHERE bldgrpuid = '$rpuid'", ARRAY_A);
-print_r(['uses' => $uses]);
-
-$floors = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}assessor_bldgfloor WHERE bldgrpuid = '$rpuid'", ARRAY_A);
-print_r(['floors' => $floors]);
-
-$structs = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}assessor_bldgstructure WHERE bldgrpuid = '$rpuid'", ARRAY_A);
-print_r(['structs' => $structs]);
+$t_faas = $wpdb->prefix . 'assessor_faas';
+$t_rpu = $wpdb->prefix . 'assessor_rpu';
+$sql = "SELECT f.objid, r.objid as rpu_id, r.classification FROM $t_faas f JOIN $t_rpu r ON f.rpuid = r.objid WHERE r.rpu_type = 'BLDG' LIMIT 1";
+$faas = $wpdb->get_row($sql);
+if ($faas) {
+    echo "Found FAAS: " . $faas->objid . "\n";
+    $id = $faas->objid;
+    $t_bldg = $wpdb->prefix . 'assessor_bldgrpu';
+    $bldg = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_bldg WHERE objid = %s", $faas->rpu_id), ARRAY_A);
+    if ($bldg) {
+        $bldg['classification_objid'] = $faas->classification;
+        print_r($bldg);
+    } else {
+        echo "No bldgrpu found for " . $faas->rpu_id;
+    }
+    
+    $t_sig = $wpdb->prefix . 'assessor_faas_signatory';
+    $sig = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_sig WHERE objid = %s", $id), ARRAY_A);
+    print_r($sig);
+} else {
+    echo "No BLDG found";
+}

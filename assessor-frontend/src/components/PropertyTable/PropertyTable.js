@@ -29,7 +29,9 @@ import {
   FormControl,
   InputLabel,
   Chip,
-  Menu
+  Menu,
+  Tooltip,
+  Collapse
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -41,7 +43,9 @@ import {
   Receipt as ReceiptIcon,
   AttachFile as AttachFileIcon,
   BrokenImage as BrokenImageIcon,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
  
@@ -728,6 +732,14 @@ const PropertyTable = () => {
   const [propertyModal, setPropertyModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
+  const [expandedMemos, setExpandedMemos] = useState({});
+
+  const toggleMemo = (id) => {
+    setExpandedMemos(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [historyModal, setHistoryModal] = useState(false);
   const [taxHistory, setTaxHistory] = useState([]);
@@ -1688,37 +1700,26 @@ const PropertyTable = () => {
       {/* Properties Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
-          <Table stickyHeader>  {/* sx={{ tableLayout: 'fixed' }} */}
-            {/* <colgroup>
-              <col style={{ width: '200px' }} />
-              <col style={{ width: '200px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '150px' }} />
-              <col style={{ width: '120px' }} />
-              <col />
-              <col style={{ width: '140px' }} />
-            </colgroup> */}
+          <Table stickyHeader sx={{ minWidth: 1600 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 150 }}>Tax Declaration Number</TableCell>
-                <TableCell sx={{ width: 150 }}>Declarant</TableCell>
-                <TableCell sx={{ width: 80 }}>Barangay</TableCell>
-                <TableCell sx={{ width: 80 }}>Lot Number</TableCell>
-                <TableCell sx={{ width: 80 }}>Survey Number</TableCell>
-                <TableCell sx={{ width: 80 }}>Area (hectare)</TableCell>
-                <TableCell sx={{ width: 80 }}>Title Number</TableCell>
-                <TableCell sx={{ width: 120 }}>Assessed Value</TableCell>
-                <TableCell sx={{ width: 100 }}>Kind</TableCell>
-                <TableCell sx={{ width: 100 }}>Class</TableCell>
-                <TableCell sx={{ width: 80 }}>Effectivity</TableCell>
-                <TableCell sx={{ width: 100 }}>State</TableCell>
-                <TableCell>Memoranda</TableCell>
-                <TableCell sx={{ width: 140 }}>Actions</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Tax Declaration Number</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>State</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Declarant</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Barangay</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Lot Number</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Survey Number</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Area (hectare)</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Title Number</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Assessed Value</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Kind</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Class</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Effectivity</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 200 }}>Memoranda</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap', position: 'sticky', right: 0, zIndex: 3, backgroundColor: '#f1f5f9', borderLeft: '2px solid #e0e0e0', boxShadow: '-4px 0 8px rgba(0,0,0,0.06)' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75 } }}>
+            <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75, whiteSpace: 'nowrap' } }}>
               {pagedProperties && pagedProperties.length > 0 ? pagedProperties.map((property) => (
                 <TableRow key={property.id} hover>
                   <TableCell sx={{ verticalAlign: 'top' }}>
@@ -1741,6 +1742,19 @@ const PropertyTable = () => {
                         </Typography>
                       </Box>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={property.property_state || 'CURRENT'}
+                      size="small"
+                      sx={{
+                        backgroundColor: getStateColor(property.property_state || 'CURRENT').bg,
+                        color: getStateColor(property.property_state || 'CURRENT').text,
+                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                        height: 20
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     {(() => {
@@ -1810,28 +1824,38 @@ const PropertyTable = () => {
                   <TableCell>{property.kind_of_property_name || property.kind_of_property || '—'}</TableCell>
                   <TableCell>{property.gen_class_name || property.gen_class || '—'}</TableCell>
                   <TableCell>{property.effectivity_date || '-'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={property.property_state || 'CURRENT'}
-                      size="small"
-                      sx={{
-                        backgroundColor: getStateColor(property.property_state || 'CURRENT').bg,
-                        color: getStateColor(property.property_state || 'CURRENT').text,
-                        fontWeight: 600,
-                        fontSize: '0.7rem',
-                        height: 20
-                      }}
-                    />
+
+                  <TableCell sx={{ minWidth: 200, maxWidth: 320, verticalAlign: 'top', whiteSpace: 'normal' }}>
+                    {property.memoranda ? (
+                      <Box>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            whiteSpace: expandedMemos[property.id] ? 'pre-wrap' : 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: 280,
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {property.memoranda}
+                        </Typography>
+                        {property.memoranda.length > 60 && (
+                          <Button
+                            size="small"
+                            onClick={() => toggleMemo(property.id)}
+                            sx={{ textTransform: 'none', p: 0, minWidth: 'auto', fontSize: '0.7rem', mt: 0.25, lineHeight: 1.2 }}
+                            startIcon={expandedMemos[property.id] ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
+                          >
+                            {expandedMemos[property.id] ? 'Less' : 'View'}
+                          </Button>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2">-</Typography>
+                    )}
                   </TableCell>
-                  <TableCell sx={{ width: 280, maxWidth: 280, verticalAlign: 'top' }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                    >
-                      {property.memoranda || '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={{ verticalAlign: 'top' }}>
+                  <TableCell sx={{ verticalAlign: 'top', position: 'sticky', right: 0, zIndex: 1, backgroundColor: '#fff', borderLeft: '2px solid #e0e0e0', boxShadow: '-4px 0 8px rgba(0,0,0,0.06)' }}>
                     <Box display="flex" gap={1} alignItems="flex-start">
                       <IconButton
                         size="small"
@@ -1906,14 +1930,33 @@ const PropertyTable = () => {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
-                    <Typography variant="body2" color="text.secondary">
-                      {loading || loadingAll ? 
-                        (debouncedSearchTerm ? 'Searching properties...' : 
-                         imageFilter !== 'all' ? 'Filtering properties...' : 'Loading properties...') : 
-                        'No properties found'
-                      }
-                    </Typography>
+                  <TableCell colSpan={14} sx={{ border: 'none', p: 0 }}>
+                    <Box
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="center"
+                      justifyContent="center"
+                      sx={{ minHeight: 'calc(100vh - 500px)', width: '100%' }}
+                    >
+                      {(loading || loadingAll) ? (
+                        <>
+                          <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
+                          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                            {debouncedSearchTerm ? 'Searching properties...' :
+                              imageFilter !== 'all' ? 'Filtering properties...' : 'Loading properties...'}
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
+                            No properties found
+                          </Typography>
+                          <Typography variant="body2" color="text.disabled">
+                            Try adjusting your search or filters
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
                   </TableCell>
                 </TableRow>
               )}

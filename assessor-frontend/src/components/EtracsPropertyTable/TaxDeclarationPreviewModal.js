@@ -91,8 +91,9 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
         property.rpu_id ? etracsService.getRpuDetail(property.rpu_id) : Promise.resolve({ assessments: [] }),
         property.id ? etracsService.getFaasSignatory(property.id) : Promise.resolve({})
       ]).then(([rpuData, sigData]) => {
-        setAssessments(rpuData.assessments || []);
-        setRpuDetail(rpuData);
+        const rpu = rpuData?.data || rpuData || {};
+        setAssessments(rpu.assessments || []);
+        setRpuDetail(rpu);
         setSigs(sigData || {});
       }).catch(err => {
         console.error("Failed to load preview details", err);

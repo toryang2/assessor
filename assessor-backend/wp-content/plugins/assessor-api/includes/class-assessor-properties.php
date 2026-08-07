@@ -168,17 +168,9 @@ class Assessor_Properties {
             $where_values[] = $params['date_to'];
         }
 
-        // Property state filter (CURRENT, CANCELLED, INTERIM, PENDING)
-        $table_property_states = $wpdb->prefix . 'assessor_property_states';
         if (!empty($params['property_state'])) {
-            $state_val = strtoupper(trim($params['property_state']));
-            if ($state_val === 'CURRENT') {
-                // CURRENT includes properties with no state record (default)
-                $where_conditions[] = "(ps.state = 'CURRENT' OR ps.state IS NULL)";
-            } else {
-                $where_conditions[] = "ps.state = %s";
-                $where_values[] = $state_val;
-            }
+            $where_conditions[] = "COALESCE(ps.state, 'CURRENT') = %s";
+            $where_values[] = strtoupper($params['property_state']);
         }
         
         // Always exclude deleted properties
@@ -211,14 +203,15 @@ class Assessor_Properties {
             }
         }
         
-        // Get total count (including states table JOIN for state filtering)
+        // Get total count
+        $table_property_states = $wpdb->prefix . 'assessor_property_states';
         $count_query = "SELECT COUNT(*) FROM $table_properties p LEFT JOIN $table_property_states ps ON p.id = ps.property_id $where_clause";
         if (!empty($where_values)) {
             $count_query = $wpdb->prepare($count_query, $where_values);
         }
         $total = $wpdb->get_var($count_query);
         
-        // Get properties with user information, property type name, general class name, and state
+        // Get properties with user information, property type name, and general class name
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
         $select_sql = "
@@ -658,44 +651,6 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         // Insert business name if provided
         // Business is stored on properties table; no separate insert needed
 
-        // Save property state if provided
-        $property_state = isset($params['property_state']) ? sanitize_text_field($params['property_state']) : 'CURRENT';
-        $wpdb->replace(
-            "{$wpdb->prefix}assessor_property_states",
-            [
-                'property_id' => $property_id,
-                'state' => $property_state,
-                'updated_by' => $user_id,
-                'updated_at' => current_time('mysql')
-            ],
-            ['%d', '%s', '%d', '%s']
-        );
-
-        // Auto-cancel previous TDNs if provided
-        if (!empty($normalized_previous_tdn)) {
-            $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
-            foreach ($tdn_list as $tdn) {
-                if (empty($tdn)) continue;
-                // Find property ID by TDN
-                $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
-                    $tdn
-                ));
-                if ($prev_prop_id) {
-                    $wpdb->replace(
-                        "{$wpdb->prefix}assessor_property_states",
-                        [
-                            'property_id' => $prev_prop_id,
-                            'state' => 'CANCELLED',
-                            'updated_by' => $user_id,
-                            'updated_at' => current_time('mysql')
-                        ],
-                        ['%d', '%s', '%d', '%s']
-                    );
-                }
-            }
-        }
-
         // Log audit trail with full snapshot of newly created property
         $created = $this->get_property($property_id);
         $new_values = array();
@@ -740,6 +695,31 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             );
         }
         $audit = new Assessor_Audit();
+        // Auto-cancel previous TDNs if provided
+        if (!empty($normalized_previous_tdn)) {
+            $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
+            foreach ($tdn_list as $tdn) {
+                if (empty($tdn)) continue;
+                // Find property ID by TDN
+                $prev_prop_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
+                    $tdn
+                ));
+                if ($prev_prop_id) {
+                    $wpdb->replace(
+                        "{$wpdb->prefix}assessor_property_states",
+                        [
+                            'property_id' => $prev_prop_id,
+                            'state' => 'CANCELLED',
+                            'updated_by' => $user_id,
+                            'updated_at' => current_time('mysql')
+                        ],
+                        ['%d', '%s', '%d', '%s']
+                    );
+                }
+            }
+        }
+
         $audit->log_activity($user_id, 'create', 'assessor_properties', $property_id, null, $new_values);
         
         // Enqueue for sync to live site (only on local builds, and not when the write came from sync itself)
@@ -974,21 +954,6 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         // Business is stored on properties table directly
         
-        // Save property state if provided
-        if (isset($params['property_state'])) {
-            $property_state = sanitize_text_field($params['property_state']);
-            $wpdb->replace(
-                "{$wpdb->prefix}assessor_property_states",
-                [
-                    'property_id' => $id,
-                    'state' => $property_state,
-                    'updated_by' => $user_id,
-                    'updated_at' => current_time('mysql')
-                ],
-                ['%d', '%s', '%d', '%s']
-            );
-        }
-
         // Auto-cancel previous TDNs if provided
         $normalized_previous_tdn = isset($params['previous_tax_declaration_number']) ? $this->normalize_previous_tax_declaration_numbers($params['previous_tax_declaration_number']) : '';
         if (!empty($normalized_previous_tdn)) {
@@ -1024,7 +989,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 $this->revert_cancelled_states(implode(';', $removed_tdns), $id, $user_id);
             }
         }
-
+        
         // Log audit trail with captured changes (only if there are actual changes)
         if (!empty($old_values) && !empty($new_values)) {
             $audit = new Assessor_Audit();
@@ -1108,70 +1073,26 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         return array('success' => true, 'message' => 'Property deleted successfully');
     }
-
-    /**
-     * Update a property's state (CURRENT, CANCELLED, INTERIM, PENDING).
-     * Uses REPLACE INTO for upsert behaviour on the separate states table.
-     */
-    public function update_property_state($id, $request) {
+    public function update_property_state($id, $state, $request) {
         global $wpdb;
-
         $user_id = $this->get_user_id_from_request($request);
 
-        // Validate the property exists
-        $property = $this->get_property($id);
-        if (is_wp_error($property)) {
-            return $property;
-        }
-
-        $params = $request->get_params();
-        $new_state = isset($params['state']) ? strtoupper(trim($params['state'])) : '';
-        $allowed_states = array('CURRENT', 'CANCELLED', 'INTERIM', 'PENDING');
-
-        if (!in_array($new_state, $allowed_states)) {
-            return new WP_Error('invalid_state', 'State must be one of: ' . implode(', ', $allowed_states), array('status' => 400));
-        }
-
         $table_property_states = $wpdb->prefix . 'assessor_property_states';
-
-        // Get the old state for audit logging
-        $old_state = $wpdb->get_var($wpdb->prepare(
-            "SELECT state FROM $table_property_states WHERE property_id = %d",
-            $id
-        ));
-        if ($old_state === null) {
-            $old_state = 'CURRENT'; // default
-        }
-
-        // Upsert the state
-        $wpdb->replace(
+        $result = $wpdb->replace(
             $table_property_states,
-            array(
+            [
                 'property_id' => $id,
-                'state'       => $new_state,
+                'state'       => strtoupper($state),
                 'updated_by'  => $user_id,
-            ),
-            array('%d', '%s', '%d')
+                'updated_at'  => current_time('mysql')
+            ],
+            ['%d', '%s', '%d', '%s']
         );
 
-        // Log audit trail
-        $audit = new Assessor_Audit();
-        $audit->log_activity(
-            $user_id,
-            'update_state',
-            'assessor_properties',
-            $id,
-            array('state' => $old_state),
-            array('state' => $new_state)
-        );
-
-        return array(
-            'success' => true,
-            'message' => 'Property state updated successfully',
-            'property_id' => (int)$id,
-            'old_state' => $old_state,
-            'new_state' => $new_state,
-        );
+        if ($result === false) {
+            return new WP_Error('db_error', 'Failed to update property state', ['status' => 500]);
+        }
+        return ['success' => true, 'state' => strtoupper($state)];
     }
     
     public function get_total_count() {

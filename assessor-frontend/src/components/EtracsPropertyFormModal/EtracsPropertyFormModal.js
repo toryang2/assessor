@@ -113,7 +113,8 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
         });
 
         if (property.rpu_id) {
-          etracsService.getRpuDetail(property.rpu_id).then(res => {
+          etracsService.getRpuDetail(property.rpu_id).then(response => {
+            const res = response?.data || response || {};
             setRpuData(res);
             setAssessments(res.assessments || []);
             if (property.rpu_type?.toUpperCase() === 'BLDG') {
