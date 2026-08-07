@@ -68,6 +68,7 @@ export const endpoints = {
   // Properties
   properties: '/properties',
   property: (id) => `/properties/${id}`,
+  propertyState: (id) => `/properties/${id}/state`,
   propertyVersions: (id) => `/properties/${id}/versions`,
   propertyDocuments: (id) => `/properties/${id}/documents`,
   propertyDocument: (id, docId) => `/properties/${id}/documents/${docId}`,
@@ -133,6 +134,7 @@ export const endpoints = {
   etracsBarangay: '/etracs/barangay',
   etracsClassifications: '/etracs/classifications',
   etracsExemptionTypes: '/etracs/exemption-types',
+  etracsBuildingLookups: '/etracs/building/lookups',
   etracsRpuAssessment: (rpuid) => `/etracs/rpu/${rpuid}/assessment`,
   etracsRpuDetail: (rpuid) => `/etracs/rpu/${rpuid}/detail`,
 };
@@ -201,6 +203,15 @@ export const apiService = {
   updateProperty: async (id, propertyData) => {
     try {
       const response = await api.put(endpoints.property(id), propertyData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updatePropertyState: async (id, state) => {
+    try {
+      const response = await api.put(endpoints.propertyState(id), { state });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -1076,6 +1087,14 @@ export const etracsService = {
   updateFaasSignatory: async (id, data) => {
     try {
       const response = await api.put(endpoints.etracsFaasSignatory(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getBuildingLookups: async () => {
+    try {
+      const response = await api.get(endpoints.etracsBuildingLookups);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

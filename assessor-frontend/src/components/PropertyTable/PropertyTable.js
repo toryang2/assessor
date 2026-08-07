@@ -27,7 +27,9 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Chip,
+  Menu
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -513,6 +515,22 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
   );
 });
 
+// Helper for state badge colors
+const getStateColor = (state) => {
+  switch (state) {
+    case 'CURRENT':
+      return { bg: '#e8f5e9', text: '#2e7d32' };
+    case 'CANCELLED':
+      return { bg: '#ffebee', text: '#c62828' };
+    case 'INTERIM':
+      return { bg: '#fff3e0', text: '#e65100' };
+    case 'PENDING':
+      return { bg: '#e3f2fd', text: '#1565c0' };
+    default:
+      return { bg: '#f5f5f5', text: '#616161' };
+  }
+};
+
 const PropertyTable = () => {
   const { isAdmin, isSuperAdmin, canEdit, isViewer } = useAuth();
   const [properties, setProperties] = useState([]);
@@ -546,6 +564,12 @@ const PropertyTable = () => {
   const [kindOptions, setKindOptions] = useState([]);
   const [classFilter, setClassFilter] = useState('');
   const [classOptions, setClassOptions] = useState([]);
+
+  // Property State filter and editing state
+  const [stateFilter, setStateFilter] = useState('');
+  const [stateAnchorEl, setStateAnchorEl] = useState(null);
+  const [selectedStatePropertyId, setSelectedStatePropertyId] = useState(null);
+  const [updatingState, setUpdatingState] = useState(false);
 
   const imageCounts = useMemo(() => {
     // Always prioritize allProperties for accurate counts, fall back to safeProperties only if allProperties is empty
@@ -793,7 +817,7 @@ const PropertyTable = () => {
     if (!debouncedSearchTerm && imageFilter === 'all') {
       if (revisionFilter || locationFilter || kindFilter || classFilter) {
         // Use server-side filtering when filters are active
-        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter);
+        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter, stateFilter);
       } else {
         // Use regular fetchProperties when no filters are active
         fetchProperties();
@@ -902,7 +926,7 @@ const PropertyTable = () => {
 
 
   const fetchSeqRef = useRef(0);
-  const fetchPropertiesWithFilters = useCallback(async (revisionId, locationName, kindName, className) => {
+  const fetchPropertiesWithFilters = useCallback(async (revisionId, locationName, kindName, className, stateName) => {
     const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
@@ -917,6 +941,7 @@ const PropertyTable = () => {
         location: locationName || '',
         kind_of_property: kindName || '',
         gen_class: className || '',
+        property_state: stateName || '',
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       };
@@ -970,6 +995,7 @@ const PropertyTable = () => {
         location: locationFilter || '',
         kind_of_property: kindFilter || '',
         gen_class: classFilter || '',
+        property_state: stateFilter || '',
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
@@ -980,6 +1006,7 @@ const PropertyTable = () => {
         searchTerm: debouncedSearchTerm,
         revisionFilter,
         locationFilter,
+        stateFilter,
         params
       });
       
@@ -1072,7 +1099,7 @@ const PropertyTable = () => {
       setDeleteDialog(false);
       setPropertyToDelete(null);
       // Refresh current page and counts respecting filters
-      fetchPropertiesWithFilters(revisionFilter, locationFilter);
+      fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter, stateFilter);
       // Always refresh the all-properties dataset so imageCounts stay in sync
       fetchAllDataset();
     } catch (err) {
@@ -1084,7 +1111,7 @@ const PropertyTable = () => {
     setPropertyModal(false);
     setSelectedProperty(null);
     // Refresh current page and counts respecting filters
-    fetchPropertiesWithFilters(revisionFilter, locationFilter);
+    fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter, stateFilter);
     // Always refresh the all-properties dataset so imageCounts stay in sync
     fetchAllDataset();
   };
@@ -1472,7 +1499,7 @@ const PropertyTable = () => {
                         setLocationFilter(newLoc);
                         setPage(0);
                         // Immediately fetch with current revision + new location + current kind, class
-                        fetchPropertiesWithFilters(revisionFilter, newLoc, kindFilter, classFilter);
+                        fetchPropertiesWithFilters(revisionFilter, newLoc, kindFilter, classFilter, stateFilter);
                       }}
                       label="Location"
                       displayEmpty
@@ -1507,7 +1534,7 @@ const PropertyTable = () => {
                         const newKind = e.target.value;
                         setKindFilter(newKind);
                         setPage(0);
-                        fetchPropertiesWithFilters(revisionFilter, locationFilter, newKind, classFilter);
+                        fetchPropertiesWithFilters(revisionFilter, locationFilter, newKind, classFilter, stateFilter);
                       }}
                       label="Kind"
                       displayEmpty
@@ -1542,7 +1569,7 @@ const PropertyTable = () => {
                         const newClass = e.target.value;
                         setClassFilter(newClass);
                         setPage(0);
-                        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, newClass);
+                        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, newClass, stateFilter);
                       }}
                       label="Class"
                       displayEmpty
@@ -1564,6 +1591,34 @@ const PropertyTable = () => {
                     </Select>
                   </FormControl>
                   
+                  {/* State Filter */}
+                  <FormControl size="small" variant="outlined" sx={{ minWidth: 140 }}>
+                    <Select
+                      value={stateFilter}
+                      onChange={(e) => {
+                        const newState = e.target.value;
+                        setStateFilter(newState);
+                        setPage(0);
+                        fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter, newState);
+                      }}
+                      displayEmpty
+                      renderValue={(selected) => {
+                        const v = selected === undefined || selected === null ? '' : selected;
+                        if (v === '') return 'All States';
+                        return v;
+                      }}
+                    >
+                      <MenuItem value="" selected={stateFilter === ''}>
+                        <em>All States</em>
+                      </MenuItem>
+                      <MenuItem value="CURRENT">CURRENT</MenuItem>
+                      <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                      <MenuItem value="INTERIM">INTERIM</MenuItem>
+                      <MenuItem value="PENDING">PENDING</MenuItem>
+                    </Select>
+                  </FormControl>
+
+
                   <ToggleButtonGroup
                     size="small"
                     exclusive
@@ -1658,6 +1713,7 @@ const PropertyTable = () => {
                 <TableCell sx={{ width: 100 }}>Kind</TableCell>
                 <TableCell sx={{ width: 100 }}>Class</TableCell>
                 <TableCell sx={{ width: 80 }}>Effectivity</TableCell>
+                <TableCell sx={{ width: 100 }}>State</TableCell>
                 <TableCell>Memoranda</TableCell>
                 <TableCell sx={{ width: 140 }}>Actions</TableCell>
               </TableRow>
@@ -1753,7 +1809,20 @@ const PropertyTable = () => {
                   </TableCell>
                   <TableCell>{property.kind_of_property_name || property.kind_of_property || '—'}</TableCell>
                   <TableCell>{property.gen_class_name || property.gen_class || '—'}</TableCell>
-                  <TableCell>{property.effectivity_date || '—'}</TableCell>
+                  <TableCell>{property.effectivity_date || '-'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={property.property_state || 'CURRENT'}
+                      size="small"
+                      sx={{
+                        backgroundColor: getStateColor(property.property_state || 'CURRENT').bg,
+                        color: getStateColor(property.property_state || 'CURRENT').text,
+                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                        height: 20
+                      }}
+                    />
+                  </TableCell>
                   <TableCell sx={{ width: 280, maxWidth: 280, verticalAlign: 'top' }}>
                     <Typography
                       variant="body2"

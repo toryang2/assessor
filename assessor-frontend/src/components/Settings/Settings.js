@@ -210,7 +210,8 @@ const DEFAULTS = {
   assessor_etracs_db_port: '3306',
   assessor_etracs_db_user: 'root',
   assessor_etracs_db_password: '',
-  assessor_etracs_db_name: 'etracs254_kitaotao'
+  assessor_etracs_db_name: 'etracs254_kitaotao',
+  enable_etracs_features: 0
 };
 
 const Settings = () => {
@@ -374,6 +375,7 @@ const Settings = () => {
           assessor_etracs_db_user: data.assessor_etracs_db_user || DEFAULTS.assessor_etracs_db_user,
           assessor_etracs_db_password: data.assessor_etracs_db_password || '',
           assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
+          enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
         });
         const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
           apiService.getPropertyTypes(),
@@ -553,12 +555,16 @@ const Settings = () => {
         assessor_etracs_db_user: form.assessor_etracs_db_user,
         assessor_etracs_db_password: form.assessor_etracs_db_password,
         assessor_etracs_db_name: form.assessor_etracs_db_name,
+        enable_etracs_features: form.enable_etracs_features,
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
       
       // Update the auth context with the new AFK timeout
       updateAfkTimeout(form.afk_timeout);
+
+      // Dispatch event for Layout.js to update sidebar menus instantly
+      window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: saved }));
       
       setToast({ open: true, message: 'Saved successfully.', severity: 'success' });
     } catch (e) {
@@ -1823,6 +1829,23 @@ const Settings = () => {
             </Box>
           </Grid>
         </Grid>
+      </Grid>
+      <Grid item xs={12}>
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="h6" sx={{ mb: 2 }}>Experimental Features</Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={Boolean(form.enable_etracs_features)}
+              onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
+              color="primary"
+            />
+          }
+          label="Enable ETRACS Integration (Properties & Taxpayers)"
+        />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Turning this on will reveal the "ETRACS Properties" and "Taxpayers" navigation items.
+        </Typography>
       </Grid>
       <Grid item xs={12} textAlign="right">
         <Button variant="contained" onClick={handleSave}>Save</Button>

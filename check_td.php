@@ -1,11 +1,6 @@
 <?php
-$db = new mysqli('localhost', 'root', '', 'assessor_local');
-if ($db->connect_error) die("Connection failed: " . $db->connect_error);
-
-$res = $db->query("SELECT tdno, prevtdno, prevpin, prevowner, prevadministrator, prevmv, prevav, prevareasqm FROM wp_assessor_faas WHERE prevtdno LIKE '%10-021-07268%' LIMIT 1");
-if ($res) {
-    $row = $res->fetch_assoc();
-    print_r($row);
-} else {
-    echo "Error: " . $db->error;
-}
+define('WP_USE_THEMES', false);
+require_once('c:/xampp/htdocs/wp-load.php');
+global $wpdb;
+$assessments = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}assessor_rpu_assessment WHERE rpuid = 'RPUfc7a625:1862a553a16:-b76'");
+print_r(['assessments' => $assessments]);

@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { etracsService, apiService } from '../../utils/api';
+import BuildingFaasEditor from './BuildingFaasEditor';
 
 const defaultFormData = {
   // FAAS fields
@@ -22,6 +23,7 @@ const defaultFormData = {
   // Real Property fields
   cadastral_lot_no: '', survey_no: '', block_no: '', barangay: '', barangayid: '', municipality: '', province: '',
   total_area_hectare: '', total_area_sqm: '', north: '', south: '', east: '', west: '',
+  building: { floors: [], structures: [], uses: [] },
 };
 
 const rpuTypes = [
@@ -54,6 +56,7 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
 
   // Subtype detail data
   const [rpuData, setRpuData] = useState(null);
+  const [bldgLookups, setBldgLookups] = useState(null);
   const [signatory, setSignatory] = useState({});
   const [assessments, setAssessments] = useState([]);
 
@@ -113,6 +116,22 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
           etracsService.getRpuDetail(property.rpu_id).then(res => {
             setRpuData(res);
             setAssessments(res.assessments || []);
+            if (property.rpu_type?.toUpperCase() === 'BLDG') {
+              const structType = res.structuraltype || {};
+              const filteredStructType = Object.fromEntries(
+                Object.entries(structType).filter(([k, v]) => v !== null && v !== 0 && v !== '0' && v !== '')
+              );
+              setFormData(prev => ({
+                ...prev,
+                building: {
+                  ...(res.subtype || {}),
+                  ...filteredStructType,
+                  floors: res.floors || [],
+                  structures: res.structures || [],
+                  uses: res.uses || []
+                }
+              }));
+            }
           }).catch(console.error);
         }
         if (property.id) {
@@ -120,6 +139,8 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
         }
       } else {
         setFormData({ ...defaultFormData });
+        setRpuData({});
+        setAssessments([]);
       }
       setError(null);
     }
@@ -153,6 +174,14 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
       return () => clearTimeout(timer);
     }
   }, [formData.prevtdno, open]);
+
+  useEffect(() => {
+    if (open && formData.rpu_type?.toUpperCase() === 'BLDG' && !bldgLookups) {
+      etracsService.getBuildingLookups()
+        .then(res => setBldgLookups(res))
+        .catch(console.error);
+    }
+  }, [open, formData.rpu_type, bldgLookups]);
 
   const handlePrevFaasSelect = (event, newValue) => {
     if (newValue) {
@@ -377,25 +406,37 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                 <Card variant="outlined" sx={{ mb: 2 }}>
                   <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#fff' }}>
                     <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} variant="scrollable" scrollButtons="auto">
-                      <Tab label={`${formData.rpu_type} Detail`} />
-                      <Tab label="Assessment" />
-                      <Tab label="Signatories" />
-                      <Tab label="Superseded" />
-                      <Tab label="Memoranda" />
+                      {formData.rpu_type?.toUpperCase() === 'BLDG' ? [
+                        <Tab key="gen" label="General Information" />,
+                        <Tab key="app" label="Property Appraisal" />,
+                        <Tab key="str" label="Structural Materials" />,
+                        <Tab key="lnd" label="Lands" />,
+                        <Tab key="ass" label="Assessment" />,
+                        <Tab key="sig" label="Signatories" />,
+                        <Tab key="sup" label="Superseded FAAS" />,
+                        <Tab key="mem" label="Memoranda" />,
+                        <Tab key="res" label="Restrictions" />
+                      ] : [
+                        <Tab key="det" label={`${formData.rpu_type} Detail`} />,
+                        <Tab key="ass" label="Assessment" />,
+                        <Tab key="sig" label="Signatories" />,
+                        <Tab key="sup" label="Superseded" />,
+                        <Tab key="mem" label="Memoranda" />
+                      ]}
                     </Tabs>
                   </Box>
 
                   <CardContent sx={{ minHeight: 300, bgcolor: '#fff' }}>
                     
-                    {/* RPU Detail Tab */}
-                    {activeTab === 0 && (
+                    {/* RPU Detail Tab (Non-BLDG) */}
+                    {formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 0 && (
                       <Box>
                         {rpuData === null ? (
                           <Box textAlign="center" py={5}><CircularProgress size={30} /><Typography mt={2}>Loading RPU Details...</Typography></Box>
                         ) : (
                           <Box>
                             {/* LAND RPU Detail */}
-                            {formData.rpu_type === 'LAND' && rpuData?.landdetail && (
+                            {formData.rpu_type?.toUpperCase() === 'LAND' && rpuData?.landdetail && (
                               <TableContainer component={Paper} variant="outlined">
                                 <Table size="small" stickyHeader>
                                   <TableHead>
@@ -426,28 +467,9 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                                 </Table>
                               </TableContainer>
                             )}
-                            
-                            {/* BLDG RPU Detail */}
-                            {formData.rpu_type === 'BLDG' && rpuData?.floors && (
-                              <TableContainer component={Paper} variant="outlined">
-                                <Table size="small">
-                                  <TableHead><TableRow><TableCell>Floor #</TableCell><TableCell>Area</TableCell><TableCell>Use</TableCell><TableCell>Market Value</TableCell></TableRow></TableHead>
-                                  <TableBody>
-                                    {rpuData.floors.map((row, i) => (
-                                      <TableRow key={i}>
-                                        <TableCell>{row.floorno}</TableCell>
-                                        <TableCell>{row.area} sqm</TableCell>
-                                        <TableCell>{row.bldgusename}</TableCell>
-                                        <TableCell>{Number(row.marketvalue).toLocaleString()}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
-                            )}
 
                             {/* MACH Detail */}
-                            {formData.rpu_type === 'MACH' && rpuData?.machines && (
+                            {formData.rpu_type?.toUpperCase() === 'MACH' && rpuData?.machines && (
                               <TableContainer component={Paper} variant="outlined">
                                 <Table size="small">
                                   <TableHead><TableRow><TableCell>Machine</TableCell></TableRow></TableHead>
@@ -464,8 +486,19 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                       </Box>
                     )}
 
+                    {/* BLDG Detail Tabs (0-3) */}
+                    {formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab >= 0 && activeTab <= 3 && (
+                      <BuildingFaasEditor
+                        building={formData.building}
+                        setBuilding={(b) => setFormData(prev => ({ ...prev, building: b }))}
+                        lookups={bldgLookups}
+                        classifications={classifications}
+                        activeTab={activeTab}
+                      />
+                    )}
+
                     {/* Assessment Tab */}
-                    {activeTab === 1 && (
+                    {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 1) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 4)) && (
                       <Box>
                         <TableContainer component={Paper} variant="outlined">
                           <Table size="small">
@@ -502,17 +535,21 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                     )}
 
                     {/* Signatories Tab */}
-                    {activeTab === 2 && (
+                    {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 2) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 5)) && (
                       <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Appraiser" value={signatory.appraiser_name || ''} onChange={(e) => setSignatory(s => ({ ...s, appraiser_name: e.target.value }))} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Appraiser Date" value={signatory.appraiser_dtsigned || ''} onChange={(e) => setSignatory(s => ({ ...s, appraiser_dtsigned: e.target.value }))} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Recommender" value={signatory.recommender_name || ''} onChange={(e) => setSignatory(s => ({ ...s, recommender_name: e.target.value }))} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Approver (Assessor)" value={signatory.approver_name || ''} onChange={(e) => setSignatory(s => ({ ...s, approver_name: e.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Appraiser" value={signatory.appraiser_name || ''} onChange={(e) => setSignatory(s => ({ ...s, appraiser_name: e.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="date" InputLabelProps={{ shrink: true }} fullWidth size="small" variant="standard" label="Appraiser Date" value={signatory.appraiser_dtsigned || ''} onChange={(e) => setSignatory(s => ({ ...s, appraiser_dtsigned: e.target.value }))} /></Grid>
+                        
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Recommender" value={signatory.recommender_name || ''} onChange={(e) => setSignatory(s => ({ ...s, recommender_name: e.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="date" InputLabelProps={{ shrink: true }} fullWidth size="small" variant="standard" label="Recommender Date" value={signatory.recommender_dtsigned || ''} onChange={(e) => setSignatory(s => ({ ...s, recommender_dtsigned: e.target.value }))} /></Grid>
+                        
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Approver (Assessor)" value={signatory.approver_name || ''} onChange={(e) => setSignatory(s => ({ ...s, approver_name: e.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="date" InputLabelProps={{ shrink: true }} fullWidth size="small" variant="standard" label="Approver Date" value={signatory.approver_dtsigned || ''} onChange={(e) => setSignatory(s => ({ ...s, approver_dtsigned: e.target.value }))} /></Grid>
                       </Grid>
                     )}
 
                     {/* Superseded FAAS */}
-                    {activeTab === 3 && (
+                    {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 3) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 6)) && (
                       <Grid container spacing={2}>
                         <Grid item xs={12} sm={4}>
                           <Autocomplete
@@ -522,19 +559,32 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                             inputValue={formData.prevtdno || ''}
                             onInputChange={(e, val) => setFormData(prev => ({ ...prev, prevtdno: val }))}
                             onChange={handlePrevFaasSelect}
-                            renderInput={(params) => <TextField {...params} fullWidth size="small" label="Previous TD No." />}
+                            renderInput={(params) => <TextField {...params} fullWidth size="small" variant="standard" label="Previous TD No." />}
                           />
                         </Grid>
-                        <Grid item xs={12} sm={8}><TextField fullWidth size="small" label="Previous Owner" value={formData.prev_owner} onChange={handleChange('prev_owner')} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Prev. Assessed Val" value={formData.prev_assessed_value} onChange={handleChange('prev_assessed_value')} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Prev. Area (sqm)" value={formData.prev_area_sqm} onChange={handleChange('prev_area_sqm')} /></Grid>
+                        <Grid item xs={12} sm={4}><TextField fullWidth size="small" variant="standard" label="Previous PIN" value={formData.prevpin || ''} onChange={handleChange('prevpin')} /></Grid>
+                        <Grid item xs={12} sm={4}></Grid>
+                        <Grid item xs={12} sm={12}><TextField fullWidth size="small" variant="standard" label="Previous Owner" value={formData.prev_owner || ''} onChange={handleChange('prev_owner')} /></Grid>
+                        <Grid item xs={12} sm={12}><TextField fullWidth size="small" variant="standard" label="Previous Administrator" value={formData.prev_administrator || ''} onChange={handleChange('prev_administrator')} /></Grid>
+                        
+                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Assessed Val" value={formData.prev_assessed_value || ''} onChange={handleChange('prev_assessed_value')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Market Val" value={formData.prev_market_value || ''} onChange={handleChange('prev_market_value')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Area (sqm)" value={formData.prev_area_sqm || ''} onChange={handleChange('prev_area_sqm')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Area (ha)" value={formData.prev_area_hectare || ''} onChange={handleChange('prev_area_hectare')} /></Grid>
                       </Grid>
                     )}
 
                     {/* Memoranda */}
-                    {activeTab === 4 && (
+                    {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 4) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 7)) && (
                       <Grid container spacing={2}>
-                        <Grid item xs={12}><TextField fullWidth size="small" multiline rows={4} label="Memoranda" value={formData.memoranda} onChange={handleChange('memoranda')} /></Grid>
+                        <Grid item xs={12}><TextField fullWidth size="small" variant="standard" multiline rows={4} label="Memoranda" value={formData.memoranda || ''} onChange={handleChange('memoranda')} /></Grid>
+                      </Grid>
+                    )}
+
+                    {/* Restrictions */}
+                    {formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 8 && (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}><TextField fullWidth size="small" variant="standard" multiline rows={4} label="Restrictions" value={formData.restrictions || ''} onChange={handleChange('restrictions')} /></Grid>
                       </Grid>
                     )}
                   </CardContent>

@@ -72,6 +72,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     kind_of_property: '',
     gen_class: '',
     memoranda: '',
+    property_state: 'CURRENT',
     supporting_documents: []
   });
 
@@ -268,6 +269,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       setFormData({
         tax_declaration_number: property.tax_declaration_number || '',
         previous_tax_declaration_number: property.previous_tax_declaration_number || '',
+        property_state: property.property_state || 'CURRENT',
         declarant_last_name: property.declarant_last_name || '',
         declarant_first_name: property.declarant_first_name || '',
         declarant_middle_initial: property.declarant_middle_initial || '',
@@ -1004,6 +1006,22 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   onChange={(e) => handleInputChange('pin', e.target.value)}
                   inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Property State</InputLabel>
+                  <Select
+                    value={formData.property_state || 'CURRENT'}
+                    onChange={(e) => handleInputChange('property_state', e.target.value)}
+                    label="Property State"
+                  >
+                    <MenuItem value="CURRENT">CURRENT</MenuItem>
+                    <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                    <MenuItem value="INTERIM">INTERIM</MenuItem>
+                    <MenuItem value="PENDING">PENDING</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
             </Grid>
           </Box>

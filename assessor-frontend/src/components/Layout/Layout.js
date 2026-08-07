@@ -182,6 +182,17 @@ const Layout = ({ children }) => {
       }
     };
     loadSettings();
+
+    const onSettingsUpdated = (e) => {
+      if (e.detail) {
+        setSettings(e.detail);
+        try {
+          localStorage.setItem('assessor_settings', JSON.stringify(e.detail));
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('settingsUpdated', onSettingsUpdated);
+    return () => window.removeEventListener('settingsUpdated', onSettingsUpdated);
   }, []);
 
   // Reset current page to Dashboard when user logs out
@@ -239,13 +250,13 @@ const Layout = ({ children }) => {
       text: 'ETRACS Properties',
       icon: <DescriptionIcon />,
       badge: null,
-      show: isSuperAdmin || isAdmin
+      show: (isSuperAdmin || isAdmin) && settings?.enable_etracs_features == 1
     },
     {
       text: 'Taxpayers',
       icon: <PeopleIcon />,
       badge: null,
-      show: isSuperAdmin || isAdmin
+      show: (isSuperAdmin || isAdmin) && settings?.enable_etracs_features == 1
     },
     {
       text: 'Requests',
