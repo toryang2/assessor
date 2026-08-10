@@ -177,12 +177,13 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
   }, [formData.prevtdno, open]);
 
   useEffect(() => {
-    if (open && formData.rpu_type?.toUpperCase() === 'BLDG' && !bldgLookups) {
-      etracsService.getBuildingLookups()
+    if (open && formData.rpu_type?.toUpperCase() === 'BLDG') {
+      const ryParams = formData.ry ? { ry: formData.ry } : {};
+      etracsService.getBuildingLookups(ryParams)
         .then(res => setBldgLookups(res))
         .catch(console.error);
     }
-  }, [open, formData.rpu_type, bldgLookups]);
+  }, [open, formData.rpu_type, formData.ry]);
 
   const handlePrevFaasSelect = (event, newValue) => {
     if (newValue) {

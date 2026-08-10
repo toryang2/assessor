@@ -30,7 +30,8 @@ class Assessor_Settings {
 				'municipal_assessor_license' => '',
 				'municipal_assessor_title' => '',
 				'municipal_assessor_suffix' => '',
-				'afk_timeout' => 30
+				'afk_timeout' => 30,
+				'enable_etracs_features' => 0
 			);
 		}
 		// Ensure municipal_assessor_license is always returned as a string to preserve leading zeros
@@ -41,13 +42,21 @@ class Assessor_Settings {
 			error_log('🔍 SETTINGS: After string cast = ' . var_export($settings['municipal_assessor_license'], true));
 		}
 		
+		// Cast integer keys properly
+		if (isset($settings['afk_timeout'])) {
+			$settings['afk_timeout'] = intval($settings['afk_timeout']);
+		}
+		if (isset($settings['enable_etracs_features'])) {
+			$settings['enable_etracs_features'] = intval($settings['enable_etracs_features']);
+		}
+		
 		// Add ETRACS sync settings from wp_options
-		$settings['etracs_db_host'] = get_option('assessor_etracs_db_host', 'localhost');
-		$settings['etracs_db_port'] = get_option('assessor_etracs_db_port', '3306');
-		$settings['etracs_db_user'] = get_option('assessor_etracs_db_user', 'root');
-		$settings['etracs_db_password'] = get_option('assessor_etracs_db_password', '');
-		$settings['etracs_db_name'] = get_option('assessor_etracs_db_name', 'etracs254_kitaotao');
-		$settings['etracs_last_sync'] = get_option('assessor_etracs_last_sync', null);
+		$settings['assessor_etracs_db_host'] = get_option('assessor_etracs_db_host', 'localhost');
+		$settings['assessor_etracs_db_port'] = get_option('assessor_etracs_db_port', '3306');
+		$settings['assessor_etracs_db_user'] = get_option('assessor_etracs_db_user', 'root');
+		$settings['assessor_etracs_db_password'] = get_option('assessor_etracs_db_password', '');
+		$settings['assessor_etracs_db_name'] = get_option('assessor_etracs_db_name', 'etracs254_kitaotao');
+		$settings['assessor_etracs_last_sync'] = get_option('assessor_etracs_last_sync', null);
 
 		// Rewrite URLs dynamically based on requesting host for local builds
 		if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
@@ -76,9 +85,9 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout', 'enable_etracs_features');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
-		$integer_keys = array('afk_timeout');
+		$integer_keys = array('afk_timeout', 'enable_etracs_features');
 		$data = array();
 		foreach ($allowed_keys as $key) {
 			if (isset($params[$key])) {
@@ -117,10 +126,10 @@ class Assessor_Settings {
 		}
 		
 		// Save ETRACS sync settings to wp_options
-		$etracs_keys = array('etracs_db_host', 'etracs_db_port', 'etracs_db_user', 'etracs_db_password', 'etracs_db_name');
+		$etracs_keys = array('assessor_etracs_db_host', 'assessor_etracs_db_port', 'assessor_etracs_db_user', 'assessor_etracs_db_password', 'assessor_etracs_db_name');
 		foreach ($etracs_keys as $key) {
 			if (isset($params[$key])) {
-				update_option('assessor_' . $key, sanitize_text_field($params[$key]));
+				update_option($key, sanitize_text_field($params[$key]));
 			}
 		}
 

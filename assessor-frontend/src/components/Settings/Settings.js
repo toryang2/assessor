@@ -437,6 +437,7 @@ const Settings = () => {
         assessor_etracs_db_user: data.assessor_etracs_db_user || DEFAULTS.assessor_etracs_db_user,
         assessor_etracs_db_password: data.assessor_etracs_db_password || '',
         assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
+        enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
       });
       const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
         apiService.getPropertyTypes(),
@@ -1836,7 +1837,7 @@ const Settings = () => {
         <FormControlLabel
           control={
             <Switch
-              checked={Boolean(form.enable_etracs_features)}
+              checked={form.enable_etracs_features == 1}
               onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
               color="primary"
             />

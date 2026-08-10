@@ -162,15 +162,11 @@ class Assessor_Etracs_Sync {
         $stmt = $pdo->query("SELECT * FROM faas");
         while ($row = $stmt->fetch()) {
             
-            // Map the rpuid and realpropertyid to LOCAL auto-increment IDs!
-            $local_rpuid = $rpu_map[$row['rpuid']] ?? '';
-            $local_realpropertyid = $rp_map[$row['realpropertyid']] ?? '';
-
             $data = [
                 'objid' => $row['objid'],
                 'state' => $row['state'],
-                'rpuid' => $local_rpuid,
-                'realpropertyid' => $local_realpropertyid,
+                'rpuid' => $row['rpuid'],
+                'realpropertyid' => $row['realpropertyid'],
                 'datacapture' => $row['datacapture'],
                 'autonumber' => $row['autonumber'],
                 'utdno' => $row['utdno'],
@@ -232,6 +228,60 @@ class Assessor_Etracs_Sync {
             $wpdb->replace($wp_faas, $data);
             $stats['faas']++;
         }
+
+        // 5. Sync detail & lookup tables (Building, Land, Mach, Misc, Lookups)
+        $tables_to_sync_direct = [
+            'bldgrpu' => 'assessor_bldgrpu',
+            'bldgfloor' => 'assessor_bldgfloor',
+            'bldguse' => 'assessor_bldguse',
+            'bldgstructure' => 'assessor_bldgstructure',
+            'bldgrpu_structuraltype' => 'assessor_bldgrpu_structuraltype',
+            'bldgkind' => 'assessor_bldgkind',
+            'bldgkindbucc' => 'assessor_bldgkindbucc',
+            'bldgtype' => 'assessor_bldgtype',
+            'bldgrysetting' => 'assessor_bldgrysetting',
+            'propertyclassification' => 'assessor_propertyclassification',
+            'landrpu' => 'assessor_landrpu',
+            'landdetail' => 'assessor_landdetail',
+            'machrpu' => 'assessor_machrpu',
+            'machdetail' => 'assessor_machdetail',
+            'miscrpu' => 'assessor_miscrpu',
+            'miscitem' => 'assessor_miscitem',
+        ];
+
+        foreach ($tables_to_sync_direct as $etracs_table => $local_table) {
+            $wp_table = $wpdb->prefix . $local_table;
+            try {
+                $stmt = $pdo->query("SELECT * FROM $etracs_table");
+                if ($stmt) {
+                    $stats[$local_table] = 0;
+                    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                        $wpdb->replace($wp_table, $row);
+                        $stats[$local_table]++;
+                    }
+                }
+            } catch (Exception $e) {
+                // Ignore if table doesn't exist in ETRACS
+            }
+        }
+
+        // 6. Sync rpu_assessment with JOINs to get classname and actualuse
+        $wp_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
+        try {
+            $stmt = $pdo->query("
+                SELECT ra.*, pc1.code as classcode, pc1.name as classname, pc2.name as actualuse
+                FROM rpu_assessment ra
+                LEFT JOIN propertyclassification pc1 ON pc1.objid = ra.classification_objid
+                LEFT JOIN propertyclassification pc2 ON pc2.objid = ra.actualuse_objid
+            ");
+            if ($stmt) {
+                $stats['rpu_assessment'] = 0;
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $wpdb->replace($wp_rpu_assessment, $row);
+                    $stats['rpu_assessment']++;
+                }
+            }
+        } catch (Exception $e) {}
 
         update_option('assessor_etracs_last_sync', current_time('mysql'));
 

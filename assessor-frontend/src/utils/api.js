@@ -1092,9 +1092,9 @@ export const etracsService = {
       throw handleApiError(error);
     }
   },
-  getBuildingLookups: async () => {
+  getBuildingLookups: async (params = {}) => {
     try {
-      const response = await api.get(endpoints.etracsBuildingLookups);
+      const response = await api.get(endpoints.etracsBuildingLookups, { params });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

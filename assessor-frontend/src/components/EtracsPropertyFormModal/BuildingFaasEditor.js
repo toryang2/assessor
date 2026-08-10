@@ -53,10 +53,44 @@ const BuildingFaasEditor = ({ building, setBuilding, lookups, classifications, a
 
   if (!lookups) return <Typography>Loading Lookups...</Typography>;
 
-  const { materials = [], types = [], actualUses = [] } = lookups;
+  if (!lookups) return <Typography>Loading Lookups...</Typography>;
 
-  console.log("DEBUG BLDG CLASSIFICATION:", bldg.classification_objid);
-  console.log("DEBUG CLASSIFICATIONS ARRAY:", classifications);
+  const { materials = [], types = [], kinds = [], unitCosts = [], actualUses = [] } = lookups;
+
+  const getCalculatedBaseValue = (kindId, typeId) => {
+    if (!kindId) return 0;
+    const match = (unitCosts || []).find(uc => 
+      (uc.bldgkind_objid === kindId || uc.objid === kindId) && 
+      (!typeId || uc.bldgtypeid === typeId)
+    );
+    if (match && match.basevalue != null) {
+      return parseFloat(match.basevalue);
+    }
+    const fallback = (unitCosts || []).find(uc => uc.bldgkind_objid === kindId || uc.objid === kindId);
+    if (fallback && fallback.basevalue != null) {
+      return parseFloat(fallback.basevalue);
+    }
+    return 0;
+  };
+
+  const handleKindChange = (kindObjid) => {
+    const calcVal = getCalculatedBaseValue(kindObjid, bldg.bldgtype_objid);
+    setBuilding({
+      ...bldg,
+      bldgkind_objid: kindObjid,
+      bldgkindbucc_objid: kindObjid,
+      basevalue: calcVal || bldg.basevalue || 0
+    });
+  };
+
+  const handleTypeChange = (typeObjid) => {
+    const calcVal = getCalculatedBaseValue(bldg.bldgkind_objid || bldg.bldgkindbucc_objid, typeObjid);
+    setBuilding({
+      ...bldg,
+      bldgtype_objid: typeObjid,
+      basevalue: calcVal || bldg.basevalue || 0
+    });
+  };
 
   // TAB 0: General Information
   if (activeTab === 0) {
@@ -71,7 +105,11 @@ const BuildingFaasEditor = ({ building, setBuilding, lookups, classifications, a
                   <FormControl fullWidth size="small" variant="standard">
                     <InputLabel shrink>Classification *</InputLabel>
                     <Select value={bldg.classification_objid || ''} onChange={(e) => updateBldg('classification_objid', e.target.value)}>
-                      {classifications.map((c, i) => <MenuItem key={i} value={c.objid}>{c.name}</MenuItem>)}
+                      {classifications.map((c, i) => (
+                        <MenuItem key={i} value={c.objid}>
+                          {c.code ? `${c.code} - ${c.name}` : c.name}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -194,6 +232,8 @@ const BuildingFaasEditor = ({ building, setBuilding, lookups, classifications, a
       setBuilding({ ...bldg, floors: newFloors });
     };
 
+    const selectedClass = classifications.find(c => c.objid === bldg.classification_objid);
+
     return (
       <ThemeProvider theme={compactTheme}>
         <Box sx={{ mt: 1 }}>
@@ -211,22 +251,32 @@ const BuildingFaasEditor = ({ building, setBuilding, lookups, classifications, a
               </TableHead>
               <TableBody>
                 <TableRow>
-                  <TableCell>{classifications.find(c => c.objid === bldg.classification_objid)?.name || ''}</TableCell>
                   <TableCell>
-                    <Select fullWidth value={bldg.bldgtype_objid || ''} onChange={(e) => updateBldg('bldgtype_objid', e.target.value)}>
+                    {selectedClass ? (selectedClass.code ? `${selectedClass.code} - ${selectedClass.name}` : selectedClass.name) : ''}
+                  </TableCell>
+                  <TableCell>
+                    <Select fullWidth value={bldg.bldgtype_objid || ''} onChange={(e) => handleTypeChange(e.target.value)}>
                       <MenuItem value=""><em>None</em></MenuItem>
-                      {types.map((t) => <MenuItem key={t.objid} value={t.objid}>{t.name}</MenuItem>)}
+                      {types.map((t) => (
+                        <MenuItem key={t.objid} value={t.objid}>
+                          {t.name} {t.code ? `(${t.code})` : ''}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Select fullWidth value={bldg.bldgkindbucc_objid || ''} onChange={(e) => updateBldg('bldgkindbucc_objid', e.target.value)}>
+                    <Select fullWidth value={bldg.bldgkind_objid || bldg.bldgkindbucc_objid || ''} onChange={(e) => handleKindChange(e.target.value)}>
                       <MenuItem value=""><em>None</em></MenuItem>
-                      <MenuItem value="SWIMMING POOL">SWIMMING POOL</MenuItem>
+                      {kinds.map((k) => (
+                        <MenuItem key={k.objid} value={k.objid}>
+                          {k.code ? `${k.code} - ${k.name}` : k.name}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </TableCell>
                   <TableCell><TextField type="number" fullWidth value={bldg.basefloorarea || 0} onChange={(e) => updateBldg('basefloorarea', e.target.value)} /></TableCell>
                   <TableCell><TextField type="number" fullWidth value={bldg.totalfloorarea || 0} onChange={(e) => updateBldg('totalfloorarea', e.target.value)} /></TableCell>
-                  <TableCell><TextField type="number" fullWidth value={bldg.basevalue || 0} disabled /></TableCell>
+                  <TableCell><TextField type="number" fullWidth value={bldg.basevalue || 0} onChange={(e) => updateBldg('basevalue', e.target.value)} /></TableCell>
                 </TableRow>
               </TableBody>
             </Table>

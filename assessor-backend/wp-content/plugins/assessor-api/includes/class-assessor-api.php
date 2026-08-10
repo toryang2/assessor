@@ -694,6 +694,11 @@ class Assessor_API {
             'callback' => array($this, 'etracs_get_building_lookups'),
             'permission_callback' => array($this, 'check_admin'),
         ));
+        register_rest_route('assessor/v1', '/etracs/building/revision-settings', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'etracs_get_building_revision_settings'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
 
         // RPU
         register_rest_route('assessor/v1', '/etracs/rpu/(?P<id>[a-zA-Z0-9\-\:]+)/detail', array(

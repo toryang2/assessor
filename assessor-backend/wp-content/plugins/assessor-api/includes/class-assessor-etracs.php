@@ -248,7 +248,7 @@ class Assessor_Etracs {
                 e.address_text AS taxpayer_address,
                 tx.name AS txntype_name,
                 r.taxable,
-                f.prevtdno AS prev_tdno,
+                f.prevtdno,
                 f.prevpin AS prev_pin,
                 f.prevowner AS prev_owner,
                 f.prevav AS prev_assessed_value,
@@ -257,7 +257,11 @@ class Assessor_Etracs {
                 f.prevareaha AS prev_area_hectare,
                 f.prevadministrator AS prev_administrator,
                 f.originlguid,
-                f.state AS property_state
+                f.state,
+                f.cancelledbytdnos AS cancelled_by_tdnos,
+                f.canceldate AS cancel_date,
+                f.cancelledyear AS cancelled_year,
+                (SELECT f2.fullpin FROM $t_faas f2 WHERE f2.tdno = f.cancelledbytdnos LIMIT 1) AS cancelled_by_pin
             FROM $t_faas f
             $joins
             WHERE $where_sql
@@ -310,7 +314,7 @@ class Assessor_Etracs {
                 r.total_area_sqm,
                 r.total_area_hectare,
                 r.ry AS revision_year,
-                f.state AS property_state,
+                f.state,
                 rp.pin AS rp_pin,
                 rp.cadastrallotno AS cadastral_lot_no,
                 rp.surveyno AS survey_no,
@@ -325,7 +329,7 @@ class Assessor_Etracs {
                 e.type AS taxpayer_type,
                 tx.name AS txntype_name,
                 r.taxable,
-                f.prevtdno AS prev_tdno,
+                f.prevtdno,
                 f.prevpin AS prev_pin,
                 f.prevowner AS prev_owner,
                 f.prevav AS prev_assessed_value,
@@ -333,7 +337,11 @@ class Assessor_Etracs {
                 f.prevareasqm AS prev_area_sqm,
                 f.prevareaha AS prev_area_hectare,
                 f.prevadministrator AS prev_administrator,
-                f.originlguid
+                f.originlguid,
+                f.cancelledbytdnos AS cancelled_by_tdnos,
+                f.canceldate AS cancel_date,
+                f.cancelledyear AS cancelled_year,
+                (SELECT f2.fullpin FROM $t_faas f2 WHERE f2.tdno = f.cancelledbytdnos LIMIT 1) AS cancelled_by_pin
             FROM $t_faas f
             LEFT JOIN $t_rpu r ON f.rpuid = r.objid
             LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
@@ -785,7 +793,7 @@ class Assessor_Etracs {
     public function get_classifications() {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_propertyclassification';
-        return $wpdb->get_results("SELECT objid, name FROM $table ORDER BY name ASC");
+        return $wpdb->get_results("SELECT objid, code, name, special, orderno, state FROM $table ORDER BY orderno ASC, name ASC");
     }
 
     public function get_faas_signatory($id) {
@@ -798,21 +806,90 @@ class Assessor_Etracs {
         return $record;
     }
 
-    public function get_building_lookups() {
+    public function get_building_lookups($request = null) {
         global $wpdb;
         $results = array();
         
         $t_kind = $wpdb->prefix . 'assessor_bldgkind';
         $t_type = $wpdb->prefix . 'assessor_bldgtype';
+        $t_bucc = $wpdb->prefix . 'assessor_bldgkindbucc';
         $t_use = $wpdb->prefix . 'assessor_bldguse';
         $t_material = $wpdb->prefix . 'assessor_material';
+        $t_class = $wpdb->prefix . 'assessor_propertyclassification';
+        $t_rysetting = $wpdb->prefix . 'assessor_bldgrysetting';
         
-        $results['kinds'] = $wpdb->get_results("SELECT objid, name FROM $t_kind ORDER BY name ASC");
-        $results['types'] = $wpdb->get_results("SELECT objid, name FROM $t_type ORDER BY name ASC");
+        $ry = null;
+        if (is_array($request) && !empty($request['ry'])) {
+            $ry = intval($request['ry']);
+        } elseif (is_object($request) && method_exists($request, 'get_param') && $request->get_param('ry')) {
+            $ry = intval($request->get_param('ry'));
+        }
+
+        $ry_setting_id = null;
+        if ($ry) {
+            $ry_setting_id = $wpdb->get_var($wpdb->prepare("SELECT objid FROM $t_rysetting WHERE ry = %d ORDER BY objid DESC LIMIT 1", $ry));
+        }
+        if (!$ry_setting_id) {
+            // Default to active/latest revision setting (e.g. 2022)
+            $ry_setting_id = $wpdb->get_var("SELECT objid FROM $t_rysetting ORDER BY ry DESC LIMIT 1");
+        }
+
+        if ($ry_setting_id) {
+            $results['types'] = $wpdb->get_results($wpdb->prepare("SELECT objid, code, name FROM $t_type WHERE bldgrysettingid = %s ORDER BY code ASC", $ry_setting_id));
+            $results['unitCosts'] = $wpdb->get_results($wpdb->prepare("SELECT objid, bldgkind_objid, bldgtypeid, basevalue, basevaluetype FROM $t_bucc WHERE bldgrysettingid = %s", $ry_setting_id));
+        } else {
+            // Deduplicate by code if no setting ID found
+            $results['types'] = $wpdb->get_results("SELECT objid, code, name FROM $t_type GROUP BY code ORDER BY code ASC");
+            $results['unitCosts'] = $wpdb->get_results("SELECT objid, bldgkind_objid, bldgtypeid, basevalue, basevaluetype FROM $t_bucc");
+        }
+
+        $results['kinds'] = $wpdb->get_results("SELECT objid, code, name FROM $t_kind ORDER BY name ASC");
         $results['uses'] = $wpdb->get_results("SELECT objid, name FROM $t_use ORDER BY name ASC");
         $results['materials'] = $wpdb->get_results("SELECT objid, name FROM $t_material ORDER BY name ASC");
+        $results['classifications'] = $wpdb->get_results("SELECT objid, code, name, special, orderno, state FROM $t_class ORDER BY orderno ASC, name ASC");
         
         return $results;
+    }
+
+    public function get_building_revision_settings($request = null) {
+        global $wpdb;
+        $t_rysetting = $wpdb->prefix . 'assessor_bldgrysetting';
+        $t_type = $wpdb->prefix . 'assessor_bldgtype';
+        $t_kind = $wpdb->prefix . 'assessor_bldgkind';
+        $t_bucc = $wpdb->prefix . 'assessor_bldgkindbucc';
+        $t_class = $wpdb->prefix . 'assessor_propertyclassification';
+
+        $ry = null;
+        if (is_array($request) && !empty($request['ry'])) {
+            $ry = intval($request['ry']);
+        } elseif (is_object($request) && method_exists($request, 'get_param') && $request->get_param('ry')) {
+            $ry = intval($request->get_param('ry'));
+        }
+
+        if ($ry) {
+            $setting = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_rysetting WHERE ry = %d ORDER BY objid DESC LIMIT 1", $ry));
+        } else {
+            $setting = $wpdb->get_row("SELECT * FROM $t_rysetting ORDER BY ry DESC LIMIT 1");
+        }
+
+        if (!$setting) {
+            return new WP_Error('not_found', 'Building Revision Setting not found', array('status' => 404));
+        }
+
+        $setting_id = $setting->objid;
+        $types = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_type WHERE bldgrysettingid = %s ORDER BY code ASC", $setting_id));
+        $unitCosts = $wpdb->get_results($wpdb->prepare("SELECT bucc.*, k.code as kind_code, k.name as kind_name FROM $t_bucc bucc LEFT JOIN $t_kind k ON bucc.bldgkind_objid = k.objid WHERE bucc.bldgrysettingid = %s ORDER BY k.name ASC", $setting_id));
+        $classifications = $wpdb->get_results("SELECT * FROM $t_class ORDER BY orderno ASC, name ASC");
+
+        $allSettings = $wpdb->get_results("SELECT objid, ry, ordinanceno, ordinancedate, remarks FROM $t_rysetting ORDER BY ry DESC");
+
+        return array(
+            'setting' => $setting,
+            'types' => $types,
+            'unitCosts' => $unitCosts,
+            'classifications' => $classifications,
+            'allSettings' => $allSettings
+        );
     }
 
     public function get_rpu_detail($request) {
@@ -840,6 +917,13 @@ class Assessor_Etracs {
             $subtype = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_bldgrpu WHERE objid = %s", $id));
             if ($subtype) {
                 $rpu->subtype = $subtype;
+            }
+
+            // Fetch structuraltype
+            $t_bldgrpu_structuraltype = $wpdb->prefix . 'assessor_bldgrpu_structuraltype';
+            $structuraltype = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_bldgrpu_structuraltype WHERE bldgrpuid = %s LIMIT 1", $id));
+            if ($structuraltype) {
+                $rpu->structuraltype = $structuraltype;
             }
 
             // Fetch floors
