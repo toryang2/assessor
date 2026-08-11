@@ -135,6 +135,7 @@ export const endpoints = {
   etracsClassifications: '/etracs/classifications',
   etracsExemptionTypes: '/etracs/exemption-types',
   etracsBuildingLookups: '/etracs/building/lookups',
+  etracsBuildingRevisionSettings: '/etracs/building/revision-settings',
   etracsRpuAssessment: (rpuid) => `/etracs/rpu/${rpuid}/assessment`,
   etracsRpuDetail: (rpuid) => `/etracs/rpu/${rpuid}/detail`,
 };
@@ -1095,6 +1096,15 @@ export const etracsService = {
   getBuildingLookups: async (params = {}) => {
     try {
       const response = await api.get(endpoints.etracsBuildingLookups, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getBuildingRevisionSettings: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsBuildingRevisionSettings, { params });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

@@ -1331,6 +1331,11 @@ class Assessor_API {
         return rest_ensure_response($etracs->get_building_lookups());
     }
 
+    public function etracs_get_building_revision_settings($request) {
+        $etracs = new Assessor_Etracs();
+        return rest_ensure_response($etracs->get_building_revision_settings());
+    }
+
     public function etracs_get_rpu_detail($request) {
         $etracs = new Assessor_Etracs();
         $result = $etracs->get_rpu_detail($request);

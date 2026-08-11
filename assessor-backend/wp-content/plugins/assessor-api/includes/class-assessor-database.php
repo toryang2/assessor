@@ -161,12 +161,24 @@ class Assessor_Database {
         
         // Settings table
         $table_settings = $wpdb->prefix . 'assessor_settings';
+        // Migration: Add lgu_pin column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'lgu_pin'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN lgu_pin varchar(255) DEFAULT '059-10' AFTER header_municipality");
+        }
+
+        // Migration: Add enable_etracs_features column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'enable_etracs_features'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN enable_etracs_features tinyint(1) NOT NULL DEFAULT 0 AFTER public_api_enabled");
+        }
         $sql_settings = "CREATE TABLE $table_settings (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             app_logo_url varchar(500) DEFAULT '',
             header_photo_url varchar(500) DEFAULT '',
             header_province varchar(255) DEFAULT '',
             header_municipality varchar(255) DEFAULT '',
+            lgu_pin varchar(255) DEFAULT '059-10',
             header_office varchar(255) DEFAULT '',
             request_place_issued_default varchar(255) DEFAULT '',
             verifier_signatory_name varchar(255) DEFAULT '',
@@ -176,7 +188,12 @@ class Assessor_Database {
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
             afk_timeout int DEFAULT 30,
+            public_api_key_hash varchar(255) DEFAULT '',
+            public_api_key_prefix varchar(20) DEFAULT '',
             public_api_enabled tinyint(1) NOT NULL DEFAULT 0,
+            enable_etracs_features tinyint(1) NOT NULL DEFAULT 0,
+            print_layout_templates longtext,
+            app_secondary_logo_url varchar(500) DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
@@ -344,6 +361,970 @@ class Assessor_Database {
             UNIQUE KEY meta_key (meta_key)
         ) $charset_collate;";
 
+        // ETRACS Synced Tables
+        $table_bldgrysetting = $wpdb->prefix . 'assessor_bldgrysetting';
+        $sql_bldgrysetting = "CREATE TABLE $table_bldgrysetting (
+            objid varchar(50) NOT NULL,
+            state varchar(20) DEFAULT NULL,
+            ry int DEFAULT NULL,
+            ordinanceno varchar(100) DEFAULT NULL,
+            ordinancedate date DEFAULT NULL,
+            appliedto text,
+            remarks text,
+            PRIMARY KEY (objid)
+        ) $charset_collate;";
+
+        $table_bldgkind = $wpdb->prefix . 'assessor_bldgkind';
+        $sql_bldgkind = "CREATE TABLE $table_bldgkind (
+            objid varchar(50) NOT NULL,
+            state varchar(10) NOT NULL,
+            code varchar(20) NOT NULL,
+            name varchar(100) NOT NULL,
+            newid varchar(50) DEFAULT NULL,
+            PRIMARY KEY (objid),
+            UNIQUE KEY ux_bldgkind_code (code),
+            UNIQUE KEY ux_bldgkind_name (name),
+            KEY ix_bldgkind_state (state)
+        ) $charset_collate;";
+
+        $table_bldgkindbucc = $wpdb->prefix . 'assessor_bldgkindbucc';
+        $sql_bldgkindbucc = "CREATE TABLE $table_bldgkindbucc (
+            objid varchar(50) NOT NULL,
+            bldgrysettingid varchar(50) NOT NULL,
+            bldgtypeid varchar(50) NOT NULL,
+            bldgkind_objid varchar(50) NOT NULL,
+            basevaluetype varchar(25) NOT NULL,
+            basevalue decimal(10,2) NOT NULL,
+            minbasevalue decimal(10,2) NOT NULL,
+            maxbasevalue decimal(10,2) NOT NULL,
+            gapvalue int NOT NULL,
+            minarea decimal(10,2) NOT NULL,
+            maxarea decimal(10,2) NOT NULL,
+            bldgclass varchar(50) DEFAULT NULL,
+            previd varchar(50) DEFAULT NULL,
+            PRIMARY KEY (objid)
+        ) $charset_collate;";
+
+        $table_bldgtype = $wpdb->prefix . 'assessor_bldgtype';
+        $sql_bldgtype = "CREATE TABLE $table_bldgtype (
+            objid varchar(50) NOT NULL,
+            bldgrysettingid varchar(50) NOT NULL,
+            code varchar(10) NOT NULL,
+            name varchar(50) NOT NULL,
+            basevaluetype varchar(10) NOT NULL,
+            residualrate decimal(10,2) NOT NULL,
+            previd varchar(50) DEFAULT NULL,
+            usecdu int DEFAULT NULL,
+            storeyadjtype varchar(10) DEFAULT NULL,
+            PRIMARY KEY (objid)
+        ) $charset_collate;";
+
+        $table_propertyclassification = $wpdb->prefix . 'assessor_propertyclassification';
+        $sql_propertyclassification = "CREATE TABLE $table_propertyclassification (
+            objid varchar(50) NOT NULL,
+            state varchar(10) DEFAULT 'active',
+            code varchar(20) NOT NULL,
+            name varchar(100) NOT NULL,
+            orderno int DEFAULT 0,
+            special int DEFAULT 0,
+            correctid varchar(100) DEFAULT '',
+            PRIMARY KEY (objid),
+            UNIQUE KEY ux_classcode (code)
+        ) $charset_collate;";
+
+        
+        
+        // --- AUTO-GENERATED ETRACS TABLES ---
+        $table_assessor_barangay = $wpdb->prefix . 'assessor_barangay';
+        $sql_assessor_barangay = "CREATE TABLE $table_assessor_barangay (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  indexno varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  pin varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  name varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  parentid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  fullname varchar(250) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  address varchar(250) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_barangay_pin (pin),
+  KEY ix_barangay_name (name)
+) $charset_collate;";
+
+        $table_assessor_bldgadditionalitem = $wpdb->prefix . 'assessor_bldgadditionalitem';
+        $sql_assessor_bldgadditionalitem = "CREATE TABLE $table_assessor_bldgadditionalitem (
+  objid varchar(50) NOT NULL,
+  bldgrysettingid varchar(50) NOT NULL,
+  code varchar(10) NOT NULL,
+  name varchar(100) NOT NULL,
+  unit varchar(25) NOT NULL,
+  expr varchar(100) NOT NULL,
+  previd varchar(50) DEFAULT NULL,
+  type varchar(50) DEFAULT NULL,
+  addareatobldgtotalarea int DEFAULT NULL,
+  idx int DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldgfloor = $wpdb->prefix . 'assessor_bldgfloor';
+        $sql_assessor_bldgfloor = "CREATE TABLE $table_assessor_bldgfloor (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  bldgrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  bldguseid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgusename varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  floorno varchar(5) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  area decimal(16,2) NOT NULL DEFAULT '0.00',
+  storeyrate decimal(16,2) NOT NULL DEFAULT '0.00',
+  basevalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  unitvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  basemarketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  adjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  PRIMARY KEY (objid),
+  KEY ix_bldgfloor_bldgrpuid (bldgrpuid)
+) $charset_collate;";
+
+        $table_assessor_bldgflooradditional = $wpdb->prefix . 'assessor_bldgflooradditional';
+        $sql_assessor_bldgflooradditional = "CREATE TABLE $table_assessor_bldgflooradditional (
+  objid varchar(50) NOT NULL,
+  bldgfloorid varchar(50) NOT NULL,
+  bldgrpuid varchar(50) NOT NULL,
+  additionalitem_objid varchar(50) NOT NULL,
+  amount decimal(16,2) NOT NULL,
+  expr text NOT NULL,
+  depreciate int DEFAULT NULL,
+  issystem int DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldgrpu = $wpdb->prefix . 'assessor_bldgrpu';
+        $sql_assessor_bldgrpu = "CREATE TABLE $table_assessor_bldgrpu (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  landrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  houseno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  psic varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  permitno varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  permitdate datetime DEFAULT NULL,
+  permitissuedby varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgtype_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgtypename varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgkindbucc_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  basevalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  dtcompleted datetime DEFAULT NULL,
+  dtoccupied datetime DEFAULT NULL,
+  dtconstructed date DEFAULT NULL,
+  floorcount int NOT NULL DEFAULT '0',
+  depreciation decimal(16,2) NOT NULL DEFAULT '0.00',
+  depreciationvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  totaladjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  additionalinfo text COLLATE utf8mb4_unicode_520_ci,
+  bldgage int NOT NULL DEFAULT '0',
+  effectiveage int NOT NULL DEFAULT '0',
+  percentcompleted int NOT NULL DEFAULT '100',
+  assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
+  condominium int NOT NULL DEFAULT '0',
+  bldgclass varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  predominant int DEFAULT NULL,
+  condocerttitle varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  dtcertcompletion date DEFAULT NULL,
+  dtcertoccupancy date DEFAULT NULL,
+  cdurating varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  occpermitno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_bldgrpu_landrpuid (landrpuid)
+) $charset_collate;";
+
+        $table_assessor_bldgrpu_structuraltype = $wpdb->prefix . 'assessor_bldgrpu_structuraltype';
+        $sql_assessor_bldgrpu_structuraltype = "CREATE TABLE $table_assessor_bldgrpu_structuraltype (
+  objid varchar(50) NOT NULL,
+  bldgrpuid varchar(50) NOT NULL,
+  bldgtype_objid varchar(50) NOT NULL,
+  bldgkindbucc_objid varchar(50) DEFAULT NULL,
+  floorcount int NOT NULL,
+  basefloorarea decimal(16,2) NOT NULL,
+  totalfloorarea decimal(16,2) NOT NULL,
+  basevalue decimal(16,2) NOT NULL,
+  unitvalue decimal(16,2) NOT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldgstructure = $wpdb->prefix . 'assessor_bldgstructure';
+        $sql_assessor_bldgstructure = "CREATE TABLE $table_assessor_bldgstructure (
+  objid varchar(50) NOT NULL,
+  bldgrpuid varchar(50) NOT NULL,
+  structure_objid varchar(50) NOT NULL,
+  material_objid varchar(50) DEFAULT NULL,
+  floor int NOT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldgtype_depreciation = $wpdb->prefix . 'assessor_bldgtype_depreciation';
+        $sql_assessor_bldgtype_depreciation = "CREATE TABLE $table_assessor_bldgtype_depreciation (
+  objid varchar(50) NOT NULL,
+  bldgtypeid varchar(50) NOT NULL,
+  bldgrysettingid varchar(50) NOT NULL,
+  agefrom int NOT NULL,
+  ageto int NOT NULL,
+  rate decimal(16,2) NOT NULL,
+  excellent decimal(16,2) DEFAULT NULL,
+  verygood decimal(16,2) DEFAULT NULL,
+  good decimal(16,2) DEFAULT NULL,
+  average decimal(16,2) DEFAULT NULL,
+  fair decimal(16,2) DEFAULT NULL,
+  poor decimal(16,2) DEFAULT NULL,
+  verypoor decimal(16,2) DEFAULT NULL,
+  unsound decimal(16,2) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldguse = $wpdb->prefix . 'assessor_bldguse';
+        $sql_assessor_bldguse = "CREATE TABLE $table_assessor_bldguse (
+  objid varchar(50) NOT NULL,
+  bldgrpuid varchar(50) NOT NULL,
+  structuraltype_objid varchar(50) DEFAULT NULL,
+  actualuse_objid varchar(50) NOT NULL,
+  basevalue decimal(16,2) NOT NULL,
+  area decimal(16,2) NOT NULL,
+  basemarketvalue decimal(16,2) NOT NULL,
+  depreciationvalue decimal(16,2) NOT NULL,
+  adjustment decimal(16,2) NOT NULL,
+  marketvalue decimal(16,2) NOT NULL,
+  assesslevel decimal(16,2) DEFAULT NULL,
+  assessedvalue decimal(16,2) DEFAULT NULL,
+  addlinfo varchar(255) DEFAULT NULL,
+  adjfordepreciation decimal(16,2) DEFAULT NULL,
+  taxable int DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_entity = $wpdb->prefix . 'assessor_entity';
+        $sql_assessor_entity = "CREATE TABLE $table_assessor_entity (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entityno varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  name longtext COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  address_text varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  mailingaddress varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  type varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  sys_lastupdate varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  sys_lastupdateby varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  remarks text COLLATE utf8mb4_unicode_520_ci,
+  entityname varchar(800) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  address_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  mobileno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  phoneno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  email varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  state varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  first_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  last_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  middle_name varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  birthdate date DEFAULT NULL,
+  birthplace varchar(160) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  gender varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  civil_status varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  citizenship varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  profession varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  tin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  sss varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  acr varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  religion varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  height varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  weight varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  date_registered datetime DEFAULT NULL,
+  org_type varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  nature_of_business varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  place_registered varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  admin_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  admin_position varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  admin_address varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  telephone_no varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY uix_entityno (entityno),
+  UNIQUE KEY entityno (entityno),
+  KEY ix_entityname (entityname(255)),
+  KEY ix_address_objid (address_objid),
+  KEY ix_state (state),
+  KEY ix_entityname_state (state,entityname(255))
+) $charset_collate;";
+
+        $table_assessor_entity_address = $wpdb->prefix . 'assessor_entity_address';
+        $sql_assessor_entity_address = "CREATE TABLE $table_assessor_entity_address (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  parentid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  type varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  addresstype varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  barangay_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  barangay_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  city varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  province varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  municipality varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgno varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgname varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  unitno varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  street varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  subdivision varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  pin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  text varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_barangay_objid (barangay_objid),
+  KEY ix_parentid (parentid)
+) $charset_collate;";
+
+        $table_assessor_entity_fingerprint = $wpdb->prefix . 'assessor_entity_fingerprint';
+        $sql_assessor_entity_fingerprint = "CREATE TABLE $table_assessor_entity_fingerprint (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entityid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  dtfiled datetime DEFAULT NULL,
+  fingertype varchar(20) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  data longtext COLLATE utf8mb4_unicode_520_ci,
+  image longtext COLLATE utf8mb4_unicode_520_ci,
+  PRIMARY KEY (objid),
+  UNIQUE KEY uix_entityid_fingertype (entityid,fingertype),
+  KEY ix_dtfiled (dtfiled)
+) $charset_collate;";
+
+        $table_assessor_entity_mapping = $wpdb->prefix . 'assessor_entity_mapping';
+        $sql_assessor_entity_mapping = "CREATE TABLE $table_assessor_entity_mapping (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  parent_objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  org_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_entity_reconciled = $wpdb->prefix . 'assessor_entity_reconciled';
+        $sql_assessor_entity_reconciled = "CREATE TABLE $table_assessor_entity_reconciled (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  info longtext COLLATE utf8mb4_unicode_520_ci,
+  masterid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY FK_entity_reconciled_entity (masterid)
+) $charset_collate;";
+
+        $table_assessor_entity_reconciled_txn = $wpdb->prefix . 'assessor_entity_reconciled_txn';
+        $sql_assessor_entity_reconciled_txn = "CREATE TABLE $table_assessor_entity_reconciled_txn (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  reftype varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  refid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  tag char(1) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid,reftype,refid)
+) $charset_collate;";
+
+        $table_assessor_entity_relation = $wpdb->prefix . 'assessor_entity_relation';
+        $sql_assessor_entity_relation = "CREATE TABLE $table_assessor_entity_relation (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entity_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  relateto_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  relation_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY uix_sender_receiver (entity_objid,relateto_objid),
+  KEY ix_entity_objid (entity_objid),
+  KEY ix_relateto_objid (relateto_objid),
+  KEY ix_relation_objid (relation_objid)
+) $charset_collate;";
+
+        $table_assessor_entity_relation_type = $wpdb->prefix . 'assessor_entity_relation_type';
+        $sql_assessor_entity_relation_type = "CREATE TABLE $table_assessor_entity_relation_type (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  gender varchar(1) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  inverse_any varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  inverse_male varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  inverse_female varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_entitycontact = $wpdb->prefix . 'assessor_entitycontact';
+        $sql_assessor_entitycontact = "CREATE TABLE $table_assessor_entitycontact (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entityid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  contacttype varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  contact varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_entityid (entityid)
+) $charset_collate;";
+
+        $table_assessor_entityid = $wpdb->prefix . 'assessor_entityid';
+        $sql_assessor_entityid = "CREATE TABLE $table_assessor_entityid (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entityid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  idtype varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  idno varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  dtissued date DEFAULT NULL,
+  dtexpiry date DEFAULT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY uix_idtype_idno (entityid,idtype,idno),
+  KEY ix_dtexpiry (dtexpiry),
+  KEY ix_entityid (entityid),
+  KEY ix_idno (idno),
+  KEY ix_idtype (idtype)
+) $charset_collate;";
+
+        $table_assessor_entityindividual = $wpdb->prefix . 'assessor_entityindividual';
+        $sql_assessor_entityindividual = "CREATE TABLE $table_assessor_entityindividual (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  lastname varchar(100) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  firstname varchar(100) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  middlename varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  birthdate date DEFAULT NULL,
+  birthplace varchar(160) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  citizenship varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  gender varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  civilstatus varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  profession varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  tin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  sss varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  height varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  weight varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  acr varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  religion varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  photo mediumblob,
+  thumbnail blob,
+  profileid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_fname (firstname),
+  KEY ix_lfname (lastname,firstname),
+  KEY ix_ss (sss),
+  KEY ix_tin (tin),
+  KEY ix_profileid (profileid)
+) $charset_collate;";
+
+        $table_assessor_entityjuridical = $wpdb->prefix . 'assessor_entityjuridical';
+        $sql_assessor_entityjuridical = "CREATE TABLE $table_assessor_entityjuridical (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  tin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  dtregistered datetime DEFAULT NULL,
+  orgtype varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  nature varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  placeregistered varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_address varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_position varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_address_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_address_text varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_tin (tin),
+  KEY ix_dtregistered (dtregistered),
+  KEY ix_administrator_objid (administrator_objid),
+  KEY ix_administrator_name (administrator_name),
+  KEY ix_administrator_address_objid (administrator_address_objid)
+) $charset_collate;";
+
+        $table_assessor_entitymember = $wpdb->prefix . 'assessor_entitymember';
+        $sql_assessor_entitymember = "CREATE TABLE $table_assessor_entitymember (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  entityid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  itemno int NOT NULL,
+  prefix varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  member_objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  member_name varchar(800) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  member_address_text varchar(160) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  suffix varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  remarks varchar(160) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  member_address varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY entityid (entityid),
+  KEY ix_taxpayer_objid (member_objid)
+) $charset_collate;";
+
+        $table_assessor_entitymultiple = $wpdb->prefix . 'assessor_entitymultiple';
+        $sql_assessor_entitymultiple = "CREATE TABLE $table_assessor_entitymultiple (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  fullname longtext COLLATE utf8mb4_unicode_520_ci,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_entityprofile = $wpdb->prefix . 'assessor_entityprofile';
+        $sql_assessor_entityprofile = "CREATE TABLE $table_assessor_entityprofile (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  idno varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  lastname varchar(60) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  firstname varchar(60) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  middlename varchar(60) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  birthdate date DEFAULT NULL,
+  gender varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  address longtext COLLATE utf8mb4_unicode_520_ci,
+  defaultentityid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_defaultentityid (defaultentityid),
+  KEY ix_firstname (firstname),
+  KEY ix_idno (idno),
+  KEY ix_lastname (lastname),
+  KEY ix_lfname (lastname,firstname)
+) $charset_collate;";
+
+        $table_assessor_exemptiontype = $wpdb->prefix . 'assessor_exemptiontype';
+        $sql_assessor_exemptiontype = "CREATE TABLE $table_assessor_exemptiontype (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  code varchar(20) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  name varchar(100) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_exemptcode (code)
+) $charset_collate;";
+
+        $table_assessor_faas = $wpdb->prefix . 'assessor_faas';
+        $sql_assessor_faas = "CREATE TABLE $table_assessor_faas (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  state varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  rpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  datacapture int NOT NULL DEFAULT '0',
+  autonumber int NOT NULL DEFAULT '0',
+  utdno varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  tdno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  txntype_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  effectivityyear int NOT NULL DEFAULT '0',
+  effectivityqtr int NOT NULL DEFAULT '0',
+  titletype varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  titleno varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  titledate datetime DEFAULT NULL,
+  taxpayer_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  owner_name longtext COLLATE utf8mb4_unicode_520_ci,
+  owner_address varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_name text COLLATE utf8mb4_unicode_520_ci,
+  administrator_address varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  beneficiary_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  beneficiary_name varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  beneficiary_address varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  memoranda text COLLATE utf8mb4_unicode_520_ci,
+  cancelnote varchar(250) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  restrictionid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  backtaxyrs int NOT NULL DEFAULT '0',
+  prevtdno varchar(800) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevpin text COLLATE utf8mb4_unicode_520_ci,
+  prevowner longtext COLLATE utf8mb4_unicode_520_ci,
+  prevav text COLLATE utf8mb4_unicode_520_ci,
+  prevmv text COLLATE utf8mb4_unicode_520_ci,
+  cancelreason varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  canceldate date DEFAULT NULL,
+  cancelledbytdnos text COLLATE utf8mb4_unicode_520_ci,
+  lguid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  txntimestamp varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  cancelledtimestamp varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  dtapproved date DEFAULT NULL,
+  realpropertyid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  lgutype varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  signatories text COLLATE utf8mb4_unicode_520_ci,
+  ryordinanceno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  ryordinancedate date DEFAULT NULL,
+  prevareaha text COLLATE utf8mb4_unicode_520_ci,
+  prevareasqm text COLLATE utf8mb4_unicode_520_ci,
+  fullpin varchar(35) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  preveffectivity varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  year int DEFAULT NULL,
+  qtr int DEFAULT NULL,
+  month int DEFAULT NULL,
+  day int DEFAULT NULL,
+  cancelledyear int DEFAULT NULL,
+  cancelledqtr int DEFAULT NULL,
+  cancelledmonth int DEFAULT NULL,
+  cancelledday int DEFAULT NULL,
+  prevadministrator varchar(200) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  originlguid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  parentfaasid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  publicland int DEFAULT NULL,
+  assessments longtext COLLATE utf8mb4_unicode_520_ci,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_faas_utdno (utdno),
+  KEY FK_faas_rpu (rpuid),
+  KEY ix_faas_appraisedby (objid),
+  KEY ix_faas_beneficiary (beneficiary_name),
+  KEY ix_faas_cancelledtimestamp (cancelledtimestamp),
+  KEY ix_faas_name (name),
+  KEY ix_faas_realproperty (realpropertyid),
+  KEY ix_faas_restrictionid (restrictionid),
+  KEY ix_faas_state (state),
+  KEY ix_faas_tdno (tdno),
+  KEY ix_faas_titleno (titleno),
+  KEY ix_faas_txntimestamp (txntimestamp),
+  KEY txntype_objid (txntype_objid),
+  KEY taxpayer_objid (taxpayer_objid),
+  KEY ix_faas_cancelledyear (year),
+  KEY ix_faas_cancelledyear_qtr (year,qtr),
+  KEY ix_faas_cancelledyear_qtr_month (year,qtr,month),
+  KEY ix_faas_cancelledyear_qtr_month_day (year,qtr,month,day),
+  KEY ix_faas_year (year),
+  KEY ix_faas_year_qtr (year,qtr),
+  KEY ix_faas_year_qtr_month (year,qtr,month),
+  KEY ix_faas_year_qtr_month_day (year,qtr,month,day),
+  KEY ix_dtapproved (dtapproved),
+  KEY ix_faas_canceldate (canceldate),
+  KEY ix_prevtdno (prevtdno(255))
+) $charset_collate;";
+
+        $table_assessor_faas_list = $wpdb->prefix . 'assessor_faas_list';
+        $sql_assessor_faas_list = "CREATE TABLE $table_assessor_faas_list (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  state varchar(30) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  rpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  realpropertyid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  datacapture int NOT NULL DEFAULT '0',
+  ry int NOT NULL DEFAULT '0',
+  txntype_objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  tdno varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  utdno varchar(25) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  prevtdno varchar(800) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  displaypin varchar(35) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  pin varchar(35) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  taxpayer_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  owner_name varchar(5000) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  owner_address varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_name varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  administrator_address varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  rputype varchar(10) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  barangayid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  barangay varchar(75) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  classification_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  classcode varchar(20) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  cadastrallotno varchar(900) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  blockno varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  surveyno varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  titleno varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  totalareaha decimal(16,6) NOT NULL DEFAULT '0.000000',
+  totalareasqm decimal(16,6) NOT NULL DEFAULT '0.000000',
+  totalmv decimal(16,2) NOT NULL DEFAULT '0.00',
+  totalav decimal(16,2) NOT NULL DEFAULT '0.00',
+  effectivityyear int NOT NULL DEFAULT '0',
+  effectivityqtr int NOT NULL DEFAULT '0',
+  cancelreason varchar(15) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  cancelledbytdnos mediumtext COLLATE utf8mb4_unicode_520_ci,
+  lguid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  originlguid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  yearissued int DEFAULT NULL,
+  taskid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taskstate varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  assignee_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  trackingno varchar(20) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  publicland int DEFAULT NULL,
+  assessments longtext COLLATE utf8mb4_unicode_520_ci,
+  PRIMARY KEY (objid),
+  KEY ix_faaslist_state (state),
+  KEY ix_faaslist_rpuid (rpuid),
+  KEY ix_faaslist_realpropertyid (realpropertyid),
+  KEY ix_faaslist_ry (ry),
+  KEY ix_faaslist_tdno (tdno),
+  KEY ix_faaslist_utdno (utdno),
+  KEY ix_faaslist_prevtdno (prevtdno(255)),
+  KEY ix_faaslist_pin (pin),
+  KEY ix_faaslist_taxpayer_objid (taxpayer_objid),
+  KEY ix_faaslist_owner_name (owner_name(100)),
+  KEY ix_faaslist_administrator_name (administrator_name(100)),
+  KEY ix_faaslist_rputype (rputype),
+  KEY ix_faaslist_barangayid (barangayid),
+  KEY ix_faaslist_barangay (barangay),
+  KEY ix_faaslist_classification_objid (classification_objid),
+  KEY ix_faaslist_classcode (classcode),
+  KEY ix_faaslist_cadastrallotno (cadastrallotno(255)),
+  KEY ix_faaslist_blockno (blockno),
+  KEY ix_faaslist_surveyno (surveyno),
+  KEY ix_faaslist_titleno (titleno),
+  KEY ix_faaslist_lguid (lguid),
+  KEY ix_faaslist_originlguid (originlguid),
+  KEY ix_faaslist_taskstate (taskstate),
+  KEY ix_faaslist_trackingno (trackingno),
+  KEY ix_faaslist_assigneeid (assignee_objid),
+  KEY ix_faaslist_publicland (publicland),
+  KEY ix_faaslist_txntype_objid (txntype_objid)
+) $charset_collate;";
+
+        $table_assessor_faas_signatory = $wpdb->prefix . 'assessor_faas_signatory';
+        $sql_assessor_faas_signatory = "CREATE TABLE $table_assessor_faas_signatory (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  taxmapper_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapper_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapper_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapper_dtsigned datetime DEFAULT NULL,
+  taxmapperchief_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapperchief_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapperchief_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxmapperchief_dtsigned datetime DEFAULT NULL,
+  appraiser_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiser_name varchar(150) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiser_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiser_dtsigned datetime DEFAULT NULL,
+  appraiserchief_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiserchief_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiserchief_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  appraiserchief_dtsigned datetime DEFAULT NULL,
+  recommender_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  recommender_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  recommender_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  recommender_dtsigned datetime DEFAULT NULL,
+  approver_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  approver_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  approver_title varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  approver_dtsigned datetime DEFAULT NULL,
+  assessor_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  assessor_title varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  reviewer_name varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  reviewer_title varchar(75) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_faas_txntypes = $wpdb->prefix . 'assessor_faas_txntypes';
+        $sql_assessor_faas_txntypes = "CREATE TABLE $table_assessor_faas_txntypes (
+  id mediumint NOT NULL AUTO_INCREMENT,
+  code varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  name varchar(150) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  status varchar(20) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'active',
+  sort_order int NOT NULL DEFAULT '0',
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY code (code),
+  KEY status (status),
+  KEY sort_order (sort_order)
+) $charset_collate;";
+
+        $table_assessor_landdetail = $wpdb->prefix . 'assessor_landdetail';
+        $sql_assessor_landdetail = "CREATE TABLE $table_assessor_landdetail (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  landrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  subclass_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  subclassname varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  specificclass_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  specificclassname varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actualuse_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actualusename varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  stripping_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  striprate decimal(16,2) NOT NULL DEFAULT '0.00',
+  areatype varchar(10) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'SQM',
+  addlinfo varchar(250) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  area decimal(18,6) NOT NULL DEFAULT '0.000000',
+  areasqm decimal(18,2) NOT NULL DEFAULT '0.00',
+  areaha decimal(18,6) NOT NULL DEFAULT '0.000000',
+  basevalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  unitvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  taxable int NOT NULL DEFAULT '1',
+  basemarketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  adjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  landvalueadjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  actualuseadjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
+  assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  PRIMARY KEY (objid),
+  KEY ix_landdetail_landrpuid (landrpuid)
+) $charset_collate;";
+
+        $table_assessor_landrpu = $wpdb->prefix . 'assessor_landrpu';
+        $sql_assessor_landrpu = "CREATE TABLE $table_assessor_landrpu (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  idleland int NOT NULL DEFAULT '0',
+  publicland int DEFAULT '0',
+  totallandbmv decimal(16,2) NOT NULL DEFAULT '0.00',
+  totallandmv decimal(16,2) NOT NULL DEFAULT '0.00',
+  totallandav decimal(16,2) NOT NULL DEFAULT '0.00',
+  totalplanttreebmv decimal(16,2) NOT NULL DEFAULT '0.00',
+  totalplanttreemv decimal(16,2) NOT NULL DEFAULT '0.00',
+  totalplanttreeadjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  totalplanttreeav decimal(16,2) NOT NULL DEFAULT '0.00',
+  landvalueadjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  distanceawr decimal(16,2) DEFAULT NULL,
+  distanceltc decimal(16,2) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_machine_smv = $wpdb->prefix . 'assessor_machine_smv';
+        $sql_assessor_machine_smv = "CREATE TABLE $table_assessor_machine_smv (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  parent_objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  machine_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  machinename varchar(250) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  expr varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT '',
+  acquisitioncost decimal(16,2) DEFAULT NULL,
+  acquisitiondate date DEFAULT NULL,
+  yearacquired int DEFAULT NULL,
+  usefullife int DEFAULT NULL,
+  remaininglife int DEFAULT NULL,
+  rcnld decimal(16,2) DEFAULT NULL,
+  marketvalue decimal(16,2) DEFAULT NULL,
+  assesslevel decimal(16,2) DEFAULT NULL,
+  assessedvalue decimal(16,2) DEFAULT NULL,
+  taxable int DEFAULT '1',
+  PRIMARY KEY (objid),
+  KEY ix_machinesmv_parent (parent_objid)
+) $charset_collate;";
+
+        $table_assessor_machrpu = $wpdb->prefix . 'assessor_machrpu';
+        $sql_assessor_machrpu = "CREATE TABLE $table_assessor_machrpu (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  landrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  bldgmaster_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_machrpu_landrpuid (landrpuid)
+) $charset_collate;";
+
+        $table_assessor_material = $wpdb->prefix . 'assessor_material';
+        $sql_assessor_material = "CREATE TABLE $table_assessor_material (
+  objid varchar(50) NOT NULL,
+  state varchar(10) NOT NULL,
+  code varchar(20) NOT NULL,
+  name varchar(100) NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_material_code (code),
+  UNIQUE KEY ux_material_name (name),
+  KEY ix_material_state (state)
+) $charset_collate;";
+
+        $table_assessor_miscrpu = $wpdb->prefix . 'assessor_miscrpu';
+        $sql_assessor_miscrpu = "CREATE TABLE $table_assessor_miscrpu (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  actualuse_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actualusename varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  landrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_miscrpuitem = $wpdb->prefix . 'assessor_miscrpuitem';
+        $sql_assessor_miscrpuitem = "CREATE TABLE $table_assessor_miscrpuitem (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  miscrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  miscitem_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  miscitemname varchar(200) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  expr varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  depreciation decimal(16,2) NOT NULL DEFAULT '0.00',
+  depreciatedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  basemarketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
+  assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  appraisalstartdate date DEFAULT NULL,
+  taxable int DEFAULT '1',
+  PRIMARY KEY (objid),
+  KEY ix_miscrpuitem_miscrpuid (miscrpuid)
+) $charset_collate;";
+
+        $table_assessor_planttreerpu = $wpdb->prefix . 'assessor_planttreerpu';
+        $sql_assessor_planttreerpu = "CREATE TABLE $table_assessor_planttreerpu (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  landrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  productive decimal(16,2) NOT NULL DEFAULT '0.00',
+  nonproductive decimal(16,2) NOT NULL DEFAULT '0.00',
+  PRIMARY KEY (objid),
+  KEY ix_planttreerpu_landrpuid (landrpuid)
+) $charset_collate;";
+
+        $table_assessor_property_states = $wpdb->prefix . 'assessor_property_states';
+        $sql_assessor_property_states = "CREATE TABLE $table_assessor_property_states (
+  property_id mediumint NOT NULL,
+  state varchar(20) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'CURRENT',
+  updated_by mediumint DEFAULT NULL,
+  updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (property_id),
+  KEY state (state)
+) $charset_collate;";
+
+        $table_assessor_real_property = $wpdb->prefix . 'assessor_real_property';
+        $sql_assessor_real_property = "CREATE TABLE $table_assessor_real_property (
+  id mediumint NOT NULL AUTO_INCREMENT,
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  pin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  cadastrallotno varchar(900) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  surveyno varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  blockno varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  barangay varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  municipality varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  province varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  north varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  south varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  east varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  west varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  etracs_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  pintype varchar(5) COLLATE utf8mb4_unicode_520_ci DEFAULT 'old',
+  ry int DEFAULT NULL,
+  barangayid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  lguid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  lgutype varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  purok varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  street varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  stewardshipno varchar(3) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  portionof varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  autonumber int DEFAULT NULL,
+  previd varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  claimno varchar(5) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  section varchar(3) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  parcel varchar(3) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_rp_objid (objid),
+  KEY ix_etracs_objid (etracs_objid)
+) $charset_collate;";
+
+        $table_assessor_rpu = $wpdb->prefix . 'assessor_rpu';
+        $sql_assessor_rpu = "CREATE TABLE $table_assessor_rpu (
+  id mediumint NOT NULL AUTO_INCREMENT,
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  state varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT 'CURRENT',
+  real_property_id mediumint NOT NULL,
+  rpu_type varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  classification varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  ry int DEFAULT '0',
+  total_market_value float DEFAULT '0',
+  total_assessed_value float DEFAULT '0',
+  taxable tinyint(1) DEFAULT '1',
+  etracs_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  total_area_hectare float DEFAULT NULL,
+  total_area_sqm float DEFAULT NULL,
+  fullpin varchar(35) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  suffix int DEFAULT '0',
+  subsuffix int DEFAULT NULL,
+  classification_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  exemptiontype_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  totalbmv decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  rpumasterid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  barangayid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_rpu_objid (objid),
+  KEY real_property_id (real_property_id),
+  KEY ix_etracs_objid (etracs_objid)
+) $charset_collate;";
+
+        $table_assessor_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
+        $sql_assessor_rpu_assessment = "CREATE TABLE $table_assessor_rpu_assessment (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  rpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  classification_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  classcode varchar(20) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  classname varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actualuse_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actualuse varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  areasqm decimal(16,2) NOT NULL DEFAULT '0.00',
+  areaha decimal(16,6) NOT NULL DEFAULT '0.000000',
+  areatype varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT 'SQM',
+  marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
+  assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  rputype varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  taxable int DEFAULT '1',
+  PRIMARY KEY (objid),
+  KEY ix_rpuassess_rpuid (rpuid)
+) $charset_collate;";
+
+        $table_assessor_rpumaster = $wpdb->prefix . 'assessor_rpumaster';
+        $sql_assessor_rpumaster = "CREATE TABLE $table_assessor_rpumaster (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  currentfaasid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  currentrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_rpumaster_faasid (currentfaasid),
+  KEY ix_rpumaster_rpuid (currentrpuid)
+) $charset_collate;";
+
+        $table_assessor_structure = $wpdb->prefix . 'assessor_structure';
+        $sql_assessor_structure = "CREATE TABLE $table_assessor_structure (
+  objid varchar(50) NOT NULL,
+  state varchar(10) NOT NULL,
+  code varchar(20) NOT NULL,
+  name varchar(100) NOT NULL,
+  indexno int NOT NULL,
+  showinfaas int NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_structure_code (code),
+  UNIQUE KEY ux_structure_name (name),
+  KEY ix_structure_state (state)
+) $charset_collate;";
+
+
+
         // Execute SQL statements
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
@@ -363,6 +1344,58 @@ class Assessor_Database {
         dbDelta($sql_sync_queue);
         dbDelta($sql_sync_meta);
         
+        dbDelta($sql_bldgrysetting);
+        dbDelta($sql_bldgkind);
+        dbDelta($sql_bldgkindbucc);
+        dbDelta($sql_bldgtype);
+        dbDelta($sql_propertyclassification);
+        
+        
+
+                dbDelta($sql_assessor_barangay);
+        dbDelta($sql_assessor_bldgadditionalitem);
+        dbDelta($sql_assessor_bldgfloor);
+        dbDelta($sql_assessor_bldgflooradditional);
+        dbDelta($sql_assessor_bldgrpu);
+        dbDelta($sql_assessor_bldgrpu_structuraltype);
+        dbDelta($sql_assessor_bldgstructure);
+        dbDelta($sql_assessor_bldgtype_depreciation);
+        dbDelta($sql_assessor_bldguse);
+        dbDelta($sql_assessor_entity);
+        dbDelta($sql_assessor_entity_address);
+        dbDelta($sql_assessor_entity_fingerprint);
+        dbDelta($sql_assessor_entity_mapping);
+        dbDelta($sql_assessor_entity_reconciled);
+        dbDelta($sql_assessor_entity_reconciled_txn);
+        dbDelta($sql_assessor_entity_relation);
+        dbDelta($sql_assessor_entity_relation_type);
+        dbDelta($sql_assessor_entitycontact);
+        dbDelta($sql_assessor_entityid);
+        dbDelta($sql_assessor_entityindividual);
+        dbDelta($sql_assessor_entityjuridical);
+        dbDelta($sql_assessor_entitymember);
+        dbDelta($sql_assessor_entitymultiple);
+        dbDelta($sql_assessor_entityprofile);
+        dbDelta($sql_assessor_exemptiontype);
+        dbDelta($sql_assessor_faas);
+        dbDelta($sql_assessor_faas_list);
+        dbDelta($sql_assessor_faas_signatory);
+        dbDelta($sql_assessor_faas_txntypes);
+        dbDelta($sql_assessor_landdetail);
+        dbDelta($sql_assessor_landrpu);
+        dbDelta($sql_assessor_machine_smv);
+        dbDelta($sql_assessor_machrpu);
+        dbDelta($sql_assessor_material);
+        dbDelta($sql_assessor_miscrpu);
+        dbDelta($sql_assessor_miscrpuitem);
+        dbDelta($sql_assessor_planttreerpu);
+        dbDelta($sql_assessor_property_states);
+        dbDelta($sql_assessor_real_property);
+        dbDelta($sql_assessor_rpu);
+        dbDelta($sql_assessor_rpu_assessment);
+        dbDelta($sql_assessor_rpumaster);
+        dbDelta($sql_assessor_structure);
+
         // Add foreign key constraints separately
         $this->add_foreign_keys();
         

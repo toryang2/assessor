@@ -14,6 +14,7 @@ import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
+import EtracsBuildingRevisionSettings from './EtracsBuildingRevisionSettings';
 
 const DEFAULT_API_SECRET_LENGTH = 48;
 
@@ -2572,6 +2573,7 @@ const Settings = () => {
             <Tab label="API Keys" />
             {canManage && <Tab label="Remote Sync" />}
             {canManage && <Tab label="ETRACS Data Sync" />}
+            {canManage && <Tab label="ETRACS Bldg Revision Settings" />}
           </Tabs>
         </Box>
         <CardContent>
@@ -2582,6 +2584,7 @@ const Settings = () => {
           {activeTab === 4 && renderPublicApiKeys()}
           {activeTab === 5 && canManage && renderSyncSettings()}
           {activeTab === 6 && canManage && renderEtracsSyncSettings()}
+          {activeTab === 7 && canManage && <EtracsBuildingRevisionSettings />}
         </CardContent>
       </Card>
     </Box>
