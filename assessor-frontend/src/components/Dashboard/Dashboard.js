@@ -609,13 +609,9 @@ const Dashboard = ({ onNavigate }) => {
       </motion.div>
 
       {/* Statistics Cards */}
-      <motion.div
-        initial="initial"
-        animate="animate"
-        variants={animations.stagger}
-      >
-        <Grid container spacing={3} sx={{ marginBottom: 4 }} alignItems="stretch">
-          <Grid item xs={12} sm={6} md={3}>
+      <motion.div variants={animations.container} initial="initial" animate="animate">
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={settings?.enable_etracs_features == 1 ? 3 : 4}>
             <StatCard
               title="Total Records Added"
               value={dashboardData?.total_properties || 0}
@@ -625,7 +621,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeActiveRecordsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={settings?.enable_etracs_features == 1 ? 3 : 4}>
             <StatCard
               title="Total RPTs"
               value={dashboardData?.version_counts || 0}
@@ -635,7 +631,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeRPTsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={settings?.enable_etracs_features == 1 ? 3 : 4}>
             <StatCard
               title="Total Requests"
               value={dashboardData?.requests_count || 0}
@@ -645,16 +641,18 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeRequestsTrend()}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="ETRACS FAAS"
-              value={etracsStats?.total || 0}
-              icon={<Assignment />}
-              color="#8b5cf6"
-              subtitle="Total ETRACS Records"
-              trend={etracsStats?.current ? `${etracsStats.current} current` : null}
-            />
-          </Grid>
+          {settings?.enable_etracs_features == 1 && (
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="ETRACS FAAS"
+                value={etracsStats?.total || 0}
+                icon={<Assignment />}
+                color="#8b5cf6"
+                subtitle="Total ETRACS Records"
+                trend={etracsStats?.current ? `${etracsStats.current} current` : null}
+              />
+            </Grid>
+          )}
         </Grid>
       </motion.div>
 

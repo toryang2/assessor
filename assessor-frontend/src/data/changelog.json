@@ -1,0 +1,20 @@
+[
+  {
+    "version": "1.1.2",
+    "date": "2026-08-11",
+    "features": [
+      "Added support for Notification Bell and Changelog.",
+      "Fixed ETRACS property table local synchronization to show correct properties.",
+      "Fixed Local Property states so that they accurately reflect CURRENT and CANCELLED pills based on their superseded status."
+    ]
+  },
+  {
+    "version": "1.1.1",
+    "date": "2026-08-05",
+    "features": [
+      "Initial web app deployment.",
+      "Support for creating, reading, updating and deleting local properties.",
+      "Full API endpoints connected."
+    ]
+  }
+]

@@ -16,6 +16,7 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  Popover,
   Badge,
   useTheme,
   useMediaQuery,
@@ -35,12 +36,17 @@ import {
   Settings as SettingsIcon,
   Receipt as ReceiptIcon,
   Description as DescriptionIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  Info as InfoIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  CloudSync as CloudSyncIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
 import { useCacheBuster } from '../../hooks/useCacheBuster';
+import changelogData from '../../data/changelog.json';
 import LoadingDots from '../LoadingDots';
 import Dashboard from '../Dashboard/Dashboard';
 import PropertyTable from '../PropertyTable/PropertyTable';
@@ -55,6 +61,7 @@ import Profile from '../Profile/Profile';
 import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
 import SyncModal from '../SyncModal/SyncModal';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
+import ChangelogModal from '../ChangelogModal/ChangelogModal';
 
 const drawerWidth = 320;
 
@@ -87,6 +94,39 @@ const Layout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifsLoaded, setNotifsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      try {
+        const saved = localStorage.getItem(`assessor_notifications_${user.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setNotifications(parsed);
+          setUnreadCount(parsed.filter(n => !n.isRead).length);
+        }
+      } catch (e) {
+        console.error('Failed to load notifications', e);
+      }
+      setNotifsLoaded(true);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user && notifsLoaded) {
+      try {
+        localStorage.setItem(`assessor_notifications_${user.id}`, JSON.stringify(notifications));
+      } catch (e) {
+        console.error('Failed to save notifications', e);
+      }
+    }
+  }, [notifications, user, notifsLoaded]);
+
   const [currentPage, setCurrentPage] = useState(() => {
     // On reload, restore last page if saved; otherwise default to Dashboard
     try {
@@ -114,6 +154,105 @@ const Layout = ({ children }) => {
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
+
+  const handleNotificationMenuOpen = (event) => {
+    setNotificationAnchorEl(event.currentTarget);
+  };
+
+  const handleNotificationMenuClose = () => {
+    setNotificationAnchorEl(null);
+  };
+
+  const handleNotificationClick = (notif) => {
+    if (!notif.isRead) {
+      setNotifications(prev => {
+        const updated = prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n);
+        return updated;
+      });
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+    if (notif.id.startsWith('changelog_')) {
+      setChangelogOpen(true);
+    }
+    handleNotificationMenuClose();
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user) {
+      try {
+        const lastSeenVersion = localStorage.getItem(`last_seen_version_v3_${user.id}`);
+        const currentVersion = changelogData[0]?.version;
+        
+        if (currentVersion && lastSeenVersion !== currentVersion) {
+          const newNotif = {
+            id: 'changelog_' + currentVersion,
+            title: `App updated to v${currentVersion}`,
+            message: 'See what\'s new in this release!',
+            type: 'changelog',
+            isRead: false,
+            timestamp: new Date().toISOString()
+          };
+          
+          setNotifications(prev => {
+            if (prev.some(n => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
+          setUnreadCount(prev => prev + 1);
+          localStorage.setItem(`last_seen_version_v3_${user.id}`, currentVersion);
+        }
+      } catch (e) {
+        console.error('Failed to check changelog version:', e);
+      }
+    }
+  }, [user]);
+
+  const prevSyncStatus = React.useRef(syncStatus);
+
+  useEffect(() => {
+    if (prevSyncStatus.current !== syncStatus) {
+      if (syncStatus === 'success') {
+        setNotifications(prev => {
+          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
+          return [{
+            id: 'sync_success_' + Date.now(),
+            title: 'Sync Completed',
+            message: 'ETRACS data has been successfully synchronized.',
+            type: 'success',
+            isRead: false,
+            timestamp: new Date().toISOString()
+          }, ...filtered];
+        });
+        setUnreadCount(prev => prev + 1);
+      } else if (syncStatus === 'error') {
+        setNotifications(prev => {
+          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
+          return [{
+            id: 'sync_error_' + Date.now(),
+            title: 'Sync Failed',
+            message: 'There was a problem synchronizing ETRACS data.',
+            type: 'error',
+            isRead: false,
+            timestamp: new Date().toISOString()
+          }, ...filtered];
+        });
+        setUnreadCount(prev => prev + 1);
+      } else if (syncStatus === 'syncing') {
+         setNotifications(prev => {
+          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
+          return [{
+            id: 'syncing_' + Date.now(),
+            title: 'Sync Started',
+            message: 'ETRACS data synchronization is in progress.',
+            type: 'info',
+            isRead: false,
+            timestamp: new Date().toISOString()
+          }, ...filtered];
+        });
+        setUnreadCount(prev => prev + 1);
+      }
+      prevSyncStatus.current = syncStatus;
+    }
+  }, [syncStatus]);
 
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -478,12 +617,145 @@ const Layout = ({ children }) => {
             </Tooltip>
 
             <Tooltip title="Notifications">
-              <IconButton color="inherit" size="small">
-                <Badge badgeContent={0} color="error">
+              <IconButton color="inherit" size="small" onClick={handleNotificationMenuOpen}>
+                <Badge badgeContent={unreadCount} color="error">
                   <Notifications />
                 </Badge>
               </IconButton>
             </Tooltip>
+
+            <Popover
+              anchorEl={notificationAnchorEl}
+              open={Boolean(notificationAnchorEl)}
+              onClose={handleNotificationMenuClose}
+              PaperProps={{
+                elevation: 4,
+                sx: { 
+                  width: 360, 
+                  mt: 1.5,
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }
+              }}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <Box sx={{ px: 2, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+                <Box>
+                  {unreadCount > 0 && (
+                    <Typography 
+                      variant="caption" 
+                      color="primary.main"
+                      sx={{ 
+                        cursor: 'pointer', 
+                        fontWeight: 600,
+                        '&:hover': { textDecoration: 'underline' } 
+                      }}
+                      onClick={() => {
+                        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                        setUnreadCount(0);
+                      }}
+                    >
+                      Mark all read
+                    </Typography>
+                  )}
+                  {notifications.length > 0 && (
+                    <Typography 
+                      variant="caption" 
+                      color="text.secondary"
+                      sx={{ 
+                        cursor: 'pointer', 
+                        ml: 1.5,
+                        fontWeight: 600,
+                        '&:hover': { textDecoration: 'underline' } 
+                      }}
+                      onClick={() => {
+                        setNotifications(prev => prev.filter(n => n.type === 'changelog'));
+                        setUnreadCount(0);
+                      }}
+                    >
+                      Clear
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+              <Divider />
+              <Box sx={{ overflowY: 'auto', maxHeight: 400 }}>
+              {notifications.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <Notifications sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+                  <Typography variant="body1" fontWeight={500} color="text.secondary">All Caught Up!</Typography>
+                  <Typography variant="body2" color="text.disabled">You have no new notifications.</Typography>
+                </Box>
+              ) : (
+                <List sx={{ p: 0 }}>
+                  {[...notifications]
+                    .sort((a, b) => {
+                      if (a.type === 'changelog' && b.type !== 'changelog') return -1;
+                      if (b.type === 'changelog' && a.type !== 'changelog') return 1;
+                      return new Date(b.timestamp) - new Date(a.timestamp);
+                    })
+                    .map((notif, idx, arr) => (
+                    <React.Fragment key={notif.id}>
+                      <ListItemButton 
+                        onClick={() => handleNotificationClick(notif)}
+                        sx={{ 
+                          m: 0,
+                          borderRadius: 0,
+                          width: '100%',
+                          whiteSpace: 'normal',
+                          bgcolor: notif.isRead ? 'transparent' : 'rgba(25, 118, 210, 0.04)',
+                          py: 2,
+                          px: 2,
+                          alignItems: 'flex-start',
+                          transition: 'background-color 0.2s',
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                      >
+                        <Avatar sx={{ 
+                          mr: 2, 
+                          width: 40, height: 40,
+                          bgcolor: notif.type === 'success' ? 'success.light' 
+                                  : notif.type === 'error' ? 'error.light'
+                                  : notif.type === 'changelog' ? 'secondary.light'
+                                  : 'info.light' 
+                        }}>
+                          {notif.type === 'success' && <CheckCircleIcon />}
+                          {notif.type === 'error' && <WarningIcon />}
+                          {notif.type === 'changelog' && <InfoIcon />}
+                          {notif.type === 'info' && <CloudSyncIcon />}
+                        </Avatar>
+                        <ListItemText 
+                          primary={
+                            <Typography variant="body2" fontWeight={notif.isRead ? 500 : 700} color="text.primary">
+                              {notif.title}
+                            </Typography>
+                          }
+                          secondary={
+                            <>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, mb: 0.5 }}>
+                                {notif.message}
+                              </Typography>
+                              <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+                                {new Date(notif.timestamp).toLocaleString()}
+                              </Typography>
+                            </>
+                          }
+                        />
+                        {!notif.isRead && (
+                          <Box sx={{ width: 8, height: 8, bgcolor: 'primary.main', borderRadius: '50%', mt: 1 }} />
+                        )}
+                      </ListItemButton>
+                      {idx < arr.length - 1 && <Divider component="li" />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              )}
+              </Box>
+            </Popover>
             
             <Tooltip title="Profile">
               <IconButton
@@ -674,6 +946,13 @@ const Layout = ({ children }) => {
           </ListItemIcon>
           Profile
         </MenuItem>
+
+        <MenuItem onClick={() => { setChangelogOpen(true); handleProfileMenuClose(); }}>
+          <ListItemIcon>
+            <InfoIcon fontSize="small" />
+          </ListItemIcon>
+          What's New
+        </MenuItem>
         
         <Divider />
         
@@ -689,9 +968,13 @@ const Layout = ({ children }) => {
         open={syncModalOpen} 
         onClose={() => setSyncModalOpen(false)} 
       />
+
+      <ChangelogModal 
+        open={changelogOpen} 
+        onClose={() => setChangelogOpen(false)} 
+      />
     </Box>
   );
 };
 
 export default Layout;
-
