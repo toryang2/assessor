@@ -950,6 +950,27 @@ class Assessor_Database {
   KEY ix_prevtdno (prevtdno(255))
 ) $charset_collate;";
 
+        $table_assessor_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
+        $sql_assessor_faas_previous = "CREATE TABLE $table_assessor_faas_previous (
+  objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  faasid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevfaasid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevrpuid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevtdno varchar(800) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevpin varchar(800) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevowner text COLLATE utf8mb4_unicode_520_ci,
+  prevadministrator text COLLATE utf8mb4_unicode_520_ci,
+  prevav varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevmv varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevareasqm varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevareaha varchar(500) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  preveffectivity varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  prevtaxability varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_faas_previous_faasid (faasid)
+) $charset_collate;";
+
+
         $table_assessor_faas_list = $wpdb->prefix . 'assessor_faas_list';
         $sql_assessor_faas_list = "CREATE TABLE $table_assessor_faas_list (
   objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
@@ -1378,6 +1399,7 @@ class Assessor_Database {
         dbDelta($sql_assessor_entityprofile);
         dbDelta($sql_assessor_exemptiontype);
         dbDelta($sql_assessor_faas);
+        dbDelta($sql_assessor_faas_previous);
         dbDelta($sql_assessor_faas_list);
         dbDelta($sql_assessor_faas_signatory);
         dbDelta($sql_assessor_faas_txntypes);

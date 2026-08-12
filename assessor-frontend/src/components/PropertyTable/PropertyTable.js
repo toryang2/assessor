@@ -1745,11 +1745,11 @@ const PropertyTable = () => {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={property.status || 'CURRENT'}
+                      label={property.property_state || 'CURRENT'}
                       size="small"
                       sx={{
-                        backgroundColor: getStatusColor(property.status),
-                        color: 'white',
+                        backgroundColor: getStateColor(property.property_state || 'CURRENT').bg,
+                        color: getStateColor(property.property_state || 'CURRENT').text,
                         fontWeight: 600,
                         fontSize: '0.7rem',
                         height: 20

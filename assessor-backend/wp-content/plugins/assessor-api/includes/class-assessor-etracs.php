@@ -193,11 +193,28 @@ class Assessor_Etracs {
 
         $where_sql = implode(' AND ', $where);
 
+        $t_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
+        $t_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
         $joins = "
             LEFT JOIN $t_rpu r ON f.rpuid = r.objid
             LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
             LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid
             LEFT JOIN $t_txn tx ON f.txntype_objid = tx.code
+            LEFT JOIN (SELECT rpuid, GROUP_CONCAT(DISTINCT actualuse SEPARATOR ', ') as actualuse FROM $t_rpu_assessment GROUP BY rpuid) ra ON r.objid = ra.rpuid
+            LEFT JOIN (
+                SELECT 
+                    faasid,
+                    GROUP_CONCAT(prevtdno SEPARATOR ' | ') as fp_prevtdno,
+                    GROUP_CONCAT(prevpin SEPARATOR ' | ') as fp_prevpin,
+                    GROUP_CONCAT(prevowner SEPARATOR ' | ') as fp_prevowner,
+                    GROUP_CONCAT(prevav SEPARATOR ' | ') as fp_prevav,
+                    GROUP_CONCAT(prevmv SEPARATOR ' | ') as fp_prevmv,
+                    GROUP_CONCAT(prevareasqm SEPARATOR ' | ') as fp_prevareasqm,
+                    GROUP_CONCAT(prevareaha SEPARATOR ' | ') as fp_prevareaha,
+                    GROUP_CONCAT(prevadministrator SEPARATOR ' | ') as fp_prevadministrator
+                FROM $t_faas_previous
+                GROUP BY faasid
+            ) fp ON f.objid = fp.faasid
         ";
 
         // Count
@@ -248,14 +265,15 @@ class Assessor_Etracs {
                 e.address_text AS taxpayer_address,
                 tx.name AS txntype_name,
                 r.taxable,
-                f.prevtdno,
-                f.prevpin AS prev_pin,
-                f.prevowner AS prev_owner,
-                f.prevav AS prev_assessed_value,
-                f.prevmv AS prev_market_value,
-                f.prevareasqm AS prev_area_sqm,
-                f.prevareaha AS prev_area_hectare,
-                f.prevadministrator AS prev_administrator,
+                ra.actualuse,
+                COALESCE(NULLIF(fp.fp_prevtdno, ''), f.prevtdno) AS prevtdno,
+                COALESCE(NULLIF(fp.fp_prevpin, ''), f.prevpin) AS prev_pin,
+                COALESCE(NULLIF(fp.fp_prevowner, ''), f.prevowner) AS prev_owner,
+                COALESCE(NULLIF(fp.fp_prevav, ''), f.prevav) AS prev_assessed_value,
+                COALESCE(NULLIF(fp.fp_prevmv, ''), f.prevmv) AS prev_market_value,
+                COALESCE(NULLIF(fp.fp_prevareasqm, ''), f.prevareasqm) AS prev_area_sqm,
+                COALESCE(NULLIF(fp.fp_prevareaha, ''), f.prevareaha) AS prev_area_hectare,
+                COALESCE(NULLIF(fp.fp_prevadministrator, ''), f.prevadministrator) AS prev_administrator,
                 f.originlguid,
                 f.state,
                 f.cancelledbytdnos AS cancelled_by_tdnos,
@@ -293,6 +311,7 @@ class Assessor_Etracs {
         $t_rp = $wpdb->prefix . 'assessor_real_property';
         $t_entity = $wpdb->prefix . 'assessor_entity';
         $t_txn = $wpdb->prefix . 'assessor_faas_txntypes';
+        $t_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
 
         $sql = "
             SELECT
@@ -329,14 +348,14 @@ class Assessor_Etracs {
                 e.type AS taxpayer_type,
                 tx.name AS txntype_name,
                 r.taxable,
-                f.prevtdno,
-                f.prevpin AS prev_pin,
-                f.prevowner AS prev_owner,
-                f.prevav AS prev_assessed_value,
-                f.prevmv AS prev_market_value,
-                f.prevareasqm AS prev_area_sqm,
-                f.prevareaha AS prev_area_hectare,
-                f.prevadministrator AS prev_administrator,
+                COALESCE(NULLIF(fp.fp_prevtdno, ''), f.prevtdno) AS prevtdno,
+                COALESCE(NULLIF(fp.fp_prevpin, ''), f.prevpin) AS prev_pin,
+                COALESCE(NULLIF(fp.fp_prevowner, ''), f.prevowner) AS prev_owner,
+                COALESCE(NULLIF(fp.fp_prevav, ''), f.prevav) AS prev_assessed_value,
+                COALESCE(NULLIF(fp.fp_prevmv, ''), f.prevmv) AS prev_market_value,
+                COALESCE(NULLIF(fp.fp_prevareasqm, ''), f.prevareasqm) AS prev_area_sqm,
+                COALESCE(NULLIF(fp.fp_prevareaha, ''), f.prevareaha) AS prev_area_hectare,
+                COALESCE(NULLIF(fp.fp_prevadministrator, ''), f.prevadministrator) AS prev_administrator,
                 f.originlguid,
                 f.cancelledbytdnos AS cancelled_by_tdnos,
                 f.canceldate AS cancel_date,
@@ -347,12 +366,61 @@ class Assessor_Etracs {
             LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
             LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid
             LEFT JOIN $t_txn tx ON f.txntype_objid = tx.code
+            LEFT JOIN (
+                SELECT 
+                    faasid,
+                    GROUP_CONCAT(prevtdno SEPARATOR ' | ') as fp_prevtdno,
+                    GROUP_CONCAT(prevpin SEPARATOR ' | ') as fp_prevpin,
+                    GROUP_CONCAT(prevowner SEPARATOR ' | ') as fp_prevowner,
+                    GROUP_CONCAT(prevav SEPARATOR ' | ') as fp_prevav,
+                    GROUP_CONCAT(prevmv SEPARATOR ' | ') as fp_prevmv,
+                    GROUP_CONCAT(prevareasqm SEPARATOR ' | ') as fp_prevareasqm,
+                    GROUP_CONCAT(prevareaha SEPARATOR ' | ') as fp_prevareaha,
+                    GROUP_CONCAT(prevadministrator SEPARATOR ' | ') as fp_prevadministrator
+                FROM $t_faas_previous
+                GROUP BY faasid
+            ) fp ON f.objid = fp.faasid
             WHERE f.objid = %s
         ";
 
         $record = $wpdb->get_row($wpdb->prepare($sql, $id));
         if (!$record) {
             return new WP_Error('not_found', 'FAAS record not found', array('status' => 404));
+        }
+
+        // Dynamic fallback lookup for previous FAAS details if empty/missing
+        if (!empty($record->prevtdno) && $record->prevtdno !== '-') {
+            $has_empty_prev = empty($record->prev_owner) || $record->prev_owner === '-' ||
+                              empty($record->prev_pin) || $record->prev_pin === '-' ||
+                              empty($record->prev_assessed_value) || floatval($record->prev_assessed_value) == 0;
+
+            if ($has_empty_prev) {
+                $prev_record = $wpdb->get_row($wpdb->prepare("
+                    SELECT 
+                        f.owner_name AS prev_owner,
+                        f.administrator_name AS prev_administrator,
+                        rp.pin AS prev_pin,
+                        r.total_market_value AS prev_market_value,
+                        r.total_assessed_value AS prev_assessed_value,
+                        r.total_area_sqm AS prev_area_sqm,
+                        r.total_area_hectare AS prev_area_hectare
+                    FROM {$wpdb->prefix}assessor_faas f
+                    LEFT JOIN {$wpdb->prefix}assessor_rpu r ON f.rpuid = r.objid
+                    LEFT JOIN {$wpdb->prefix}assessor_real_property rp ON f.realpropertyid = rp.objid
+                    WHERE f.tdno = %s
+                    LIMIT 1
+                ", $record->prevtdno));
+
+                if ($prev_record) {
+                    if (empty($record->prev_owner) || $record->prev_owner === '-') $record->prev_owner = $prev_record->prev_owner;
+                    if (empty($record->prev_administrator) || $record->prev_administrator === '-') $record->prev_administrator = $prev_record->prev_administrator;
+                    if (empty($record->prev_pin) || $record->prev_pin === '-') $record->prev_pin = $prev_record->prev_pin;
+                    if (empty($record->prev_market_value) || floatval($record->prev_market_value) == 0) $record->prev_market_value = $prev_record->prev_market_value;
+                    if (empty($record->prev_assessed_value) || floatval($record->prev_assessed_value) == 0) $record->prev_assessed_value = $prev_record->prev_assessed_value;
+                    if (empty($record->prev_area_sqm) || floatval($record->prev_area_sqm) == 0) $record->prev_area_sqm = $prev_record->prev_area_sqm;
+                    if (empty($record->prev_area_hectare) || floatval($record->prev_area_hectare) == 0) $record->prev_area_hectare = $prev_record->prev_area_hectare;
+                }
+            }
         }
 
         return $record;

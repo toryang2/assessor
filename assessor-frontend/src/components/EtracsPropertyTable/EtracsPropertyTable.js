@@ -371,9 +371,11 @@ const EtracsPropertyTable = () => {
               <TableCell sx={{ fontWeight: 600 }}>Barangay</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Class</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Actual Use</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Market Value</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Assessed Value</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Txn</TableCell>
+
               <TableCell sx={{ fontWeight: 600 }}>State</TableCell>
               <TableCell sx={{ fontWeight: 600, textAlign: 'center' }}>Actions</TableCell>
             </TableRow>
@@ -381,14 +383,14 @@ const EtracsPropertyTable = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
                   <CircularProgress size={32} />
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Loading ETRACS records...</Typography>
                 </TableCell>
               </TableRow>
             ) : properties.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
                     {searchQuery ? 'No records match your search' : 'No ETRACS records yet. Click "New FAAS Record" to add one.'}
                   </Typography>
@@ -422,11 +424,13 @@ const EtracsPropertyTable = () => {
                     <TableCell><Typography variant="body2">{row.barangay || '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{row.rpu_type || '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{row.classification || '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2">{row.actualuse || '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{formatCurrency(row.total_market_value)}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{formatCurrency(row.total_assessed_value)}</Typography></TableCell>
                     <TableCell>
                       <Chip label={row.txntype_code || '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
                     </TableCell>
+
                     <TableCell>
                       <Chip
                         label={st.label}

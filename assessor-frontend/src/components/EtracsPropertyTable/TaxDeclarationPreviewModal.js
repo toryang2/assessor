@@ -456,7 +456,7 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
             {/* Previous Info */}
             <Box sx={{ fontSize: '12px' }}>
               <Box sx={{ display: 'flex', mb: 0.5 }}>
-                <Typography sx={{ width: '220px', whiteSpace: 'nowrap' }}>This declaration cancels TD No. :</Typography>
+                <Typography sx={{ width: '220px', whiteSpace: 'nowrap' }}>Cancels TD No. :</Typography>
                 <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px' }}>{property.prevtdno || property.prev_tdno || 'NEW'}</Typography>
               </Box>
               <Box sx={{ display: 'flex', mb: 0.5 }}>

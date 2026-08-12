@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Assessor History Archiving API
  * Description: REST API for Assessor History Archiving System
- * Version: 1.1.0
+ * Version: 1.1.2
  * Author: toryang2
  * Author URI: https://github.com/toryang2
  * Text Domain: assessor-api
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ASSESSOR_API_VERSION', '1.0.8');
+define('ASSESSOR_API_VERSION', '1.1.2');
 define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -57,6 +57,16 @@ function assessor_api_init() {
     Assessor_Sync::register_cron();
 }
 add_action('init', 'assessor_api_init');
+
+// Auto-migrate database if version changes
+add_action('plugins_loaded', 'assessor_api_check_version');
+function assessor_api_check_version() {
+    if (get_option('assessor_db_version') !== ASSESSOR_API_VERSION) {
+        $database = new Assessor_Database();
+        $database->create_tables();
+        update_option('assessor_db_version', ASSESSOR_API_VERSION);
+    }
+}
 
 // Hook the background file downloader
 add_action('assessor_sync_files_cron', array('Assessor_Sync', 'download_missing_files'));

@@ -1,9 +1,7 @@
 <?php
-$mysqli = new mysqli('localhost', 'root', '', 'assessor_local');
-$res = $mysqli->query("DESCRIBE wp_assessor_faas");
-while ($row = $res->fetch_assoc()) {
-    if ($row['Field'] == 'txntimestamp' || $row['Field'] == 'cancelledtimestamp') {
-        echo $row['Field'] . " : " . $row['Type'] . "\n";
-    }
-}
-?>
+$pdo = new PDO('mysql:host=localhost;dbname=etracs254_kitaotao', 'root', '');
+$stmt = $pdo->query("SELECT * FROM faas_previous WHERE prevtdno LIKE '%10-024-07725%'");
+print_r($stmt->fetchAll(PDO::FETCH_ASSOC));
+
+$stmt = $pdo->query("SELECT faasid, prevtdno FROM faas_previous LIMIT 10");
+print_r($stmt->fetchAll(PDO::FETCH_ASSOC));

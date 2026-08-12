@@ -97,6 +97,7 @@ class Assessor_Etracs_Sync {
             $existing_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $wp_rp WHERE etracs_objid = %s", $etracs_id));
             
             $data = [
+                'objid' => $etracs_id,
                 'etracs_objid' => $etracs_id,
                 'pin' => $row['pin'],
                 'cadastral_lot_no' => $row['cadastrallotno'],
@@ -137,6 +138,7 @@ class Assessor_Etracs_Sync {
             $existing_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $wp_rpu WHERE etracs_objid = %s", $etracs_id));
             
             $data = [
+                'objid' => $etracs_id,
                 'etracs_objid' => $etracs_id,
                 'real_property_id' => $local_rp_id,
                 'rpu_type' => $row['rputype'],
@@ -231,6 +233,7 @@ class Assessor_Etracs_Sync {
 
         // 5. Sync detail & lookup tables (Building, Land, Mach, Misc, Lookups)
         $tables_to_sync_direct = [
+            'faas_previous' => 'assessor_faas_previous',
             'bldgrpu' => 'assessor_bldgrpu',
             'bldgfloor' => 'assessor_bldgfloor',
             'bldguse' => 'assessor_bldguse',
@@ -247,16 +250,21 @@ class Assessor_Etracs_Sync {
             'machdetail' => 'assessor_machdetail',
             'miscrpu' => 'assessor_miscrpu',
             'miscitem' => 'assessor_miscitem',
+            'landassesslevel' => 'assessor_landassesslevel',
+            'bldgassesslevel' => 'assessor_bldgassesslevel',
+            'machassesslevel' => 'assessor_machassesslevel',
+            'planttreeassesslevel' => 'assessor_planttreeassesslevel',
+            'miscassesslevel' => 'assessor_miscassesslevel',
         ];
 
         foreach ($tables_to_sync_direct as $etracs_table => $local_table) {
-            $wp_table = $wpdb->prefix . $local_table;
+            $full_local_table = $wpdb->prefix . $local_table;
             try {
-                $stmt = $pdo->query("SELECT * FROM $etracs_table");
+                $stmt = $pdo->query("SELECT * FROM `$etracs_table`");
                 if ($stmt) {
                     $stats[$local_table] = 0;
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                        $wpdb->replace($wp_table, $row);
+                        $wpdb->replace($full_local_table, $row);
                         $stats[$local_table]++;
                     }
                 }
@@ -269,10 +277,18 @@ class Assessor_Etracs_Sync {
         $wp_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
         try {
             $stmt = $pdo->query("
-                SELECT ra.*, pc1.code as classcode, pc1.name as classname, pc2.name as actualuse
+                SELECT ra.*, 
+                       pc1.code as classcode, 
+                       pc1.name as classname, 
+                       COALESCE(la.name, ba.name, ma.name, pa.name, mia.name, pc2.name) as actualuse
                 FROM rpu_assessment ra
                 LEFT JOIN propertyclassification pc1 ON pc1.objid = ra.classification_objid
                 LEFT JOIN propertyclassification pc2 ON pc2.objid = ra.actualuse_objid
+                LEFT JOIN landassesslevel la ON la.objid = ra.actualuse_objid
+                LEFT JOIN bldgassesslevel ba ON ba.objid = ra.actualuse_objid
+                LEFT JOIN machassesslevel ma ON ma.objid = ra.actualuse_objid
+                LEFT JOIN planttreeassesslevel pa ON pa.objid = ra.actualuse_objid
+                LEFT JOIN miscassesslevel mia ON mia.objid = ra.actualuse_objid
             ");
             if ($stmt) {
                 $stats['rpu_assessment'] = 0;

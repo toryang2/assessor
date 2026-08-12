@@ -14,7 +14,7 @@ const defaultFormData = {
   tdno: '', utdno: '', pin_type: 'NEW', section: '', parcel: '', claim_no: '',
   txntype_code: 'GR', effectivity_year: '', effectivity_qtr: '', owner_name: '', owner_address: '',
   administrator_name: '', administrator_address: '', beneficiary_name: '', beneficiary_address: '',
-  pin: '', title_type: '', title_no: '', title_date: '', prevtdno: '', prev_owner: '',
+  pin: '', title_type: '', title_no: '',  title_date: '', prevtdno: '', prev_owner: '', prev_pin: '', prev_administrator: '',
   prev_assessed_value: '', prev_market_value: '', prev_area_hectare: '', prev_area_sqm: '',
   prev_effectivity: '', memoranda: '', back_tax_years: 0, ry_ordinance_no: '', ry_ordinance_date: '',
   date_approved: '', year_issued: '', public_land: 0,
@@ -415,14 +415,14 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                         <Tab key="lnd" label="Lands" />,
                         <Tab key="ass" label="Assessment" />,
                         <Tab key="sig" label="Signatories" />,
-                        <Tab key="sup" label="Superseded FAAS" />,
+                        <Tab key="prev" label="Previous FAAS" />,
                         <Tab key="mem" label="Memoranda" />,
                         <Tab key="res" label="Restrictions" />
                       ] : [
                         <Tab key="det" label={`${formData.rpu_type} Detail`} />,
                         <Tab key="ass" label="Assessment" />,
                         <Tab key="sig" label="Signatories" />,
-                        <Tab key="sup" label="Superseded" />,
+                        <Tab key="prev" label="Previous" />,
                         <Tab key="mem" label="Memoranda" />
                       ]}
                     </Tabs>
@@ -550,7 +550,7 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                       </Grid>
                     )}
 
-                    {/* Superseded FAAS */}
+                    {/* Previous FAAS */}
                     {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 3) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 6)) && (
                       <Grid container spacing={2}>
                         <Grid item xs={12} sm={4}>
@@ -564,15 +564,15 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                             renderInput={(params) => <TextField {...params} fullWidth size="small" variant="standard" label="Previous TD No." />}
                           />
                         </Grid>
-                        <Grid item xs={12} sm={4}><TextField fullWidth size="small" variant="standard" label="Previous PIN" value={formData.prevpin || ''} onChange={handleChange('prevpin')} /></Grid>
+                        <Grid item xs={12} sm={4}><TextField fullWidth size="small" variant="standard" label="Previous PIN" value={formData.prev_pin || ''} onChange={handleChange('prev_pin')} /></Grid>
                         <Grid item xs={12} sm={4}></Grid>
                         <Grid item xs={12} sm={12}><TextField fullWidth size="small" variant="standard" label="Previous Owner" value={formData.prev_owner || ''} onChange={handleChange('prev_owner')} /></Grid>
                         <Grid item xs={12} sm={12}><TextField fullWidth size="small" variant="standard" label="Previous Administrator" value={formData.prev_administrator || ''} onChange={handleChange('prev_administrator')} /></Grid>
                         
-                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Assessed Val" value={formData.prev_assessed_value || ''} onChange={handleChange('prev_assessed_value')} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Market Val" value={formData.prev_market_value || ''} onChange={handleChange('prev_market_value')} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Area (sqm)" value={formData.prev_area_sqm || ''} onChange={handleChange('prev_area_sqm')} /></Grid>
-                        <Grid item xs={12} sm={6}><TextField type="number" fullWidth size="small" variant="standard" label="Prev. Area (ha)" value={formData.prev_area_hectare || ''} onChange={handleChange('prev_area_hectare')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Prev. Assessed Val" value={formData.prev_assessed_value || ''} onChange={handleChange('prev_assessed_value')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Prev. Market Val" value={formData.prev_market_value || ''} onChange={handleChange('prev_market_value')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Prev. Area (sqm)" value={formData.prev_area_sqm || ''} onChange={handleChange('prev_area_sqm')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" variant="standard" label="Prev. Area (ha)" value={formData.prev_area_hectare || ''} onChange={handleChange('prev_area_hectare')} /></Grid>
                       </Grid>
                     )}
 
