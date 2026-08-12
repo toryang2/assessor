@@ -32,6 +32,11 @@ class Assessor_API {
             return $result;
         }
         
+        // Only enforce hardware lock on local builds
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return $result;
+        }
+        
         if (!Assessor_Hardware_Lock::is_unlocked()) {
             return new WP_Error('hardware_locked', 'Hardware locked. Activation required.', array('status' => 403));
         }

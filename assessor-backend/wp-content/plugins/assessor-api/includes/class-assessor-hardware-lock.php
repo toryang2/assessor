@@ -54,6 +54,11 @@ class Assessor_Hardware_Lock {
     }
 
     public static function is_unlocked() {
+        // If not a local build, bypass the hardware lock check
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return true;
+        }
+
         $saved_key = get_option('assessor_hardware_activation_key');
         return $saved_key === self::get_expected_activation_key();
     }
