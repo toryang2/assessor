@@ -105,7 +105,8 @@ const App = () => {
           key === 'assessor_current_page' ||
           key === 'assessor_settings' ||
           key === 'assessor_afk_timeout' ||
-          key === 'app_logo_url'
+          key === 'app_logo_url' ||
+          key.startsWith('assessor_notifications_')
         );
         if (isAssessorKey && !isAuthKey && !isSafeKey) {
           localStorage.removeItem(key);

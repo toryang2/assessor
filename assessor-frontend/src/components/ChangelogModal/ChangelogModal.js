@@ -23,25 +23,25 @@ import { motion } from 'framer-motion';
 
 const ChangelogModal = ({ open, onClose }) => {
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
       fullWidth
       PaperProps={{
         component: motion.div,
         initial: { opacity: 0, y: 20 },
         animate: { opacity: 1, y: 0 },
         transition: { duration: 0.3 },
-        sx: { 
-          borderRadius: 4, 
+        sx: {
+          borderRadius: 4,
           overflow: 'hidden',
-          boxShadow: '0px 10px 40px rgba(0,0,0,0.2)' 
+          boxShadow: '0px 10px 40px rgba(0,0,0,0.2)'
         }
       }}
     >
-      <DialogTitle sx={{ 
-        m: 0, 
+      <DialogTitle sx={{
+        m: 0,
         p: 2.5,
         display: 'flex',
         justifyContent: 'space-between',
@@ -50,7 +50,7 @@ const ChangelogModal = ({ open, onClose }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           <Typography variant="h6" fontWeight="bold">
-            What's New in Assessor App
+            What's New in Assessor Archiving App
           </Typography>
         </Box>
         <IconButton size="small" onClick={onClose} sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
@@ -61,13 +61,13 @@ const ChangelogModal = ({ open, onClose }) => {
       <DialogContent dividers sx={{ p: 0 }}>
         <List sx={{ p: 0 }}>
           {changelogData.map((release, index) => (
-            <ListItem 
-              key={release.version} 
-              sx={{ 
-                flexDirection: 'column', 
-                alignItems: 'stretch', 
-                p: 4, 
-                borderBottom: index < changelogData.length - 1 ? 1 : 0, 
+            <ListItem
+              key={release.version}
+              sx={{
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                p: 4,
+                borderBottom: index < changelogData.length - 1 ? 1 : 0,
                 borderColor: 'divider',
                 bgcolor: 'background.paper'
               }}
@@ -84,8 +84,8 @@ const ChangelogModal = ({ open, onClose }) => {
                     <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
                       <CheckCircleIcon color="success" fontSize="small" />
                     </ListItemIcon>
-                    <ListItemText 
-                      primary={feature} 
+                    <ListItemText
+                      primary={feature}
                       primaryTypographyProps={{ variant: 'body2', color: 'text.secondary', fontWeight: 500, lineHeight: 1.6 }}
                     />
                   </ListItem>

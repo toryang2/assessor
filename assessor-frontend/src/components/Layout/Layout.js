@@ -40,7 +40,8 @@ import {
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
-  CloudSync as CloudSyncIcon
+  CloudSync as CloudSyncIcon,
+  NewReleases as NewReleasesIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
@@ -98,27 +99,52 @@ const Layout = ({ children }) => {
   
   const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
   const [notifsLoaded, setNotifsLoaded] = useState(false);
+  const [hasNewRelease, setHasNewRelease] = useState(false);
+  const loadedUserId = React.useRef(null);
 
+  // Synchronized Initialization & Persistence
   useEffect(() => {
-    if (user) {
+    if (user && loadedUserId.current !== user.id) {
+      // 1. Load existing notifications
+      let initialNotifs = [];
       try {
         const saved = localStorage.getItem(`assessor_notifications_${user.id}`);
         if (saved) {
-          const parsed = JSON.parse(saved);
-          setNotifications(parsed);
-          setUnreadCount(parsed.filter(n => !n.isRead).length);
+          initialNotifs = JSON.parse(saved).filter(n => n.type !== 'changelog');
         }
       } catch (e) {
         console.error('Failed to load notifications', e);
       }
+
+      // 2. Check changelog
+      try {
+        const lastSeenVersion = localStorage.getItem(`last_seen_version_v6_${user.id}`);
+        const currentVersion = changelogData[0]?.version;
+        
+        console.log('Changelog Check - Current Version:', currentVersion, 'Last Seen:', lastSeenVersion);
+
+        if (currentVersion && lastSeenVersion !== currentVersion) {
+          setHasNewRelease(true);
+        } else {
+          setHasNewRelease(false);
+        }
+      } catch (e) {
+        console.error('Failed to check changelog version:', e);
+      }
+
+      // 3. Commit state
+      setNotifications(initialNotifs);
+
+      loadedUserId.current = user.id;
       setNotifsLoaded(true);
     }
-  }, [user?.id]);
+  }, [user]);
 
+  // Save to local storage only when loadedUserId matches user.id and notifsLoaded is true
   useEffect(() => {
-    if (user && notifsLoaded) {
+    if (user && notifsLoaded && loadedUserId.current === user.id) {
       try {
         localStorage.setItem(`assessor_notifications_${user.id}`, JSON.stringify(notifications));
       } catch (e) {
@@ -169,7 +195,7 @@ const Layout = ({ children }) => {
         const updated = prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n);
         return updated;
       });
-      setUnreadCount(prev => Math.max(0, prev - 1));
+
     }
     if (notif.id.startsWith('changelog_')) {
       setChangelogOpen(true);
@@ -177,82 +203,7 @@ const Layout = ({ children }) => {
     handleNotificationMenuClose();
   };
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && user) {
-      try {
-        const lastSeenVersion = localStorage.getItem(`last_seen_version_v3_${user.id}`);
-        const currentVersion = changelogData[0]?.version;
-        
-        if (currentVersion && lastSeenVersion !== currentVersion) {
-          const newNotif = {
-            id: 'changelog_' + currentVersion,
-            title: `App updated to v${currentVersion}`,
-            message: 'See what\'s new in this release!',
-            type: 'changelog',
-            isRead: false,
-            timestamp: new Date().toISOString()
-          };
-          
-          setNotifications(prev => {
-            if (prev.some(n => n.id === newNotif.id)) return prev;
-            return [newNotif, ...prev];
-          });
-          setUnreadCount(prev => prev + 1);
-          localStorage.setItem(`last_seen_version_v3_${user.id}`, currentVersion);
-        }
-      } catch (e) {
-        console.error('Failed to check changelog version:', e);
-      }
-    }
-  }, [user]);
 
-  const prevSyncStatus = React.useRef(syncStatus);
-
-  useEffect(() => {
-    if (prevSyncStatus.current !== syncStatus) {
-      if (syncStatus === 'success') {
-        setNotifications(prev => {
-          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
-          return [{
-            id: 'sync_success_' + Date.now(),
-            title: 'Sync Completed',
-            message: 'ETRACS data has been successfully synchronized.',
-            type: 'success',
-            isRead: false,
-            timestamp: new Date().toISOString()
-          }, ...filtered];
-        });
-        setUnreadCount(prev => prev + 1);
-      } else if (syncStatus === 'error') {
-        setNotifications(prev => {
-          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
-          return [{
-            id: 'sync_error_' + Date.now(),
-            title: 'Sync Failed',
-            message: 'There was a problem synchronizing ETRACS data.',
-            type: 'error',
-            isRead: false,
-            timestamp: new Date().toISOString()
-          }, ...filtered];
-        });
-        setUnreadCount(prev => prev + 1);
-      } else if (syncStatus === 'syncing') {
-         setNotifications(prev => {
-          const filtered = prev.filter(n => !n.id.startsWith('sync_'));
-          return [{
-            id: 'syncing_' + Date.now(),
-            title: 'Sync Started',
-            message: 'ETRACS data synchronization is in progress.',
-            type: 'info',
-            isRead: false,
-            timestamp: new Date().toISOString()
-          }, ...filtered];
-        });
-        setUnreadCount(prev => prev + 1);
-      }
-      prevSyncStatus.current = syncStatus;
-    }
-  }, [syncStatus]);
 
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -616,6 +567,29 @@ const Layout = ({ children }) => {
               </IconButton>
             </Tooltip>
 
+            <Tooltip title="What's New">
+              <IconButton 
+                color="inherit" 
+                size="small"
+                onClick={() => {
+                  setChangelogOpen(true);
+                  if (hasNewRelease) {
+                    setHasNewRelease(false);
+                    const currentVersion = changelogData[0]?.version;
+                    if (currentVersion && user) {
+                      try {
+                        localStorage.setItem(`last_seen_version_v6_${user.id}`, currentVersion);
+                      } catch (e) { }
+                    }
+                  }
+                }}
+              >
+                <Badge badgeContent={hasNewRelease ? 1 : 0} color="secondary" variant="dot">
+                  <NewReleasesIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Notifications">
               <IconButton color="inherit" size="small" onClick={handleNotificationMenuOpen}>
                 <Badge badgeContent={unreadCount} color="error">
@@ -656,7 +630,7 @@ const Layout = ({ children }) => {
                       }}
                       onClick={() => {
                         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-                        setUnreadCount(0);
+
                       }}
                     >
                       Mark all read
@@ -673,8 +647,7 @@ const Layout = ({ children }) => {
                         '&:hover': { textDecoration: 'underline' } 
                       }}
                       onClick={() => {
-                        setNotifications(prev => prev.filter(n => n.type === 'changelog'));
-                        setUnreadCount(0);
+                        setNotifications([]);
                       }}
                     >
                       Clear
