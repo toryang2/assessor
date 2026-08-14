@@ -496,18 +496,21 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+        $table_property_states = $wpdb->prefix . 'assessor_property_states';
         $query = "
             SELECT p.*, 
                    c.full_name as created_by_name,
                    u.full_name as updated_by_name,
                    p.business as business_name,
                    pt.name as kind_of_property_name,
-                   gc.name as gen_class_name
+                   gc.name as gen_class_name,
+                   COALESCE(ps.state, 'CURRENT') as property_state
             FROM $table_properties p
             LEFT JOIN $table_users c ON p.created_by = c.id
             LEFT JOIN $table_users u ON p.updated_by = u.id
             LEFT JOIN $table_property_types pt ON p.kind_of_property = pt.code
             LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
+            LEFT JOIN $table_property_states ps ON p.id = ps.property_id
             WHERE p.id = %d AND p.status != 'deleted'
         ";
         
@@ -1203,6 +1206,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         }
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+        $table_property_states = $wpdb->prefix . 'assessor_property_states';
         while (!empty($queue)) {
             $current_number = array_shift($queue);
             if (!$current_number || isset($visited[$current_number])) {
@@ -1222,12 +1226,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                         c.full_name AS created_by_name,
                         u.full_name AS updated_by_name,
                         pt.name as kind_of_property_name,
-                        gc.name as gen_class_name
+                        gc.name as gen_class_name,
+                        COALESCE(ps.state, 'CURRENT') as property_state
                  FROM $table_properties p
                  LEFT JOIN $table_users c ON p.created_by = c.id
                  LEFT JOIN $table_users u ON p.updated_by = u.id
                  LEFT JOIN $table_property_types pt ON p.kind_of_property = pt.code
                  LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
+                 LEFT JOIN $table_property_states ps ON p.id = ps.property_id
                  WHERE p.tax_declaration_number = %s AND p.status != 'deleted' 
                  ORDER BY p.created_at DESC 
                  LIMIT 1",
@@ -1254,6 +1260,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
                 'declarant_name' => trim($property->declarant_last_name . ', ' . $property->declarant_first_name . 
                                        ($property->declarant_middle_initial ? ' ' . $property->declarant_middle_initial . '.' : '')),
+                'property_state' => $property->property_state,
                 'business_name' => $business_name,
                 'location' => $property->location,
                 'lot_number' => $property->lot_number,

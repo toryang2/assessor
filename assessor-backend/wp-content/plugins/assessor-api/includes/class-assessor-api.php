@@ -776,8 +776,10 @@ class Assessor_API {
     public function update_property_state($request) {
         $properties = new Assessor_Properties();
         $id = $request->get_param('id');
-        $params = $request->get_json_params();
-        $state = isset($params['state']) ? $params['state'] : 'CURRENT';
+        $state = $request->get_param('state');
+        if (empty($state)) {
+            $state = 'CURRENT';
+        }
         return $properties->update_property_state($id, $state, $request);
     }
 
