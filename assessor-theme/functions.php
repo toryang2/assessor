@@ -284,13 +284,25 @@ function assessor_output_favicons_from_settings() {
 add_action('wp_head', 'assessor_output_favicons_from_settings', 99);
 
 // Customize WordPress title
-function assessor_custom_title($title) {
-    if (is_front_page()) {
-        return 'Property Assessor System';
+function assessor_custom_title_parts($parts) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'assessor_settings';
+    
+    $lgu_name = 'LGU';
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name) {
+        $setting = $wpdb->get_var("SELECT header_municipality FROM $table_name LIMIT 1");
+        if (!empty($setting)) {
+            $lgu_name = ucwords(strtolower($setting));
+        }
     }
-    return $title;
+    
+    $parts['title'] = "Assessor Archiving System - Local Government of $lgu_name";
+    unset($parts['site']); // Remove site name part if it exists
+    unset($parts['tagline']); // Remove tagline if it exists
+    
+    return $parts;
 }
-add_filter('wp_title', 'assessor_custom_title');
+add_filter('document_title_parts', 'assessor_custom_title_parts', 99);
 
 // Remove WordPress default widgets
 function assessor_remove_default_widgets() {

@@ -1,6 +1,8 @@
 <?php
-define('WP_USE_THEMES', false);
-require_once('c:/xampp/htdocs/wp-load.php');
+$_SERVER['HTTP_HOST'] = 'localhost';
+require_once 'd:\CODE\assessor\assessor-backend\wp-load.php';
+
 global $wpdb;
-$t = $wpdb->prefix . 'assessor_settings';
-print_r($wpdb->get_row("SELECT * FROM $t ORDER BY id DESC LIMIT 1", ARRAY_A));
+$table = $wpdb->prefix . 'assessor_settings';
+$row = $wpdb->get_row("SELECT * FROM $table LIMIT 1", ARRAY_A);
+print_r($row);

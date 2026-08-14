@@ -3,7 +3,7 @@
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Property Assessor System">
+    <meta name="description" content="A comprehensive digital archiving and management system for real property records and historical data for Philippine Local Government Units.">
     <meta name="robots" content="noindex, nofollow">
     <?php wp_head(); ?>
     <!-- <title><?php bloginfo('name'); ?> - Property Assessor</title> -->

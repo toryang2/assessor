@@ -698,8 +698,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             );
         }
         $audit = new Assessor_Audit();
-        // Auto-cancel previous TDNs if provided
-        if (!empty($normalized_previous_tdn)) {
+        // Auto-cancel previous TDNs if provided, but ONLY if this property is CURRENT
+        $current_state = $wpdb->get_var($wpdb->prepare(
+            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %d",
+            $property_id
+        ));
+        $current_state = $current_state ? strtoupper($current_state) : 'CURRENT';
+        
+        if (in_array($current_state, ['CURRENT', 'CANCELLED']) && !empty($normalized_previous_tdn)) {
             $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
             foreach ($tdn_list as $tdn) {
                 if (empty($tdn)) continue;
@@ -962,9 +968,15 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         // Business is stored on properties table directly
         
-        // Auto-cancel previous TDNs if provided
+        // Auto-cancel previous TDNs if provided, but ONLY if this property is CURRENT
+        $current_state = $wpdb->get_var($wpdb->prepare(
+            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %d",
+            $id
+        ));
+        $current_state = $current_state ? strtoupper($current_state) : 'CURRENT';
+        
         $normalized_previous_tdn = isset($params['previous_tax_declaration_number']) ? $this->normalize_previous_tax_declaration_numbers($params['previous_tax_declaration_number']) : '';
-        if (!empty($normalized_previous_tdn)) {
+        if (in_array($current_state, ['CURRENT', 'CANCELLED']) && !empty($normalized_previous_tdn)) {
             $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
             foreach ($tdn_list as $tdn) {
                 if (empty($tdn)) continue;
@@ -1097,12 +1109,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
         if (!empty($tax_declaration_number)) {
             $is_superseded = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}assessor_properties 
-                 WHERE (previous_tax_declaration_number = %s 
-                    OR previous_tax_declaration_number LIKE %s 
-                    OR previous_tax_declaration_number LIKE %s 
-                    OR previous_tax_declaration_number LIKE %s)
-                 AND status != 'deleted' AND id != %d LIMIT 1",
+                "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
+                 LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
+                 WHERE (p.previous_tax_declaration_number = %s 
+                    OR p.previous_tax_declaration_number LIKE %s 
+                    OR p.previous_tax_declaration_number LIKE %s 
+                    OR p.previous_tax_declaration_number LIKE %s)
+                 AND p.status != 'deleted' AND p.id != %d 
+                 AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
                 $tax_declaration_number,
                 $tax_declaration_number . ';%',
                 '%;' . $tax_declaration_number . ';%',
@@ -1110,8 +1124,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 $id
             ));
             
-            if ($is_superseded) {
-                $state = 'CANCELLED'; // Force cancelled if superseded
+            if ($is_superseded && strtoupper($state) === 'CURRENT') {
+                $state = 'CANCELLED'; // Force cancelled if superseded and trying to be active
             }
         }
 
@@ -1130,6 +1144,41 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to update property state', ['status' => 500]);
         }
+        
+        // Sync previous TDs states
+        $previous_tax_declaration_number = $wpdb->get_var($wpdb->prepare(
+            "SELECT previous_tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %d",
+            $id
+        ));
+        
+        if (!empty($previous_tax_declaration_number)) {
+            if (in_array(strtoupper($state), ['CURRENT', 'CANCELLED'])) {
+                $tdn_list = array_map('trim', explode(';', $previous_tax_declaration_number));
+                foreach ($tdn_list as $tdn) {
+                    if (empty($tdn)) continue;
+                    $prev_prop_id = $wpdb->get_var($wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
+                        $tdn
+                    ));
+                    if ($prev_prop_id) {
+                        $wpdb->replace(
+                            $table_property_states,
+                            [
+                                'property_id' => $prev_prop_id,
+                                'state' => 'CANCELLED',
+                                'updated_by' => $user_id,
+                                'updated_at' => current_time('mysql')
+                            ],
+                            ['%d', '%s', '%d', '%s']
+                        );
+                    }
+                }
+            } else {
+                // If becoming INTERIM/PENDING, revert previous TDs if they are no longer superseded
+                $this->revert_cancelled_states($previous_tax_declaration_number, $id, $user_id);
+            }
+        }
+        
         return ['success' => true, 'state' => strtoupper($state)];
     }
     
@@ -1741,12 +1790,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         if (empty($tax_declaration_number) || empty($property_id)) return;
         
         $is_superseded = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}assessor_properties 
-             WHERE (previous_tax_declaration_number = %s 
-                OR previous_tax_declaration_number LIKE %s 
-                OR previous_tax_declaration_number LIKE %s 
-                OR previous_tax_declaration_number LIKE %s)
-             AND status != 'deleted' AND id != %d LIMIT 1",
+            "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
+             LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
+             WHERE (p.previous_tax_declaration_number = %s 
+                OR p.previous_tax_declaration_number LIKE %s 
+                OR p.previous_tax_declaration_number LIKE %s 
+                OR p.previous_tax_declaration_number LIKE %s)
+             AND p.status != 'deleted' AND p.id != %d 
+             AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
             $tax_declaration_number,
             $tax_declaration_number . ';%',
             '%;' . $tax_declaration_number . ';%',
@@ -1784,7 +1835,11 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             // Check if ANY other property supersedes this TDN
             // We use FIND_IN_SET. Also exclude the currently deleted/updated property ID just in case
             $other_superseding_exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM $table_properties WHERE id != %d AND status != 'deleted' AND FIND_IN_SET(%s, REPLACE(previous_tax_declaration_number, ';', ',')) > 0 LIMIT 1",
+                "SELECT p.id FROM $table_properties p
+                 LEFT JOIN $table_property_states ps ON p.id = ps.property_id
+                 WHERE p.id != %d AND p.status != 'deleted' 
+                 AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED')
+                 AND FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0 LIMIT 1",
                 $deleted_property_id,
                 $tdn
             ));

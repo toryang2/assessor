@@ -733,9 +733,17 @@ const PropertyTable = () => {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [expandedMemos, setExpandedMemos] = useState({});
+  const [expandedDeclarants, setExpandedDeclarants] = useState({});
 
   const toggleMemo = (id) => {
     setExpandedMemos(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const toggleDeclarant = (id) => {
+    setExpandedDeclarants(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
@@ -1757,12 +1765,41 @@ const PropertyTable = () => {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ minWidth: 150, maxWidth: 300, verticalAlign: 'top', whiteSpace: 'normal' }}>
                     {(() => {
                       const declarant = formatDeclarantFromParts(property.declarant_last_name, property.declarant_first_name, property.declarant_middle_initial);
                       const business = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ') : '';
-                      if (declarant && business) return `${declarant} / ${business}`;
-                      return declarant || business || '—';
+                      let content = '';
+                      if (declarant && business) content = `${declarant} | ${business}`;
+                      else content = declarant || business || '—';
+
+                      return (
+                        <Box>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              whiteSpace: expandedDeclarants[property.id] ? 'pre-wrap' : 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 280,
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {content}
+                          </Typography>
+                          {content.length > 40 && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              onClick={() => toggleDeclarant(property.id)}
+                              sx={{ textTransform: 'none', p: 0, minWidth: 'auto', fontSize: '0.7rem', mt: 0.25, lineHeight: 1.2 }}
+                              startIcon={expandedDeclarants[property.id] ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
+                            >
+                              {expandedDeclarants[property.id] ? 'Less' : 'View'}
+                            </Button>
+                          )}
+                        </Box>
+                      );
                     })()}
                   </TableCell>
                   <TableCell>{property.location || '—'}</TableCell>
@@ -1826,7 +1863,7 @@ const PropertyTable = () => {
                   <TableCell>{property.gen_class_name || property.gen_class || '—'}</TableCell>
                   <TableCell>{property.effectivity_date || '-'}</TableCell>
 
-                  <TableCell sx={{ minWidth: 200, maxWidth: 320, verticalAlign: 'top', whiteSpace: 'normal' }}>
+                  <TableCell sx={{ minWidth: 200, maxWidth: 640, verticalAlign: 'top', whiteSpace: 'normal' }}>
                     {property.memoranda ? (
                       <Box>
                         <Typography
@@ -1835,7 +1872,7 @@ const PropertyTable = () => {
                             whiteSpace: expandedMemos[property.id] ? 'pre-wrap' : 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            maxWidth: 280,
+                            maxWidth: 500,
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -2105,8 +2142,8 @@ const PropertyTable = () => {
                           <Typography variant="body2" fontWeight={600} color={isConsolidated ? "warning.main" : "primary"}>
                             {item.tax_declaration_number}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {index === 0 ? 'Current' : 'Previous'}
+                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                            {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
@@ -2308,8 +2345,8 @@ const PropertyTable = () => {
                               >
                                 {item.tax_declaration_number}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {index === 0 ? 'Current' : 'Previous'}
+                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                                {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (

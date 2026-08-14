@@ -1178,8 +1178,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           <Typography variant="body2" fontWeight="600" color={isConsolidated ? "warning.main" : "primary"}>
                             {item.tax_declaration_number}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {index === 0 ? 'Current' : 'Previous'}
+                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                            {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
