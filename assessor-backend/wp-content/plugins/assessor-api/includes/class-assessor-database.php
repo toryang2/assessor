@@ -1883,6 +1883,22 @@ class Assessor_Database {
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_locations ADD COLUMN pin varchar(50) DEFAULT NULL AFTER name");
         }
+
+        // Migration: Backfill property states for existing properties
+        $table_property_states = $wpdb->prefix . 'assessor_property_states';
+        // 1. First, insert all missing properties as 'CURRENT'
+        $wpdb->query("INSERT IGNORE INTO $table_property_states (property_id, state) SELECT id, 'CURRENT' FROM $table_properties");
+        // 2. Then update state to 'CANCELLED' for any property whose TD number is listed as 'previous_tax_declaration_number' in another property
+        $wpdb->query("
+            UPDATE $table_property_states s
+            INNER JOIN $table_properties p ON s.property_id = p.id
+            SET s.state = 'CANCELLED'
+            WHERE EXISTS (
+                SELECT 1 FROM $table_properties child 
+                WHERE child.previous_tax_declaration_number = p.tax_declaration_number 
+                AND child.previous_tax_declaration_number != ''
+            )
+        ");
     }
 }
 

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.1.7",
+    "date": "2026-08-14",
+    "features": [
+      "Added migration script to automatically backfill states for existing older properties"
+    ]
+  },
+  {
     "version": "1.1.6",
     "date": "2026-08-14",
     "features": [

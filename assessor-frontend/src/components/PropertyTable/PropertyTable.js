@@ -827,7 +827,7 @@ const PropertyTable = () => {
   // Revision, location, kind, and class filters use server-side filtering
   useEffect(() => {
     if (!debouncedSearchTerm && imageFilter === 'all') {
-      if (revisionFilter || locationFilter || kindFilter || classFilter) {
+      if (revisionFilter || locationFilter || kindFilter || classFilter || stateFilter) {
         // Use server-side filtering when filters are active
         fetchPropertiesWithFilters(revisionFilter, locationFilter, kindFilter, classFilter, stateFilter);
       } else {
@@ -836,7 +836,7 @@ const PropertyTable = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter]);
+  }, [page, rowsPerPage, debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter, stateFilter]);
 
   // Fetch full dataset for client-side filtering/pagination when searching or when image filter is active
   const fetchAllDataset = useCallback(async () => {
@@ -849,6 +849,7 @@ const PropertyTable = () => {
         location: locationFilter || '',
         kind_of_property: kindFilter || '',
         gen_class: classFilter || '',
+        property_state: stateFilter || '',
         _t: Date.now()
       };
       const response = await apiService.getProperties(params);
@@ -863,7 +864,7 @@ const PropertyTable = () => {
     } finally {
       setLoadingAll(false);
     }
-  }, [debouncedSearchTerm, revisionFilter, locationFilter, kindFilter, classFilter]);
+  }, [debouncedSearchTerm, revisionFilter, locationFilter, kindFilter, classFilter, stateFilter]);
 
   useEffect(() => {
     // Always refresh the all-properties dataset when filters change so
@@ -871,7 +872,7 @@ const PropertyTable = () => {
     // This includes when switching back to "All Revisions" (empty string).
     fetchAllDataset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter]);
+  }, [debouncedSearchTerm, imageFilter, revisionFilter, locationFilter, kindFilter, classFilter, stateFilter]);
 
   // Fetch full dataset for image counts on initial load
   useEffect(() => {
