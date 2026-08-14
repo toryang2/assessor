@@ -720,6 +720,11 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
 
+        // Auto-cancel THIS property if it is already referenced as a previous TD by another property
+        if (isset($params['tax_declaration_number'])) {
+            $this->auto_cancel_if_superseded($property_id, sanitize_text_field($params['tax_declaration_number']), $user_id);
+        }
+
         $audit->log_activity($user_id, 'create', 'assessor_properties', $property_id, null, $new_values);
         
         // Enqueue for sync to live site (only on local builds, and not when the write came from sync itself)
@@ -990,6 +995,10 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
         
+        // Auto-cancel THIS property if it is already referenced as a previous TD by another property
+        $this_tdn = isset($params['tax_declaration_number']) ? sanitize_text_field($params['tax_declaration_number']) : $current_property->tax_declaration_number;
+        $this->auto_cancel_if_superseded($id, $this_tdn, $user_id);
+        
         // Log audit trail with captured changes (only if there are actual changes)
         if (!empty($old_values) && !empty($new_values)) {
             $audit = new Assessor_Audit();
@@ -1076,6 +1085,32 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
     public function update_property_state($id, $state, $request) {
         global $wpdb;
         $user_id = $this->get_user_id_from_request($request);
+
+        // Fetch tax_declaration_number for this property
+        $tax_declaration_number = $wpdb->get_var($wpdb->prepare(
+            "SELECT tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %d",
+            $id
+        ));
+
+        if (!empty($tax_declaration_number)) {
+            $is_superseded = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}assessor_properties 
+                 WHERE (previous_tax_declaration_number = %s 
+                    OR previous_tax_declaration_number LIKE %s 
+                    OR previous_tax_declaration_number LIKE %s 
+                    OR previous_tax_declaration_number LIKE %s)
+                 AND status != 'deleted' AND id != %d LIMIT 1",
+                $tax_declaration_number,
+                $tax_declaration_number . ';%',
+                '%;' . $tax_declaration_number . ';%',
+                '%;' . $tax_declaration_number,
+                $id
+            ));
+            
+            if ($is_superseded) {
+                $state = 'CANCELLED'; // Force cancelled if superseded
+            }
+        }
 
         $table_property_states = $wpdb->prefix . 'assessor_property_states';
         $result = $wpdb->replace(
@@ -1694,6 +1729,38 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
      * Reverts the state of previously cancelled properties back to CURRENT
      * if they are no longer superseded by any active property.
      */
+    private function auto_cancel_if_superseded($property_id, $tax_declaration_number, $user_id) {
+        global $wpdb;
+        if (empty($tax_declaration_number) || empty($property_id)) return;
+        
+        $is_superseded = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}assessor_properties 
+             WHERE (previous_tax_declaration_number = %s 
+                OR previous_tax_declaration_number LIKE %s 
+                OR previous_tax_declaration_number LIKE %s 
+                OR previous_tax_declaration_number LIKE %s)
+             AND status != 'deleted' AND id != %d LIMIT 1",
+            $tax_declaration_number,
+            $tax_declaration_number . ';%',
+            '%;' . $tax_declaration_number . ';%',
+            '%;' . $tax_declaration_number,
+            $property_id
+        ));
+
+        if ($is_superseded) {
+            $wpdb->replace(
+                "{$wpdb->prefix}assessor_property_states",
+                [
+                    'property_id' => $property_id,
+                    'state' => 'CANCELLED',
+                    'updated_by' => $user_id,
+                    'updated_at' => current_time('mysql')
+                ],
+                ['%d', '%s', '%d', '%s']
+            );
+        }
+    }
+
     private function revert_cancelled_states($previous_tdns, $deleted_property_id, $user_id) {
         global $wpdb;
         $table_properties = $wpdb->prefix . 'assessor_properties';

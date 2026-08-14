@@ -784,6 +784,17 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
       const propertyId = (saved && saved.id) ? saved.id : (property && property.id);
 
+      // Update property state if a valid propertyId exists
+      if (propertyId) {
+        const stateToSave = formData.property_state || 'CURRENT';
+        try {
+          await apiService.updatePropertyState(propertyId, stateToSave);
+        } catch (e) {
+          console.error('Error updating property state:', e);
+          setToast({ open: true, message: 'Property saved but failed to update state.', severity: 'warning' });
+        }
+      }
+
       // Upload supporting documents (actual files only)
       const files = Array.isArray(pendingUploads) ? pendingUploads : [];
       const fileObjects = files.filter((doc) => doc && (doc.name));

@@ -91,7 +91,8 @@ $table_prefix = 'wp_';
  */
 define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
-define( 'WP_DEBUG_DISPLAY', false );
+define( 'WP_DEBUG_DISPLAY', true );
+define('WP_DISABLE_FATAL_ERROR_HANDLER', true);
 
 // Disable WordPress caching for dynamic content
 define('WP_CACHE', false);

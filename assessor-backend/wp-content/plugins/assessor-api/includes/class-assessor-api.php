@@ -182,14 +182,14 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/properties/(?P<id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_property'),
-            'permission_callback' => array($this, 'check_write_permission'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
         
         // Property State
         register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/state', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_property_state'),
-            'permission_callback' => array($this, 'check_write_permission'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
         
         // Tax declaration history routes

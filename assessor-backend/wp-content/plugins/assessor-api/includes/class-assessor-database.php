@@ -237,6 +237,7 @@ class Assessor_Database {
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             code varchar(100) NOT NULL,
             name varchar(150) NOT NULL,
+            pin varchar(50) DEFAULT NULL,
             status varchar(20) NOT NULL DEFAULT 'active',
             sort_order int NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -1355,9 +1356,23 @@ class Assessor_Database {
         dbDelta($sql_documents);
         dbDelta($sql_audit);
         dbDelta($sql_settings);
-        dbDelta($sql_property_types);
-        dbDelta($sql_general_classes);
-        dbDelta($sql_locations);
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_property_types'")) {
+            $wpdb->query($sql_property_types);
+        } else {
+            dbDelta($sql_property_types);
+        }
+
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_general_classes'")) {
+            $wpdb->query($sql_general_classes);
+        } else {
+            dbDelta($sql_general_classes);
+        }
+
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_locations'")) {
+            $wpdb->query($sql_locations);
+        } else {
+            dbDelta($sql_locations);
+        }
         dbDelta($sql_request_purposes);
         dbDelta($sql_requests);
         dbDelta($sql_revision_entries);
@@ -1411,7 +1426,11 @@ class Assessor_Database {
         dbDelta($sql_assessor_miscrpu);
         dbDelta($sql_assessor_miscrpuitem);
         dbDelta($sql_assessor_planttreerpu);
-        dbDelta($sql_assessor_property_states);
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_property_states'")) {
+            $wpdb->query($sql_assessor_property_states);
+        } else {
+            dbDelta($sql_assessor_property_states);
+        }
         dbDelta($sql_assessor_real_property);
         dbDelta($sql_assessor_rpu);
         dbDelta($sql_assessor_rpu_assessment);
@@ -1527,31 +1546,31 @@ class Assessor_Database {
         $types_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_property_types"));
         if ($types_count === 0) {
             $default_types = array(
-                array('code' => 'LAND', 'name' => 'LAND', 'sort_order' => 1),
-                array('code' => 'BUILDING', 'name' => 'BUILDING', 'sort_order' => 2),
-                array('code' => 'MACHINERY', 'name' => 'MACHINERY', 'sort_order' => 3),
-                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 4),
-                array('code' => 'PLANT_TREES', 'name' => 'PLANT/TREES', 'sort_order' => 5)
+                array('code' => 'LAND', 'name' => 'LAND', 'sort_order' => 1, 'status' => 'active'),
+                array('code' => 'BUILDING', 'name' => 'BUILDING', 'sort_order' => 2, 'status' => 'active'),
+                array('code' => 'MACHINERY', 'name' => 'MACHINERY', 'sort_order' => 3, 'status' => 'active'),
+                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 4, 'status' => 'active'),
+                array('code' => 'PLANT_TREES', 'name' => 'PLANT/TREES', 'sort_order' => 5, 'status' => 'active')
             );
             foreach ($default_types as $row) {
-                $wpdb->insert($table_property_types, $row, array('%s','%s','%d'));
+                $wpdb->insert($table_property_types, $row, array('%s','%s','%d','%s'));
             }
         }
 
         $classes_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_general_classes"));
         if ($classes_count === 0) {
             $default_classes = array(
-                array('code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1),
-                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 2),
-                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 3),
-                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 4),
-                array('code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5),
-                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6),
-                array('code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7),
-                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8)
+                array('code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1, 'status' => 'active'),
+                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 2, 'status' => 'active'),
+                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 3, 'status' => 'active'),
+                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 4, 'status' => 'active'),
+                array('code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5, 'status' => 'active'),
+                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6, 'status' => 'active'),
+                array('code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7, 'status' => 'active'),
+                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8, 'status' => 'active')
             );
             foreach ($default_classes as $row) {
-                $wpdb->insert($table_general_classes, $row, array('%s','%s','%d'));
+                $wpdb->insert($table_general_classes, $row, array('%s','%s','%d','%s'));
             }
         }
 
@@ -1559,10 +1578,10 @@ class Assessor_Database {
         $locations_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_locations"));
         if ($locations_count === 0) {
             $default_locations = array(
-                array('code' => 'BARANGAY', 'name' => 'BARANGAY', 'sort_order' => 1)
+                array('code' => 'BARANGAY', 'name' => 'BARANGAY', 'sort_order' => 1, 'status' => 'active')
             );
             foreach ($default_locations as $row) {
-                $wpdb->insert($table_locations, $row, array('%s','%s','%d'));
+                $wpdb->insert($table_locations, $row, array('%s','%s','%d','%s'));
             }
         }
     }
@@ -1856,6 +1875,13 @@ class Assessor_Database {
             } else {
                 $wpdb->query("ALTER TABLE $table_versions ADD COLUMN revision_id mediumint(9) DEFAULT NULL");
             }
+        }
+
+        // Migration: Ensure pin column exists on assessor_locations table
+        $table_locations = $wpdb->prefix . 'assessor_locations';
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'pin'", $table_locations));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_locations ADD COLUMN pin varchar(50) DEFAULT NULL AFTER name");
         }
     }
 }

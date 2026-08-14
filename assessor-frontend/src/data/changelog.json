@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.1.6",
+    "date": "2026-08-14",
+    "features": [
+      "Fixed an issue where missing table columns for locations prevented options from loading on fresh installs"
+    ]
+  },
+  {
+    "version": "1.1.5",
+    "date": "2026-08-13",
+    "features": [
+      "Fixed backend fatal errors that caused 'Network issue' when saving properties and CORS issues during deletion.",
+      "Implemented automatic bidirectional auto-cancellation logic: regardless of entry order, superseded properties automatically switch to CANCELLED state.",
+      "Fixed table creation for property states and settings on strict MySQL environments."
+    ]
+  },
+  {
     "version": "1.1.2",
     "date": "2026-08-11",
     "features": [

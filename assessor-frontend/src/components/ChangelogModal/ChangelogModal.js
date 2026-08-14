@@ -60,7 +60,7 @@ const ChangelogModal = ({ open, onClose }) => {
 
       <DialogContent dividers sx={{ p: 0 }}>
         <List sx={{ p: 0 }}>
-          {changelogData.map((release, index) => (
+          {changelogData.slice(0, 2).map((release, index) => (
             <ListItem
               key={release.version}
               sx={{
