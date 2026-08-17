@@ -260,7 +260,29 @@ class Assessor_Sync_Receiver {
         $limit  = isset($params['limit']) ? min(2000, max(1, intval($params['limit']))) : 500;
         $offset = isset($params['offset']) ? max(0, intval($params['offset'])) : 0;
 
+        $type = isset($params['type']) ? sanitize_text_field($params['type']) : 'properties';
+
         global $wpdb;
+
+        if ($type === 'users') {
+            $table_users = $wpdb->prefix . 'assessor_users';
+            $records = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM $table_users ORDER BY id ASC LIMIT %d OFFSET %d",
+                    $limit,
+                    $offset
+                ),
+                ARRAY_A
+            );
+            
+            return array(
+                'records'   => $records ?: array(),
+                'count'     => count($records ?: array()),
+                'since'     => $since,
+                'server_ts' => current_time('mysql'),
+            );
+        }
+
         $table = $wpdb->prefix . 'assessor_properties';
 
         $records = $wpdb->get_results(
@@ -347,9 +369,8 @@ class Assessor_Sync_Receiver {
         global $wpdb;
         $table = $wpdb->prefix . $table_suffix;
 
-        // Wipe existing rows and re-insert received ones (local is authoritative for config)
-        $wpdb->query("DELETE FROM $table");
-
+        // Instead of wiping the live table (which deletes barangays added on live),
+        // we will upsert (replace) records based on their unique keys.
         $inserted = 0;
         foreach ($rows as $row) {
             if (!is_array($row) || empty($row)) {
@@ -360,7 +381,14 @@ class Assessor_Sync_Receiver {
             if (empty($clean)) {
                 continue;
             }
-            $result = $wpdb->insert($table, $clean);
+            
+            // Remove 'id' so it matches on the UNIQUE keys (code, purpose, etc.) rather than overwriting unrelated IDs
+            if (isset($clean['id'])) {
+                unset($clean['id']);
+            }
+
+            // wpdb->replace uses REPLACE INTO, which updates if unique key exists, or inserts if not
+            $result = $wpdb->replace($table, $clean);
             if ($result !== false) {
                 $inserted++;
             }

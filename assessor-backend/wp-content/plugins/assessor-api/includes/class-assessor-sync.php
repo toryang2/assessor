@@ -211,10 +211,12 @@ class Assessor_Sync {
         $push_result        = self::push_pending();
         $push_config_result = self::push_pending_config();
         $pull_result        = self::pull_from_live();
+        $pull_users_result  = self::pull_users_from_live();
 
         error_log('Assessor Sync: Property push result: '  . json_encode($push_result));
         error_log('Assessor Sync: Config push result: '    . json_encode($push_config_result));
         error_log('Assessor Sync: Property pull result: '  . json_encode($pull_result));
+        error_log('Assessor Sync: Users pull result: '     . json_encode($pull_users_result));
     }
 
     /**
@@ -239,6 +241,7 @@ class Assessor_Sync {
         $push   = self::push_pending();
         $config = self::push_pending_config();
         $pull   = self::pull_from_live($force_full);
+        $users  = self::pull_users_from_live();
 
         $message = $force_full
             ? 'Full resync completed. All records pulled from live site.'
@@ -251,6 +254,7 @@ class Assessor_Sync {
             'push'       => $push,
             'config'     => $config,
             'pull'       => $pull,
+            'users'      => $users,
         );
     }
 
@@ -413,6 +417,65 @@ class Assessor_Sync {
             self::set_meta('last_push_at', current_time('mysql'));
         }
         return array('pushed' => $total_pushed, 'skipped' => $total_skipped, 'errors' => $total_errors);
+    }
+
+    /**
+     * Pull users from live site and upsert locally. (Live -> Local, one-way)
+     */
+    public static function pull_users_from_live() {
+        $total_upserted = 0;
+        $errors = array();
+
+        // Check if there is an existing offset
+        $offset = intval(self::get_meta('pull_users_offset'));
+        $batch_size = 500;
+
+        while (true) {
+            $params = array(
+                'since'  => '2000-01-01 00:00:00', // Always fetch all
+                'limit'  => $batch_size,
+                'offset' => $offset,
+                'type'   => 'users',
+            );
+            $query_string = http_build_query($params);
+            $response = self::live_api_request('GET', '/assessor/v1/sync/pull?' . $query_string);
+
+            if (is_wp_error($response)) {
+                $errors[] = 'Request failed: ' . $response->get_error_message();
+                break;
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            $records = isset($body['records']) ? $body['records'] : array();
+
+            if (empty($records)) {
+                // Done
+                self::set_meta('pull_users_offset', 0);
+                break;
+            }
+
+            global $wpdb;
+            $table_users = $wpdb->prefix . 'assessor_users';
+
+            foreach ($records as $user) {
+                if (!isset($user['id'])) continue;
+                $clean = array_filter($user, 'is_scalar');
+                // Use REPLACE to safely upsert based on the ID
+                $wpdb->replace($table_users, $clean);
+                $total_upserted++;
+            }
+
+            $offset += count($records);
+            self::set_meta('pull_users_offset', $offset);
+
+            // If we got fewer than requested, we're at the end
+            if (count($records) < $batch_size) {
+                self::set_meta('pull_users_offset', 0);
+                break;
+            }
+        }
+
+        return array('upserted' => $total_upserted, 'errors' => $errors);
     }
 
     // -------------------------------------------------------------------------
