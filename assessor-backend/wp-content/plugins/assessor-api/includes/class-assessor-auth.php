@@ -68,7 +68,7 @@ class Assessor_Auth {
         
         // Update last_login timestamp using MySQL's current timestamp for consistency with created_at
         $wpdb->query($wpdb->prepare(
-            "UPDATE $table_users SET last_login = CURRENT_TIMESTAMP WHERE id = %d",
+            "UPDATE $table_users SET last_login = CURRENT_TIMESTAMP WHERE id = %s",
             $user->id
         ));
 
@@ -119,7 +119,7 @@ class Assessor_Auth {
                 global $wpdb;
                 $table_users = $wpdb->prefix . 'assessor_users';
                 $user = $wpdb->get_row($wpdb->prepare(
-                    "SELECT id, username, email, avatar_url, full_name, role, status FROM $table_users WHERE id = %d AND status = 'active'",
+                    "SELECT id, username, email, avatar_url, full_name, role, status FROM $table_users WHERE id = %s AND status = 'active'",
                     $payload->user_id
                 ));
                 
@@ -345,22 +345,33 @@ class Assessor_Auth {
 
         $hash = wp_hash_password($password);
 
+        $table_settings = $wpdb->prefix . 'assessor_settings';
+        $settings_row = $wpdb->get_row("SELECT municipality_prefix FROM $table_settings LIMIT 1", ARRAY_A);
+        
+        $muni = 'GBL';
+        if ($settings_row && !empty($settings_row['municipality_prefix'])) {
+            $muni = strtoupper(substr(trim($settings_row['municipality_prefix']), 0, 3));
+        }
+        if (!class_exists('Assessor_ULID')) {
+            require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-ulid.php';
+        }
+        $new_id = Assessor_ULID::generate_with_prefix($muni);
+
         $data = array(
+            'id' => $new_id,
             'username' => $username,
             'password' => $hash,
             'full_name' => $full_name,
             'role' => $role,
             'status' => $status,
         );
-        $formats = array('%s','%s','%s','%s','%s');
+        $formats = array('%s','%s','%s','%s','%s','%s');
         if (!is_null($email)) { $data['email'] = $email; $formats[] = '%s'; }
         $result = $wpdb->insert($table_users, $data, $formats);
 
         if ($result === false) {
             return new WP_Error('insert_failed', 'Failed to create user', array('status' => 500));
         }
-
-        $new_id = $wpdb->insert_id;
         // Audit with user_id = 0 since public creation
         $audit = new Assessor_Audit();
         $audit->log_activity(0, 'create', 'assessor_users', $new_id, null, array('event' => 'create_user'));
@@ -372,7 +383,7 @@ class Assessor_Auth {
         $params = $request->get_params();
         $table_users = $wpdb->prefix . 'assessor_users';
 
-        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $id));
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %s", $id));
         if (!$user) {
             return new WP_Error('user_not_found', 'User not found', array('status' => 404));
         }
@@ -397,7 +408,7 @@ class Assessor_Auth {
         if (isset($params['username'])) {
             $username = sanitize_text_field($params['username']);
             if ($username !== $user->username) {
-                $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s AND id != %d", $username, $id));
+                $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s AND id != %s", $username, $id));
                 if ($exists) return new WP_Error('duplicate_username', 'Username already exists', array('status' => 409));
             }
             $data['username'] = $username; $formats[] = '%s';
@@ -406,11 +417,11 @@ class Assessor_Auth {
             $incoming = $params['email'];
             if ($incoming === '') {
                 // Set email to NULL explicitly
-                $wpdb->query($wpdb->prepare("UPDATE $table_users SET email = NULL WHERE id = %d", $id));
+                $wpdb->query($wpdb->prepare("UPDATE $table_users SET email = NULL WHERE id = %s", $id));
             } else {
                 $email = sanitize_email($incoming);
                 if ($email !== $user->email) {
-                    $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %d", $email, $id));
+                    $exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE email = %s AND id != %s", $email, $id));
                     if ($exists) return new WP_Error('duplicate_email', 'Email already exists', array('status' => 409));
                 }
                 $data['email'] = $email; $formats[] = '%s';
@@ -440,7 +451,7 @@ class Assessor_Auth {
             return array('success' => true, 'message' => 'No changes');
         }
 
-        $result = $wpdb->update($table_users, $data, array('id' => $id), $formats, array('%d'));
+        $result = $wpdb->update($table_users, $data, array('id' => $id), $formats, array('%s'));
         if ($result === false) {
             return new WP_Error('update_failed', 'Failed to update user', array('status' => 500));
         }
@@ -452,7 +463,7 @@ class Assessor_Auth {
     public function delete_user($id) {
         global $wpdb;
         $table_users = $wpdb->prefix . 'assessor_users';
-        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $id));
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %s", $id));
         if (!$user) {
             return new WP_Error('user_not_found', 'User not found', array('status' => 404));
         }
@@ -489,7 +500,7 @@ class Assessor_Auth {
                 return new WP_Error('forbidden', 'Cannot delete admin user', array('status' => 403));
             }
         }
-        $result = $wpdb->delete($table_users, array('id' => $id), array('%d'));
+        $result = $wpdb->delete($table_users, array('id' => $id), array('%s'));
         if ($result === false) {
             return new WP_Error('delete_failed', 'Failed to delete user', array('status' => 500));
         }
@@ -511,12 +522,12 @@ class Assessor_Auth {
         }
 
         $table_users = $wpdb->prefix . 'assessor_users';
-        $target_user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %d", $user_id));
+        $target_user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_users WHERE id = %s", $user_id));
         if (!$target_user) {
             return new WP_Error('user_not_found', 'User not found', array('status' => 404));
         }
 
-        $acting_user = $wpdb->get_row($wpdb->prepare("SELECT role FROM $table_users WHERE id = %d", $current_user_id));
+        $acting_user = $wpdb->get_row($wpdb->prepare("SELECT role FROM $table_users WHERE id = %s", $current_user_id));
         $allowed_roles = array('superadmin','admin','administrator');
         $can_update = ($current_user_id === $user_id);
         if (!$can_update && $acting_user && isset($acting_user->role)) {
@@ -569,7 +580,7 @@ class Assessor_Auth {
             }
         }
 
-        $wpdb->update($table_users, array('avatar_url' => esc_url_raw($url)), array('id' => $user_id), array('%s'), array('%d'));
+        $wpdb->update($table_users, array('avatar_url' => esc_url_raw($url)), array('id' => $user_id), array('%s'), array('%s'));
 
         $audit = new Assessor_Audit();
         $audit->log_activity($current_user_id, 'update', 'assessor_users', $user_id, null, array('event' => 'upload_avatar'));

@@ -10,7 +10,7 @@ class Assessor_Database {
         // Users table
         $table_users = $wpdb->prefix . 'assessor_users';
         $sql_users = "CREATE TABLE $table_users (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(50) NOT NULL,
             username varchar(100) NOT NULL,
             password varchar(255) NOT NULL,
             email varchar(100) DEFAULT NULL,
@@ -62,8 +62,8 @@ class Assessor_Database {
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
             status varchar(50) NOT NULL DEFAULT 'active',
-            created_by mediumint(9) NOT NULL,
-            updated_by mediumint(9) NOT NULL,
+            created_by varchar(50) DEFAULT NULL,
+            updated_by varchar(50) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -113,7 +113,7 @@ class Assessor_Database {
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
             change_reason text,
-            created_by mediumint(9) NOT NULL,
+            created_by varchar(50) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY property_id (property_id),
@@ -132,7 +132,7 @@ class Assessor_Database {
             file_type varchar(100) NOT NULL,
             file_size bigint NOT NULL,
             description text,
-            uploaded_by mediumint(9) NOT NULL,
+            uploaded_by varchar(50) DEFAULT NULL,
             uploaded_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY property_id (property_id),
@@ -143,10 +143,10 @@ class Assessor_Database {
         $table_audit = $wpdb->prefix . 'assessor_audit_trail';
         $sql_audit = "CREATE TABLE $table_audit (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
-            user_id mediumint(9) NOT NULL,
+            user_id varchar(50) DEFAULT NULL,
             action varchar(100) NOT NULL,
             table_name varchar(100) NOT NULL,
-            record_id mediumint(9),
+            record_id varchar(50),
             old_values text,
             new_values text,
             ip_address varchar(45),
@@ -172,12 +172,19 @@ class Assessor_Database {
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN enable_etracs_features tinyint(1) NOT NULL DEFAULT 0 AFTER public_api_enabled");
         }
+        
+        // Migration: Add municipality_prefix column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'municipality_prefix'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN municipality_prefix varchar(10) DEFAULT 'GBL' AFTER header_municipality");
+        }
         $sql_settings = "CREATE TABLE $table_settings (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             app_logo_url varchar(500) DEFAULT '',
             header_photo_url varchar(500) DEFAULT '',
             header_province varchar(255) DEFAULT '',
             header_municipality varchar(255) DEFAULT '',
+            municipality_prefix varchar(10) DEFAULT 'GBL',
             lgu_pin varchar(255) DEFAULT '059-10',
             header_office varchar(255) DEFAULT '',
             request_place_issued_default varchar(255) DEFAULT '',
@@ -284,8 +291,8 @@ class Assessor_Database {
             remarks text,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            created_by bigint(20) DEFAULT NULL,
-            updated_by bigint(20) DEFAULT NULL,
+            created_by varchar(50) DEFAULT NULL,
+            updated_by varchar(50) DEFAULT NULL,
             PRIMARY KEY (id),
             KEY property_id (property_id),
             KEY receipt_number (receipt_number),
@@ -320,7 +327,7 @@ class Assessor_Database {
             key_hash varchar(255) NOT NULL DEFAULT '',
             key_prefix varchar(30) NOT NULL DEFAULT '',
             status varchar(20) NOT NULL DEFAULT 'active',
-            created_by mediumint(9) DEFAULT NULL,
+            created_by varchar(50) DEFAULT NULL,
             last_used_at datetime NULL,
             last_used_ip varchar(45) DEFAULT '',
             revoked_at datetime NULL,
@@ -1355,6 +1362,10 @@ class Assessor_Database {
         dbDelta($sql_versions);
         dbDelta($sql_documents);
         dbDelta($sql_audit);
+        
+        // Ensure record_id is varchar(50) for ULID support (dbDelta sometimes skips type changes)
+        $wpdb->query("ALTER TABLE $table_audit MODIFY record_id VARCHAR(50)");
+
         dbDelta($sql_settings);
         if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_property_types'")) {
             $wpdb->query($sql_property_types);
@@ -1492,10 +1503,16 @@ class Assessor_Database {
         $count = $wpdb->get_var("SELECT COUNT(*) FROM $table_users");
         
         if ($count == 0) {
+            if (!class_exists('Assessor_ULID')) {
+                require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-ulid.php';
+            }
+            $super_id = Assessor_ULID::generate_with_prefix('GBL');
+            
             // Create default superadmin as requested
             $wpdb->insert(
                 $table_users,
                 array(
+                    'id' => $super_id,
                     'username' => 'super',
                     'password' => wp_hash_password('super'),
                     'email' => 'superadmin@localgov.ph',
@@ -1503,12 +1520,15 @@ class Assessor_Database {
                     'role' => 'superadmin',
                     'status' => 'active'
                 ),
-                array('%s', '%s', '%s', '%s', '%s', '%s')
+                array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
             );
+            $admin_id = Assessor_ULID::generate_with_prefix('GBL');
+            
             // Create default admin as requested
             $wpdb->insert(
                 $table_users,
                 array(
+                    'id' => $admin_id,
                     'username' => 'admin',
                     'password' => wp_hash_password('admin123'),
                     'email' => 'admin@localgov.ph',
@@ -1516,15 +1536,21 @@ class Assessor_Database {
                     'role' => 'admin',
                     'status' => 'active'
                 ),
-                array('%s', '%s', '%s', '%s', '%s', '%s')
+                array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
             );
         }
         // If table already has users, ensure superadmin exists
         $exists_super = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_users WHERE username = %s", 'super'));
         if (!$exists_super) {
+            if (!class_exists('Assessor_ULID')) {
+                require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-ulid.php';
+            }
+            $super_id = Assessor_ULID::generate_with_prefix('GBL');
+
             $wpdb->insert(
                 $table_users,
                 array(
+                    'id' => $super_id,
                     'username' => 'super',
                     'password' => wp_hash_password('super'),
                     'email' => 'superadmin@localgov.ph',
@@ -1532,7 +1558,7 @@ class Assessor_Database {
                     'role' => 'superadmin',
                     'status' => 'active'
                 ),
-                array('%s', '%s', '%s', '%s', '%s', '%s')
+                array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
             );
         }
     }

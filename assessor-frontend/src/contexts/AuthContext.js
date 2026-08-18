@@ -26,12 +26,12 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(initialToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Sync state management
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'failed' | 'incomplete'
   const [syncMessage, setSyncMessage] = useState(null);
   const isSyncingRef = useRef(false);
-  
+
   // AFK timeout management
   const timeoutRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
       return 30;
     }
   });
-  
+
   // Always use session-only mode for security
 
   // Check for existing token on mount (non-destructive token validation)
@@ -52,13 +52,13 @@ export const AuthProvider = ({ children }) => {
       console.log('🔍 AuthContext: Checking sessionStorage for auth');
       const sessionToken = sessionStorage.getItem('assessor_token');
       const sessionUser = sessionStorage.getItem('assessor_user');
-      
+
       if (sessionToken && sessionUser) {
         try {
           console.log('🔍 AuthContext: Validating session token...');
           const response = await apiService.validateToken();
-          console.log('🔍 AuthContext: Session token validation response:', response);
-          
+          // console.log('🔍 AuthContext: Session token validation response:', response);
+
           if (response.valid) {
             console.log('✅ AuthContext: Session token is valid, setting user state');
             setToken(sessionToken);
@@ -86,34 +86,34 @@ export const AuthProvider = ({ children }) => {
       console.log('🔍 AuthContext: Login attempt with credentials:', { username: credentials.username });
       setLoading(true);
       setError(null);
-      
+
       const response = await apiService.login(credentials);
       console.log('🔍 AuthContext: Login API response:', response);
-      
+
       if (response.success && response.token) {
         const { token: newToken, user: userData } = response;
         console.log('✅ AuthContext: Login successful, storing auth data');
         console.log('🔍 AuthContext: Token to store:', newToken);
         console.log('🔍 AuthContext: User data to store:', userData);
-        
+
         // Store in sessionStorage for session-only security
         sessionStorage.setItem('assessor_token', newToken);
         sessionStorage.setItem('assessor_user', JSON.stringify(userData));
-        
+
         // Verify storage
         const storedToken = sessionStorage.getItem('assessor_token');
         const storedUser = sessionStorage.getItem('assessor_user');
         console.log('🔍 AuthContext: Verification - stored session token:', !!storedToken);
         console.log('🔍 AuthContext: Verification - stored session user:', !!storedUser);
-        
+
         // Update state
         setToken(newToken);
         setUser(userData);
         try {
           // Reset last page so post-login starts on Dashboard
           localStorage.removeItem('assessor_current_page');
-        } catch (_) {}
-        
+        } catch (_) { }
+
         console.log('✅ AuthContext: Auth state updated, user authenticated');
         return { success: true };
       } else {
@@ -196,20 +196,20 @@ export const AuthProvider = ({ children }) => {
   const resetAfkTimeout = useCallback(() => {
     const now = Date.now();
     lastActivityRef.current = now;
-    
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    
+
     if (token && user) {
       const timeoutMs = afkTimeout * 60 * 1000; // Convert minutes to milliseconds
       console.log(`🕐 AuthContext: Setting AFK timeout for ${afkTimeout} minutes (${timeoutMs}ms)`);
-      
+
       timeoutRef.current = setTimeout(() => {
         const timeSinceLastActivity = Date.now() - lastActivityRef.current;
         console.log(`🕐 AuthContext: AFK timeout triggered. Time since last activity: ${Math.round(timeSinceLastActivity / 1000)}s`);
-        
+
         // Double-check that we're still inactive
         if (timeSinceLastActivity >= timeoutMs - 1000) { // Allow 1 second tolerance
           console.log('🕐 AuthContext: AFK timeout confirmed, logging out');
@@ -235,7 +235,7 @@ export const AuthProvider = ({ children }) => {
   const trackActivity = useCallback(() => {
     const now = Date.now();
     const timeSinceLastActivity = now - lastActivityRef.current;
-    
+
     // Only reset timeout if at least 1 second has passed since last activity
     // This prevents excessive timeout resets from rapid events
     if (timeSinceLastActivity >= 1000) {
@@ -261,10 +261,10 @@ export const AuthProvider = ({ children }) => {
       'mousedown', 'mousemove', 'keypress', 'keydown', 'scroll', 'touchstart', 'click',
       'focus', 'blur', 'resize', 'wheel', 'contextmenu'
     ];
-    
+
     // Use passive listeners for better performance
     const eventOptions = { passive: true, capture: true };
-    
+
     events.forEach(event => {
       document.addEventListener(event, trackActivity, eventOptions);
     });
@@ -274,7 +274,7 @@ export const AuthProvider = ({ children }) => {
       console.log('🕐 AuthContext: Window focused, resetting AFK timeout');
       trackActivity();
     };
-    
+
     const handleWindowBlur = () => {
       console.log('🕐 AuthContext: Window blurred');
       // Don't reset timeout on blur, but log it for debugging
@@ -292,7 +292,7 @@ export const AuthProvider = ({ children }) => {
       });
       window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('blur', handleWindowBlur);
-      
+
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -303,7 +303,7 @@ export const AuthProvider = ({ children }) => {
   // Refactored runSync to be exposed
   const triggerManualSync = useCallback(async (forceFull = false) => {
     if (isSyncingRef.current) return;
-    
+
     isSyncingRef.current = true;
     setSyncStatus('syncing');
     setSyncMessage(null);
@@ -312,7 +312,7 @@ export const AuthProvider = ({ children }) => {
       console.log('🔄 AuthContext: Triggering background sync...', forceFull ? '(FULL RESYNC)' : '');
       const response = await apiService.triggerSync(forceFull);
       console.log('✅ AuthContext: Background sync completed', response);
-      
+
       if (response && response.success !== false) {
         setSyncStatus('success');
         setSyncMessage(response.message || 'Sync completed successfully');

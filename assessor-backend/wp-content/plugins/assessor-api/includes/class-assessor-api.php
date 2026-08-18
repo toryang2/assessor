@@ -418,18 +418,18 @@ class Assessor_API {
             'permission_callback' => '__return_true'
         ));
         // Update user (public as requested)
-        register_rest_route('assessor/v1', '/users/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_user'),
             'permission_callback' => '__return_true'
         ));
         // Delete user (public as requested)
-        register_rest_route('assessor/v1', '/users/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_user'),
             'permission_callback' => '__return_true'
         ));
-        register_rest_route('assessor/v1', '/users/(?P<id>\d+)/avatar', array(
+        register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)/avatar', array(
             'methods' => 'POST',
             'callback' => array($this, 'handle_upload_avatar'),
             'permission_callback' => array($this, 'check_auth')

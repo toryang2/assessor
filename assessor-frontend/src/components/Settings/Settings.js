@@ -198,6 +198,7 @@ const DEFAULTS = {
   header_photo_url: '',
   header_province: 'BUKIDNON',
   header_municipality: 'KITAOTAO',
+  municipality_prefix: 'KIT',
   lgu_pin: '059-10',
   header_office: 'OFFICE OF THE MUNICIPAL ASSESSOR',
   request_place_issued_default: '',
@@ -361,6 +362,7 @@ const Settings = () => {
           header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
           header_province: data.header_province || DEFAULTS.header_province,
           header_municipality: data.header_municipality || DEFAULTS.header_municipality,
+          municipality_prefix: data.municipality_prefix || DEFAULTS.municipality_prefix,
           lgu_pin: data.lgu_pin || DEFAULTS.lgu_pin,
           header_office: data.header_office || DEFAULTS.header_office,
           request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
@@ -423,6 +425,7 @@ const Settings = () => {
         header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
         header_province: data.header_province || DEFAULTS.header_province,
         header_municipality: data.header_municipality || DEFAULTS.header_municipality,
+        municipality_prefix: data.municipality_prefix || DEFAULTS.municipality_prefix,
         lgu_pin: data.lgu_pin || DEFAULTS.lgu_pin,
         header_office: data.header_office || DEFAULTS.header_office,
         request_place_issued_default: data.request_place_issued_default || DEFAULTS.request_place_issued_default,
@@ -512,7 +515,7 @@ const Settings = () => {
           setForm(prev => ({ ...prev, app_logo_url: res.app_logo_url }));
           // clear pending preview
           if (pendingLogoPreview) {
-            try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) {}
+            try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) { }
           }
           setPendingLogoFile(null);
           setPendingLogoPreview('');
@@ -529,7 +532,7 @@ const Settings = () => {
           setForm(prev => ({ ...prev, header_photo_url: res.header_photo_url }));
           // clear pending preview
           if (pendingHeaderPhotoPreview) {
-            try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) {}
+            try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) { }
           }
           setPendingHeaderPhotoFile(null);
           setPendingHeaderPhotoPreview('');
@@ -542,6 +545,7 @@ const Settings = () => {
       const payload = {
         header_province: form.header_province,
         header_municipality: form.header_municipality,
+        municipality_prefix: form.municipality_prefix,
         lgu_pin: form.lgu_pin,
         header_office: form.header_office,
         request_place_issued_default: form.request_place_issued_default,
@@ -561,13 +565,13 @@ const Settings = () => {
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
-      
+
       // Update the auth context with the new AFK timeout
       updateAfkTimeout(form.afk_timeout);
 
       // Dispatch event for Layout.js to update sidebar menus instantly
       window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: saved }));
-      
+
       setToast({ open: true, message: 'Saved successfully.', severity: 'success' });
     } catch (e) {
       setToast({ open: true, message: 'Failed to save settings.', severity: 'error' });
@@ -579,7 +583,7 @@ const Settings = () => {
     if (!file) return;
     // Do not upload immediately; just stage and preview
     if (pendingLogoPreview) {
-      try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) {}
+      try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) { }
     }
     const previewUrl = URL.createObjectURL(file);
     setPendingLogoFile(file);
@@ -591,7 +595,7 @@ const Settings = () => {
     if (!file) return;
     // Do not upload immediately; just stage and preview
     if (pendingHeaderPhotoPreview) {
-      try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) {}
+      try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) { }
     }
     const previewUrl = URL.createObjectURL(file);
     setPendingHeaderPhotoFile(file);
@@ -692,13 +696,13 @@ const Settings = () => {
       setToast({ open: true, message: 'Revision Entry: Revision Year and From Year are required.', severity: 'error' });
       return;
     }
-    
+
     // Auto-set to_year to 'present' if blank
     let toYear = newRevisionEntry.to_year.trim();
     if (!toYear) {
       toYear = 'present';
     }
-    
+
     // Validate to_year - must be a number or 'present'
     const toYearLower = toYear.toLowerCase();
     if (toYearLower !== 'present' && (isNaN(toYearLower) || parseInt(toYearLower) < 1900 || parseInt(toYearLower) > 2100)) {
@@ -706,22 +710,22 @@ const Settings = () => {
       return;
     }
     try {
-      const res = await apiService.saveRevisionEntry({ 
-        revision_year: newRevisionEntry.revision_year, 
-        from_year: newRevisionEntry.from_year, 
-        to_year: toYear, 
-        status: 'active' 
+      const res = await apiService.saveRevisionEntry({
+        revision_year: newRevisionEntry.revision_year,
+        from_year: newRevisionEntry.from_year,
+        to_year: toYear,
+        status: 'active'
       });
       setRevisionEntries(res?.items || []);
       setNewRevisionEntry({ revision_year: '', from_year: '', to_year: '' });
-      
+
       // Check if any previous revisions were updated
       const updatedRevisions = res?.updated_previous_revisions || 0;
       if (updatedRevisions > 0) {
-        setToast({ 
-          open: true, 
-          message: `Revision entry saved. ${updatedRevisions} previous revision(s) were automatically updated to end before this new revision.`, 
-          severity: 'info' 
+        setToast({
+          open: true,
+          message: `Revision entry saved. ${updatedRevisions} previous revision(s) were automatically updated to end before this new revision.`,
+          severity: 'info'
         });
       } else {
         setToast({ open: true, message: 'Revision entry saved.', severity: 'success' });
@@ -1410,7 +1414,7 @@ const Settings = () => {
             </Paper>
           ) : (
             <Alert severity="warning">
-              Could not load sync config. Error: {syncConfigError || 'Unknown API error'}. 
+              Could not load sync config. Error: {syncConfigError || 'Unknown API error'}.
               Please check the browser console or server logs.
             </Alert>
           )}
@@ -1557,7 +1561,7 @@ const Settings = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Configure the connection to the external ETRACS MySQL database to import entities, real properties, RPUs, and FAAS records.
           </Typography>
-          
+
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={8}>
@@ -1714,24 +1718,34 @@ const Settings = () => {
                     onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
                   />
                 </Grid>
-                                  <Grid item xs={12} sm={8}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Municipality"
-                      value={form.header_municipality.toUpperCase()}
-                      onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="LGU Base PIN"
-                      value={form.lgu_pin || ''}
-                      onChange={(e) => handleChange('lgu_pin', e.target.value)}
-                    />
-                  </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipality"
+                    value={form.header_municipality.toUpperCase()}
+                    onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="User ID Prefix (ULID)"
+                    value={form.municipality_prefix ? form.municipality_prefix.toUpperCase() : ''}
+                    onChange={(e) => handleChange('municipality_prefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3))}
+                    helperText="Max 3 letters, e.g. KIT"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="LGU Base PIN"
+                    value={form.lgu_pin || ''}
+                    onChange={(e) => handleChange('lgu_pin', e.target.value)}
+                  />
+                </Grid>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -2028,7 +2042,7 @@ const Settings = () => {
     <Grid container spacing={2}>
       <Grid item xs={12} md={8} lg={6}>
         <Typography variant="h6" sx={{ mb: 2 }}>Revision Entries</Typography>
-        
+
         {/* Compact Add Form */}
         <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1, display: 'block' }}>
@@ -2036,11 +2050,11 @@ const Settings = () => {
           </Typography>
           <Grid container spacing={1} alignItems="flex-start">
             <Grid item xs={12} sm={4}>
-              <TextField 
-                fullWidth 
-                size="small" 
-                label="Revision Year" 
-                required 
+              <TextField
+                fullWidth
+                size="small"
+                label="Revision Year"
+                required
                 value={newRevisionEntry.revision_year}
                 onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, revision_year: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
@@ -2050,12 +2064,12 @@ const Settings = () => {
               />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <TextField 
-                fullWidth 
-                size="small" 
-                label="From Year" 
+              <TextField
+                fullWidth
+                size="small"
+                label="From Year"
                 type="number"
-                required 
+                required
                 value={newRevisionEntry.from_year}
                 onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, from_year: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
@@ -2065,27 +2079,27 @@ const Settings = () => {
               />
             </Grid>
             <Grid item xs={12} sm={4}>
-            <TextField 
-              fullWidth 
-              size="small" 
-              label="To Year" 
-              value={newRevisionEntry.to_year}
-              onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
-              placeholder="Leave blank for present"
-              helperText="Optional"
-              InputLabelProps={{ style: { fontSize: '0.75rem' } }}
-              inputProps={{ style: { fontSize: '0.75rem' } }}
-            />
-          </Grid>
+              <TextField
+                fullWidth
+                size="small"
+                label="To Year"
+                value={newRevisionEntry.to_year}
+                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
+                placeholder="Leave blank for present"
+                helperText="Optional"
+                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
+                inputProps={{ style: { fontSize: '0.75rem' } }}
+              />
+            </Grid>
           </Grid>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
             <Button variant="outlined" size="small" onClick={addRevisionEntry}
-                    sx={{
-                      height: 40,
-                      minHeight: 40,
-                      px: 2,
-                    }}>
+              sx={{
+                height: 40,
+                minHeight: 40,
+                px: 2,
+              }}>
               Add
             </Button>
           </Box>
@@ -2109,19 +2123,19 @@ const Settings = () => {
               <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
                 <DragIndicatorIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText 
-                primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} 
-                primary={`${entry.revision_year} (${entry.from_year} - ${entry.to_year === 'present' ? 'Present' : entry.to_year})`} 
+              <ListItemText
+                primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }}
+                primary={`${entry.revision_year} (${entry.from_year} - ${entry.to_year === 'present' ? 'Present' : entry.to_year})`}
               />
               <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={entry.status === 'active'} onChange={async (e) => {
                 try {
-                  const updated = await apiService.saveRevisionEntry({ 
-                    id: entry.id, 
-                    revision_year: entry.revision_year, 
-                    from_year: entry.from_year, 
-                    to_year: entry.to_year, 
-                    status: e.target.checked ? 'active' : 'disabled', 
-                    sort_order: entry.sort_order || 0 
+                  const updated = await apiService.saveRevisionEntry({
+                    id: entry.id,
+                    revision_year: entry.revision_year,
+                    from_year: entry.from_year,
+                    to_year: entry.to_year,
+                    status: e.target.checked ? 'active' : 'disabled',
+                    sort_order: entry.sort_order || 0
                   });
                   setRevisionEntries(updated?.items || []);
                   setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
@@ -2425,7 +2439,7 @@ const Settings = () => {
       <Dialog
         key={newKeyDialog.dialogKey || 'new-api-key-closed'}
         open={newKeyDialog.open}
-        onClose={() => {}}
+        onClose={() => { }}
         disableEscapeKeyDown
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

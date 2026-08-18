@@ -533,7 +533,7 @@ const AuditTrail = () => {
                         {getTableDisplayName(log.table_name)}
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Typography variant="body2">
                         {log.record_id || 'N/A'}
                       </Typography>

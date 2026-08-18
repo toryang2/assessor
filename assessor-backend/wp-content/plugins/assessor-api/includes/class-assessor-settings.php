@@ -21,6 +21,7 @@ class Assessor_Settings {
 				'header_photo_url' => '',
 				'header_province' => 'BUKIDNON',
 				'header_municipality' => 'KITAOTAO',
+				'municipality_prefix' => 'GBL',
 				'lgu_pin' => '059-10',
 				'header_office' => 'OFFICE OF THE MUNICIPAL ASSESSOR',
 				'request_place_issued_default' => '',
@@ -85,7 +86,7 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout', 'enable_etracs_features');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','municipality_prefix','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout', 'enable_etracs_features');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$integer_keys = array('afk_timeout', 'enable_etracs_features');
 		$data = array();

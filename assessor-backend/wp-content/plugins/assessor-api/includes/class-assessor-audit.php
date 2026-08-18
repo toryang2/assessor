@@ -12,10 +12,10 @@ class Assessor_Audit {
         $offset = ($page - 1) * $per_page;
         
         $search = trim($params['search'] ?? '');
-        $action = trim($params['action'] ?? '');
+        $action = sanitize_text_field($params['action'] ?? '');
         $table = trim($params['table'] ?? '');
-        $user_id = isset($params['user_id']) && $params['user_id'] !== '' ? intval($params['user_id']) : null;
-        $record_id = isset($params['record_id']) && $params['record_id'] !== '' ? intval($params['record_id']) : null;
+        $user_id = isset($params['user_id']) && $params['user_id'] !== '' ? sanitize_text_field($params['user_id']) : null;
+        $record_id = isset($params['record_id']) && $params['record_id'] !== '' ? sanitize_text_field($params['record_id']) : null;
         $date_from = $params['dateFrom'] ?? null;
         $date_to = $params['dateTo'] ?? null;
         
@@ -39,11 +39,11 @@ class Assessor_Audit {
             $values[] = $table;
         }
         if ($user_id !== null) {
-            $where[] = "a.user_id = %d";
+            $where[] = "a.user_id = %s";
             $values[] = $user_id;
         }
         if ($record_id !== null) {
-            $where[] = "a.record_id = %d";
+            $where[] = "a.record_id = %s";
             $values[] = $record_id;
         }
         if (!empty($date_from)) {
@@ -101,7 +101,7 @@ class Assessor_Audit {
     public function log_activity($user_id, $action, $table_name, $record_id, $old_values = null, $new_values = null) {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'assessor_audit_trail';
+        $table_audit = $wpdb->prefix . 'assessor_audit_trail';
         
         $data = array(
             'user_id' => $user_id,
@@ -114,11 +114,8 @@ class Assessor_Audit {
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
         );
         
-        $formats = array('%d','%s','%s','%d','%s','%s','%s','%s');
+        $formats = array('%s','%s','%s','%s','%s','%s','%s','%s');
         
-        return $wpdb->insert($table, $data, $formats);
+        return $wpdb->insert($table_audit, $data, $formats);
     }
 }
-
-
-

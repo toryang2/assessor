@@ -505,7 +505,7 @@ class Assessor_Public_API {
                 'status' => 'active',
                 'created_by' => $created_by,
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
         if ($inserted === false) {
             return new WP_Error('insert_failed', 'Failed to save API key.', array('status' => 500));
@@ -627,7 +627,7 @@ class Assessor_Public_API {
         global $wpdb;
         $table_users = $wpdb->prefix . 'assessor_users';
         $user = $wpdb->get_row($wpdb->prepare(
-            "SELECT password FROM $table_users WHERE id = %d LIMIT 1",
+            "SELECT password FROM $table_users WHERE id = %s LIMIT 1",
             $user_id
         ));
         if (!$user || !wp_check_password($password, $user->password)) {
