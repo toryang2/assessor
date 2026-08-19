@@ -1,0 +1,1 @@
+<?php require 'C:/xampp/htdocs/wp-load.php'; global $wpdb; $wpdb->query("UPDATE $wpdb->prefixssessor_sync_queue SET status='pending', attempts=0"); Assessor_Sync::set_meta('last_pull_at', '2000-01-01 00:00:00'); print_r(Assessor_Sync::manual_sync(true));

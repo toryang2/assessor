@@ -160,6 +160,12 @@ class Assessor_Sync_Receiver {
         }
 
         $safe = $this->sanitize_incoming_record($record);
+        
+        $property_state = null;
+        if (isset($safe['property_state'])) {
+            $property_state = $safe['property_state'];
+            unset($safe['property_state']);
+        }
 
         if ($existing) {
             // UPDATE existing record
@@ -172,10 +178,10 @@ class Assessor_Sync_Receiver {
             // INSERT new record
             unset($safe['id']);
             if (empty($safe['created_by'])) {
-                $safe['created_by'] = 0;
+                $safe['created_by'] = null;
             }
             if (empty($safe['updated_by'])) {
-                $safe['updated_by'] = 0;
+                $safe['updated_by'] = null;
             }
             $inserted = $wpdb->insert($table, $safe);
             if ($inserted === false) {
@@ -225,6 +231,15 @@ class Assessor_Sync_Receiver {
                     }
                 }
             }
+        }
+
+        // Sync property state if provided
+        if ($property_state !== null) {
+            $table_property_states = $wpdb->prefix . 'assessor_property_states';
+            $wpdb->replace($table_property_states, array(
+                'property_id' => $live_property_id,
+                'state'       => strtoupper(trim($property_state))
+            ), array('%d', '%s'));
         }
 
         return array('status' => 'synced');
@@ -312,6 +327,11 @@ class Assessor_Sync_Receiver {
                 ARRAY_A
             );
             $safe['assessor_documents'] = $docs ? $docs : array();
+            
+            // Attach property state
+            $table_states = $wpdb->prefix . 'assessor_property_states';
+            $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %d", $record['id']));
+            $safe['property_state'] = $local_state ? $local_state : 'CURRENT';
             
             $safe_records[] = $safe;
         }
@@ -424,7 +444,7 @@ class Assessor_Sync_Receiver {
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'updated_at', 'created_at',
-            'created_by', 'updated_by',
+            'created_by', 'updated_by', 'property_state'
         );
 
         $safe = array();
@@ -455,7 +475,7 @@ class Assessor_Sync_Receiver {
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'updated_at', 'created_at',
-            'created_by', 'updated_by',
+            'created_by', 'updated_by', 'property_state'
         );
 
         $safe = array();

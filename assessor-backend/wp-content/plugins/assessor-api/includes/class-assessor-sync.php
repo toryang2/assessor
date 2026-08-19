@@ -330,6 +330,11 @@ class Assessor_Sync {
                     }
                     $prop_data['assessor_documents'] = $docs ? $docs : array();
 
+                    // Attach local property state
+                    $table_states = $wpdb->prefix . 'assessor_property_states';
+                    $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %d", $pid));
+                    $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
+
                     $records[] = array(
                         'queue_id' => intval($qi['queue_id']),
                         'attempts' => intval($qi['attempts']),
@@ -670,6 +675,12 @@ class Assessor_Sync {
             }
         }
 
+        $property_state = null;
+        if (isset($safe['property_state'])) {
+            $property_state = $safe['property_state'];
+            unset($safe['property_state']);
+        }
+
         if ($local) {
             $wpdb->update($table, $safe, array('id' => intval($local['id'])));
             if ($wpdb->last_error) {
@@ -679,10 +690,10 @@ class Assessor_Sync {
         } else {
             unset($safe['id']);
             if (empty($safe['created_by'])) {
-                $safe['created_by'] = 0;
+                $safe['created_by'] = null;
             }
             if (empty($safe['updated_by'])) {
-                $safe['updated_by'] = 0;
+                $safe['updated_by'] = null;
             }
             $result = $wpdb->insert($table, $safe);
             if ($result === false) {
@@ -715,6 +726,15 @@ class Assessor_Sync {
             }
         }
 
+        // Sync property state if provided
+        if ($property_state !== null) {
+            $table_property_states = $wpdb->prefix . 'assessor_property_states';
+            $wpdb->replace($table_property_states, array(
+                'property_id' => $local_property_id,
+                'state'       => strtoupper(trim($property_state))
+            ), array('%d', '%s'));
+        }
+
         return 'synced';
     }
 
@@ -736,8 +756,8 @@ class Assessor_Sync {
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
-            'updated_at', 'created_at',
-            'created_by', 'updated_by', // Allow syncing user IDs
+            'status', 'updated_at', 'created_at',
+            'created_by', 'updated_by', 'property_state', // Allow syncing user IDs and state
         );
 
         $safe = array();

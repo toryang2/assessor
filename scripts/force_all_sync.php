@@ -1,0 +1,1 @@
+<?php require 'C:/xampp/htdocs/wp-load.php'; global $wpdb; $wpdb->query("INSERT IGNORE INTO $wpdb->prefixssessor_sync_queue (property_id, operation, status, attempts, queued_at) SELECT id, 'upsert', 'pending', 0, NOW() FROM $wpdb->prefixssessor_properties"); echo 'Queued all properties for sync.'; 

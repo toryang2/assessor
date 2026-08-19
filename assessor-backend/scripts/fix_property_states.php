@@ -12,28 +12,37 @@
 set_time_limit(300);
 
 // Attempt to load WordPress
-$wp_load_path = dirname(__FILE__) . '/wp-load.php';
-if (file_exists($wp_load_path)) {
-    require_once $wp_load_path;
-} else {
-    die("Error: Could not find wp-load.php. Please place this script in the root directory of your WordPress installation.");
-}
+$wp_load = dirname(__FILE__) . '/wp-load.php';
+    if (file_exists($wp_load)) {
+        require_once $wp_load;
+    } else {
+        $wp_load = 'C:/xampp/htdocs/wp-load.php';
+        if (file_exists($wp_load)) {
+            require_once $wp_load;
+        } else {
+            die("Error: Could not find wp-load.php. Please place this script in the root directory of your WordPress installation.\n");
+        }
+    }
 
-if (!current_user_can('manage_options') && php_sapi_name() !== 'cli') {
-    // Basic security to prevent unauthorized running. Make sure you are logged in as admin!
-    // Comment out these 3 lines temporarily if you absolutely can't run it logged in.
+// Determine if running via CLI
+$is_cli = (php_sapi_name() === 'cli');
+
+if (!$is_cli && !current_user_can('manage_options')) {
+    // Basic security to prevent unauthorized running via web browser. Make sure you are logged in as admin!
     die("You must be logged in as an administrator to run this script.");
 }
 
 global $wpdb;
 
-echo "<pre>";
-echo "Starting property state reconciliation (Batched)...\n\n";
+if (!$is_cli) {
+    echo "<pre>";
+}
+echo "Starting property state reconciliation...\n\n";
 
 $table_properties = $wpdb->prefix . 'assessor_properties';
 $table_property_states = $wpdb->prefix . 'assessor_property_states';
 
-$batch_size = 500;
+$batch_size = $is_cli ? 9999999 : 500; // Process all if CLI, batch if Web
 $offset = isset($_GET['offset']) ? intval($_GET['offset']) : 0;
 $fixed_cancelled_count = isset($_GET['cancelled']) ? intval($_GET['cancelled']) : 0;
 $fixed_current_count = isset($_GET['current']) ? intval($_GET['current']) : 0;
@@ -50,7 +59,7 @@ if (empty($properties)) {
     echo "========================================\n";
     echo "- Total properties fixed to CANCELLED: $fixed_cancelled_count\n";
     echo "- Total properties reverted to CURRENT: $fixed_current_count\n";
-    echo "</pre>";
+    if (!$is_cli) echo "</pre>";
     die();
 }
 
@@ -91,6 +100,11 @@ foreach ($properties as $property) {
                 ],
                 ['%d', '%s', '%d', '%s']
             );
+            
+            if (class_exists('Assessor_Sync')) {
+                Assessor_Sync::enqueue_property($property->id, 'upsert');
+            }
+
             echo "FIXED: Property ID {$property->id} (TDN: {$property->tax_declaration_number}) -> Changed to CANCELLED\n";
             $fixed_cancelled_count++;
         }
@@ -107,6 +121,11 @@ foreach ($properties as $property) {
                 ],
                 ['%d', '%s', '%d', '%s']
             );
+            
+            if (class_exists('Assessor_Sync')) {
+                Assessor_Sync::enqueue_property($property->id, 'upsert');
+            }
+
             echo "FIXED: Property ID {$property->id} (TDN: {$property->tax_declaration_number}) -> Reverted to CURRENT\n";
             $fixed_current_count++;
         }
@@ -114,8 +133,15 @@ foreach ($properties as $property) {
 }
 
 $new_offset = $offset + $processed_in_batch;
-$url = "?offset=" . $new_offset . "&cancelled=" . $fixed_cancelled_count . "&current=" . $fixed_current_count;
 
-echo "Processed records up to offset: $new_offset. Moving to next batch...\n";
-echo "</pre>";
-echo "<script>setTimeout(function() { window.location.href = '$url'; }, 1000);</script>";
+if ($is_cli) {
+    echo "\nReconciliation FULLY COMPLETE!\n";
+    echo "========================================\n";
+    echo "- Total properties fixed to CANCELLED: $fixed_cancelled_count\n";
+    echo "- Total properties reverted to CURRENT: $fixed_current_count\n";
+} else {
+    $url = "?offset=" . $new_offset . "&cancelled=" . $fixed_cancelled_count . "&current=" . $fixed_current_count;
+    echo "Processed records up to offset: $new_offset. Moving to next batch...\n";
+    echo "</pre>";
+    echo "<script>setTimeout(function() { window.location.href = '$url'; }, 1000);</script>";
+}
