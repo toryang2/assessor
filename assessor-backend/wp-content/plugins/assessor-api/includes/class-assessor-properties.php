@@ -711,7 +711,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 if (empty($tdn)) continue;
                 // Find property ID by TDN
                 $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
+                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
                     $tdn
                 ));
                 if ($prev_prop_id) {
@@ -982,7 +982,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 if (empty($tdn)) continue;
                 // Find property ID by TDN
                 $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
+                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
                     $tdn
                 ));
                 if ($prev_prop_id) {
@@ -1111,16 +1111,10 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $is_superseded = $wpdb->get_var($wpdb->prepare(
                 "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
                  LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
-                 WHERE (p.previous_tax_declaration_number = %s 
-                    OR p.previous_tax_declaration_number LIKE %s 
-                    OR p.previous_tax_declaration_number LIKE %s 
-                    OR p.previous_tax_declaration_number LIKE %s)
+                 WHERE FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0
                  AND p.status != 'deleted' AND p.id != %d 
                  AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
                 $tax_declaration_number,
-                $tax_declaration_number . ';%',
-                '%;' . $tax_declaration_number . ';%',
-                '%;' . $tax_declaration_number,
                 $id
             ));
             
@@ -1157,7 +1151,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 foreach ($tdn_list as $tdn) {
                     if (empty($tdn)) continue;
                     $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s",
+                        "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
                         $tdn
                     ));
                     if ($prev_prop_id) {
@@ -1792,16 +1786,10 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $is_superseded = $wpdb->get_var($wpdb->prepare(
             "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
              LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
-             WHERE (p.previous_tax_declaration_number = %s 
-                OR p.previous_tax_declaration_number LIKE %s 
-                OR p.previous_tax_declaration_number LIKE %s 
-                OR p.previous_tax_declaration_number LIKE %s)
+             WHERE FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0
              AND p.status != 'deleted' AND p.id != %d 
              AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
             $tax_declaration_number,
-            $tax_declaration_number . ';%',
-            '%;' . $tax_declaration_number . ';%',
-            '%;' . $tax_declaration_number,
             $property_id
         ));
 
@@ -1847,7 +1835,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             if (!$other_superseding_exists) {
                 // Find property ID by this TDN
                 $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM $table_properties WHERE tax_declaration_number = %s",
+                    "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
                     $tdn
                 ));
 
