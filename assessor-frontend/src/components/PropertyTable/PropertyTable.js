@@ -1393,8 +1393,14 @@ const PropertyTable = () => {
 
   return (
 
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+         sx={{ 
+           display: 'flex', 
+           flexDirection: 'column', 
+           height: 'calc(100vh - 64px - 3rem)', 
+           overflow: 'hidden' 
+         }}>
+      <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
         Property Records
       </Typography>
 
@@ -1410,7 +1416,7 @@ const PropertyTable = () => {
       )}
 
       {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, flexShrink: 0 }}>
         <CardContent>
           <Grid container spacing={{ xs: 1, sm: 2 }} alignItems="center">
             {/* Search Field and Add Button Row */}
@@ -1463,17 +1469,14 @@ const PropertyTable = () => {
                 flexWrap="wrap"
                 sx={{
                   '& > *': {
-                    flex: { xs: '1 1 auto', sm: '0 1 auto' },
-                    minWidth: { xs: '120px', sm: 'auto' }
+                    flex: '0 1 auto',
+                    minWidth: 'auto'
                   }
                 }}
               >
                 <FormControl size="small" sx={{
-                  minWidth: { xs: 120, sm: 150 },
-                  width: { xs: '100%', sm: 'auto' },
-                  // Custom breakpoints for your specific screen sizes
-                  '@media (min-width: 1280px)': { minWidth: 160 }, // 720p/768p optimization
-                  '@media (min-width: 1920px)': { minWidth: 180 }  // 1080p optimization
+                  minWidth: 150,
+                  width: 'auto',
                 }}>
                   <InputLabel shrink>Revision</InputLabel>
                   <Select
@@ -1506,11 +1509,8 @@ const PropertyTable = () => {
                 </FormControl>
 
                 <FormControl size="small" sx={{
-                  minWidth: { xs: 120, sm: 180 },
+                  minWidth: { xs: 120, sm: 120 },
                   width: { xs: '100%', sm: 'auto' },
-                  // Custom breakpoints for your specific screen sizes
-                  '@media (min-width: 1280px)': { minWidth: 200 }, // 720p/768p optimization
-                  '@media (min-width: 1920px)': { minWidth: 220 }  // 1080p optimization
                 }}>
                   <InputLabel shrink>Location</InputLabel>
                   <Select
@@ -1543,10 +1543,8 @@ const PropertyTable = () => {
                 </FormControl>
 
                 <FormControl size="small" sx={{
-                  minWidth: { xs: 120, sm: 150 },
+                  minWidth: { xs: 120, sm: 120 },
                   width: { xs: '100%', sm: 'auto' },
-                  '@media (min-width: 1280px)': { minWidth: 160 },
-                  '@media (min-width: 1920px)': { minWidth: 180 }
                 }}>
                   <InputLabel shrink>Kind</InputLabel>
                   <Select
@@ -1578,10 +1576,8 @@ const PropertyTable = () => {
                 </FormControl>
 
                 <FormControl size="small" sx={{
-                  minWidth: { xs: 120, sm: 150 },
+                  minWidth: { xs: 120, sm: 120 },
                   width: { xs: '100%', sm: 'auto' },
-                  '@media (min-width: 1280px)': { minWidth: 160 },
-                  '@media (min-width: 1920px)': { minWidth: 180 }
                 }}>
                   <InputLabel shrink>Class</InputLabel>
                   <Select
@@ -1649,27 +1645,12 @@ const PropertyTable = () => {
                   sx={{
                     height: 40, // same as TextField small height
                     width: { xs: '100%', sm: 'auto' },
-                    // Custom breakpoints for your specific screen sizes
-                    '@media (min-width: 1280px)': {
-                      minWidth: '280px' // 720p/768p optimization
-                    },
-                    '@media (min-width: 1920px)': {
-                      minWidth: '320px' // 1080p optimization
-                    },
                     '& .MuiToggleButton-root': {
                       height: '100%',
                       py: 0.5,
                       flex: { xs: 1, sm: 'none' },
                       minWidth: { xs: '60px', sm: 'auto' },
-                      // Enhanced sizing for your screen resolutions
-                      '@media (min-width: 1280px)': {
-                        minWidth: '80px',
-                        px: 1.5
-                      },
-                      '@media (min-width: 1920px)': {
-                        minWidth: '90px',
-                        px: 2
-                      }
+                      px: 1.5
                     },
                   }}
                 >
@@ -1707,9 +1688,9 @@ const PropertyTable = () => {
       </Card>
 
       {/* Properties Table */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 360px)' }, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ minWidth: 1600 }}>
+      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+        <TableContainer sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ minWidth: '100rem' }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Tax Declaration Number</TableCell>
@@ -2003,7 +1984,8 @@ const PropertyTable = () => {
         </TableContainer>
 
         <TablePagination
-          rowsPerPageOptions={[10, 25, 50, 75, 100]}
+          sx={{ flexShrink: 0 }}
+          rowsPerPageOptions={[20, 50, 100]}
           component="div"
           count={(debouncedSearchTerm || imageFilter !== 'all') ? filteredProperties.length : totalCount}
           rowsPerPage={rowsPerPage}

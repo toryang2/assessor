@@ -924,16 +924,22 @@ const RequestsTable = () => {
   }
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Typography variant="h4" gutterBottom>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+         sx={{ 
+           display: 'flex', 
+           flexDirection: 'column', 
+           height: 'calc(100vh - 64px - 3rem)', 
+           overflow: 'hidden' 
+         }}>
+        <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
           Requests Management
         </Typography>
-      <Typography variant="body1" color="text.secondary">
+      <Typography variant="body1" color="text.secondary" sx={{ flexShrink: 0 }}>
         Manage and view all payment requests and receipts
       </Typography>
 
       {/* Search and Actions */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, flexShrink: 0 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="flex-start">
             <Grid item xs={12} md={6}>
@@ -1070,8 +1076,8 @@ const RequestsTable = () => {
       </Dialog>
 
       {/* Requests Table */}
-       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-          <TableContainer sx={{ height: { xs: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)' }, overflow: 'auto' }}>
+       <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+          <TableContainer sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
             <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
@@ -1197,13 +1203,14 @@ const RequestsTable = () => {
 
         {/* Pagination */}
         <TablePagination
+          sx={{ flexShrink: 0 }}
+          rowsPerPageOptions={[20, 50, 100]}
           component="div"
           count={debouncedSearchTerm ? filteredRequests.length : totalCount}
           page={page}
           onPageChange={handleChangePage}
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[10, 20, 50, 100]}
         />
       </Paper>
 

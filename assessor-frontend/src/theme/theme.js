@@ -59,6 +59,7 @@ const colors = {
 
 // Friendly theme with softer styling
 export const theme = createTheme({
+  spacing: factor => `${0.5 * factor}rem`, // Converts spacing like sx={{ p: 2 }} to '1rem' instead of '16px'
   palette: {
     primary: colors.primary,
     secondary: colors.secondary,
@@ -131,7 +132,7 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 4,
-          padding: '10px 24px',
+          padding: '0.625rem 1.5rem',
           fontWeight: 500,
           boxShadow: 'none', // No shadow by default
           border: '1px solid transparent'
@@ -181,9 +182,9 @@ export const theme = createTheme({
     MuiTextField: {
       styleOverrides: {
         root: {
-                                  '& .MuiOutlinedInput-root': {
-              borderRadius: 4,
-              backgroundColor: colors.neutral[50],
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 4,
+            backgroundColor: colors.neutral[50],
             '&:hover .MuiOutlinedInput-notchedOutline': {
               borderColor: colors.primary.light
             },
@@ -214,7 +215,7 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           borderBottom: `1px solid ${colors.neutral[200]}`,
-          padding: '16px',
+          padding: '1rem',
           fontSize: '0.875rem'
         }
       }
@@ -225,7 +226,7 @@ export const theme = createTheme({
           borderRadius: 20,
           fontWeight: 500,
           fontSize: '0.75rem',
-          height: '24px'
+          height: '1.5rem'
         }
       }
     },
@@ -242,14 +243,14 @@ export const theme = createTheme({
         root: {
           backgroundColor: colors.neutral[50],
           borderBottom: `1px solid ${colors.neutral[200]}`,
-          padding: '20px 24px'
+          padding: '1.25rem 1.5rem'
         }
       }
     },
     MuiDialogContent: {
       styleOverrides: {
         root: {
-          padding: '24px'
+          padding: '1.5rem'
         }
       }
     },

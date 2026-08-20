@@ -64,7 +64,7 @@ import SyncModal from '../SyncModal/SyncModal';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
 import ChangelogModal from '../ChangelogModal/ChangelogModal';
 
-const drawerWidth = 320;
+const drawerWidth = '20rem'; // 320px at 16px font size
 
 const Layout = ({ children }) => {
   const theme = useTheme();
@@ -78,7 +78,7 @@ const Layout = ({ children }) => {
       return false;
     }
   })();
-  const computedDrawerWidth = isSmallScreen ? 300 : drawerWidth;
+  const computedDrawerWidth = isSmallScreen ? '18.75rem' : drawerWidth; // 300px at 16px font size
   const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer, syncStatus } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
@@ -515,8 +515,8 @@ const Layout = ({ children }) => {
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - ${computedDrawerWidth}px)` },
-          ml: { md: `${computedDrawerWidth}px` },
+          width: { md: `calc(100% - ${computedDrawerWidth})` },
+          ml: { md: computedDrawerWidth },
           background: '#f8fafc',
           color: '#475569',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
@@ -799,7 +799,7 @@ const Layout = ({ children }) => {
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { md: `calc(100% - ${computedDrawerWidth}px)` },
+          width: { md: `calc(100% - ${computedDrawerWidth})` },
           mt: '64px',
           background: '#f8fafc',
           minHeight: 'calc(100vh - 64px)',
