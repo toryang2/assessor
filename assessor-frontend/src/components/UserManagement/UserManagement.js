@@ -79,6 +79,7 @@ const UserManagement = () => {
     } catch (_) { return false; }
   })();
   const [users, setUsers] = useState([]);
+  const tableContainerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState('');
@@ -171,6 +172,9 @@ const UserManagement = () => {
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo(0, 0);
+    }
   };
 
   const handleRowsPerPageChange = (event) => {
@@ -420,8 +424,14 @@ const UserManagement = () => {
   }
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Typography variant="h4" gutterBottom>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+         sx={{ 
+           display: 'flex', 
+           flexDirection: 'column', 
+           height: 'calc(100vh - 64px - 3rem)', 
+           overflow: 'hidden' 
+         }}>
+        <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
           User Management
         </Typography>
 
@@ -447,7 +457,7 @@ const UserManagement = () => {
       </Snackbar>
 
       {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, flexShrink: 0 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={4}>
@@ -537,9 +547,9 @@ const UserManagement = () => {
       </Card>
 
       {/* Users Table */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: { xs: 'calc(100vh - 360px)', md: 'calc(100vh - 300px)' }, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+        <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
             <colgroup>
               <col style={{ width: '300px' }} />
               <col style={{ width: '160px' }} />
@@ -558,8 +568,12 @@ const UserManagement = () => {
                 <TableCell sx={{ width: 140 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody>
-              {users && users.length > 0 ? users.map((user) => (
+            <TableBody sx={{
+              opacity: (loading && !initialLoad) ? 0.5 : 1,
+              pointerEvents: (loading && !initialLoad) ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease-in-out'
+            }}>
+              {users && users.length > 0 && users.map((user) => (
                 <TableRow key={user.id} hover>
                   <TableCell sx={{ verticalAlign: 'top' }}>
                     <Box display="flex" alignItems="center">
@@ -647,12 +661,40 @@ const UserManagement = () => {
                     </Box>
                   </TableCell>
                 </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    <Typography variant="body2" color="text.secondary">
-                      {loading ? 'Loading users...' : 'No users found'}
-                    </Typography>
+              ))}
+              {(!users || users.length === 0) && (
+                <TableRow sx={{ height: '100%' }}>
+                  <TableCell colSpan={6} sx={{ border: 'none', p: 0, height: '100%' }}>
+                    <Box sx={{ 
+                      height: '100%',
+                      minHeight: 200, 
+                      width: '100%', 
+                      display: 'flex', 
+                      alignItems: 'center' 
+                    }}>
+                      <Box
+                        sx={{
+                          position: 'sticky',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {loading ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <CircularProgress size={30} sx={{ mb: 2 }} />
+                            <Typography color="text.secondary">Loading users...</Typography>
+                          </Box>
+                        ) : (
+                          <Typography color="text.secondary">
+                            {searchTerm ? 'No users found matching your search.' : 'No users found.'}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
                   </TableCell>
                 </TableRow>
               )}
@@ -661,7 +703,8 @@ const UserManagement = () => {
         </TableContainer>
         
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
+          sx={{ flexShrink: 0 }}
+          rowsPerPageOptions={[20, 50, 100]}
           component="div"
           count={totalCount}
           rowsPerPage={rowsPerPage}

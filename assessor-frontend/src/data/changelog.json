@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.1.10",
+    "date": "2026-08-20",
+    "features": [
+      "Implement a fix for request management backend scripts and frontend modal with table components",
+      "Establish application theme and initial component architecture with layout, data tables",
+      "Minor fixes for the UI, request signatories, modal layout overhaul."
+    ]
+  },
+  {
     "version": "1.1.9",
     "date": "2026-08-18",
     "features": [

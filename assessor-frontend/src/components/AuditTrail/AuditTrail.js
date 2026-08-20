@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -54,6 +54,7 @@ import { statusColors } from '../../theme/theme';
 import LoadingDots from '../LoadingDots';
 
 const AuditTrail = () => {
+  const tableContainerRef = useRef(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -117,6 +118,9 @@ const AuditTrail = () => {
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo(0, 0);
+    }
   };
 
   const handleRowsPerPageChange = (event) => {
@@ -381,8 +385,14 @@ const AuditTrail = () => {
   }
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Typography variant="h4" gutterBottom>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+         sx={{ 
+           display: 'flex', 
+           flexDirection: 'column', 
+           height: 'calc(100vh - 64px - 3rem)', 
+           overflow: 'hidden' 
+         }}>
+        <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
           Audit Trail
         </Typography>
 
@@ -393,7 +403,7 @@ const AuditTrail = () => {
       )}
 
       {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, flexShrink: 0 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
@@ -492,10 +502,10 @@ const AuditTrail = () => {
         </CardContent>
       </Card>
 
-      {/* Audit Trail Table */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table stickyHeader>
+      {/* Audit Logs Table */}
+      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+        <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ height: '100%' }}>
             <TableHead>
               <TableRow>
                 <TableCell>Action</TableCell>
@@ -508,7 +518,11 @@ const AuditTrail = () => {
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody>
+            <TableBody sx={{
+              opacity: loading ? 0.5 : 1,
+              pointerEvents: loading ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease-in-out'
+            }}>
               {auditLogs.map((log) => (
                 <React.Fragment key={log.id}>
                   <TableRow hover>
@@ -609,12 +623,49 @@ const AuditTrail = () => {
                   </TableRow>
                 </React.Fragment>
               ))}
+              {(!auditLogs || auditLogs.length === 0) && (
+                <TableRow sx={{ height: '100%' }}>
+                  <TableCell colSpan={8} sx={{ border: 'none', p: 0, height: '100%' }}>
+                    <Box sx={{ 
+                      height: '100%',
+                      minHeight: 200, 
+                      width: '100%', 
+                      display: 'flex', 
+                      alignItems: 'center' 
+                    }}>
+                      <Box
+                        sx={{
+                          position: 'sticky',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {loading ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <CircularProgress size={30} sx={{ mb: 2 }} />
+                            <Typography color="text.secondary">Loading audit logs...</Typography>
+                          </Box>
+                        ) : (
+                          <Typography color="text.secondary">
+                            {searchTerm ? 'No audit logs found matching your search.' : 'No audit logs found.'}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
         
         <TablePagination
-          rowsPerPageOptions={[10, 20, 50, 100]}
+          sx={{ flexShrink: 0 }}
+          rowsPerPageOptions={[20, 50, 100]}
           component="div"
           count={totalCount}
           rowsPerPage={rowsPerPage}

@@ -470,6 +470,7 @@ const purposeOptions = [
 ];
 
 const RequestsTable = () => {
+  const tableContainerRef = useRef(null);
   const { isAdmin, isSuperAdmin, isViewer } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -808,6 +809,9 @@ const RequestsTable = () => {
   // Handle page change
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo(0, 0);
+    }
   };
 
   // Handle rows per page change
@@ -1077,8 +1081,8 @@ const RequestsTable = () => {
 
       {/* Requests Table */}
        <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
-          <TableContainer sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-            <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+          <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+            <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
               <TableHead>
                 <TableRow>
                   <TableCell><strong>Receipt No.</strong></TableCell>
@@ -1092,29 +1096,13 @@ const RequestsTable = () => {
                   <TableCell><strong>Actions</strong></TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody>
-                {loading && !initialLoad ? (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      <Box sx={{ py: 4 }}>
-                        <CircularProgress size={30} />
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                  ) : pagedRequests.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      <Typography color="text.secondary">
-                        {loading || loadingAll ? 
-                          (debouncedSearchTerm ? 'Searching requests...' : 'Loading requests...') : 
-                          (searchTerm ? 'No requests found matching your search.' : 'No requests found.')
-                        }
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                  ) : (
-                  pagedRequests.map((request) => (
-                    <TableRow key={request.id} hover>
+              <TableBody sx={{
+                opacity: (loading && !initialLoad) ? 0.5 : 1,
+                pointerEvents: (loading && !initialLoad) ? 'none' : 'auto',
+                transition: 'opacity 0.2s ease-in-out'
+              }}>
+                {pagedRequests.map((request) => (
+                  <TableRow key={request.id} hover>
                       <TableCell>
                         <Typography variant="body2" fontWeight="medium">
                           {request.receipt_number}
@@ -1195,8 +1183,50 @@ const RequestsTable = () => {
                         </Box>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
+                  {pagedRequests.length === 0 && (
+                    <TableRow sx={{ height: '100%' }}>
+                      <TableCell colSpan={9} sx={{ border: 'none', p: 0, height: '100%' }}>
+                        <Box sx={{ 
+                          height: '100%',
+                          minHeight: 200, 
+                          width: '100%', 
+                          display: 'flex', 
+                          alignItems: 'center' 
+                        }}>
+                          <Box
+                            sx={{
+                              position: 'sticky',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              display: 'inline-flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            {loading || loadingAll ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
+                                <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                                  {debouncedSearchTerm ? 'Searching requests...' : 'Loading requests...'}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
+                                  No requests found
+                                </Typography>
+                                <Typography variant="body2" color="text.disabled">
+                                  {searchTerm ? 'Try adjusting your search or filters' : 'No requests found matching your criteria.'}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )}
               </TableBody>
             </Table>
           </TableContainer>

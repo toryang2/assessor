@@ -537,6 +537,7 @@ const getStateColor = (state) => {
 
 const PropertyTable = () => {
   const { isAdmin, isSuperAdmin, canEdit, isViewer } = useAuth();
+  const tableContainerRef = useRef(null);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -1092,6 +1093,9 @@ const PropertyTable = () => {
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage);
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo(0, 0);
+    }
   };
 
   const handleRowsPerPageChange = (event) => {
@@ -1689,8 +1693,8 @@ const PropertyTable = () => {
 
       {/* Properties Table */}
       <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
-        <TableContainer sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ minWidth: '100rem' }}>
+        <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ minWidth: '100rem', height: '100%' }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Tax Declaration Number</TableCell>
@@ -1709,8 +1713,13 @@ const PropertyTable = () => {
                 <TableCell sx={{ whiteSpace: 'nowrap', position: 'sticky', right: 0, zIndex: 3, backgroundColor: '#f1f5f9', borderLeft: '2px solid #e0e0e0', boxShadow: '-4px 0 8px rgba(0,0,0,0.06)' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody sx={{ '& td': { verticalAlign: 'top', py: 0.75, whiteSpace: 'nowrap' } }}>
-              {pagedProperties && pagedProperties.length > 0 ? pagedProperties.map((property) => (
+            <TableBody sx={{ 
+              '& td': { verticalAlign: 'top', py: 0.75, whiteSpace: 'nowrap' },
+              opacity: (loading || loadingAll) ? 0.5 : 1,
+              pointerEvents: (loading || loadingAll) ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease-in-out'
+            }}>
+              {pagedProperties && pagedProperties.length > 0 && pagedProperties.map((property) => (
                 <TableRow key={property.id} hover>
                   <TableCell sx={{ verticalAlign: 'top' }}>
                     <Typography
@@ -1947,34 +1956,47 @@ const PropertyTable = () => {
                     </Box>
                   </TableCell>
                 </TableRow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={14} sx={{ border: 'none', p: 0 }}>
-                    <Box
-                      display="flex"
-                      flexDirection="column"
-                      alignItems="center"
-                      justifyContent="center"
-                      sx={{ minHeight: 'calc(100vh - 500px)', width: '100%' }}
-                    >
-                      {(loading || loadingAll) ? (
-                        <>
-                          <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
-                          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                            {debouncedSearchTerm ? 'Searching properties...' :
-                              imageFilter !== 'all' ? 'Filtering properties...' : 'Loading properties...'}
-                          </Typography>
-                        </>
-                      ) : (
-                        <>
-                          <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
-                            No properties found
-                          </Typography>
-                          <Typography variant="body2" color="text.disabled">
-                            Try adjusting your search or filters
-                          </Typography>
-                        </>
-                      )}
+              ))}
+              {(!pagedProperties || pagedProperties.length === 0) && (
+                <TableRow sx={{ height: '100%' }}>
+                  <TableCell colSpan={14} sx={{ border: 'none', p: 0, height: '100%' }}>
+                    <Box sx={{ 
+                      height: '100%',
+                      minHeight: 200, 
+                      width: '100%', 
+                      display: 'flex', 
+                      alignItems: 'center' 
+                    }}>
+                      <Box
+                        sx={{
+                          position: 'sticky',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {(loading || loadingAll) ? (
+                          <>
+                            <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
+                            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                              {debouncedSearchTerm ? 'Searching properties...' :
+                                imageFilter !== 'all' ? 'Filtering properties...' : 'Loading properties...'}
+                            </Typography>
+                          </>
+                        ) : (
+                          <>
+                            <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
+                              No properties found
+                            </Typography>
+                            <Typography variant="body2" color="text.disabled">
+                              Try adjusting your search or filters
+                            </Typography>
+                          </>
+                        )}
+                      </Box>
                     </Box>
                   </TableCell>
                 </TableRow>

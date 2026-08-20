@@ -2349,7 +2349,13 @@ const Settings = () => {
   );
 
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+         sx={{ 
+           display: 'flex', 
+           flexDirection: 'column', 
+           height: 'calc(100vh - 64px - 3rem)', 
+           overflow: 'hidden' 
+         }}>
       <Dialog
         open={deleteApiKeyDialog.open}
         onClose={closeDeleteApiKeyDialog}
@@ -2577,8 +2583,8 @@ const Settings = () => {
         </Alert>
       </Snackbar>
 
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Card sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
           <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs" variant="scrollable" scrollButtons="auto">
             <Tab label="General Settings" />
             <Tab label="Data Management" />
@@ -2590,7 +2596,7 @@ const Settings = () => {
             {canManage && <Tab label="ETRACS Bldg Revision Settings" />}
           </Tabs>
         </Box>
-        <CardContent>
+        <CardContent sx={{ overflow: 'auto', flexGrow: 1 }}>
           {activeTab === 0 && renderGeneralSettings()}
           {activeTab === 1 && renderDataManagement()}
           {activeTab === 2 && renderRevisionSettings()}
