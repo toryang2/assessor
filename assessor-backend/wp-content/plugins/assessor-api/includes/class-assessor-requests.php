@@ -128,11 +128,14 @@ class Assessor_Requests {
             }
         }
         
+        // Fetch current settings to use as fallback if frontend doesn't send signatories
+        $settings = $this->db->get_row("SELECT * FROM {$this->db->prefix}assessor_settings ORDER BY id DESC LIMIT 1", ARRAY_A);
+        
         $insert_data = array(
             'property_id' => $data['property_id'],
             'amount_paid' => $data['amount_paid'],
             'receipt_number' => sanitize_text_field($data['receipt_number']),
-            'date_issued' => $data['date_issued'],
+            'date_issued' => sanitize_text_field($data['date_issued']),
             'place_issued' => sanitize_text_field($data['place_issued']),
             'prepared_by' => sanitize_text_field($data['prepared_by']),
             'purpose' => sanitize_text_field($data['purpose']),
@@ -145,7 +148,13 @@ class Assessor_Requests {
             'created_by' => $data['created_by'],
             'updated_by' => $data['updated_by'],
             'created_at' => $data['created_at'],
-            'updated_at' => $data['updated_at']
+            'updated_at' => $data['updated_at'],
+            'verifier_signatory_name' => !empty($data['verifier_signatory_name']) ? sanitize_text_field($data['verifier_signatory_name']) : ($settings['verifier_signatory_name'] ?? null),
+            'verifier_signatory_title' => !empty($data['verifier_signatory_title']) ? sanitize_text_field($data['verifier_signatory_title']) : ($settings['verifier_signatory_title'] ?? null),
+            'municipal_assessor_name' => !empty($data['municipal_assessor_name']) ? sanitize_text_field($data['municipal_assessor_name']) : ($settings['municipal_assessor_name'] ?? null),
+            'municipal_assessor_title' => !empty($data['municipal_assessor_title']) ? sanitize_text_field($data['municipal_assessor_title']) : ($settings['municipal_assessor_title'] ?? null),
+            'municipal_assessor_license' => !empty($data['municipal_assessor_license']) ? sanitize_text_field($data['municipal_assessor_license']) : ($settings['municipal_assessor_license'] ?? null),
+            'municipal_assessor_suffix' => !empty($data['municipal_assessor_suffix']) ? sanitize_text_field($data['municipal_assessor_suffix']) : ($settings['municipal_assessor_suffix'] ?? null)
         );
         
         $insert_format = array(
@@ -162,10 +171,16 @@ class Assessor_Requests {
             '%s', // email
             '%s', // remarks
             '%d', // is_official_request
-            '%d', // created_by
-            '%d', // updated_by
+            '%s', // created_by
+            '%s', // updated_by
             '%s', // created_at
-            '%s'  // updated_at
+            '%s', // updated_at
+            '%s', // verifier_signatory_name
+            '%s', // verifier_signatory_title
+            '%s', // municipal_assessor_name
+            '%s', // municipal_assessor_title
+            '%s', // municipal_assessor_license
+            '%s'  // municipal_assessor_suffix
         );
         
         $result = $this->db->insert($this->table_name, $insert_data, $insert_format);
@@ -422,12 +437,18 @@ class Assessor_Requests {
             'client_address' => '%s',
             'contact_number' => '%s',
             'email' => '%s',
-            'remarks' => '%s'
+            'remarks' => '%s',
+            'verifier_signatory_name' => '%s',
+            'verifier_signatory_title' => '%s',
+            'municipal_assessor_name' => '%s',
+            'municipal_assessor_title' => '%s',
+            'municipal_assessor_license' => '%s',
+            'municipal_assessor_suffix' => '%s'
         );
         
         foreach ($fields as $field => $format) {
-            if (isset($data[$field])) {
-                $update_data[$field] = $data[$field];
+            if (array_key_exists($field, $data)) {
+                $update_data[$field] = $data[$field] === '' ? null : $data[$field];
                 $update_format[] = $format;
             }
         }
@@ -435,7 +456,7 @@ class Assessor_Requests {
         // Add updated_by and updated_at
         $update_data['updated_by'] = $current_user_id;
         $update_data['updated_at'] = date('Y-m-d H:i:s');
-        $update_format[] = '%d';
+        $update_format[] = '%s';
         $update_format[] = '%s';
         
         if (empty($update_data)) {

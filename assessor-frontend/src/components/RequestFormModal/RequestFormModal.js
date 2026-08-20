@@ -220,7 +220,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
             const next = {
               ...prev,
               purpose: desiredPurpose,
-              place_issued: prev.place_issued || (settings?.request_place_issued_default || '')
+              place_issued: prev.place_issued || (settings?.request_place_issued_default || ''),
+              verifier_signatory_name: settings?.verifier_signatory_name || '',
+              verifier_signatory_title: settings?.verifier_signatory_title || '',
+              municipal_assessor_name: settings?.municipal_assessor_name || '',
+              municipal_assessor_title: settings?.municipal_assessor_title || '',
+              municipal_assessor_license: settings?.municipal_assessor_license || '',
+              municipal_assessor_suffix: settings?.municipal_assessor_suffix || ''
             };
             if (!isOfficialRequest && desiredPurpose && map[desiredPurpose] !== undefined) {
               next.amount_paid = Number(map[desiredPurpose]).toFixed(2);
@@ -230,11 +236,32 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         } else {
           setFormData(prev => ({
             ...prev,
-            place_issued: prev.place_issued || (settings?.request_place_issued_default || '')
+            place_issued: prev.place_issued || (settings?.request_place_issued_default || ''),
+            verifier_signatory_name: settings?.verifier_signatory_name || '',
+            verifier_signatory_title: settings?.verifier_signatory_title || '',
+            municipal_assessor_name: settings?.municipal_assessor_name || '',
+            municipal_assessor_title: settings?.municipal_assessor_title || '',
+            municipal_assessor_license: settings?.municipal_assessor_license || '',
+            municipal_assessor_suffix: settings?.municipal_assessor_suffix || ''
           }));
         }
       } catch (_) {
-        // ignore; fallback to defaults
+        // Fallback: try to just fetch settings if purposes fail
+        try {
+          const fallbackSettings = await apiService.getSettings();
+          setFormData(prev => ({
+            ...prev,
+            place_issued: prev.place_issued || (fallbackSettings?.request_place_issued_default || ''),
+            verifier_signatory_name: fallbackSettings?.verifier_signatory_name || '',
+            verifier_signatory_title: fallbackSettings?.verifier_signatory_title || '',
+            municipal_assessor_name: fallbackSettings?.municipal_assessor_name || '',
+            municipal_assessor_title: fallbackSettings?.municipal_assessor_title || '',
+            municipal_assessor_license: fallbackSettings?.municipal_assessor_license || '',
+            municipal_assessor_suffix: fallbackSettings?.municipal_assessor_suffix || ''
+          }));
+        } catch (e) {
+          // ignore
+        }
       }
     };
 
@@ -460,7 +487,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         property_id: selectedProperty?.id,
         amount_paid: finalAmountPaid,
         is_official_request: isOfficialRequest ? 1 : 0,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        verifier_signatory_name: formData.verifier_signatory_name,
+        verifier_signatory_title: formData.verifier_signatory_title,
+        municipal_assessor_name: formData.municipal_assessor_name,
+        municipal_assessor_title: formData.municipal_assessor_title,
+        municipal_assessor_license: formData.municipal_assessor_license,
+        municipal_assessor_suffix: formData.municipal_assessor_suffix
       };
 
       // Call API to save the request
@@ -476,7 +509,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       if (onSave) {
         // Combine the response data with property information for the receipt
         const receiptData = {
-          ...response.data,
+          ...response,
           // Add property information for the receipt display
           tax_declaration_number: selectedProperty?.tax_declaration_number,
           declarant_last_name: selectedProperty?.declarant_last_name,
