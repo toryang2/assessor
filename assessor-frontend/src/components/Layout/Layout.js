@@ -64,7 +64,7 @@ import SyncModal from '../SyncModal/SyncModal';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
 import ChangelogModal from '../ChangelogModal/ChangelogModal';
 
-const drawerWidth = '20rem'; // 320px at 16px font size
+const drawerWidth = '21.5rem'; // ~344px at 16px font size
 
 const Layout = ({ children }) => {
   const theme = useTheme();
@@ -78,7 +78,7 @@ const Layout = ({ children }) => {
       return false;
     }
   })();
-  const computedDrawerWidth = isSmallScreen ? '18.75rem' : drawerWidth; // 300px at 16px font size
+  const computedDrawerWidth = isSmallScreen ? '20rem' : drawerWidth; // 320px at 16px font size
   const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer, syncStatus } = useAuth();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
@@ -425,19 +425,19 @@ const Layout = ({ children }) => {
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {settings?.app_logo_url ? (
-            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 48 : 64, display: 'block' }} />
+            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 48 : 64, maxWidth: isSmallScreen ? 48 : 64, objectFit: 'contain', display: 'block' }} />
           ) : (
             <Business sx={{ fontSize: isSmallScreen ? 22 : 28, color: 'primary.main' }} />
           )}
         </Box>
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <Typography variant="body2" fontWeight={600} sx={{ fontSize: isSmallScreen ? '0.9rem' : undefined }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+          <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: isSmallScreen ? '0.9rem' : '1rem', mb: 0.5 }}>
             Assessor's Archiving System
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.85rem' : undefined }}>
+          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.85rem' : '0.9rem' }}>
             {headerMunicipality}
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: isSmallScreen ? '0.75rem' : undefined }}>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.75rem' : '0.8rem' }}>
             {headerProvince}
           </Typography>
         </Box>

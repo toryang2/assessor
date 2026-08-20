@@ -1080,7 +1080,15 @@ const RequestsTable = () => {
       </Dialog>
 
       {/* Requests Table */}
-       <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+       <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+        {loading && (
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
+            <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
+            <Typography variant="body1" color="text.primary" sx={{ fontWeight: 600 }}>
+              {debouncedSearchTerm ? 'Searching requests...' : 'Loading requests...'}
+            </Typography>
+          </Box>
+        )}
           <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
             <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
               <TableHead>
@@ -1184,7 +1192,7 @@ const RequestsTable = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {pagedRequests.length === 0 && (
+                  {!loading && pagedRequests.length === 0 && (
                     <TableRow sx={{ height: '100%' }}>
                       <TableCell colSpan={9} sx={{ border: 'none', p: 0, height: '100%' }}>
                         <Box sx={{ 
@@ -1205,23 +1213,14 @@ const RequestsTable = () => {
                               justifyContent: 'center'
                             }}
                           >
-                            {loading || loadingAll ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
-                                <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                                  {debouncedSearchTerm ? 'Searching requests...' : 'Loading requests...'}
-                                </Typography>
-                              </Box>
-                            ) : (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
-                                  No requests found
-                                </Typography>
-                                <Typography variant="body2" color="text.disabled">
-                                  {searchTerm ? 'Try adjusting your search or filters' : 'No requests found matching your criteria.'}
-                                </Typography>
-                              </Box>
-                            )}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
+                                No requests found
+                              </Typography>
+                              <Typography variant="body2" color="text.disabled">
+                                {searchTerm ? 'Try adjusting your search or filters' : 'No requests found matching your criteria.'}
+                              </Typography>
+                            </Box>
                           </Box>
                         </Box>
                       </TableCell>

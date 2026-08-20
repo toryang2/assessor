@@ -547,7 +547,13 @@ const UserManagement = () => {
       </Card>
 
       {/* Users Table */}
-      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+        {(loading && !initialLoad) && (
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
+            <CircularProgress size={30} sx={{ mb: 2 }} />
+            <Typography color="text.primary" sx={{ fontWeight: 600 }}>Loading users...</Typography>
+          </Box>
+        )}
         <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
           <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
             <colgroup>
@@ -662,7 +668,7 @@ const UserManagement = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {(!users || users.length === 0) && (
+              {(!loading || initialLoad) && (!users || users.length === 0) && (
                 <TableRow sx={{ height: '100%' }}>
                   <TableCell colSpan={6} sx={{ border: 'none', p: 0, height: '100%' }}>
                     <Box sx={{ 
@@ -683,16 +689,9 @@ const UserManagement = () => {
                           justifyContent: 'center'
                         }}
                       >
-                        {loading ? (
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <CircularProgress size={30} sx={{ mb: 2 }} />
-                            <Typography color="text.secondary">Loading users...</Typography>
-                          </Box>
-                        ) : (
-                          <Typography color="text.secondary">
-                            {searchTerm ? 'No users found matching your search.' : 'No users found.'}
-                          </Typography>
-                        )}
+                        <Typography color="text.secondary">
+                          {searchTerm ? 'No users found matching your search.' : 'No users found.'}
+                        </Typography>
                       </Box>
                     </Box>
                   </TableCell>
