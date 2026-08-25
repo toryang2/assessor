@@ -20,7 +20,7 @@
                 animation: spin 1s linear infinite;
                 margin-bottom: 1rem;
             "></div>
-            <h2 style="color: #374151; margin: 0; font-size: 1.25rem; font-weight: 500;">Loading Property Assessor System...</h2>
+            <h2 style="color: #374151; margin: 0; font-size: 1.25rem; font-weight: 500;">Loading Assessor Archiving System...</h2>
             <p style="color: #6b7280; margin: 0.5rem 0 0 0; font-size: 0.875rem;">Please wait while the system initializes</p>
         </div>
     </div>

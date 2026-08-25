@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.1.11",
+    "date": "2026-08-24",
+    "features": [
+      "Fixed navigation drawer title truncation by increasing drawer width slightly",
+      "Fixed overlapping loading spinner in tables by putting it inside a clean elevated card, then removed it and adjusted loading logic to not block UI unnecessarily",
+      "Fixed table row stretching on small result sets by removing height: 100% on tables"
+    ]
+  },
+  {
     "version": "1.1.10",
     "date": "2026-08-20",
     "features": [

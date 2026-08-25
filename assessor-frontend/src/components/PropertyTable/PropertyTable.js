@@ -1703,7 +1703,7 @@ const PropertyTable = () => {
           </Box>
         )}
         <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ minWidth: '100rem', height: '100%' }}>
+          <Table stickyHeader sx={{ minWidth: '100rem' }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Tax Declaration Number</TableCell>
@@ -1967,11 +1967,10 @@ const PropertyTable = () => {
                 </TableRow>
               ))}
               {!loading && (!pagedProperties || pagedProperties.length === 0) && (
-                <TableRow sx={{ height: '100%' }}>
-                  <TableCell colSpan={14} sx={{ border: 'none', p: 0, height: '100%' }}>
+                <TableRow>
+                  <TableCell colSpan={14} sx={{ border: 'none', p: 0 }}>
                     <Box sx={{ 
-                      height: '100%',
-                      minHeight: 200, 
+                      minHeight: 400, 
                       width: '100%', 
                       display: 'flex', 
                       alignItems: 'center' 

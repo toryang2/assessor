@@ -511,7 +511,7 @@ const AuditTrail = () => {
           </Box>
         )}
         <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ height: '100%' }}>
+          <Table stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell>Action</TableCell>

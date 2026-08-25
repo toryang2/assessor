@@ -1090,7 +1090,7 @@ const RequestsTable = () => {
           </Box>
         )}
           <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-            <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
+            <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
               <TableHead>
                 <TableRow>
                   <TableCell><strong>Receipt No.</strong></TableCell>
@@ -1193,11 +1193,10 @@ const RequestsTable = () => {
                     </TableRow>
                   ))}
                   {!loading && pagedRequests.length === 0 && (
-                    <TableRow sx={{ height: '100%' }}>
-                      <TableCell colSpan={9} sx={{ border: 'none', p: 0, height: '100%' }}>
+                    <TableRow>
+                      <TableCell colSpan={9} sx={{ border: 'none', p: 0 }}>
                         <Box sx={{ 
-                          height: '100%',
-                          minHeight: 200, 
+                          minHeight: 400, 
                           width: '100%', 
                           display: 'flex', 
                           alignItems: 'center' 

@@ -555,7 +555,7 @@ const UserManagement = () => {
           </Box>
         )}
         <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ tableLayout: 'fixed', height: '100%' }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '300px' }} />
               <col style={{ width: '160px' }} />
