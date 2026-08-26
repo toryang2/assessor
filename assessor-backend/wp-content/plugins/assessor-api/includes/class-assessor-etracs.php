@@ -979,7 +979,25 @@ class Assessor_Etracs {
 
         $rpu->assessments = $assessments ? $assessments : [];
 
-        if (strtoupper($rpu->rpu_type) === 'BLDG') {
+        $rpu_type = strtoupper($rpu->rpu_type);
+
+        if ($rpu_type === 'LAND') {
+            // Fetch land RPU summary
+            $t_landrpu = $wpdb->prefix . 'assessor_landrpu';
+            $landrpu = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_landrpu WHERE objid = %s", $id));
+            if ($landrpu) {
+                $rpu->landrpu = $landrpu;
+            }
+
+            // Fetch land details (subclass, area, unit value, etc.)
+            $t_landdetail = $wpdb->prefix . 'assessor_landdetail';
+            $rpu->landdetail = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_landdetail WHERE landrpuid = %s", $id));
+
+            // Fetch plant/tree RPU if linked to this land
+            $t_planttreerpu = $wpdb->prefix . 'assessor_planttreerpu';
+            $rpu->planttrees = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_planttreerpu WHERE landrpuid = %s", $id));
+
+        } elseif ($rpu_type === 'BLDG') {
             // Fetch building subtype data
             $t_bldgrpu = $wpdb->prefix . 'assessor_bldgrpu';
             $subtype = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_bldgrpu WHERE objid = %s", $id));
@@ -996,15 +1014,65 @@ class Assessor_Etracs {
 
             // Fetch floors
             $t_bldgfloor = $wpdb->prefix . 'assessor_bldgfloor';
-            $rpu->floors = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_bldgfloor WHERE bldgrpuid = %s", $id));
+            $rpu->floors = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_bldgfloor WHERE bldgrpuid = %s ORDER BY floorno ASC", $id));
             
+            // Fetch floor additionals (building additional items per floor)
+            $t_bldgflooradditional = $wpdb->prefix . 'assessor_bldgflooradditional';
+            $t_bldgadditionalitem = $wpdb->prefix . 'assessor_bldgadditionalitem';
+            $rpu->floorAdditionals = $wpdb->get_results($wpdb->prepare("
+                SELECT fa.*, ai.code as item_code, ai.name as item_name, ai.unit as item_unit
+                FROM $t_bldgflooradditional fa
+                LEFT JOIN $t_bldgadditionalitem ai ON fa.additionalitem_objid = ai.objid
+                WHERE fa.bldgrpuid = %s
+            ", $id));
+
             // Fetch structures
             $t_bldgstructure = $wpdb->prefix . 'assessor_bldgstructure';
-            $rpu->structures = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_bldgstructure WHERE bldgrpuid = %s", $id));
+            $t_structure = $wpdb->prefix . 'assessor_structure';
+            $t_material = $wpdb->prefix . 'assessor_material';
+            $rpu->structures = $wpdb->get_results($wpdb->prepare("
+                SELECT bs.*, s.name as structure_name, m.name as material_name
+                FROM $t_bldgstructure bs
+                LEFT JOIN $t_structure s ON bs.structure_objid = s.objid
+                LEFT JOIN $t_material m ON bs.material_objid = m.objid
+                WHERE bs.bldgrpuid = %s
+            ", $id));
             
             // Fetch uses
             $t_bldguse = $wpdb->prefix . 'assessor_bldguse';
             $rpu->uses = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_bldguse WHERE bldgrpuid = %s", $id));
+
+        } elseif ($rpu_type === 'MACH') {
+            // Fetch machinery RPU summary
+            $t_machrpu = $wpdb->prefix . 'assessor_machrpu';
+            $machrpu = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_machrpu WHERE objid = %s", $id));
+            if ($machrpu) {
+                $rpu->machrpu = $machrpu;
+            }
+
+            // Fetch machinery SMV detail items
+            $t_machine_smv = $wpdb->prefix . 'assessor_machine_smv';
+            $rpu->machines = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_machine_smv WHERE parent_objid = %s", $id));
+
+        } elseif ($rpu_type === 'MISC') {
+            // Fetch misc RPU summary
+            $t_miscrpu = $wpdb->prefix . 'assessor_miscrpu';
+            $miscrpu = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_miscrpu WHERE objid = %s", $id));
+            if ($miscrpu) {
+                $rpu->miscrpu = $miscrpu;
+            }
+
+            // Fetch misc RPU items
+            $t_miscrpuitem = $wpdb->prefix . 'assessor_miscrpuitem';
+            $rpu->miscitems = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_miscrpuitem WHERE miscrpuid = %s", $id));
+
+        } elseif ($rpu_type === 'PLANTTREE') {
+            // Fetch plant/tree RPU
+            $t_planttreerpu = $wpdb->prefix . 'assessor_planttreerpu';
+            $planttreerpu = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t_planttreerpu WHERE objid = %s", $id));
+            if ($planttreerpu) {
+                $rpu->planttreerpu = $planttreerpu;
+            }
         }
 
         return array(

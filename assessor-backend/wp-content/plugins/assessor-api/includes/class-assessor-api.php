@@ -636,6 +636,13 @@ class Assessor_API {
             'callback' => array($this, 'etracs_pull_sync'),
             'permission_callback' => array($this, 'check_manager'),
         ));
+        
+        // ETRACS Sync Pull Status
+        register_rest_route('assessor/v1', '/etracs/pull/status', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'etracs_pull_sync_status'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
 
         // ETRACS stats
         register_rest_route('assessor/v1', '/etracs/stats', array(
@@ -1359,6 +1366,13 @@ class Assessor_API {
             'success' => true,
             'message' => 'ETRACS sync completed successfully.',
             'stats' => $stats
+        ));
+    }
+
+    public function etracs_pull_sync_status($request) {
+        $status = get_option('assessor_sync_progress', 'Not running');
+        return rest_ensure_response(array(
+            'status' => $status
         ));
     }
 }

@@ -131,6 +131,7 @@ export const endpoints = {
   etracsEntities: '/etracs/entities',
   etracsEntityItem: (id) => `/etracs/entities/${id}`,
   etracsPullSync: '/etracs/pull',
+  etracsPullSyncStatus: '/etracs/pull/status',
   etracsBarangay: '/etracs/barangay',
   etracsClassifications: '/etracs/classifications',
   etracsExemptionTypes: '/etracs/exemption-types',
@@ -783,6 +784,15 @@ export const apiService = {
   pullEtracsSync: async () => {
     try {
       const response = await api.post(endpoints.etracsPullSync, {}, { timeout: 300000 });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getEtracsSyncStatus: async () => {
+    try {
+      const response = await api.get(endpoints.etracsPullSyncStatus);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

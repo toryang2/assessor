@@ -1358,6 +1358,233 @@ class Assessor_Database {
   KEY ix_structure_state (state)
 ) $charset_collate;";
 
+        // --- MISSING DETAIL TABLES (needed for sync from ETRACS) ---
+
+        $table_assessor_machdetail = $wpdb->prefix . 'assessor_machdetail';
+        $sql_assessor_machdetail = "CREATE TABLE $table_assessor_machdetail (
+  objid varchar(50) NOT NULL,
+  machuseid varchar(50) DEFAULT NULL,
+  machrpuid varchar(50) NOT NULL,
+  machine_objid varchar(50) NOT NULL,
+  operationyear int DEFAULT NULL,
+  replacementcost decimal(16,2) NOT NULL,
+  depreciation decimal(16,2) NOT NULL,
+  depreciationvalue decimal(16,2) NOT NULL,
+  basemarketvalue decimal(16,2) NOT NULL,
+  marketvalue decimal(16,2) NOT NULL,
+  assesslevel decimal(16,2) NOT NULL,
+  assessedvalue decimal(16,2) NOT NULL,
+  brand varchar(100) DEFAULT NULL,
+  capacity varchar(100) DEFAULT NULL,
+  model varchar(100) DEFAULT NULL,
+  serialno varchar(100) DEFAULT NULL,
+  status varchar(25) DEFAULT NULL,
+  yearacquired int DEFAULT NULL,
+  estimatedlife int DEFAULT NULL,
+  remaininglife int DEFAULT NULL,
+  yearinstalled int DEFAULT NULL,
+  yearsused int DEFAULT NULL,
+  originalcost decimal(16,2) NOT NULL,
+  freightcost decimal(16,2) NOT NULL,
+  insurancecost decimal(16,2) NOT NULL,
+  installationcost decimal(16,2) NOT NULL,
+  brokeragecost decimal(16,2) NOT NULL,
+  arrastrecost decimal(16,2) NOT NULL,
+  othercost decimal(16,2) NOT NULL,
+  acquisitioncost decimal(16,2) NOT NULL,
+  feracid varchar(50) DEFAULT NULL,
+  ferac decimal(16,2) NOT NULL,
+  forexid varchar(50) DEFAULT NULL,
+  forex decimal(16,2) NOT NULL,
+  residualrate decimal(16,4) NOT NULL,
+  conversionfactor decimal(16,4) NOT NULL,
+  swornamount decimal(16,2) NOT NULL,
+  useswornamount int DEFAULT NULL,
+  imported int DEFAULT NULL,
+  newlyinstalled int DEFAULT NULL,
+  autodepreciate int DEFAULT NULL,
+  taxable int DEFAULT NULL,
+  smvid varchar(50) DEFAULT NULL,
+  params text,
+  PRIMARY KEY (objid),
+  KEY ix_machdetail_machrpuid (machrpuid)
+) $charset_collate;";
+
+        $table_assessor_miscitem = $wpdb->prefix . 'assessor_miscitem';
+        $sql_assessor_miscitem = "CREATE TABLE $table_assessor_miscitem (
+  objid varchar(50) NOT NULL,
+  state varchar(10) DEFAULT 'active',
+  code varchar(20) NOT NULL,
+  name varchar(200) NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_miscitem_code (code)
+) $charset_collate;";
+
+        $table_assessor_bldgflooradditional = $wpdb->prefix . 'assessor_bldgflooradditional';
+        $sql_assessor_bldgflooradditional = "CREATE TABLE $table_assessor_bldgflooradditional (
+  objid varchar(50) NOT NULL,
+  bldgfloorid varchar(50) NOT NULL,
+  bldgrpuid varchar(50) NOT NULL,
+  additionalitem_objid varchar(50) NOT NULL,
+  amount decimal(16,2) NOT NULL,
+  expr text NOT NULL,
+  depreciate int DEFAULT NULL,
+  issystem int DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY FK_bldgflooradditional_additionalitem (additionalitem_objid),
+  KEY FK_bldgflooradditional_bldgfloor (bldgfloorid),
+  KEY FK_bldgflooradditional_bldgrpu (bldgrpuid)
+) $charset_collate;";
+
+        $table_assessor_bldgadditionalitem = $wpdb->prefix . 'assessor_bldgadditionalitem';
+        $sql_assessor_bldgadditionalitem = "CREATE TABLE $table_assessor_bldgadditionalitem (
+  objid varchar(50) NOT NULL,
+  bldgrysettingid varchar(50) NOT NULL,
+  code varchar(10) NOT NULL,
+  name varchar(100) NOT NULL,
+  unit varchar(25) NOT NULL,
+  expr varchar(100) NOT NULL,
+  previd varchar(50) DEFAULT NULL,
+  type varchar(50) DEFAULT NULL,
+  addareatobldgtotalarea int DEFAULT NULL,
+  idx int DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY bldgrysettingid (bldgrysettingid),
+  KEY ix_previd (previd)
+) $charset_collate;";
+
+        $table_assessor_bldgtype_depreciation = $wpdb->prefix . 'assessor_bldgtype_depreciation';
+        $sql_assessor_bldgtype_depreciation = "CREATE TABLE $table_assessor_bldgtype_depreciation (
+  objid varchar(50) NOT NULL,
+  bldgtypeid varchar(50) NOT NULL,
+  bldgrysettingid varchar(50) NOT NULL,
+  agefrom int NOT NULL,
+  ageto int NOT NULL,
+  rate decimal(16,2) NOT NULL,
+  excellent decimal(16,2) DEFAULT NULL,
+  verygood decimal(16,2) DEFAULT NULL,
+  good decimal(16,2) DEFAULT NULL,
+  average decimal(16,2) DEFAULT NULL,
+  fair decimal(16,2) DEFAULT NULL,
+  poor decimal(16,2) DEFAULT NULL,
+  verypoor decimal(16,2) DEFAULT NULL,
+  unsound decimal(16,2) DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY FK_bldgtype_depreciation_bldgrysetting (bldgrysettingid),
+  KEY ix_bldgtypeid (bldgtypeid)
+) $charset_collate;";
+
+        $table_assessor_machine_smv = $wpdb->prefix . 'assessor_machine_smv';
+        $sql_assessor_machine_smv = "CREATE TABLE $table_assessor_machine_smv (
+  objid varchar(50) NOT NULL,
+  parent_objid varchar(50) NOT NULL,
+  machine_objid varchar(50) NOT NULL,
+  expr varchar(255) NOT NULL,
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_parent_machine (parent_objid,machine_objid),
+  KEY ix_parent_objid (parent_objid),
+  KEY ix_machine_objid (machine_objid),
+  KEY ix_previd (previd)
+) $charset_collate;";
+
+        $table_assessor_miscrpuitem = $wpdb->prefix . 'assessor_miscrpuitem';
+        $sql_assessor_miscrpuitem = "CREATE TABLE $table_assessor_miscrpuitem (
+  objid varchar(50) NOT NULL,
+  miscrpuid varchar(50) NOT NULL,
+  miv_objid varchar(50) NOT NULL,
+  miscitem_objid varchar(50) NOT NULL,
+  expr varchar(255) NOT NULL,
+  depreciation decimal(16,2) NOT NULL,
+  depreciatedvalue decimal(16,2) NOT NULL,
+  basemarketvalue decimal(16,2) NOT NULL,
+  marketvalue decimal(16,2) NOT NULL,
+  assesslevel decimal(16,2) NOT NULL,
+  assessedvalue decimal(16,2) NOT NULL,
+  appraisalstartdate date DEFAULT NULL,
+  taxable int DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY FK_miscrpuitem_miscitem (miscitem_objid),
+  KEY FK_miscrpuitem_miscitemvalue (miv_objid),
+  KEY FK_miscrpuitem_miscrpu (miscrpuid)
+) $charset_collate;";
+
+        $table_assessor_planttreerpu = $wpdb->prefix . 'assessor_planttreerpu';
+        $sql_assessor_planttreerpu = "CREATE TABLE $table_assessor_planttreerpu (
+  objid varchar(50) NOT NULL,
+  landrpuid varchar(50) NOT NULL,
+  productive decimal(16,2) NOT NULL,
+  nonproductive decimal(16,2) NOT NULL,
+  PRIMARY KEY (objid),
+  KEY FK_planttreerpu_landrpu (landrpuid)
+) $charset_collate;";
+
+
+        $table_assessor_landassesslevel = $wpdb->prefix . 'assessor_landassesslevel';
+        $sql_assessor_landassesslevel = "CREATE TABLE $table_assessor_landassesslevel (
+  objid varchar(50) NOT NULL,
+  landrysettingid varchar(50) DEFAULT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  code varchar(20) DEFAULT NULL,
+  name varchar(100) DEFAULT NULL,
+  fixrate int DEFAULT '0',
+  rate decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_bldgassesslevel = $wpdb->prefix . 'assessor_bldgassesslevel';
+        $sql_assessor_bldgassesslevel = "CREATE TABLE $table_assessor_bldgassesslevel (
+  objid varchar(50) NOT NULL,
+  bldgrysettingid varchar(50) DEFAULT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  code varchar(20) DEFAULT NULL,
+  name varchar(100) DEFAULT NULL,
+  fixrate int DEFAULT '0',
+  rate decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_machassesslevel = $wpdb->prefix . 'assessor_machassesslevel';
+        $sql_assessor_machassesslevel = "CREATE TABLE $table_assessor_machassesslevel (
+  objid varchar(50) NOT NULL,
+  machrysettingid varchar(50) DEFAULT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  code varchar(20) DEFAULT NULL,
+  name varchar(100) DEFAULT NULL,
+  fixrate int DEFAULT '0',
+  rate decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_planttreeassesslevel = $wpdb->prefix . 'assessor_planttreeassesslevel';
+        $sql_assessor_planttreeassesslevel = "CREATE TABLE $table_assessor_planttreeassesslevel (
+  objid varchar(50) NOT NULL,
+  planttreerysettingid varchar(50) DEFAULT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  code varchar(20) DEFAULT NULL,
+  name varchar(100) DEFAULT NULL,
+  fixrate int DEFAULT '0',
+  rate decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
+        $table_assessor_miscassesslevel = $wpdb->prefix . 'assessor_miscassesslevel';
+        $sql_assessor_miscassesslevel = "CREATE TABLE $table_assessor_miscassesslevel (
+  objid varchar(50) NOT NULL,
+  miscrysettingid varchar(50) DEFAULT NULL,
+  classification_objid varchar(50) DEFAULT NULL,
+  code varchar(20) DEFAULT NULL,
+  name varchar(100) DEFAULT NULL,
+  fixrate int DEFAULT '0',
+  rate decimal(16,2) NOT NULL DEFAULT '0.00',
+  previd varchar(50) DEFAULT NULL,
+  PRIMARY KEY (objid)
+) $charset_collate;";
+
 
 
         // Execute SQL statements
@@ -1453,6 +1680,23 @@ class Assessor_Database {
         dbDelta($sql_assessor_rpu_assessment);
         dbDelta($sql_assessor_rpumaster);
         dbDelta($sql_assessor_structure);
+
+        // Missing detail & assess-level tables
+        dbDelta($sql_assessor_machdetail);
+        dbDelta($sql_assessor_miscitem);
+        dbDelta($sql_assessor_bldgflooradditional);
+        dbDelta($sql_assessor_bldgadditionalitem);
+        dbDelta($sql_assessor_bldgtype_depreciation);
+        dbDelta($sql_assessor_machine_smv);
+        dbDelta($sql_assessor_miscrpuitem);
+        dbDelta($sql_assessor_planttreerpu);
+        dbDelta($sql_assessor_faas_signatory);
+        dbDelta($sql_assessor_landassesslevel);
+        dbDelta($sql_assessor_bldgassesslevel);
+        dbDelta($sql_assessor_machassesslevel);
+        dbDelta($sql_assessor_planttreeassesslevel);
+        dbDelta($sql_assessor_miscassesslevel);
+
 
         // Add foreign key constraints separately
         $this->add_foreign_keys();

@@ -21,7 +21,13 @@ class Assessor_Etracs_Sync {
         }
     }
 
+    public static function update_progress($message) {
+        update_option('assessor_sync_progress', $message, false);
+    }
+
     public static function trigger_sync() {
+        set_time_limit(0); // Prevent PHP execution timeout
+        self::update_progress("Starting sync...");
         self::ensure_schema();
 
         $host = get_option('assessor_etracs_db_host', 'localhost');
@@ -83,6 +89,7 @@ class Assessor_Etracs_Sync {
                 'state' => $row['state'],
             ]);
             $stats['entity']++;
+            if ($stats['entity'] % 500 === 0) self::update_progress("Syncing Entities ({$stats['entity']} rows)...");
         }
 
         // 2. Real Property Sync
@@ -119,6 +126,7 @@ class Assessor_Etracs_Sync {
                 $rp_map[$etracs_id] = $wpdb->insert_id;
             }
             $stats['real_property']++;
+            if ($stats['real_property'] % 500 === 0) self::update_progress("Syncing Real Properties ({$stats['real_property']} rows)...");
         }
 
         // 3. RPU Sync
@@ -157,6 +165,7 @@ class Assessor_Etracs_Sync {
                 $rpu_map[$etracs_id] = $wpdb->insert_id;
             }
             $stats['rpu']++;
+            if ($stats['rpu'] % 500 === 0) self::update_progress("Syncing RPUs ({$stats['rpu']} rows)...");
         }
 
         // 4. FAAS Sync
@@ -229,43 +238,77 @@ class Assessor_Etracs_Sync {
 
             $wpdb->replace($wp_faas, $data);
             $stats['faas']++;
+            if ($stats['faas'] % 500 === 0) self::update_progress("Syncing FAAS ({$stats['faas']} rows)...");
         }
 
-        // 5. Sync detail & lookup tables (Building, Land, Mach, Misc, Lookups)
+        // 5. Sync detail & lookup tables (Building, Land, Mach, Misc, PlantTree, Lookups)
         $tables_to_sync_direct = [
             'faas_previous' => 'assessor_faas_previous',
+            'faas_list' => 'assessor_faas_list',
+            'faas_signatory' => 'assessor_faas_signatory',
+            // Building detail tables
             'bldgrpu' => 'assessor_bldgrpu',
             'bldgfloor' => 'assessor_bldgfloor',
+            'bldgflooradditional' => 'assessor_bldgflooradditional',
+            'bldgadditionalitem' => 'assessor_bldgadditionalitem',
             'bldguse' => 'assessor_bldguse',
             'bldgstructure' => 'assessor_bldgstructure',
             'bldgrpu_structuraltype' => 'assessor_bldgrpu_structuraltype',
+            'bldgtype_depreciation' => 'assessor_bldgtype_depreciation',
+            // Building lookups
             'bldgkind' => 'assessor_bldgkind',
             'bldgkindbucc' => 'assessor_bldgkindbucc',
             'bldgtype' => 'assessor_bldgtype',
             'bldgrysetting' => 'assessor_bldgrysetting',
-            'propertyclassification' => 'assessor_propertyclassification',
+            // Land detail tables
             'landrpu' => 'assessor_landrpu',
             'landdetail' => 'assessor_landdetail',
+            // Machinery detail tables
             'machrpu' => 'assessor_machrpu',
             'machdetail' => 'assessor_machdetail',
+            'machine_smv' => 'assessor_machine_smv',
+            // Misc detail tables
             'miscrpu' => 'assessor_miscrpu',
             'miscitem' => 'assessor_miscitem',
+            'miscrpuitem' => 'assessor_miscrpuitem',
+            // Plant/Tree detail tables
+            'planttreerpu' => 'assessor_planttreerpu',
+            // Assessment level lookups
             'landassesslevel' => 'assessor_landassesslevel',
             'bldgassesslevel' => 'assessor_bldgassesslevel',
             'machassesslevel' => 'assessor_machassesslevel',
             'planttreeassesslevel' => 'assessor_planttreeassesslevel',
             'miscassesslevel' => 'assessor_miscassesslevel',
+            // General lookups
+            'propertyclassification' => 'assessor_propertyclassification',
+            'structure' => 'assessor_structure',
+            'material' => 'assessor_material',
+            'barangay' => 'assessor_barangay',
+            'exemptiontype' => 'assessor_exemptiontype',
+            'rpumaster' => 'assessor_rpumaster',
         ];
 
         foreach ($tables_to_sync_direct as $etracs_table => $local_table) {
             $full_local_table = $wpdb->prefix . $local_table;
             try {
+                $valid_columns = $wpdb->get_col("DESCRIBE `$full_local_table`", 0);
+                if (empty($valid_columns)) continue;
+                $valid_columns_flip = array_flip($valid_columns);
+
                 $stmt = $pdo->query("SELECT * FROM `$etracs_table`");
                 if ($stmt) {
                     $stats[$local_table] = 0;
+                    self::update_progress("Syncing $etracs_table...");
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                        $wpdb->replace($full_local_table, $row);
+                        $filtered_row = array_intersect_key($row, $valid_columns_flip);
+                        $result = $wpdb->replace($full_local_table, $filtered_row);
+                        
+                        if ($result === false) {
+                            error_log("Assessor ETRACS Sync Error replacing $etracs_table: " . $wpdb->last_error);
+                        }
+
                         $stats[$local_table]++;
+                        if ($stats[$local_table] % 500 === 0) self::update_progress("Syncing $etracs_table ({$stats[$local_table]} rows)...");
                     }
                 }
             } catch (Exception $e) {
@@ -276,6 +319,9 @@ class Assessor_Etracs_Sync {
         // 6. Sync rpu_assessment with JOINs to get classname and actualuse
         $wp_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
         try {
+            $valid_columns_ra = $wpdb->get_col("DESCRIBE `$wp_rpu_assessment`", 0);
+            $valid_columns_ra_flip = !empty($valid_columns_ra) ? array_flip($valid_columns_ra) : [];
+
             $stmt = $pdo->query("
                 SELECT ra.*, 
                        pc1.code as classcode, 
@@ -290,16 +336,23 @@ class Assessor_Etracs_Sync {
                 LEFT JOIN planttreeassesslevel pa ON pa.objid = ra.actualuse_objid
                 LEFT JOIN miscassesslevel mia ON mia.objid = ra.actualuse_objid
             ");
-            if ($stmt) {
+            if ($stmt && !empty($valid_columns_ra_flip)) {
                 $stats['rpu_assessment'] = 0;
+                self::update_progress("Syncing rpu_assessment...");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    $wpdb->replace($wp_rpu_assessment, $row);
+                    $filtered_row = array_intersect_key($row, $valid_columns_ra_flip);
+                    $result = $wpdb->replace($wp_rpu_assessment, $filtered_row);
+                    if ($result === false) {
+                        error_log("Assessor ETRACS Sync Error replacing rpu_assessment: " . $wpdb->last_error);
+                    }
                     $stats['rpu_assessment']++;
+                    if ($stats['rpu_assessment'] % 500 === 0) self::update_progress("Syncing rpu_assessment ({$stats['rpu_assessment']} rows)...");
                 }
             }
         } catch (Exception $e) {}
 
         update_option('assessor_etracs_last_sync', current_time('mysql'));
+        delete_option('assessor_sync_progress');
 
         return $stats;
     }

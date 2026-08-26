@@ -280,6 +280,26 @@ const Settings = () => {
   const [syncSettingsMsg, setSyncSettingsMsg] = useState({ type: '', text: '' });
   const [pastedToken, setPastedToken] = useState('');
   const [etracsPulling, setEtracsPulling] = useState(false);
+  const [syncProgress, setSyncProgress] = useState('Not running');
+
+  useEffect(() => {
+    let interval;
+    if (etracsPulling) {
+      interval = setInterval(async () => {
+        try {
+          const res = await apiService.getEtracsSyncStatus();
+          if (res.status) {
+            setSyncProgress(res.status);
+          }
+        } catch (e) {
+          console.error('Failed to get sync status', e);
+        }
+      }, 1500);
+    } else if (syncProgress !== 'Complete') {
+      setSyncProgress('Not running');
+    }
+    return () => clearInterval(interval);
+  }, [etracsPulling, syncProgress]);
 
   // Load sync config when user opens the Sync tab
   const [syncConfigError, setSyncConfigError] = useState(null);
@@ -1550,6 +1570,7 @@ const Settings = () => {
       setToast({ open: true, message: e.message || 'Failed to pull ETRACS data.', severity: 'error' });
     } finally {
       setEtracsPulling(false);
+      setSyncProgress('Complete');
     }
   };
 
@@ -1633,6 +1654,14 @@ const Settings = () => {
           >
             {etracsPulling ? 'Pulling Data...' : 'Pull Latest Data'}
           </Button>
+
+          {(etracsPulling || syncProgress === 'Complete') && (
+            <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.900', color: 'success.main', fontFamily: 'monospace' }}>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                $ {syncProgress}
+              </Typography>
+            </Paper>
+          )}
         </Grid>
       </Grid>
     );
