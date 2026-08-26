@@ -3,22 +3,8 @@
 class Assessor_Etracs_Sync {
 
     public static function ensure_schema() {
-        global $wpdb;
-        
-        $rp_table = $wpdb->prefix . 'assessor_real_property';
-        $rpu_table = $wpdb->prefix . 'assessor_rpu';
-
-        $rp_cols = $wpdb->get_col("DESC $rp_table", 0);
-        if (!in_array('etracs_objid', $rp_cols)) {
-            $wpdb->query("ALTER TABLE $rp_table ADD COLUMN etracs_objid varchar(50) DEFAULT NULL");
-            $wpdb->query("ALTER TABLE $rp_table ADD INDEX ix_etracs_objid (etracs_objid)");
-        }
-
-        $rpu_cols = $wpdb->get_col("DESC $rpu_table", 0);
-        if (!in_array('etracs_objid', $rpu_cols)) {
-            $wpdb->query("ALTER TABLE $rpu_table ADD COLUMN etracs_objid varchar(50) DEFAULT NULL");
-            $wpdb->query("ALTER TABLE $rpu_table ADD INDEX ix_etracs_objid (etracs_objid)");
-        }
+        // Schema is handled by class-assessor-database.php
+        // No longer modifying local tables to add etracs_objid
     }
 
     public static function update_progress($message) {
@@ -93,77 +79,79 @@ class Assessor_Etracs_Sync {
         }
 
         // 2. Real Property Sync
-        $rp_map = []; // Maps ETRACS objid to local ID
         $stmt = $pdo->query("
             SELECT rp.*, b.name as barangay_name 
             FROM realproperty rp 
             LEFT JOIN barangay b ON rp.barangayid = b.objid
         ");
         while ($row = $stmt->fetch()) {
-            $etracs_id = $row['objid'];
-            $existing_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $wp_rp WHERE etracs_objid = %s", $etracs_id));
-            
             $data = [
-                'objid' => $etracs_id,
-                'etracs_objid' => $etracs_id,
+                'objid' => $row['objid'],
                 'pin' => $row['pin'],
-                'cadastral_lot_no' => $row['cadastrallotno'],
-                'survey_no' => $row['surveyno'],
-                'block_no' => $row['blockno'],
+                'cadastrallotno' => $row['cadastrallotno'],
+                'surveyno' => $row['surveyno'],
+                'blockno' => $row['blockno'],
                 'barangay' => !empty($row['barangay_name']) ? $row['barangay_name'] : $row['barangayid'],
                 'municipality' => $row['lgutype'] == 'municipality' ? $row['lguid'] : '',
                 'north' => $row['north'],
                 'south' => $row['south'],
                 'east' => $row['east'],
-                'west' => $row['west']
+                'west' => $row['west'],
+                'pintype' => $row['pintype'],
+                'ry' => $row['ry'],
+                'barangayid' => $row['barangayid'],
+                'lguid' => $row['lguid'],
+                'lgutype' => $row['lgutype'],
+                'purok' => $row['purok'],
+                'street' => $row['street'],
+                'stewardshipno' => $row['stewardshipno'],
+                'portionof' => $row['portionof'],
+                'autonumber' => $row['autonumber'],
+                'previd' => $row['previd'],
+                'claimno' => $row['claimno'],
+                'section' => $row['section'],
+                'parcel' => $row['parcel'],
             ];
             
-            if ($existing_id) {
-                $wpdb->update($wp_rp, $data, ['id' => $existing_id]);
-                $rp_map[$etracs_id] = $existing_id;
-            } else {
-                $wpdb->insert($wp_rp, $data);
-                $rp_map[$etracs_id] = $wpdb->insert_id;
-            }
+            $wpdb->replace($wp_rp, $data);
+            
             $stats['real_property']++;
             if ($stats['real_property'] % 500 === 0) self::update_progress("Syncing Real Properties ({$stats['real_property']} rows)...");
         }
 
         // 3. RPU Sync
-        $rpu_map = []; // Maps ETRACS objid to local ID
         $stmt = $pdo->query("
-            SELECT rpu.*, pc.code as class_code 
+            SELECT rpu.*, pc.code as class_code, rp2.barangayid as rp_barangayid
             FROM rpu 
             LEFT JOIN propertyclassification pc ON rpu.classification_objid = pc.objid
+            LEFT JOIN realproperty rp2 ON rpu.realpropertyid = rp2.objid
         ");
         while ($row = $stmt->fetch()) {
-            $etracs_id = $row['objid'];
-            $rp_etracs_id = $row['realpropertyid'];
-            
-            // Link to the local real_property_id using our map
-            $local_rp_id = $rp_map[$rp_etracs_id] ?? 0;
-            
-            $existing_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $wp_rpu WHERE etracs_objid = %s", $etracs_id));
-            
             $data = [
-                'objid' => $etracs_id,
-                'etracs_objid' => $etracs_id,
-                'real_property_id' => $local_rp_id,
+                'objid' => $row['objid'],
+                'state' => $row['state'],
+                'realpropertyid' => $row['realpropertyid'],
                 'rpu_type' => $row['rputype'],
                 'classification' => !empty($row['class_code']) ? $row['class_code'] : $row['classification_objid'],
                 'ry' => $row['ry'],
                 'total_market_value' => floatval($row['totalmv']),
                 'total_assessed_value' => floatval($row['totalav']),
-                'taxable' => $row['taxable']
+                'taxable' => $row['taxable'],
+                'total_area_hectare' => floatval($row['totalareaha']),
+                'total_area_sqm' => floatval($row['totalareasqm']),
+                'fullpin' => $row['fullpin'],
+                'suffix' => intval($row['suffix']),
+                'subsuffix' => $row['subsuffix'],
+                'classification_objid' => $row['classification_objid'],
+                'exemptiontype_objid' => $row['exemptiontype_objid'],
+                'totalbmv' => floatval($row['totalbmv']),
+                'previd' => $row['previd'],
+                'rpumasterid' => $row['rpumasterid'],
+                'barangayid' => $row['rp_barangayid'] ?? '',
             ];
             
-            if ($existing_id) {
-                $wpdb->update($wp_rpu, $data, ['id' => $existing_id]);
-                $rpu_map[$etracs_id] = $existing_id;
-            } else {
-                $wpdb->insert($wp_rpu, $data);
-                $rpu_map[$etracs_id] = $wpdb->insert_id;
-            }
+            $wpdb->replace($wp_rpu, $data);
+            
             $stats['rpu']++;
             if ($stats['rpu'] % 500 === 0) self::update_progress("Syncing RPUs ({$stats['rpu']} rows)...");
         }

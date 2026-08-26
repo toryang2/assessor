@@ -763,7 +763,9 @@ class Assessor_Etracs {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_real_property';
 
+        $objid = wp_generate_uuid4();
         $data = array(
+            'objid'            => $objid,
             'pin'              => sanitize_text_field($params['pin'] ?? ''),
             'cadastrallotno'  => sanitize_text_field($params['cadastral_lot_no'] ?? $params['lot_number'] ?? ''),
             'surveyno'        => sanitize_text_field($params['survey_no'] ?? ''),
@@ -771,8 +773,6 @@ class Assessor_Etracs {
             'barangay'         => sanitize_text_field($params['barangay'] ?? ''),
             'municipality'     => sanitize_text_field($params['municipality'] ?? ''),
             'province'         => sanitize_text_field($params['province'] ?? ''),
-            // 'total_area_hectare' => isset($params['total_area_hectare']) && $params['total_area_hectare'] !== '' ? floatval($params['total_area_hectare']) : null,
-            // 'total_area_sqm'     => isset($params['total_area_sqm']) && $params['total_area_sqm'] !== '' ? floatval($params['total_area_sqm']) : null,
             'north'            => sanitize_text_field($params['north'] ?? ''),
             'south'            => sanitize_text_field($params['south'] ?? ''),
             'east'             => sanitize_text_field($params['east'] ?? ''),
@@ -780,7 +780,7 @@ class Assessor_Etracs {
         );
 
         $wpdb->insert($table, $data);
-        return $wpdb->insert_id;
+        return $objid;
     }
 
     private function update_real_property($id, $params) {
@@ -799,15 +799,9 @@ class Assessor_Etracs {
                 $update[$f] = sanitize_text_field($params[$param_key]);
             }
         }
-        // Numeric area fields removed from schema
-        // foreach (array('total_area_hectare', 'total_area_sqm') as $af) {
-        //     if (array_key_exists($af, $params)) {
-        //         $update[$af] = $params[$af] !== '' && $params[$af] !== null ? floatval($params[$af]) : null;
-        //     }
-        // }
-
+        
         if (!empty($update)) {
-            $wpdb->update($table, $update, array('id' => $id));
+            $wpdb->update($table, $update, array('objid' => $id));
         }
     }
 
@@ -815,8 +809,10 @@ class Assessor_Etracs {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_rpu';
 
+        $objid = wp_generate_uuid4();
         $data = array(
-            'real_property_id'     => $real_property_id,
+            'objid'                => $objid,
+            'realpropertyid'       => $real_property_id,
             'rpu_type'             => strtoupper(sanitize_text_field($params['rpu_type'] ?? 'LAND')),
             'classification'       => sanitize_text_field($params['classification'] ?? ''),
             'ry'                   => intval($params['ry'] ?? $params['revision_year'] ?? 0),
@@ -826,7 +822,7 @@ class Assessor_Etracs {
         );
 
         $wpdb->insert($table, $data);
-        return $wpdb->insert_id;
+        return $objid;
     }
 
     private function update_rpu($id, $params) {
@@ -912,7 +908,7 @@ class Assessor_Etracs {
         }
 
         $results['kinds'] = $wpdb->get_results("SELECT objid, code, name FROM $t_kind ORDER BY name ASC");
-        $results['uses'] = $wpdb->get_results("SELECT objid, name FROM $t_use ORDER BY name ASC");
+        $results['actualUses'] = $wpdb->get_results("SELECT objid, code, name FROM $t_class ORDER BY name ASC");
         $results['materials'] = $wpdb->get_results("SELECT objid, name FROM $t_material ORDER BY name ASC");
         $results['classifications'] = $wpdb->get_results("SELECT objid, code, name, special, orderno, state FROM $t_class ORDER BY orderno ASC, name ASC");
         

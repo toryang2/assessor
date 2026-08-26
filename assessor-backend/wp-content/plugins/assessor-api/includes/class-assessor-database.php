@@ -1250,7 +1250,6 @@ class Assessor_Database {
 
         $table_assessor_real_property = $wpdb->prefix . 'assessor_real_property';
         $sql_assessor_real_property = "CREATE TABLE $table_assessor_real_property (
-  id mediumint NOT NULL AUTO_INCREMENT,
   objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
   pin varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   cadastrallotno varchar(900) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
@@ -1263,7 +1262,6 @@ class Assessor_Database {
   south varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   east varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   west varchar(255) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  etracs_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   pintype varchar(5) COLLATE utf8mb4_unicode_520_ci DEFAULT 'old',
   ry int DEFAULT NULL,
   barangayid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
@@ -1278,24 +1276,20 @@ class Assessor_Database {
   claimno varchar(5) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   section varchar(3) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   parcel varchar(3) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY ux_rp_objid (objid),
-  KEY ix_etracs_objid (etracs_objid)
+  PRIMARY KEY (objid)
 ) $charset_collate;";
 
         $table_assessor_rpu = $wpdb->prefix . 'assessor_rpu';
         $sql_assessor_rpu = "CREATE TABLE $table_assessor_rpu (
-  id mediumint NOT NULL AUTO_INCREMENT,
   objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
   state varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT 'CURRENT',
-  real_property_id mediumint NOT NULL,
+  realpropertyid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
   rpu_type varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   classification varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   ry int DEFAULT '0',
   total_market_value float DEFAULT '0',
   total_assessed_value float DEFAULT '0',
   taxable tinyint(1) DEFAULT '1',
-  etracs_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   total_area_hectare float DEFAULT NULL,
   total_area_sqm float DEFAULT NULL,
   fullpin varchar(35) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
@@ -1307,10 +1301,8 @@ class Assessor_Database {
   previd varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   rpumasterid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   barangayid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY ux_rpu_objid (objid),
-  KEY real_property_id (real_property_id),
-  KEY ix_etracs_objid (etracs_objid)
+  PRIMARY KEY (objid),
+  KEY ix_realpropertyid (realpropertyid)
 ) $charset_collate;";
 
         $table_assessor_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';

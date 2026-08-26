@@ -399,7 +399,7 @@ const BuildingFaasEditor = ({ building, setBuilding, lookups, classifications, a
               </TableHead>
               <TableBody>
                 {commonStructures.map(struct => {
-                  const existing = bldg.structures.find(s => s.structure_objid === struct && s.floor === selectedFloor);
+                  const existing = bldg.structures.find(s => (s.structure_name === struct || s.structure_objid === struct) && Number(s.floor) === Number(selectedFloor));
                   return (
                     <TableRow key={struct}>
                       <TableCell sx={{ fontWeight: 'bold' }}>{struct}</TableCell>
