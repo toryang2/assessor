@@ -33,7 +33,7 @@ import {
   Tooltip,
   Collapse
 } from '@mui/material';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, CheckCircle2, XCircle } from 'lucide-react';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -292,15 +292,15 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '15%', }} />
+          <col style={{ width: '17%', }} />
           <col style={{ width: '12%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '10%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '32%' }} />
+          <col style={{ width: '29%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -308,7 +308,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
@@ -338,6 +338,15 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                   }}>
                     {item.tax_declaration_number || ''}
                   </div>
+                  {item.pin && (
+                    <div style={{
+                      fontSize: 8,
+                      color: isConsolidated ? '#ed6c02' : 'inherit',
+                      marginTop: 2
+                    }}>
+                      {'PIN: ' + item.pin}
+                    </div>
+                  )}
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                   const d = normalizeDeclarantString(item.declarant_name);
@@ -348,12 +357,12 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                   return (
                     <>
                       {d && (
-                        <Typography style={{ fontWeight: 600 }}>
+                        <Typography variant='body' fontWeight='bold'>
                           {d}
                         </Typography>
                       )}
                       {b && (
-                        <Typography style={{ fontSize: 9 }}>
+                        <Typography variant="caption" color="text.secondary" display="block">
                           {b}
                         </Typography>
                       )}
@@ -1724,12 +1733,13 @@ const PropertyTable = () => {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Tax Declaration Number</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>PIN</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>State</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Declarant</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Barangay</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Lot Number</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Survey Number</TableCell>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>Area (hectare)</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>Area</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Title Number</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Assessed Value</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>Kind</TableCell>
@@ -1793,8 +1803,16 @@ const PropertyTable = () => {
                         </Typography>
                       )}
                   </TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{property.pin || ''}</TableCell>
                   <TableCell>
                     <Chip
+                      icon={
+                        (property.property_state || 'CURRENT').toUpperCase() === 'CURRENT' ? (
+                          <CheckCircle2 size={12} color={getStateColor(property.property_state || 'CURRENT').text} />
+                        ) : (
+                          <XCircle size={12} color={getStateColor(property.property_state || 'CURRENT').text} />
+                        )
+                      }
                       label={property.property_state || 'CURRENT'}
                       size="small"
                       sx={{
@@ -1802,14 +1820,18 @@ const PropertyTable = () => {
                         color: getStateColor(property.property_state || 'CURRENT').text,
                         fontWeight: 600,
                         fontSize: '0.7rem',
-                        height: 20
+                        height: 20,
+                        '& .MuiChip-icon': {
+                          marginLeft: '6px'
+                        }
                       }}
                     />
                   </TableCell>
                   <TableCell
                     sx={{
-                      minWidth: 150,
-                      maxWidth: 300,
+                      width: 320,
+                      minWidth: 320,
+                      maxWidth: 320,
                       verticalAlign: 'top',
                       whiteSpace: 'normal',
                     }}
@@ -1825,7 +1847,7 @@ const PropertyTable = () => {
                         ? String(property.business_name).replace(/,\s*/g, ' ')
                         : '';
 
-                      const contentLength = declarant.length + business.length;
+                      const maxLineLength = Math.max(declarant.length, business.length);
 
                       if (!declarant && !business) {
                         return '—';
@@ -1838,11 +1860,13 @@ const PropertyTable = () => {
                             <Typography
                               variant="body2"
                               fontWeight="bold"
+                              display="block"
                               sx={{
                                 whiteSpace: expandedDeclarants[property.id] ? 'normal' : 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                maxWidth: 280,
+                                maxWidth: 320,
+                                wordBreak: 'break-word'
                               }}
                             >
                               {declarant}
@@ -1859,7 +1883,7 @@ const PropertyTable = () => {
                                 whiteSpace: expandedDeclarants[property.id] ? 'normal' : 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                maxWidth: 280,
+                                maxWidth: 320,
                               }}
                             >
                               {business}
@@ -1867,7 +1891,7 @@ const PropertyTable = () => {
                           )}
 
                           {/* View / Less */}
-                          {contentLength > 60 && (
+                          {maxLineLength > 40 && (
                             <Button
                               size="small"
                               variant="text"
@@ -2210,7 +2234,7 @@ const PropertyTable = () => {
                     <TableCell>Declarant</TableCell>
                     <TableCell>Barangay</TableCell>
                     <TableCell>Lot Number</TableCell>
-                    <TableCell>Area (hectare)</TableCell>
+                    <TableCell>Area</TableCell>
                     <TableCell>Title Number</TableCell>
                     <TableCell>Assessed Value</TableCell>
                     <TableCell>Effectivity</TableCell>
@@ -2261,7 +2285,7 @@ const PropertyTable = () => {
                             return (
                               <>
                                 {d && (
-                                  <Typography variant="body2" fontWeight="bold">
+                                  <Typography variant="body" fontWeight="bold">
                                     {d}
                                   </Typography>
                                 )}
@@ -2428,7 +2452,7 @@ const PropertyTable = () => {
                         <TableCell>Barangay</TableCell>
                         <TableCell>Lot Number</TableCell>
                         <TableCell>Survey Number</TableCell>
-                        <TableCell>Area (hectare)</TableCell>
+                        <TableCell>Area</TableCell>
                         <TableCell>Title Number</TableCell>
                         <TableCell>Assessed Value</TableCell>
                         <TableCell>Effectivity</TableCell>
@@ -2484,7 +2508,7 @@ const PropertyTable = () => {
                                 return (
                                   <>
                                     {d && (
-                                      <Typography variant="body2" fontWeight="bold">
+                                      <Typography variant='body' fontWeight='bold'>
                                         {d}
                                       </Typography>
                                     )}

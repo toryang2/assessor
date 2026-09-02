@@ -28,7 +28,7 @@ The system now uses the following field structure for properties:
 - **Location** - Property location (Required)
 - **Lot Number** - Property lot number
 - **Unique Lot Number Identified** - Additional lot identifier
-- **Area (hectare)** - Property area in hectares
+- **Area** - Property area in hectares
 - **Title Number** - Property title number
 - **Assessed Value** - Property assessed value in pesos
 - **Effectivity Date** - When the assessment takes effect

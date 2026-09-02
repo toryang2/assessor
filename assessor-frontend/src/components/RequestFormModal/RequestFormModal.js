@@ -773,7 +773,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           </Grid>
                           <Grid item xs={12} md={6}>
                             <Typography variant="body2">
-                              <strong>Area (hectare):</strong> {(() => {
+                              <strong>Area:</strong> {(() => {
                                 const haRaw = selectedProperty.area_hectare;
                                 const sqmRaw = selectedProperty.area_sqm;
                                 const oldHaRaw = selectedProperty.area_hectare_old;
@@ -1184,7 +1184,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       <TableCell><strong>Barangay</strong></TableCell>
                       <TableCell><strong>Lot Number</strong></TableCell>
                       <TableCell><strong>Survey Number</strong></TableCell>
-                      <TableCell><strong>Area (hectare)</strong></TableCell>
+                      <TableCell><strong>Area</strong></TableCell>
                       <TableCell><strong>Title Number</strong></TableCell>
                       <TableCell><strong>Assessed Value</strong></TableCell>
                       <TableCell><strong>Effectivity</strong></TableCell>
@@ -1228,8 +1228,21 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             {(() => {
                               const d = normalizeDeclarantString(item.declarant_name);
                               const b = sanitizeBusinessName(item.business_name);
-                              if (d && b) return `${d} / ${b}`;
-                              return d || b || '—';
+                              if (!d && !b) return '';
+                              return (
+                                <>
+                                  {d && (
+                                    <Typography style={{ fontSize: 12, fontWeight: 600 }}>
+                                      {d}
+                                    </Typography>
+                                  )}
+                                  {b && (
+                                    <Typography style={{ fontSize: 10 }}>
+                                      {b}
+                                    </Typography>
+                                  )}
+                                </>
+                              );
                             })()}
                           </TableCell>
                           <TableCell>{item.location || '—'}</TableCell>

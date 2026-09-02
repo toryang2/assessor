@@ -68,7 +68,7 @@ const Export = () => {
   const [showFieldSelection, setShowFieldSelection] = useState(false);
   const [locationOptions, setLocationOptions] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
-  
+
   // Safety watchdog for initial options load (locations)
   useLoadingWatchdog({
     isLoading: optionsLoading,
@@ -80,7 +80,7 @@ const Export = () => {
     timeoutMessage: 'Loading locations timed out. Please try again.',
     enabled: true
   });
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     dateFrom: null,
@@ -88,7 +88,7 @@ const Export = () => {
     location: '',
     propertyType: ''
   });
-  
+
   // Field selection states
   const [selectedFields, setSelectedFields] = useState({
     properties: [
@@ -162,7 +162,7 @@ const Export = () => {
       { value: 'location', label: 'Location' },
       { value: 'lot_number', label: 'Lot Number' },
       { value: 'survey_number', label: 'Survey Number' },
-      { value: 'area_hectare', label: 'Area (Hectare)' },
+      { value: 'area_hectare', label: 'Area' },
       { value: 'area_hectare_old', label: 'Area Hectare (Old)' },
       { value: 'area_sqm', label: 'Area (Square Meters)' },
       { value: 'title_number', label: 'Title Number' },
@@ -226,7 +226,7 @@ const Export = () => {
         setOptionsLoading(false);
       }
     };
-    
+
     loadLocationOptions();
   }, []);
 
@@ -307,7 +307,7 @@ const Export = () => {
       };
 
       const response = await apiService.exportData(exportConfig);
-      
+
       // Handle the response based on format
       if (exportFormat === 'csv') {
         // Create and download CSV file
@@ -411,7 +411,7 @@ const Export = () => {
             </Grid>
           </Stack>
         );
-      
+
       case 'audit':
         return (
           <Stack spacing={3}>
@@ -445,7 +445,7 @@ const Export = () => {
             </Grid>
           </Stack>
         );
-      
+
       default:
         return null;
     }
@@ -532,8 +532,8 @@ const Export = () => {
         <Grid container spacing={2}>
           {exportTypes.map(type => (
             <Grid item xs={12} sm={4} key={type.value}>
-              <Card 
-                sx={{ 
+              <Card
+                sx={{
                   cursor: 'pointer',
                   border: exportType === type.value ? 2 : 1,
                   borderColor: exportType === type.value ? 'primary.main' : 'divider',
@@ -569,11 +569,11 @@ const Export = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Select your data type above, then choose the export format and configure your export settings.
             </Typography>
-            <Box sx={{ 
-              p: 3, 
-              bgcolor: 'grey.50', 
-              borderRadius: 2, 
-              border: '1px solid', 
+            <Box sx={{
+              p: 3,
+              bgcolor: 'grey.50',
+              borderRadius: 2,
+              border: '1px solid',
               borderColor: 'grey.200',
               textAlign: 'center'
             }}>
@@ -611,8 +611,8 @@ const Export = () => {
             <Grid container spacing={2}>
               {exportFormats.map(format => (
                 <Grid item xs={12} sm={6} key={format.value}>
-                  <Card 
-                    sx={{ 
+                  <Card
+                    sx={{
                       cursor: 'pointer',
                       border: exportFormat === format.value ? 2 : 1,
                       borderColor: exportFormat === format.value ? 'primary.main' : 'divider',
@@ -712,7 +712,7 @@ const Export = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Choose which fields to include in your export
             </Typography>
-            
+
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography variant="subtitle1">
@@ -744,13 +744,13 @@ const Export = () => {
                 </FormGroup>
               </AccordionDetails>
             </Accordion>
-            
+
             <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 <strong>Selected:</strong> {selectedFields[exportType].length} of {fieldOptions[exportType]?.length} fields
               </Typography>
             </Box>
-            
+
             <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
               <Button onClick={handleBack}>
                 Back
@@ -827,7 +827,7 @@ const Export = () => {
                 {loading ? 'Exporting...' : 'Export Data'}
               </Button>
             </Box>
-            
+
             {loading && (
               <Box sx={{ mb: 3 }}>
                 <LinearProgress variant="determinate" value={exportProgress} />

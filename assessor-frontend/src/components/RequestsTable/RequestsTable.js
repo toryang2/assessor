@@ -273,15 +273,15 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '15%', }} />
+          <col style={{ width: '17%', }} />
           <col style={{ width: '12%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '10%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '32%' }} />
+          <col style={{ width: '29%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -289,7 +289,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
@@ -301,6 +301,14 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <tr key={index}>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                 <div>{item.tax_declaration_number || ''}</div>
+                {item.pin && (
+                  <div style={{
+                    fontSize: 8,
+                    marginTop: 2
+                  }}>
+                    {'PIN: ' + item.pin}
+                  </div>
+                )}
               </td>
               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                 const d = normalizeDeclarantString(item.declarant_name);
@@ -310,7 +318,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 if (!d && !b) return '';
                 return (
                   <>
-                    <div style={{ fontWeight: 600 }}>{d}</div>
+                    <div style={{ fontSize: 10, fontWeight: 600 }}>{d}</div>
                     <div style={{ fontSize: 9 }}>{b}</div>
                   </>
                 )
