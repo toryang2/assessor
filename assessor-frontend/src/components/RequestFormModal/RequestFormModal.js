@@ -73,38 +73,38 @@ const formatDeclarantFromParts = (last, first, middle) => {
 const normalizeDeclarantString = (name) => {
   const s = sanitizeDeclarant(name);
   if (!s) return s;
-  
+
   // Split by comma to separate last name from first/middle
   const parts = s.split(',');
   if (parts.length < 2) return s;
-  
+
   const last = parts[0].trim();
   const rest = parts.slice(1).join(',').trim();
   if (!rest) return `${last}`;
-  
+
   // Handle cases where we have "LAST, ET. AL., FIRST MI" format
   // We want to preserve the "ET. AL." part and format the first name and middle initial
   const restParts = rest.split(/\s+/);
-  
+
   // Find the actual first name and middle initial
   // Look for the last meaningful word (middle initial) and the word before it (first name)
   const meaningfulParts = restParts.filter(part => part.length > 0);
-  
+
   if (meaningfulParts.length === 0) return `${last}`;
   if (meaningfulParts.length === 1) return `${last}, ${rest}`;
-  
+
   // Take the last two meaningful parts as first name and middle initial
   const first = meaningfulParts[meaningfulParts.length - 2];
   const middleRaw = meaningfulParts[meaningfulParts.length - 1];
-  
+
   // Format middle initial
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
-  
+
   // Reconstruct with all parts preserved
   const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
   const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
-  
+
   return result;
 };
 
@@ -297,13 +297,13 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
     try {
       setPropertySearchLoading(true);
-      const response = await apiService.getProperties({ 
+      const response = await apiService.getProperties({
         q: searchTerm.trim(),
         per_page: 10,
         // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       });
-      
+
       if (response && response.properties) {
         setPropertyOptions(response.properties);
       } else if (response && response.data) {
@@ -323,14 +323,14 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const handlePropertySearchChange = (event, newValue) => {
     // Don't convert to uppercase immediately - let CSS handle visual display
     setPropertySearchTerm(newValue || '');
-    
+
     if (newValue && newValue.length >= 2) {
       // Use original value for search to maintain case-insensitive functionality
       searchProperties(newValue);
     } else {
       setPropertyOptions([]);
     }
-    
+
     // Clear property selection validation error when user starts typing
     if (validationErrors.has('property_selection')) {
       setValidationErrors(prev => {
@@ -346,7 +346,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     setSelectedProperty(selectedOption);
     setTaxHistoryModal(false);
     setTaxHistory([]);
-    
+
     // Clear property selection validation error when user selects a property
     if (validationErrors.has('property_selection')) {
       setValidationErrors(prev => {
@@ -461,7 +461,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -498,7 +498,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
       // Call API to save the request
       const response = await apiService.createRequest(requestData);
-      
+
       setToast({
         open: true,
         message: 'Request form saved successfully!',
@@ -586,7 +586,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       'place_issued',
       'prepared_by'
     ]);
-    
+
     if (uppercaseFields.has(field) && typeof value === 'string') {
       return value.toUpperCase();
     }
@@ -596,12 +596,12 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   // Handle form field changes
   const handleChange = (field) => (event) => {
     const value = event.target.value;
-    
+
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
-    
+
     // Clear validation error when user starts typing
     if (validationErrors.has(field)) {
       setValidationErrors(prev => {
@@ -651,8 +651,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           sx: { width: isSmallScreen ? '60vw' : undefined, maxHeight: '100vh' }
         }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: 'primary.main', 
+        <DialogTitle sx={{
+          bgcolor: 'primary.main',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -668,51 +668,51 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Grid item xs={12}>
                 <Card variant="outlined">
                   <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <Typography variant="h6" gutterBottom sx={{
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 1,
-                      color: 'primary.main' 
+                      color: 'primary.main'
                     }}>
                       <Search />
                       Property Information (Required) *
                     </Typography>
-                     <Divider sx={{ mb: 1 }} />
+                    <Divider sx={{ mb: 1 }} />
                     <Autocomplete
-                       options={propertyOptions}
-                       getOptionLabel={(option) => {
-                         const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
-                         const business = sanitizeBusinessName(option.business_name);
-                         const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
-                         return `${option.tax_declaration_number || ''} - ${displayName}`;
-                       }}
-                       value={selectedProperty}
-                       onChange={handlePropertySelect}
-                       inputValue={propertySearchTerm}
-                       onInputChange={handlePropertySearchChange}
-                       loading={propertySearchLoading}
-                       noOptionsText="No properties found. Try searching with different terms."
-                       renderInput={(params) => (
-                         <TextField
-                           {...params}
-                           label="Search for Property *"
-                           placeholder="Search by Tax Declaration Number, owner name, or business name..."
-                           helperText={validationErrors.has('property_selection') ? "Property selection is required" : "Start typing to search for properties. Property selection is required."}
-                           error={validationErrors.has('property_selection')}
-                           size={isSmallScreen ? 'small' : 'medium'}
-                           margin={isSmallScreen ? 'dense' : 'normal'}
-                           inputProps={{ ...params.inputProps, style: { textTransform: 'uppercase' } }}
-                           InputProps={{
-                             ...params.InputProps,
-                             endAdornment: (
-                               <>
-                                 {propertySearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                                 {params.InputProps.endAdornment}
-                               </>
-                             ),
-                           }}
-                         />
-                       )}
+                      options={propertyOptions}
+                      getOptionLabel={(option) => {
+                        const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
+                        const business = sanitizeBusinessName(option.business_name);
+                        const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
+                        return `${option.tax_declaration_number || ''} - ${displayName}`;
+                      }}
+                      value={selectedProperty}
+                      onChange={handlePropertySelect}
+                      inputValue={propertySearchTerm}
+                      onInputChange={handlePropertySearchChange}
+                      loading={propertySearchLoading}
+                      noOptionsText="No properties found. Try searching with different terms."
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Search for Property *"
+                          placeholder="Search by Tax Declaration Number, owner name, or business name..."
+                          helperText={validationErrors.has('property_selection') ? "Property selection is required" : "Start typing to search for properties. Property selection is required."}
+                          error={validationErrors.has('property_selection')}
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
+                          inputProps={{ ...params.inputProps, style: { textTransform: 'uppercase' } }}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {propertySearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
                       renderOption={(props, option) => (
                         <Box component="li" {...props}>
                           <Box>
@@ -733,20 +733,20 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       isOptionEqualToValue={(option, value) => option.id === value.id}
                       clearOnBlur={false}
                       clearOnEscape={false}
-                                         />
-                     
-                     {validationErrors.has('property_selection') && (
-                       <Typography variant="body2" color="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
-                         Property selection is required. Please search and select a property before proceeding.
-                       </Typography>
-                     )}
-                     
-                     {!selectedProperty && propertySearchTerm && propertyOptions.length === 0 && !propertySearchLoading && (
-                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                         No properties found matching "{propertySearchTerm}". Try searching with different terms. Property selection is required to create a request.
-                       </Typography>
-                     )}
-                    
+                    />
+
+                    {validationErrors.has('property_selection') && (
+                      <Typography variant="body2" color="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                        Property selection is required. Please search and select a property before proceeding.
+                      </Typography>
+                    )}
+
+                    {!selectedProperty && propertySearchTerm && propertyOptions.length === 0 && !propertySearchLoading && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                        No properties found matching "{propertySearchTerm}". Try searching with different terms. Property selection is required to create a request.
+                      </Typography>
+                    )}
+
                     {selectedProperty && (
                       <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                         <Typography variant="subtitle2" gutterBottom>Selected Property:</Typography>
@@ -803,14 +803,14 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                                 const oldValue = selectedProperty.assessed_value_old;
                                 const hasCurrent = currentValue !== undefined && currentValue !== null;
                                 const hasOld = oldValue && oldValue !== '';
-                                
+
                                 if (!hasCurrent && !hasOld) return '₱0.00';
-                                
+
                                 let displayValue = '';
                                 if (hasCurrent) {
                                   displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                                 }
-                                
+
                                 if (hasOld && displayValue) {
                                   return `${displayValue} ${oldValue}`;
                                 } else if (hasOld) {
@@ -822,7 +822,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             </Typography>
                           </Grid>
                         </Grid>
-                        
+
                         <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                           <Button
                             variant="outlined"
@@ -844,17 +844,17 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               <Grid item xs={12}>
                 <Card variant="outlined">
                   <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <Typography variant="h6" gutterBottom sx={{
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 1,
-                      color: 'primary.main' 
+                      color: 'primary.main'
                     }}>
                       <Receipt />
                       Client Information
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    
+
                     <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
                       <Grid item xs={12} md={6}>
                         <TextField
@@ -863,7 +863,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           value={formData.client_name}
                           onChange={handleChange('client_name')}
                           error={validationErrors.has('client_name')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
                           size={isSmallScreen ? 'small' : 'medium'}
                           margin={isSmallScreen ? 'dense' : 'normal'}
                         />
@@ -875,7 +875,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Contact Number"
                           value={formData.contact_number}
                           onChange={handleChange('contact_number')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
                           size={isSmallScreen ? 'small' : 'medium'}
                           margin={isSmallScreen ? 'dense' : 'normal'}
                         />
@@ -887,7 +887,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Client Address"
                           value={formData.client_address}
                           onChange={handleChange('client_address')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
                           multiline
                           rows={2}
                           size={isSmallScreen ? 'small' : 'medium'}
@@ -901,7 +901,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Remarks"
                           value={formData.remarks}
                           onChange={handleChange('remarks')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
                           multiline
                           rows={3}
                           placeholder="Additional notes or special instructions..."
@@ -960,8 +960,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                                 amount_paid: checked
                                   ? '0.00'
                                   : (prev.purpose && purposeAmountMap[prev.purpose] !== undefined
-                                      ? Number(purposeAmountMap[prev.purpose]).toFixed(2)
-                                      : ''),
+                                    ? Number(purposeAmountMap[prev.purpose]).toFixed(2)
+                                    : ''),
                                 receipt_number: checked ? 'Official Use' : ''
                               }));
 
@@ -980,7 +980,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       />
                     </Box>
                     <Divider sx={{ mb: 2 }} />
-                    
+
                     <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
                       <Grid item xs={12} md={6}>
                         <TextField
@@ -1018,7 +1018,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                           label="Receipt Number *"
                           value={formData.receipt_number}
                           onChange={handleChange('receipt_number')}
-                          inputProps={{style: { textTransform: 'uppercase' }}}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
                           error={validationErrors.has('receipt_number')}
                           disabled={isOfficialRequest}
                           size={isSmallScreen ? 'small' : 'medium'}
@@ -1132,8 +1132,8 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           sx: { width: isSmallScreen ? '80vw' : undefined, maxHeight: '90vh' }
         }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: 'primary.main', 
+        <DialogTitle sx={{
+          bgcolor: 'primary.main',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -1151,7 +1151,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           ) : taxHistory.length > 0 ? (
             <Box>
               <Typography variant="body1" sx={{ mb: 2 }}>
-                Property: <strong>{selectedProperty?.tax_declaration_number}</strong> - 
+                Property: <strong>{selectedProperty?.tax_declaration_number}</strong> -
                 {(() => {
                   const declarant = formatDeclarantFromParts(
                     selectedProperty?.declarant_last_name,
@@ -1163,7 +1163,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   return ` ${declarant || business || ''}`;
                 })()}
               </Typography>
-              
+
               <TableContainer component={Paper} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
                 <Table size="small" stickyHeader>
                   {/* <colgroup>
@@ -1204,91 +1204,91 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                       // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
                       const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
                       const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
-                      
+
                       return (
-                      <TableRow key={index} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="600" color={isConsolidated ? "warning.main" : "primary"}>
-                            {item.tax_declaration_number}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                            {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
-                              <Box mt={0.5}>
-                                <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
-                                  Consolidated
-                                </Typography>
-                              </Box>
-                            ) : null}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const d = normalizeDeclarantString(item.declarant_name);
-                            const b = sanitizeBusinessName(item.business_name);
-                            if (d && b) return `${d} / ${b}`;
-                            return d || b || '—';
-                          })()}
-                        </TableCell>
-                        <TableCell>{item.location || '—'}</TableCell>
-                        <TableCell>{item.lot_number || '—'}</TableCell>
-                        <TableCell>{item.survey_number || '—'}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            const haRaw = item.area_hectare;
-                            const sqmRaw = item.area_sqm;
-                            const oldHaRaw = item.area_hectare_old;
-                            const numHa = Number(haRaw);
-                            const numSqm = Number(sqmRaw);
-                            const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                            const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                            const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
-                            if (!hasHa && !hasSqm && !hasOldHa) return '—';
-                            let currentArea = '';
-                            if (hasHa) {
-                              const unit = numHa <= 1 ? 'ha' : 'has';
-                              currentArea = `${numHa.toFixed(4)} ${unit}`;
-                            } else if (hasSqm) {
-                              currentArea = `${numSqm.toFixed(2)} sqm`;
-                            }
-                            if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
-                            if (hasOldHa) return oldHaRaw;
-                            return currentArea || '—';
-                          })()}
-                        </TableCell>
-                        <TableCell>{item.title_number || '—'}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            const currentValue = item.assessed_value;
-                            const oldValue = item.assessed_value_old;
-                            const hasCurrent = currentValue !== undefined && currentValue !== null;
-                            const hasOld = oldValue && oldValue !== '';
-                            
-                            if (!hasCurrent && !hasOld) return '₱0.00';
-                            
-                            let displayValue = '';
-                            if (hasCurrent) {
-                              displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                            }
-                            
-                            if (hasOld && displayValue) {
-                              return `${displayValue} ${oldValue}`;
-                            } else if (hasOld) {
-                              return oldValue;
-                            } else {
-                              return displayValue || '₱0.00';
-                            }
-                          })()}
-                        </TableCell>
-                        <TableCell>{item.effectivity_date || '—'}</TableCell>
-                        <TableCell sx={{ maxWidth: 280 }}>
-                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                            {item.memoranda || '—'}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="600" color={isConsolidated ? "warning.main" : "primary"}>
+                              {item.tax_declaration_number}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                              {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
+                                <Box mt={0.5}>
+                                  <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
+                                    Consolidated
+                                  </Typography>
+                                </Box>
+                              ) : null}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const d = normalizeDeclarantString(item.declarant_name);
+                              const b = sanitizeBusinessName(item.business_name);
+                              if (d && b) return `${d} / ${b}`;
+                              return d || b || '—';
+                            })()}
+                          </TableCell>
+                          <TableCell>{item.location || '—'}</TableCell>
+                          <TableCell>{item.lot_number || '—'}</TableCell>
+                          <TableCell>{item.survey_number || '—'}</TableCell>
+                          <TableCell>
+                            {(() => {
+                              const haRaw = item.area_hectare;
+                              const sqmRaw = item.area_sqm;
+                              const oldHaRaw = item.area_hectare_old;
+                              const numHa = Number(haRaw);
+                              const numSqm = Number(sqmRaw);
+                              const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+                              const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+                              const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
+                              if (!hasHa && !hasSqm && !hasOldHa) return '—';
+                              let currentArea = '';
+                              if (hasHa) {
+                                const unit = numHa <= 1 ? 'ha' : 'has';
+                                currentArea = `${numHa.toFixed(4)} ${unit}`;
+                              } else if (hasSqm) {
+                                currentArea = `${numSqm.toFixed(2)} sqm`;
+                              }
+                              if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
+                              if (hasOldHa) return oldHaRaw;
+                              return currentArea || '—';
+                            })()}
+                          </TableCell>
+                          <TableCell>{item.title_number || '—'}</TableCell>
+                          <TableCell>
+                            {(() => {
+                              const currentValue = item.assessed_value;
+                              const oldValue = item.assessed_value_old;
+                              const hasCurrent = currentValue !== undefined && currentValue !== null;
+                              const hasOld = oldValue && oldValue !== '';
+
+                              if (!hasCurrent && !hasOld) return '₱0.00';
+
+                              let displayValue = '';
+                              if (hasCurrent) {
+                                displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                              }
+
+                              if (hasOld && displayValue) {
+                                return `${displayValue} ${oldValue}`;
+                              } else if (hasOld) {
+                                return oldValue;
+                              } else {
+                                return displayValue || '₱0.00';
+                              }
+                            })()}
+                          </TableCell>
+                          <TableCell>{item.effectivity_date || '—'}</TableCell>
+                          <TableCell sx={{ maxWidth: 280 }}>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                              {item.memoranda || '—'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
                   </TableBody>

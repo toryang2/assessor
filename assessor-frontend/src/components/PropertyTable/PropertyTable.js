@@ -33,6 +33,7 @@ import {
   Tooltip,
   Collapse
 } from '@mui/material';
+import { GitBranch } from 'lucide-react';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -47,7 +48,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { color, motion } from 'framer-motion';
 
 // We'll load html2pdf.js from CDN at runtime to avoid webpack sourcemap warnings
 
@@ -340,8 +341,24 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                   const d = normalizeDeclarantString(item.declarant_name);
-                  const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
-                  return d && b ? `${d} / ${b}` : (d || b || '');
+                  const b = item.business_name
+                    ? String(item.business_name).replace(/,\s*/g, ' ')
+                    : '';
+                  if (!d && !b) return '';
+                  return (
+                    <>
+                      {d && (
+                        <Typography style={{ fontWeight: 600 }}>
+                          {d}
+                        </Typography>
+                      )}
+                      {b && (
+                        <Typography style={{ fontSize: 9 }}>
+                          {b}
+                        </Typography>
+                      )}
+                    </>
+                  );
                 })()}</td>
                 <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
                 <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
@@ -1398,12 +1415,12 @@ const PropertyTable = () => {
   return (
 
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-         sx={{ 
-           display: 'flex', 
-           flexDirection: 'column', 
-           height: 'calc(100vh - 64px - 3rem)', 
-           overflow: 'hidden' 
-         }}>
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 64px - 3rem)',
+        overflow: 'hidden'
+      }}>
       <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
         Property Records
       </Typography>
@@ -1722,7 +1739,7 @@ const PropertyTable = () => {
                 <TableCell sx={{ whiteSpace: 'nowrap', position: 'sticky', right: 0, zIndex: 3, backgroundColor: '#f1f5f9', borderLeft: '2px solid #e0e0e0', boxShadow: '-4px 0 8px rgba(0,0,0,0.06)' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody sx={{ 
+            <TableBody sx={{
               '& td': { verticalAlign: 'top', py: 0.75, whiteSpace: 'nowrap' },
               opacity: loading ? 0.5 : 1,
               pointerEvents: loading ? 'none' : 'auto',
@@ -1750,6 +1767,31 @@ const PropertyTable = () => {
                         </Typography>
                       </Box>
                     )}
+
+                    {/* Previous TD - non-consolidated */}
+                    {property.previous_tax_declaration_number &&
+                      !String(property.previous_tax_declaration_number).includes(';') && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            mt: 0.25,
+                            color: 'text.secondary',
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          <GitBranch
+                            className="w-3 h-3"
+                            style={{
+                              width: 11,
+                              height: 11,
+                              color: '#2563eb',
+                              flexShrink: 0,
+                            }}
+                          />
+                          Prev: {property.previous_tax_declaration_number}
+                        </Typography>
+                      )}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -1764,35 +1806,87 @@ const PropertyTable = () => {
                       }}
                     />
                   </TableCell>
-                  <TableCell sx={{ minWidth: 150, maxWidth: 300, verticalAlign: 'top', whiteSpace: 'normal' }}>
+                  <TableCell
+                    sx={{
+                      minWidth: 150,
+                      maxWidth: 300,
+                      verticalAlign: 'top',
+                      whiteSpace: 'normal',
+                    }}
+                  >
                     {(() => {
-                      const declarant = formatDeclarantFromParts(property.declarant_last_name, property.declarant_first_name, property.declarant_middle_initial);
-                      const business = property.business_name ? String(property.business_name).replace(/,\s*/g, ' ') : '';
-                      let content = '';
-                      if (declarant && business) content = `${declarant} | ${business}`;
-                      else content = declarant || business || '—';
+                      const declarant = formatDeclarantFromParts(
+                        property.declarant_last_name,
+                        property.declarant_first_name,
+                        property.declarant_middle_initial
+                      );
+
+                      const business = property.business_name
+                        ? String(property.business_name).replace(/,\s*/g, ' ')
+                        : '';
+
+                      const contentLength = declarant.length + business.length;
+
+                      if (!declarant && !business) {
+                        return '—';
+                      }
 
                       return (
                         <Box>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              whiteSpace: expandedDeclarants[property.id] ? 'pre-wrap' : 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxWidth: 280,
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            {content}
-                          </Typography>
-                          {content.length > 40 && (
+                          {/* Declarant - bold */}
+                          {declarant && (
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              sx={{
+                                whiteSpace: expandedDeclarants[property.id] ? 'normal' : 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: 280,
+                              }}
+                            >
+                              {declarant}
+                            </Typography>
+                          )}
+
+                          {/* Business - smaller/normal */}
+                          {business && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                              sx={{
+                                whiteSpace: expandedDeclarants[property.id] ? 'normal' : 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: 280,
+                              }}
+                            >
+                              {business}
+                            </Typography>
+                          )}
+
+                          {/* View / Less */}
+                          {contentLength > 60 && (
                             <Button
                               size="small"
                               variant="text"
                               onClick={() => toggleDeclarant(property.id)}
-                              sx={{ textTransform: 'none', p: 0, minWidth: 'auto', fontSize: '0.7rem', mt: 0.25, lineHeight: 1.2 }}
-                              startIcon={expandedDeclarants[property.id] ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
+                              sx={{
+                                textTransform: 'none',
+                                p: 0,
+                                minWidth: 'auto',
+                                fontSize: '0.7rem',
+                                mt: 0.25,
+                                lineHeight: 1.2,
+                              }}
+                              startIcon={
+                                expandedDeclarants[property.id] ? (
+                                  <ExpandLessIcon sx={{ fontSize: 14 }} />
+                                ) : (
+                                  <ExpandMoreIcon sx={{ fontSize: 14 }} />
+                                )
+                              }
                             >
                               {expandedDeclarants[property.id] ? 'Less' : 'View'}
                             </Button>
@@ -1969,11 +2063,11 @@ const PropertyTable = () => {
               {!loading && (!pagedProperties || pagedProperties.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={14} sx={{ border: 'none', p: 0 }}>
-                    <Box sx={{ 
-                      minHeight: 400, 
-                      width: '100%', 
-                      display: 'flex', 
-                      alignItems: 'center' 
+                    <Box sx={{
+                      minHeight: 400,
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center'
                     }}>
                       <Box
                         sx={{
@@ -2109,7 +2203,7 @@ const PropertyTable = () => {
                   </TableRow>
                 </TableBody>
               </Table>
-              <Table size="small" stickyHeader sx={{ tableLayout: 'fixed' }}>
+              <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>Tax Declaration Number</TableCell>
@@ -2155,11 +2249,31 @@ const PropertyTable = () => {
                             ) : null}
                           </Typography>
                         </TableCell>
-                        <TableCell>{(() => {
-                          const d = normalizeDeclarantString(item.declarant_name);
-                          const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
-                          return d && b ? `${d} / ${b}` : (d || b || '—');
-                        })()}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const d = normalizeDeclarantString(item.declarant_name);
+                            const b = item.business_name
+                              ? String(item.business_name).replace(/,\s*/g, ' ')
+                              : '';
+
+                            if (!d && !b) return '—';
+
+                            return (
+                              <>
+                                {d && (
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {d}
+                                  </Typography>
+                                )}
+                                {b && (
+                                  <Typography variant="caption" color="text.secondary" display="block">
+                                    {b}
+                                  </Typography>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell>{item.location || '—'}</TableCell>
                         <TableCell>{item.lot_number || '—'}</TableCell>
                         <TableCell>{(() => {
@@ -2358,11 +2472,31 @@ const PropertyTable = () => {
                                 ) : null}
                               </Typography>
                             </TableCell>
-                            <TableCell>{(() => {
-                              const d = normalizeDeclarantString(item.declarant_name);
-                              const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
-                              return d && b ? `${d} / ${b}` : (d || b || '—');
-                            })()}</TableCell>
+                            <TableCell>
+                              {(() => {
+                                const d = normalizeDeclarantString(item.declarant_name);
+                                const b = item.business_name
+                                  ? String(item.business_name).replace(/,\s*/g, ' ')
+                                  : '';
+
+                                if (!d && !b) return '—';
+
+                                return (
+                                  <>
+                                    {d && (
+                                      <Typography variant="body2" fontWeight="bold">
+                                        {d}
+                                      </Typography>
+                                    )}
+                                    {b && (
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        {b}
+                                      </Typography>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell>{item.location || '—'}</TableCell>
                             <TableCell>{item.lot_number || '—'}</TableCell>
                             <TableCell>{item.survey_number || '—'}</TableCell>

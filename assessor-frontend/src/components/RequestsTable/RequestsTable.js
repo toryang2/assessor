@@ -84,38 +84,38 @@ const formatDeclarantFromParts = (last, first, middle) => {
 const normalizeDeclarantString = (name) => {
   const s = sanitizeDeclarant(name);
   if (!s) return s;
-  
+
   // Split by comma to separate last name from first/middle
   const parts = s.split(',');
   if (parts.length < 2) return s;
-  
+
   const last = parts[0].trim();
   const rest = parts.slice(1).join(',').trim();
   if (!rest) return `${last}`;
-  
+
   // Handle cases where we have "LAST, ET. AL., FIRST MI" format
   // We want to preserve the "ET. AL." part and format the first name and middle initial
   const restParts = rest.split(/\s+/);
-  
+
   // Find the actual first name and middle initial
   // Look for the last meaningful word (middle initial) and the word before it (first name)
   const meaningfulParts = restParts.filter(part => part.length > 0);
-  
+
   if (meaningfulParts.length === 0) return `${last}`;
   if (meaningfulParts.length === 1) return `${last}, ${rest}`;
-  
+
   // Take the last two meaningful parts as first name and middle initial
   const first = meaningfulParts[meaningfulParts.length - 2];
   const middleRaw = meaningfulParts[meaningfulParts.length - 1];
-  
+
   // Format middle initial
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
-  
+
   // Reconstruct with all parts preserved
   const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
   const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
-  
+
   return result;
 };
 
@@ -131,7 +131,7 @@ const formatDate = (dateString) => {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12;
-    
+
     return `${month}/${day}/${year} @ ${hours12}:${minutes} ${ampm}`;
   } catch {
     return dateString;
@@ -146,7 +146,7 @@ const formatDateOnly = (dateString) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    
+
     return `${month}/${day}/${year}`;
   } catch {
     return dateString;
@@ -161,7 +161,7 @@ const formatDateTable = (dateString) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    
+
     return `${month}/${day}/${year}`;
   } catch {
     return dateString;
@@ -188,7 +188,7 @@ const useDebounce = (value, delay) => {
 const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, ref) => {
   const toFormalCase = (text) => {
     if (!text) return '';
-    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const small = new Set(['of', 'and', 'the', 'for', 'in', 'on', 'at', 'a', 'an']);
     const words = String(text).toLowerCase().split(/\s+/);
     return words.map((w, i) => {
       if (!w) return w;
@@ -215,7 +215,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
         <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-        <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600}}>{headerOffice}</h3>
+        <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600 }}>{headerOffice}</h3>
         <div style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
       </div>
 
@@ -246,7 +246,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>ADMINISTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
+              <strong>ADMINISTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
@@ -254,7 +254,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
+              <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
@@ -262,7 +262,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
           </tr>
           <tr>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-            <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
+              <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
             </td>
             <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
               <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
@@ -271,45 +271,53 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
         </tbody>
       </table>
 
-             <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-         <colgroup>
-           <col style={{ width: '15%', }} />
-           <col style={{ width: '12%' }} />
-           <col style={{ width: '9%' }} />
-           <col style={{ width: '9%' }} />
-           <col style={{ width: '9%' }} />
-           <col style={{ width: '9%' }} />
-           <col style={{ width: '11%' }} />
-           <col style={{ width: '9%' }} />
-           <col style={{ width: '32%' }} />
-         </colgroup>
-         <thead>
-           <tr>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
-             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
-           </tr>
-         </thead>
-         <tbody>
-           {(printHistory || []).map((item, index) => (
-             <tr key={index}>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-                 <div>{item.tax_declaration_number || ''}</div>
-               </td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                 const d = normalizeDeclarantString(item.declarant_name);
-                 const b = item.business_name ? String(item.business_name).replace(/,\s*/g, ' ') : '';
-                 return d && b ? `${d} / ${b}` : (d || b || '');
-               })()}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
+      <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '15%', }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '32%' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area (hectare)</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
+            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(printHistory || []).map((item, index) => (
+            <tr key={index}>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                <div>{item.tax_declaration_number || ''}</div>
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
+                const d = normalizeDeclarantString(item.declarant_name);
+                const b = item.business_name
+                  ? String(item.business_name).replace(/,\s*/g, ' ')
+                  : '';
+                if (!d && !b) return '';
+                return (
+                  <>
+                    <div style={{ fontWeight: 600 }}>{d}</div>
+                    <div style={{ fontSize: 9 }}>{b}</div>
+                  </>
+                )
+              })()}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
                 const haRaw = item.area_hectare;
                 const sqmRaw = item.area_sqm;
                 const oldHaRaw = item.area_hectare_old;
@@ -334,23 +342,23 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
                   return currentArea || '';
                 }
               })()}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>{item.title_number || ''}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                 ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                 : '0.00'}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
-               <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
-                 <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
-               </td>
-             </tr>
-           ))}
-         </tbody>
-         <tfoot>
-           <tr>
-             <td colSpan="8" style={{ height: 0, lineHeight: 0, padding: 0, borderTop: '1px solid #ddd' }} />
-           </tr>
-         </tfoot>
-       </table>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>{item.title_number || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
+                ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : '0.00'}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
+              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
+                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan="8" style={{ height: 0, lineHeight: 0, padding: 0, borderTop: '1px solid #ddd' }} />
+          </tr>
+        </tfoot>
+      </table>
 
       {/* Spacer to push signature to the bottom of the last page when possible */}
       <div className="print-bottom-spacer" />
@@ -373,7 +381,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
 
               {/* Values */}
               <div style={{ fontSize: 12, fontWeight: 400 }}>
-                <div>{printHistory && printHistory[0] &&  printHistory[0].updated_by_name || ''}</div>
+                <div>{printHistory && printHistory[0] && printHistory[0].updated_by_name || ''}</div>
                 <div>{printHistory && printHistory[0] && formatDate(printHistory[0].updated_at) || ''}</div>
               </div>
             </div>
@@ -401,7 +409,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               </div>
             </div>
           </div>
-          
+
           <div style={{ textAlign: 'center', width: '80mm' }}>
             <div style={{ height: '37mm' }} />
             <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
@@ -411,12 +419,12 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
               {(() => {
                 const fullName = requestData?.verifier_signatory_name || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '';
                 if (!fullName) return '';
-                
+
                 // Split by comma to separate main name from suffix
                 const parts = fullName.split(',');
                 const mainName = parts[0]?.trim() || '';
                 const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : '';
-                
+
                 return (
                   <span>
                     {mainName}
@@ -481,14 +489,14 @@ const RequestsTable = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [allRequests, setAllRequests] = useState([]);
   const [loadingAll, setLoadingAll] = useState(false);
-  
+
   // Safety check - ensure requests is always an array
   const safeRequests = requests || [];
-  
+
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     purpose: '',
@@ -497,17 +505,17 @@ const RequestsTable = () => {
   });
   const [filterModal, setFilterModal] = useState(false);
   const [users, setUsers] = useState([]);
-  
+
   // Modal states
   const [printModal, setPrintModal] = useState(false);
   const [printRequestData, setPrintRequestData] = useState(null);
   const [printHistory, setPrintHistory] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
   const [requestFormModal, setRequestFormModal] = useState(false);
-  
+
   // Settings state
   const [settings, setSettings] = useState({});
-  
+
   // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
   useLoadingWatchdog({
     isLoading: loading,
@@ -520,17 +528,17 @@ const RequestsTable = () => {
     timeoutMessage: 'Request data timed out. Please check your connection and try again.',
     enabled: true
   });
-  
+
   // Filtered requests for client-side filtering when searching
   const filteredRequests = useMemo(() => {
     const base = (allRequests && allRequests.length) ? allRequests : safeRequests;
     return (base || []).filter((request) => {
       if (!request) return false;
-      
+
       // Apply search filter
       if (debouncedSearchTerm) {
         const searchUpper = debouncedSearchTerm.toUpperCase();
-        const matchesSearch = 
+        const matchesSearch =
           (request.receipt_number && String(request.receipt_number).toUpperCase().includes(searchUpper)) ||
           (request.client_name && String(request.client_name).toUpperCase().includes(searchUpper)) ||
           (request.client_address && String(request.client_address).toUpperCase().includes(searchUpper)) ||
@@ -542,26 +550,26 @@ const RequestsTable = () => {
           (request.purpose && String(request.purpose).toUpperCase().includes(searchUpper)) ||
           (request.remarks && String(request.remarks).toUpperCase().includes(searchUpper)) ||
           (request.prepared_by && String(request.prepared_by).toUpperCase().includes(searchUpper));
-        
+
         if (!matchesSearch) return false;
       }
-      
+
       // Apply other filters
       if (filters.purpose && request.purpose !== filters.purpose) return false;
       if (filters.dateIssued && request.date_issued !== filters.dateIssued) return false;
       if (filters.preparedBy && request.prepared_by !== filters.preparedBy) return false;
-      
+
       return true;
     });
   }, [allRequests, safeRequests, debouncedSearchTerm, filters]);
-  
+
   // Paged requests for display
   const pagedRequests = useMemo(() => {
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
     return filteredRequests.slice(start, end);
   }, [filteredRequests, page, rowsPerPage]);
-  
+
   // Print ref
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({
@@ -586,7 +594,7 @@ const RequestsTable = () => {
         const remainder = totalHeight % usablePageHeightPx;
         const spacerHeight = remainder === 0 ? 0 : (usablePageHeightPx - remainder);
         spacer.style.height = `${Math.max(0, Math.floor(spacerHeight))}px`;
-      } catch (_) {}
+      } catch (_) { }
     },
     onAfterPrint: () => {
       const root = printRef.current;
@@ -661,7 +669,7 @@ const RequestsTable = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
@@ -672,12 +680,12 @@ const RequestsTable = () => {
         // Add cache busting timestamp to prevent browser caching
         _t: forceRefresh ? Date.now() : Date.now()
       };
-      
+
       const response = await apiService.getRequests(params);
-      
+
       // Ignore if a newer request has started
       if (seq !== fetchSeqRef.current) return;
-      
+
       if (response && response.requests) {
         setRequests(response.requests);
         setTotalCount(response.pagination ? response.pagination.total : response.requests.length);
@@ -755,7 +763,7 @@ const RequestsTable = () => {
         setLoadingAll(false);
       }
     };
-    
+
     if (debouncedSearchTerm) {
       fetchAll();
     } else {
@@ -827,15 +835,15 @@ const RequestsTable = () => {
       setPrintModal(true);
       setPrintRequestData(request);
       setPrintHistory([]); // Initialize as empty array
-      
+
       console.log('Request data for printing:', request);
-      
+
       // Get tax declaration history (same as PropertyTable)
       if (request.tax_declaration_number) {
         console.log('Fetching tax declaration history for:', request.tax_declaration_number);
         const response = await apiService.getTaxDeclarationHistory(request.tax_declaration_number);
         console.log('Tax declaration history response:', response);
-        
+
         if (response && Array.isArray(response)) {
           setPrintHistory(response);
         } else {
@@ -908,11 +916,11 @@ const RequestsTable = () => {
   // Show initial loading state
   if (initialLoad && loading && (!safeRequests || safeRequests.length === 0)) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        justifyContent: 'center',
+        alignItems: 'center',
         minHeight: '70vh',
         gap: 2
       }}>
@@ -929,15 +937,15 @@ const RequestsTable = () => {
 
   return (
     <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-         sx={{ 
-           display: 'flex', 
-           flexDirection: 'column', 
-           height: 'calc(100vh - 64px - 3rem)', 
-           overflow: 'hidden' 
-         }}>
-        <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
-          Requests Management
-        </Typography>
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 64px - 3rem)',
+        overflow: 'hidden'
+      }}>
+      <Typography variant="h4" gutterBottom sx={{ flexShrink: 0 }}>
+        Requests Management
+      </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ flexShrink: 0 }}>
         Manage and view all payment requests and receipts
       </Typography>
@@ -1080,7 +1088,7 @@ const RequestsTable = () => {
       </Dialog>
 
       {/* Requests Table */}
-       <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {loading && (
           <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
             <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
@@ -1089,145 +1097,145 @@ const RequestsTable = () => {
             </Typography>
           </Box>
         )}
-          <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-            <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Receipt No.</strong></TableCell>
-                  <TableCell><strong>Client Name</strong></TableCell>
-                  <TableCell><strong>Property</strong></TableCell>
-                  <TableCell><strong>Amount</strong></TableCell>
-                  <TableCell><strong>Remarks</strong></TableCell>
-                  <TableCell><strong>Purpose</strong></TableCell>
-                  <TableCell><strong>Date Issued</strong></TableCell>
-                  <TableCell><strong>Prepared By</strong></TableCell>
-                  <TableCell><strong>Actions</strong></TableCell>
+        <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
+          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Receipt No.</strong></TableCell>
+                <TableCell><strong>Client Name</strong></TableCell>
+                <TableCell><strong>Property</strong></TableCell>
+                <TableCell><strong>Amount</strong></TableCell>
+                <TableCell><strong>Remarks</strong></TableCell>
+                <TableCell><strong>Purpose</strong></TableCell>
+                <TableCell><strong>Date Issued</strong></TableCell>
+                <TableCell><strong>Prepared By</strong></TableCell>
+                <TableCell><strong>Actions</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody sx={{
+              opacity: (loading && !initialLoad) ? 0.5 : 1,
+              pointerEvents: (loading && !initialLoad) ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease-in-out'
+            }}>
+              {pagedRequests.map((request) => (
+                <TableRow key={request.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="medium">
+                      {request.receipt_number}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {request.client_name}
+                    </Typography>
+                    {request.client_address && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {request.client_address}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {(() => {
+                        const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
+                        const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
+                        if (declarant && business) return `${declarant} / ${business}`;
+                        return declarant || business || '';
+                      })()}
+                    </Typography>
+                    {request.tax_declaration_number && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        TD: {request.tax_declaration_number}
+                        <br />
+                        BARANGAY: {request.location}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="bold" color="primary">
+                      {formatAmount(request.amount_paid)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {request.remarks || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {request.purpose}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {formatDateTable(request.date_issued)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {request.prepared_by}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => handlePrintRequest(request)}
+                        disabled={isViewer}
+                        title="Print Request History"
+                      >
+                        <PrintIcon />
+                      </IconButton>
+                      {(isAdmin || isSuperAdmin) && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteRequest(request.id)}
+                          title="Delete Request"
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody sx={{
-                opacity: (loading && !initialLoad) ? 0.5 : 1,
-                pointerEvents: (loading && !initialLoad) ? 'none' : 'auto',
-                transition: 'opacity 0.2s ease-in-out'
-              }}>
-                {pagedRequests.map((request) => (
-                  <TableRow key={request.id} hover>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="medium">
-                          {request.receipt_number}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {request.client_name}
-                        </Typography>
-                        {request.client_address && (
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {request.client_address}
+              ))}
+              {!loading && pagedRequests.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ border: 'none', p: 0 }}>
+                    <Box sx={{
+                      minHeight: 400,
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <Box
+                        sx={{
+                          position: 'sticky',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
+                            No requests found
                           </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {(() => {
-                            const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
-                            const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
-                            if (declarant && business) return `${declarant} / ${business}`;
-                            return declarant || business || '';
-                          })()}
-                        </Typography>
-                        {request.tax_declaration_number && (
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            TD: {request.tax_declaration_number}
-                            <br/>
-                            BARANGAY: {request.location}
+                          <Typography variant="body2" color="text.disabled">
+                            {searchTerm ? 'Try adjusting your search or filters' : 'No requests found matching your criteria.'}
                           </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="bold" color="primary">
-                          {formatAmount(request.amount_paid)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {request.remarks || '-'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {request.purpose}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {formatDateTable(request.date_issued)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {request.prepared_by}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => handlePrintRequest(request)}
-                            disabled={isViewer}
-                            title="Print Request History"
-                          >
-                            <PrintIcon />
-                          </IconButton>
-                          {(isAdmin || isSuperAdmin) && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteRequest(request.id)}
-                              title="Delete Request"
-                              color="error"
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          )}
                         </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {!loading && pagedRequests.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} sx={{ border: 'none', p: 0 }}>
-                        <Box sx={{ 
-                          minHeight: 400, 
-                          width: '100%', 
-                          display: 'flex', 
-                          alignItems: 'center' 
-                        }}>
-                          <Box
-                            sx={{
-                              position: 'sticky',
-                              left: '50%',
-                              transform: 'translateX(-50%)',
-                              display: 'inline-flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                              <Typography variant="h6" color="text.secondary" sx={{ mb: 0.5, fontWeight: 500 }}>
-                                No requests found
-                              </Typography>
-                              <Typography variant="body2" color="text.disabled">
-                                {searchTerm ? 'Try adjusting your search or filters' : 'No requests found matching your criteria.'}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
         {/* Pagination */}
         <TablePagination
@@ -1242,43 +1250,43 @@ const RequestsTable = () => {
         />
       </Paper>
 
-             {/* Print Modal */}
-       <Dialog
-         open={printModal}
-         onClose={() => setPrintModal(false)}
-         maxWidth="md"
-       >
-         <DialogTitle>
-           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-             <PrintIcon />
-             Print Request History
-           </Box>
-         </DialogTitle>
-         <DialogContent sx={{ p: 2 }}>
-           {printLoading ? (
-             <Box sx={{ 
-               display: 'flex', 
-               flexDirection: 'column',
-               justifyContent: 'center', 
-               alignItems: 'center', 
-               minHeight: '40vh',
-               minWidth: '40vw',
-               gap: 2
-             }}>
-               <CircularProgress size={50} thickness={4} />
-               <Typography variant="h6" color="text.secondary">
-                 Loading Request History...
-               </Typography>
-               {/* <Typography variant="body2" color="text.secondary">
+      {/* Print Modal */}
+      <Dialog
+        open={printModal}
+        onClose={() => setPrintModal(false)}
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PrintIcon />
+            Print Request History
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2 }}>
+          {printLoading ? (
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '40vh',
+              minWidth: '40vw',
+              gap: 2
+            }}>
+              <CircularProgress size={50} thickness={4} />
+              <Typography variant="h6" color="text.secondary">
+                Loading Request History...
+              </Typography>
+              {/* <Typography variant="body2" color="text.secondary">
                  Please wait while the system loads
                </Typography> */}
-             </Box>
-                      ) : (
-              <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>
-                <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
-              </Box>
-            )}
-         </DialogContent>
+            </Box>
+          ) : (
+            <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>
+              <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
+            </Box>
+          )}
+        </DialogContent>
         <DialogActions>
           <Button onClick={() => setPrintModal(false)}>Close</Button>
           <Button
@@ -1292,29 +1300,29 @@ const RequestsTable = () => {
         </DialogActions>
       </Dialog>
 
-             {/* Hidden printable content for react-to-print */}
-       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-         <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
-         <div className="print-page-footer"><span className="pageNumber" /></div>
-       </div>
+      {/* Hidden printable content for react-to-print */}
+      <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
+        <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
+        <div className="print-page-footer"><span className="pageNumber" /></div>
+      </div>
 
-       {/* Request Form Modal */}
-       <RequestFormModal
-         property={null}
-         onSave={handleRequestFormSaved}
-         onCancel={() => setRequestFormModal(false)}
-         open={requestFormModal}
-         onClose={() => setRequestFormModal(false)}
-       />
+      {/* Request Form Modal */}
+      <RequestFormModal
+        property={null}
+        onSave={handleRequestFormSaved}
+        onCancel={() => setRequestFormModal(false)}
+        open={requestFormModal}
+        onClose={() => setRequestFormModal(false)}
+      />
 
-       {/* Error Alert */}
-       {error && (
-         <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>
-           {error}
-         </Alert>
-       )}
-     </Box>
-   );
- };
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+    </Box>
+  );
+};
 
 export default RequestsTable;
