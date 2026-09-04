@@ -2089,6 +2089,22 @@ class Assessor_Database {
             }
         }
 
+        // Migration: Ensure memoranda templates table exists
+        $table_memoranda_templates = $wpdb->prefix . 'assessor_memoranda_templates';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_memoranda_templates));
+        if (!$table_exists) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql_memoranda_templates = "CREATE TABLE $table_memoranda_templates (
+                id mediumint(9) NOT NULL AUTO_INCREMENT,
+                title varchar(150) NOT NULL,
+                template_text text NOT NULL,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id)
+            ) $charset_collate;";
+            $wpdb->query($sql_memoranda_templates);
+        }
+
         // Migration: Expand declarant name fields to varchar(255) in properties table
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $col = $wpdb->get_var($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'declarant_last_name'", $table_properties));

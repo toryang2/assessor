@@ -274,13 +274,13 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: '17%', }} />
-          <col style={{ width: '12%' }} />
+          <col style={{ width: '14%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '7%' }} />
           <col style={{ width: '29%' }} />
         </colgroup>
         <thead>
@@ -292,7 +292,7 @@ const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, re
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Effectivity</th>
+            <th style={{ border: '1px solid #ddd', padding: 1, fontSize: 9, backgroundColor: '#cccccc' }}>Effectivity</th>
             <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
           </tr>
         </thead>

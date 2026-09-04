@@ -496,6 +496,73 @@ class Assessor_Settings {
 		return array('success' => true);
 	}
 
+	// Memoranda Templates
+	public function get_memoranda_templates() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_memoranda_templates';
+		$rows = $wpdb->get_results("SELECT id, title, template_text FROM $table ORDER BY id ASC", ARRAY_A);
+		return array(
+			'success' => true,
+			'templates' => $rows ? $rows : array()
+		);
+	}
+
+	public function save_memoranda_template($request) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_memoranda_templates';
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+
+		$id = isset($params['id']) ? intval($params['id']) : 0;
+		$title = sanitize_text_field($params['title'] ?? '');
+		$template_text = sanitize_textarea_field($params['template_text'] ?? '');
+		
+		if (empty($title) || empty($template_text)) {
+			return new WP_Error('invalid_input', 'Title and Template Text are required', array('status' => 400));
+		}
+
+		$data = array(
+			'title' => $title,
+			'template_text' => $template_text
+		);
+
+		if ($id > 0) {
+			$wpdb->update($table, $data, array('id' => $id), array('%s', '%s'), array('%d'));
+		} else {
+			$wpdb->insert($table, $data, array('%s', '%s'));
+		}
+
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_memoranda_templates');
+		}
+
+		return $this->get_memoranda_templates();
+	}
+
+	public function delete_memoranda_template($request) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_memoranda_templates';
+		
+		$params = $request->get_json_params();
+		if (!$params) {
+			$params = $request->get_params();
+		}
+
+		$id = intval($params['id'] ?? 0);
+		if ($id <= 0) {
+			return new WP_Error('invalid_id', 'Valid ID is required', array('status' => 400));
+		}
+
+		$wpdb->delete($table, array('id' => $id), array('%d'));
+		
+		if (class_exists('Assessor_Sync')) {
+			Assessor_Sync::enqueue_config_table('assessor_memoranda_templates');
+		}
+		return array('success' => true);
+	}
+
 	// Request purposes (Purpose + Amount Paid)
 	public function get_request_purposes() {
 		global $wpdb;

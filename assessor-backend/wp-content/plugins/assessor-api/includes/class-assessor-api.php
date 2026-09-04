@@ -380,6 +380,23 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_auth')
         ));
 
+        // Memoranda Templates routes
+        register_rest_route('assessor/v1', '/settings/memoranda-templates', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_memoranda_templates'),
+            'permission_callback' => '__return_true'
+        ));
+        register_rest_route('assessor/v1', '/settings/memoranda-templates', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_memoranda_template'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+        register_rest_route('assessor/v1', '/settings/memoranda-templates/delete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'delete_memoranda_template'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
+
         // Request purposes routes (Purpose + Amount Paid)
         register_rest_route('assessor/v1', '/settings/request-purposes', array(
             'methods' => 'GET',
@@ -1132,6 +1149,22 @@ class Assessor_API {
         $settings = new Assessor_Settings();
         return $settings->delete_revision_entry($request);
     }
+
+    public function get_memoranda_templates($request) {
+        $settings = new Assessor_Settings();
+        return $settings->get_memoranda_templates();
+    }
+
+    public function save_memoranda_template($request) {
+        $settings = new Assessor_Settings();
+        return $settings->save_memoranda_template($request);
+    }
+
+    public function delete_memoranda_template($request) {
+        $settings = new Assessor_Settings();
+        return $settings->delete_memoranda_template($request);
+    }
+
 
     public function get_request_purposes($request) {
         $settings = new Assessor_Settings();

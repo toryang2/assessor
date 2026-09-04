@@ -88,6 +88,8 @@ export const endpoints = {
   revisionEntries: '/settings/revision-entries',
   requestPurposes: '/settings/request-purposes',
   requestPurposesDelete: '/settings/request-purposes/delete',
+  memorandaTemplates: '/settings/memoranda-templates',
+  memorandaTemplatesDelete: '/settings/memoranda-templates/delete',
   publicApiKeys: '/settings/public-api-keys',
   
   // Export
@@ -329,6 +331,30 @@ export const apiService = {
   deleteRequestPurpose: async (id) => {
     try {
       const response = await api.post(endpoints.requestPurposesDelete, { id });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getMemorandaTemplates: async () => {
+    try {
+      const response = await api.get(endpoints.memorandaTemplates);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  saveMemorandaTemplate: async (payload) => {
+    try {
+      const response = await api.post(endpoints.memorandaTemplates, payload);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  deleteMemorandaTemplate: async (id) => {
+    try {
+      const response = await api.post(endpoints.memorandaTemplatesDelete, { id });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

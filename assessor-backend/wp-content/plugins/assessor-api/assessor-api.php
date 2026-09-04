@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Assessor History Archiving API
  * Description: Backend API for Assessor System
- * Version: 1.1.15
+ * Version: 1.1.16
  * Author: toryang2
  * Author URI: https://github.com/toryang2
  * Text Domain: assessor-api
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ASSESSOR_API_VERSION', '1.1.15');
+define('ASSESSOR_API_VERSION', '1.1.16');
 define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
 
