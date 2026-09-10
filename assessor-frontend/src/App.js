@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ThemeProvider } from '@mui/material/styles';
+import { UIThemeProvider } from './contexts/UIThemeContext';
 import { CssBaseline } from '@mui/material';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-
-import { theme } from './theme/theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components
@@ -118,7 +116,7 @@ const App = () => {
   }, []);
 
   return (
-    <ThemeProvider theme={theme}>
+    <UIThemeProvider>
       <CssBaseline />
       <GlobalStyles
         styles={{
@@ -150,7 +148,7 @@ const App = () => {
           </AuthProvider>
         )}
       </LocalizationProvider>
-    </ThemeProvider>
+    </UIThemeProvider>
   );
 };
 

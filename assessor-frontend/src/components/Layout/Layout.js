@@ -21,7 +21,9 @@ import {
   useTheme,
   useMediaQuery,
   Tooltip,
-  CircularProgress
+  CircularProgress,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -44,6 +46,7 @@ import {
   NewReleases as NewReleasesIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUITheme } from '../../contexts/UIThemeContext';
 import { animations } from '../../theme/theme';
 import { apiService } from '../../utils/api';
 import { useCacheBuster } from '../../hooks/useCacheBuster';
@@ -80,6 +83,7 @@ const Layout = ({ children }) => {
   })();
   const computedDrawerWidth = isSmallScreen ? '20rem' : drawerWidth; // 320px at 16px font size
   const { user, logout, isSuperAdmin, isAdmin, isAssessor, isViewer, syncStatus } = useAuth();
+  const { isNewDesign, toggleUiTheme } = useUITheme();
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
     try {
@@ -413,99 +417,172 @@ const Layout = ({ children }) => {
   };
 
   const drawer = (
-    <Box>
-      <Box sx={{ 
-        py: isSmallScreen ? 3 : 4, 
-        px: 2,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: isSmallScreen ? 1.5 : 2
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {isNewDesign ? (
+        <Box sx={{ 
+          p: 3, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          borderBottom: `1px solid #e2e8f0`
+        }}>
           {settings?.app_logo_url ? (
-            <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 48 : 64, maxWidth: isSmallScreen ? 48 : 64, objectFit: 'contain', display: 'block' }} />
+            <img src={settings.app_logo_url} alt="Logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           ) : (
-            <Business sx={{ fontSize: isSmallScreen ? 22 : 28, color: 'primary.main' }} />
+            <Business sx={{ fontSize: 32, color: 'primary.main' }} />
           )}
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body1" fontWeight={700} color="text.primary" noWrap sx={{ lineHeight: 1.2 }}>
+              Assessor Archiving
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', mt: 0.5 }}>
+              LGU {toFormalCase(baseMunicipality)}
+            </Typography>
+          </Box>
         </Box>
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-          <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: isSmallScreen ? '0.9rem' : '1rem', mb: 0.5 }}>
-            Assessor's Archiving System
-          </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.85rem' : '0.9rem' }}>
-            {headerMunicipality}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.75rem' : '0.8rem' }}>
-            {headerProvince}
-          </Typography>
+      ) : (
+        <Box sx={{ 
+          py: isSmallScreen ? 3 : 4, 
+          px: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: isSmallScreen ? 1.5 : 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            {settings?.app_logo_url ? (
+              <img src={settings.app_logo_url} alt="Logo" style={{ maxHeight: isSmallScreen ? 48 : 64, maxWidth: isSmallScreen ? 48 : 64, objectFit: 'contain', display: 'block' }} />
+            ) : (
+              <Business sx={{ fontSize: isSmallScreen ? 22 : 28, color: 'primary.main' }} />
+            )}
+          </Box>
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: isSmallScreen ? '0.9rem' : '1rem', mb: 0.5 }}>
+              Assessor's Archiving System
+            </Typography>
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.85rem' : '0.9rem' }}>
+              {headerMunicipality}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: isSmallScreen ? '0.75rem' : '0.8rem' }}>
+              {headerProvince}
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      )}
       
-      <List>
-        {navigationItems.filter(item => item.show).map((item) => (
-          <motion.div key={item.text}>
-            <ListItem disablePadding>
-              <ListItemButton
-                  onClick={() => handleNavigation(item.text)}
-                  selected={currentPage === item.text}
-                  sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      position: 'relative',
-                      borderRadius: 0,
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: isNewDesign ? 2 : 0 }}>
+        <List sx={{ pt: isNewDesign ? 0 : 1 }}>
+          {navigationItems.filter(item => item.show).map((item) => (
+            <motion.div key={item.text}>
+              <ListItem disablePadding sx={{ mb: isNewDesign ? 0.5 : 0 }}>
+                <ListItemButton
+                    onClick={() => handleNavigation(item.text)}
+                    selected={currentPage === item.text}
+                    sx={isNewDesign ? {
+                      borderRadius: 2,
+                      px: 2,
+                      py: 1.25,
                       '&.Mui-selected': {
-                        backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                        backgroundColor: 'primary.light',
                         color: 'primary.main',
-                        '&::before': {
-                          content: '""',
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: 4,
-                          backgroundColor: 'primary.main',
-                        },
                         '&:hover': {
-                          backgroundColor: 'rgba(25, 118, 210, 0.12)',
-                          color: 'primary.main',
-                        },
+                          backgroundColor: 'primary.light',
+                        }
                       },
                       '&:hover': {
                         backgroundColor: 'action.hover',
-                      },
-                    }}
-                >
-                  <ListItemIcon
-                   sx={{
-                     color: currentPage === item.text ? 'primary.main' : 'text.secondary',
-                     minWidth: 40,
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center',
-                   }}
-                 >
-                  {item.icon}
-                </ListItemIcon>
-                                 <ListItemText 
-                   primary={item.text}
-                   primaryTypographyProps={{
-                     fontWeight: currentPage === item.text ? 600 : 400,
-                     color: currentPage === item.text ? 'primary.main' : 'inherit',
-                   }}
-                   sx={{
-                     marginLeft: 0,
-                   }}
-                 />
-                {item.badge && (
-                  <Badge badgeContent={item.badge} color="error" />
-                )}
-              </ListItemButton>
-            </ListItem>
-          </motion.div>
-        ))}
-      </List>
+                      }
+                    } : {
+                        display: 'flex',
+                        alignItems: 'center',
+                        position: 'relative',
+                        borderRadius: 0,
+                        '&.Mui-selected': {
+                          backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                          color: 'primary.main',
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 4,
+                            backgroundColor: 'primary.main',
+                          },
+                          '&:hover': {
+                            backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                            color: 'primary.main',
+                          },
+                        },
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
+                  >
+                    <ListItemIcon
+                     sx={{
+                       color: currentPage === item.text ? 'primary.main' : (isNewDesign ? '#94a3b8' : 'text.secondary'),
+                       minWidth: isNewDesign ? 36 : 40,
+                       display: 'flex',
+                       alignItems: 'center',
+                       justifyContent: isNewDesign ? 'flex-start' : 'center',
+                     }}
+                   >
+                    {React.cloneElement(item.icon, { fontSize: isNewDesign ? 'small' : 'medium' })}
+                  </ListItemIcon>
+                  <ListItemText 
+                     primary={item.text}
+                     primaryTypographyProps={{
+                       fontWeight: currentPage === item.text ? (isNewDesign ? 600 : 600) : (isNewDesign ? 500 : 400),
+                       color: currentPage === item.text ? 'primary.main' : (isNewDesign ? '#64748b' : 'inherit'),
+                       fontSize: isNewDesign ? '0.875rem' : '1rem'
+                     }}
+                     sx={{
+                       marginLeft: 0,
+                     }}
+                   />
+                  {item.badge && (
+                    <Badge badgeContent={item.badge} color="error" />
+                  )}
+                </ListItemButton>
+              </ListItem>
+            </motion.div>
+          ))}
+        </List>
+      </Box>
+
+      {isNewDesign && (
+        <Box sx={{ 
+          p: 2, 
+          borderTop: `1px solid #e2e8f0`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          mt: 'auto'
+        }}>
+          <Avatar
+            src={user?.avatar_url || undefined}
+            sx={{ 
+              width: 36, 
+              height: 36,
+              bgcolor: user?.avatar_url ? 'transparent' : 'primary.main',
+              fontSize: '0.875rem',
+              fontWeight: 600
+            }}
+          >
+            {!user?.avatar_url && (user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U')}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" fontWeight={600} color="text.primary" noWrap>
+              {user?.full_name || user?.username || 'User'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+              {formatRole(user?.role)}
+            </Typography>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 
@@ -517,9 +594,10 @@ const Layout = ({ children }) => {
         sx={{
           width: { md: `calc(100% - ${computedDrawerWidth})` },
           ml: { md: computedDrawerWidth },
-          background: '#f8fafc',
-          color: '#475569',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+          background: isNewDesign ? '#ffffff' : '#f8fafc',
+          color: isNewDesign ? '#1e293b' : '#475569',
+          boxShadow: isNewDesign ? 'none' : '0 2px 8px rgba(0,0,0,0.08)',
+          borderBottom: isNewDesign ? '1px solid #e2e8f0' : 'none'
         }}
       >
         <Toolbar sx={{ alignItems: 'center' }}>
@@ -550,7 +628,7 @@ const Layout = ({ children }) => {
               {currentPage === 'User Management' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Settings' && <SettingsIcon sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
               {currentPage === 'Profile' && <AccountCircle sx={{ fontSize: 24, color: 'primary.main', verticalAlign: 'middle' }} />}
-              <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>
+              <Typography variant="h6" fontWeight={isNewDesign ? 700 : 600} sx={{ lineHeight: 1, display: 'inline-flex', alignItems: 'center', fontSize: isNewDesign ? '1.125rem' : undefined }}>
                 {currentPage}
               </Typography>
             </motion.div>
@@ -769,8 +847,8 @@ const Layout = ({ children }) => {
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
               width: computedDrawerWidth,
-              background: '#ffffff',
-              borderRight: `1px solid ${theme.palette.divider}`
+              background: isNewDesign ? '#ffffff' : '#ffffff',
+              borderRight: isNewDesign ? '1px solid #e2e8f0' : `1px solid ${theme.palette.divider}`
             },
           }}
         >
@@ -783,8 +861,8 @@ const Layout = ({ children }) => {
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
               width: computedDrawerWidth,
-              background: '#ffffff',
-              borderRight: `1px solid ${theme.palette.divider}`
+              background: isNewDesign ? '#ffffff' : '#ffffff',
+              borderRight: isNewDesign ? '1px solid #e2e8f0' : `1px solid ${theme.palette.divider}`
             },
           }}
           open
@@ -918,6 +996,14 @@ const Layout = ({ children }) => {
             <AccountCircle fontSize="small" />
           </ListItemIcon>
           Profile
+        </MenuItem>
+
+        <MenuItem disableRipple>
+          <FormControlLabel
+            control={<Switch checked={isNewDesign} onChange={toggleUiTheme} size="small" />}
+            label={<Typography variant="body2">New Design</Typography>}
+            sx={{ ml: 0, width: '100%', m: 0 }}
+          />
         </MenuItem>
 
         <MenuItem onClick={() => { setChangelogOpen(true); handleProfileMenuClose(); }}>

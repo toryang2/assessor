@@ -60,6 +60,9 @@ import { apiService, etracsService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCacheBuster } from '../../hooks/useCacheBuster';
 import { animations, statusColors } from '../../theme/theme';
+import { useUITheme } from '../../contexts/UIThemeContext';
+import { LocationOn, AccountTree } from '@mui/icons-material';
+
 import { format } from 'date-fns';
 import PropertyFormModal from '../PropertyFormModal/PropertyFormModal';
 import LoadingDots from '../LoadingDots';
@@ -67,6 +70,8 @@ import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
+  const { uiTheme } = useUITheme();
+  const isNewDesign = uiTheme === 'new';
   const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit, isViewer } = useAuth();
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
@@ -483,8 +488,135 @@ const Dashboard = ({ onNavigate }) => {
     );
   }
 
-  return (
-    <Box sx={{ pb: 6 }}>
+
+  const renderNewThemeDashboard = () => {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: { xs: 2, md: 3 }, pb: 8, animation: 'fadeIn 0.2s ease-in-out' }}>
+        <Box sx={{ background: 'linear-gradient(to right, #1d4ed8, #2563eb, #4338ca)', borderRadius: 4, p: { xs: 3, md: 4 }, color: 'white', position: 'relative', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+          <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, opacity: 0.1, pointerEvents: 'none', display: 'flex', alignItems: 'center', pr: 4 }}>
+            <Business sx={{ fontSize: 240, color: 'white' }} />
+          </Box>
+          <Box sx={{ position: 'relative', zIndex: 10, maxWidth: 'md' }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5, borderRadius: 50, bgcolor: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(8px)', color: '#eff6ff', fontSize: '0.75rem', fontWeight: 600, mb: 2, border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+              <LocationOn sx={{ fontSize: 14, color: '#bfdbfe' }} />
+              <span>{settings?.header_province || 'BUKIDNON'} &bull; {settings?.header_municipality || 'KITAOTAO'} LGU Connected</span>
+            </Box>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 1, letterSpacing: '-0.02em', fontSize: { xs: '1.5rem', md: '1.75rem' } }}>
+              Real Property Tax Assessment & Archiving
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(219, 234, 254, 0.9)', mb: 3, lineHeight: 1.6, maxWidth: 'sm' }}>
+              Centralized repository for real property assessment rolls, traceable title & tax declaration lineage chains, cancelled records, and supporting legal deeds.
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+              <Button variant="contained" startIcon={<Add />} onClick={handleAddProperty} disabled={isViewer || loading || propertiesLoading} sx={{ bgcolor: 'white', color: '#1e3a8a', fontWeight: 700, textTransform: 'none', px: 2, py: 1, borderRadius: 2, boxShadow: '0 10px 15px -3px rgba(30, 58, 138, 0.2)', '&:hover': { bgcolor: '#eff6ff' } }}>
+                Issue New Tax Declaration
+              </Button>
+              <Button variant="outlined" startIcon={<AccountTree />} onClick={handleViewProperties} sx={{ bgcolor: 'rgba(59, 130, 246, 0.3)', borderColor: 'rgba(255, 255, 255, 0.2)', color: 'white', fontWeight: 600, textTransform: 'none', px: 2, py: 1, borderRadius: 2, '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.5)', borderColor: 'rgba(255, 255, 255, 0.3)' } }}>
+                View Property Records
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ bgcolor: 'white', p: 2.5, borderRadius: 4, border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', height: '100%', cursor: 'pointer', transition: 'all 0.2s', '&:hover': { borderColor: '#93c5fd' } }} onClick={handleViewProperties}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Tax Decs</Typography>
+                <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Assignment sx={{ fontSize: 20 }} /></Box>
+              </Box>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e293b' }}>{dashboardData?.total_properties || 0}</Typography>
+              <Typography sx={{ mt: 1, fontSize: '0.75rem', color: '#64748b' }}><span style={{ fontWeight: 600, color: '#334155' }}>Active</span> records in database</Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ bgcolor: 'white', p: 2.5, borderRadius: 4, border: '1px solid #d1fae5', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active RPTs</Typography>
+                <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Business sx={{ fontSize: 20 }} /></Box>
+              </Box>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#022c22' }}>{dashboardData?.version_counts || 0}</Typography>
+              <Typography sx={{ mt: 1, fontSize: '0.75rem', color: '#15803d' }}><span style={{ fontWeight: 600 }}>{computeRPTsTrend() || 'Updated'}</span></Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ bgcolor: 'white', p: 2.5, borderRadius: 4, border: '1px solid #ffedd5', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service Requests</Typography>
+                <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#fff7ed', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><RequestPage sx={{ fontSize: 20 }} /></Box>
+              </Box>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#431407' }}>{dashboardData?.requests_count || 0}</Typography>
+              <Typography sx={{ mt: 1, fontSize: '0.75rem', color: '#c2410c' }}><span style={{ fontWeight: 600 }}>{computeRequestsTrend() || 'Requests tracked'}</span></Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ bgcolor: 'white', p: 2.5, borderRadius: 4, border: '1px solid #e0e7ff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ETRACS FAAS</Typography>
+                <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Assignment sx={{ fontSize: 20 }} /></Box>
+              </Box>
+              <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e1b4b' }}>{etracsStats?.total || 0}</Typography>
+              <Typography sx={{ mt: 1, fontSize: '0.75rem', color: '#4338ca', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span style={{ fontWeight: 600 }}>{etracsStats?.current || 0} current records</span></Typography>
+            </Box>
+          </Grid>
+        </Grid>
+        <Box sx={{ mt: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" fontWeight={700} color="#1e293b" sx={{ fontSize: '1.125rem' }}>Recent Properties</Typography>
+            <Button endIcon={<ArrowForward />} onClick={handleViewProperties} sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.875rem' }}>View All</Button>
+          </Box>
+          {propertiesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, bgcolor: 'white', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : properties.length === 0 ? (
+            <Box sx={{ py: 6, textAlign: 'center', bgcolor: 'white', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+              <Business sx={{ fontSize: 40, color: '#cbd5e1', mb: 1 }} />
+              <Typography variant="subtitle1" fontWeight={600} color="#475569">No properties found</Typography>
+              <Typography variant="body2" color="#94a3b8" sx={{ mb: 2 }}>Get started by adding a record.</Typography>
+              <Button variant="outlined" size="small" onClick={handleAddProperty} sx={{ borderRadius: 2 }}>Add Property</Button>
+            </Box>
+          ) : (
+            <Grid container spacing={2}>
+              {properties.slice(0, 6).map((property, index) => (
+                <Grid item xs={12} sm={6} md={4} key={property.id}>
+                  <Box onClick={() => handleViewProperty(property)} sx={{ bgcolor: 'white', p: 2, borderRadius: 4, border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s', height: '100%', display: 'flex', flexDirection: 'column', '&:hover': { borderColor: '#93c5fd', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', transform: 'translateY(-2px)' } }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                      <Box sx={{ minWidth: 0, pr: 1 }}>
+                        <Typography fontWeight={700} color="#1e293b" noWrap sx={{ fontSize: '0.9rem' }}>{property.tax_declaration_number || `Property ${property.id}`}</Typography>
+                        <Typography variant="caption" color="#64748b" noWrap sx={{ display: 'block' }}>
+                          {property.declarant_last_name && property.declarant_first_name ? `${property.declarant_last_name}, ${property.declarant_first_name}` : property.declarant_last_name ? property.declarant_last_name : property.business_name || 'No owner specified'}
+                        </Typography>
+                      </Box>
+                      <Chip label={property.kind_of_property || 'UNK'} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, bgcolor: '#f1f5f9', color: '#475569', flexShrink: 0 }} />
+                    </Box>
+                    <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px dashed #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      <Box>
+                        <Typography variant="caption" color="#94a3b8" sx={{ display: 'block', lineHeight: 1 }}>Value</Typography>
+                        {property.assessed_value ? (
+                          <Typography fontWeight={700} color="#0f172a" sx={{ fontSize: '0.85rem' }}>₱{Number(property.assessed_value).toLocaleString()}</Typography>
+                        ) : (
+                          <Typography variant="body2" color="#94a3b8" sx={{ fontSize: '0.85rem' }}>N/A</Typography>
+                        )}
+                      </Box>
+                      {canEdit && (
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEditProperty(property); }} sx={{ width: 28, height: 28, bgcolor: '#f8fafc' }}>
+                          <Edit sx={{ fontSize: 14, color: '#64748b' }} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderClassicDashboard = () => {
+    return (
+      <Box sx={{ pb: 6 }}>
         {/* Header Photo */}
       {dashboardData?.header_photo_url && (
         <motion.div
@@ -967,182 +1099,81 @@ const Dashboard = ({ onNavigate }) => {
         </Box>
       </motion.div> */}
       
+    </Box>
+    );
+  };
+
+  return (
+    <>
+      {isNewDesign ? renderNewThemeDashboard() : renderClassicDashboard()}
+      
       {/* Property Form Modal */}
-       <PropertyFormModal
-         open={showPropertyForm}
-         property={editingProperty}
-         onSave={handlePropertySave}
-         onCancel={handlePropertyCancel}
-         onClose={handlePropertyCancel}
-       />
+      <PropertyFormModal
+        open={showPropertyForm}
+        property={editingProperty}
+        onSave={handlePropertySave}
+        onCancel={handlePropertyCancel}
+        onClose={handlePropertyCancel}
+      />
 
-             {/* Properties List Dialog */}
-       <Dialog open={showPropertiesList} onClose={() => setShowPropertiesList(false)} maxWidth="lg" fullWidth>
-         <DialogTitle>
-           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-             <Typography variant="h6">Properties Overview</Typography>
-             <Box>
-               <Button
-                 variant="contained"
-                 startIcon={<Add />}
-                 onClick={() => {
-                   setShowPropertiesList(false);
-                   handleAddProperty();
-                 }}
-                 disabled={isViewer}
-                 sx={{ mr: 1 }}
-               >
-                 Add New Property
-               </Button>
-               <IconButton onClick={() => setShowPropertiesList(false)}>
-                 <Close />
-               </IconButton>
-             </Box>
-           </Box>
-         </DialogTitle>
-         <DialogContent>
-           <TableContainer component={Paper}>
-             <Table>
-               <TableHead>
-                 <TableRow>
-                   <TableCell><strong>Tax Declaration #</strong></TableCell>
-                   <TableCell><strong>Owner</strong></TableCell>
-                   <TableCell><strong>Location</strong></TableCell>
-                   <TableCell><strong>Type</strong></TableCell>
-                   <TableCell><strong>Assessed Value</strong></TableCell>
-                   <TableCell><strong>Area (ha)</strong></TableCell>
-                   <TableCell align="right"><strong>Actions</strong></TableCell>
-                 </TableRow>
-               </TableHead>
-               <TableBody>
-                 {propertiesLoading ? (
-                   <TableRow>
-                     <TableCell colSpan={7} align="center">
-                       <CircularProgress />
-                     </TableCell>
-                   </TableRow>
-                 ) : properties.length === 0 ? (
-                   <TableRow>
-                     <TableCell colSpan={7} align="center">
-                       <Box sx={{ py: 4, textAlign: 'center' }}>
-                         <Business sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                         <Typography variant="h6" color="text.secondary" gutterBottom>
-                           No Properties Found
-                         </Typography>
-                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                           Get started by adding your first property assessment record.
-                         </Typography>
-                         <Button
-                           variant="contained"
-                           startIcon={<Add />}
-                           onClick={() => {
-                             setShowPropertiesList(false);
-                             handleAddProperty();
-                           }}
-                         >
-                           Add First Property
-                         </Button>
-                       </Box>
-                     </TableCell>
-                   </TableRow>
-                 ) : (
-                   properties.map((property) => (
-                     <TableRow 
-                       key={property.id}
-                       sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
-                     >
-                       <TableCell>
-                         <Typography variant="body2" fontWeight={500}>
-                           {property.tax_declaration_number || `ID: ${property.id}`}
-                         </Typography>
-                       </TableCell>
-                       <TableCell>
-                         <Typography variant="body2">
-                           {property.declarant_last_name && property.declarant_first_name 
-                             ? `${property.declarant_last_name}, ${property.declarant_first_name}`
-                             : property.business_name || 'Not specified'
-                           }
-                         </Typography>
-                       </TableCell>
-                       <TableCell>
-                         <Typography variant="body2">
-                           {property.location || property.address || 'Not specified'}
-                         </Typography>
-                       </TableCell>
-                       <TableCell>
-                         <Chip 
-                           label={property.kind_of_property_name || property.kind_of_property || 'Unknown'} 
-                           size="small" 
-                           color="primary" 
-                           variant="outlined" 
-                         />
-                       </TableCell>
-                       <TableCell>
-                         {property.assessed_value ? (
-                           <Typography variant="body2" fontWeight={500} color="primary.main">
-                             ₱{Number(property.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                           </Typography>
-                         ) : (
-                           <Typography variant="body2" color="text.secondary">
-                             Not assessed
-                           </Typography>
-                         )}
-                       </TableCell>
-                       <TableCell>
-                         {property.area_hectare ? (
-                           <Typography variant="body2">
-                             {Number(property.area_hectare).toFixed(4)}
-                           </Typography>
-                         ) : (
-                           <Typography variant="body2" color="text.secondary">
-                             -
-                           </Typography>
-                         )}
-                       </TableCell>
-                       <TableCell align="right">
-                         {canEdit && (
-                           <IconButton 
-                             size="small"
-                             onClick={() => handleEditProperty(property)}
-                             title="Edit Property"
-                           >
-                             <Edit fontSize="small" />
-                           </IconButton>
-                         )}
-                         <IconButton 
-                           size="small"
-                           onClick={() => handleViewProperty(property)}
-                           title="View Details"
-                         >
-                           <Visibility fontSize="small" />
-                         </IconButton>
-                       </TableCell>
-                     </TableRow>
-                   ))
-                 )}
-               </TableBody>
-             </Table>
-           </TableContainer>
-                  </DialogContent>
-       </Dialog>
+      {/* Properties List Dialog */}
+      <Dialog open={showPropertiesList} onClose={() => setShowPropertiesList(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Properties Overview</Typography>
+            <Box>
+              <Button variant="contained" startIcon={<Add />} onClick={() => { setShowPropertiesList(false); handleAddProperty(); }} disabled={isViewer} sx={{ mr: 1 }}>Add New Property</Button>
+              <IconButton onClick={() => setShowPropertiesList(false)}><Close /></IconButton>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Tax Declaration #</strong></TableCell>
+                  <TableCell><strong>Owner</strong></TableCell>
+                  <TableCell><strong>Location</strong></TableCell>
+                  <TableCell><strong>Type</strong></TableCell>
+                  <TableCell><strong>Assessed Value</strong></TableCell>
+                  <TableCell><strong>Area (ha)</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {propertiesLoading ? (
+                  <TableRow><TableCell colSpan={7} align="center"><CircularProgress /></TableCell></TableRow>
+                ) : properties.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} align="center"><Box sx={{ py: 4, textAlign: 'center' }}><Business sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} /><Typography variant="h6" color="text.secondary" gutterBottom>No Properties Found</Typography><Button variant="contained" startIcon={<Add />} onClick={() => { setShowPropertiesList(false); handleAddProperty(); }}>Add First Property</Button></Box></TableCell></TableRow>
+                ) : (
+                  properties.map((property) => (
+                    <TableRow key={property.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell><Typography variant="body2" fontWeight={500}>{property.tax_declaration_number || `ID: ${property.id}`}</Typography></TableCell>
+                      <TableCell><Typography variant="body2">{property.declarant_last_name && property.declarant_first_name ? `${property.declarant_last_name}, ${property.declarant_first_name}` : property.business_name || 'Not specified'}</Typography></TableCell>
+                      <TableCell><Typography variant="body2">{property.location || property.address || 'Not specified'}</Typography></TableCell>
+                      <TableCell><Chip label={property.kind_of_property_name || property.kind_of_property || 'Unknown'} size="small" color="primary" variant="outlined" /></TableCell>
+                      <TableCell>{property.assessed_value ? <Typography variant="body2" fontWeight={500} color="primary.main">₱{Number(property.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography> : <Typography variant="body2" color="text.secondary">Not assessed</Typography>}</TableCell>
+                      <TableCell>{property.area_hectare ? <Typography variant="body2">{Number(property.area_hectare).toFixed(4)}</Typography> : <Typography variant="body2" color="text.secondary">-</Typography>}</TableCell>
+                      <TableCell align="right">
+                        {canEdit && <IconButton size="small" onClick={() => handleEditProperty(property)} title="Edit Property"><Edit fontSize="small" /></IconButton>}
+                        <IconButton size="small" onClick={() => handleViewProperty(property)} title="View Details"><Visibility fontSize="small" /></IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+      </Dialog>
 
-       {/* Toast Notifications */}
-       <Snackbar
-         open={toast.open}
-         autoHideDuration={4000}
-         onClose={() => setToast(prev => ({ ...prev, open: false }))}
-         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-       >
-         <Alert 
-           onClose={() => setToast(prev => ({ ...prev, open: false }))} 
-           severity={toast.severity} 
-           sx={{ width: '100%' }}
-         >
-           {toast.message}
-         </Alert>
-       </Snackbar>
-     </Box>
-   );
- };
+      {/* Toast Notifications */}
+      <Snackbar open={toast.open} autoHideDuration={4000} onClose={() => setToast(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>{toast.message}</Alert>
+      </Snackbar>
+    </>
+  );
+};
 
 export default Dashboard;
