@@ -20,7 +20,7 @@ class Assessor_Documents {
             SELECT d.*, u.full_name as uploaded_by_name
             FROM $table_documents d
             LEFT JOIN $table_users u ON d.uploaded_by = u.id
-            WHERE d.property_id = %d
+            WHERE d.property_id = %s
             ORDER BY d.uploaded_at DESC
         ";
         
@@ -40,7 +40,7 @@ class Assessor_Documents {
         global $wpdb;
         
         $params = $request->get_params();
-        $property_id = intval($params['property_id']);
+        $property_id = sanitize_text_field($params['property_id']);
         $description = sanitize_textarea_field($params['description'] ?? '');
         
         // Check if property exists
@@ -97,7 +97,7 @@ class Assessor_Documents {
                 'description' => $description,
                 'uploaded_by' => $user_id
             ),
-            array('%d', '%s', '%s', '%s', '%s', '%d', '%s', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s')
         );
         
         if ($result === false) {

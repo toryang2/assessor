@@ -310,7 +310,7 @@ class Assessor_Public_API {
 
     public function get_property_by_id($request) {
         $properties = new Assessor_Properties();
-        $property = $properties->get_property(intval($request['id']));
+        $property = $properties->get_property(sanitize_text_field($request['id']));
 
         if (is_wp_error($property)) {
             return $property;

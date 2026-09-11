@@ -169,14 +169,16 @@ class Assessor_Sync_Receiver {
 
         if ($existing) {
             // UPDATE existing record
-            $updated = $wpdb->update($table, $safe, array('id' => intval($existing['id'])));
+            $updated = $wpdb->update($table, $safe, array('id' => $existing['id']), null, array('%s'));
             if ($updated === false) {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
             }
-            $live_property_id = intval($existing['id']);
+            $live_property_id = $existing['id'];
         } else {
-            // INSERT new record
-            unset($safe['id']);
+            // INSERT new record (preserve incoming UUID v7 from local build, or generate fresh one)
+            if (empty($safe['id'])) {
+                $safe['id'] = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+            }
             if (empty($safe['created_by'])) {
                 $safe['created_by'] = null;
             }
@@ -187,7 +189,7 @@ class Assessor_Sync_Receiver {
             if ($inserted === false) {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
             }
-            $live_property_id = $wpdb->insert_id;
+            $live_property_id = $safe['id'];
         }
 
         if (class_exists('Assessor_Audit')) {
@@ -227,7 +229,7 @@ class Assessor_Sync_Receiver {
                             'file_type' => sanitize_text_field($doc['file_type']),
                             'description' => sanitize_textarea_field($doc['description'] ?? ''),
                             'uploaded_by' => 0
-                        ));
+                        ), array('%s', '%s', '%s', '%s', '%s', '%s', '%s'));
                     }
                 }
             }
@@ -239,7 +241,7 @@ class Assessor_Sync_Receiver {
             $wpdb->replace($table_property_states, array(
                 'property_id' => $live_property_id,
                 'state'       => strtoupper(trim($property_state))
-            ), array('%d', '%s'));
+            ), array('%s', '%s'));
         }
 
         return array('status' => 'synced');

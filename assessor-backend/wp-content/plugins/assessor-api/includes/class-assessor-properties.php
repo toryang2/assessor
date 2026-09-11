@@ -511,7 +511,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             LEFT JOIN $table_property_types pt ON p.kind_of_property = pt.code
             LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
             LEFT JOIN $table_property_states ps ON p.id = ps.property_id
-            WHERE p.id = %d AND p.status != 'deleted'
+            WHERE p.id = %s AND p.status != 'deleted'
         ";
         
         $property = $wpdb->get_row($wpdb->prepare($query, $id));
@@ -582,9 +582,13 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $survey_number = sanitize_text_field($params['unique_lot_number_identified']);
         }
 
+        // Generate UUID v7 for new property
+        $property_id = Assessor_UUID::v7();
+
         $result = $wpdb->insert(
             $table_properties,
             array(
+                'id' => $property_id,
                 'tax_declaration_number' => sanitize_text_field($params['tax_declaration_number']),
                 'previous_tax_declaration_number' => $normalized_previous_tdn,
                 'declarant_last_name' => sanitize_text_field($params['declarant_last_name']),
@@ -610,7 +614,6 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'memoranda' => sanitize_textarea_field($params['memoranda']),
                 'supporting_documents' => sanitize_textarea_field($params['supporting_documents']),
                 'supporting_documents_old' => sanitize_textarea_field($params['supporting_documents_old']),
-                'supporting_documents_old' => sanitize_textarea_field($params['supporting_documents_old']),
                 'verifier_signatory_name' => sanitize_text_field($params['verifier_signatory_name']),
                 'verifier_signatory_title' => sanitize_text_field($params['verifier_signatory_title']),
                 'municipal_assessor_name' => sanitize_text_field($params['municipal_assessor_name']),
@@ -623,14 +626,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'created_at' => isset($params['created_at']) ? $params['created_at'] : date('Y-m-d H:i:s'),
                 'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
         );
         
         if ($result === false) {
             return new WP_Error('insert_failed', 'Failed to create property', array('status' => 500));
         }
-        
-        $property_id = $wpdb->insert_id;
         
         // Remove prefix from license after successful insert to restore original value
         if (!empty($original_license)) {
@@ -639,13 +640,13 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 array('municipal_assessor_license' => $original_license),
                 array('id' => $property_id),
                 array('%s'),
-                array('%d')
+                array('%s')
             );
             error_log("🔍 CREATE: Removed prefix, final license = '$original_license'");
             
             // Verify the value was stored correctly
             $stored_license = $wpdb->get_var($wpdb->prepare(
-                "SELECT municipal_assessor_license FROM $table_properties WHERE id = %d",
+                "SELECT municipal_assessor_license FROM $table_properties WHERE id = %s",
                 $property_id
             ));
             error_log("🔍 CREATE: License after DB insert = '$stored_license' (with leading zeros preserved)");
@@ -700,7 +701,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $audit = new Assessor_Audit();
         // Auto-cancel previous TDNs if provided, but ONLY if this property is CURRENT
         $current_state = $wpdb->get_var($wpdb->prepare(
-            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %d",
+            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %s",
             $property_id
         ));
         $current_state = $current_state ? strtoupper($current_state) : 'CURRENT';
@@ -723,7 +724,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                             'updated_by' => $user_id,
                             'updated_at' => current_time('mysql')
                         ],
-                        ['%d', '%s', '%d', '%s']
+                        ['%s', '%s', '%s', '%s']
                     );
                 }
             }
@@ -937,7 +938,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $update_data,
             array('id' => $id),
             null,
-            array('%d')
+            array('%s')
         );
         
         if ($result === false) {
@@ -953,13 +954,13 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     array('municipal_assessor_license' => $original_license),
                     array('id' => $id),
                     array('%s'),
-                    array('%d')
+                    array('%s')
                 );
                 error_log("🔍 UPDATE: Removed prefix, final license = '$original_license'");
                 
                 // Verify the value was stored correctly
                 $stored_license = $wpdb->get_var($wpdb->prepare(
-                    "SELECT municipal_assessor_license FROM $table_properties WHERE id = %d",
+                    "SELECT municipal_assessor_license FROM $table_properties WHERE id = %s",
                     $id
                 ));
                 error_log("🔍 UPDATE: License after DB update = '$stored_license' (with leading zeros preserved)");
@@ -970,7 +971,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         // Auto-cancel previous TDNs if provided, but ONLY if this property is CURRENT
         $current_state = $wpdb->get_var($wpdb->prepare(
-            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %d",
+            "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %s",
             $id
         ));
         $current_state = $current_state ? strtoupper($current_state) : 'CURRENT';
@@ -994,7 +995,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                             'updated_by' => $user_id,
                             'updated_at' => current_time('mysql')
                         ],
-                        ['%d', '%s', '%d', '%s']
+                        ['%s', '%s', '%s', '%s']
                     );
                 }
             }
@@ -1022,7 +1023,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
         // Enqueue for sync to live site (only on local builds, and not when the write came from sync itself)
         if (class_exists('Assessor_Sync')) {
-            Assessor_Sync::enqueue_property(intval($id), 'upsert');
+            Assessor_Sync::enqueue_property($id, 'upsert');
         }
 
         return $this->get_property($id);
@@ -1045,7 +1046,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $result = $wpdb->delete(
             $table_properties,
             array('id' => $id),
-            array('%d')
+            array('%s')
         );
         
         if ($result === false) {
@@ -1103,7 +1104,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
         // Fetch tax_declaration_number for this property
         $tax_declaration_number = $wpdb->get_var($wpdb->prepare(
-            "SELECT tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %d",
+            "SELECT tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %s",
             $id
         ));
 
@@ -1112,7 +1113,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
                  LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
                  WHERE FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0
-                 AND p.status != 'deleted' AND p.id != %d 
+                 AND p.status != 'deleted' AND p.id != %s 
                  AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
                 $tax_declaration_number,
                 $id
@@ -1132,7 +1133,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'updated_by'  => $user_id,
                 'updated_at'  => current_time('mysql')
             ],
-            ['%d', '%s', '%d', '%s']
+            ['%s', '%s', '%s', '%s']
         );
 
         if ($result === false) {
@@ -1141,7 +1142,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         // Sync previous TDs states
         $previous_tax_declaration_number = $wpdb->get_var($wpdb->prepare(
-            "SELECT previous_tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %d",
+            "SELECT previous_tax_declaration_number FROM {$wpdb->prefix}assessor_properties WHERE id = %s",
             $id
         ));
         
@@ -1163,7 +1164,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                 'updated_by' => $user_id,
                                 'updated_at' => current_time('mysql')
                             ],
-                            ['%d', '%s', '%d', '%s']
+                            ['%s', '%s', '%s', '%s']
                         );
                     }
                 }
@@ -1452,7 +1453,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         // Get next version number
         $current_version = $wpdb->get_var($wpdb->prepare(
-            "SELECT MAX(version_number) FROM $table_versions WHERE property_id = %d",
+            "SELECT MAX(version_number) FROM $table_versions WHERE property_id = %s",
             $property_id
         ));
         $next_version = ($current_version ? $current_version + 1 : 1);
@@ -1787,7 +1788,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             "SELECT p.id FROM {$wpdb->prefix}assessor_properties p
              LEFT JOIN {$wpdb->prefix}assessor_property_states ps ON p.id = ps.property_id
              WHERE FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0
-             AND p.status != 'deleted' AND p.id != %d 
+             AND p.status != 'deleted' AND p.id != %s 
              AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED') LIMIT 1",
             $tax_declaration_number,
             $property_id
@@ -1802,7 +1803,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     'updated_by' => $user_id,
                     'updated_at' => current_time('mysql')
                 ],
-                ['%d', '%s', '%d', '%s']
+                ['%s', '%s', '%s', '%s']
             );
         }
     }
@@ -1825,7 +1826,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $other_superseding_exists = $wpdb->get_var($wpdb->prepare(
                 "SELECT p.id FROM $table_properties p
                  LEFT JOIN $table_property_states ps ON p.id = ps.property_id
-                 WHERE p.id != %d AND p.status != 'deleted' 
+                 WHERE p.id != %s AND p.status != 'deleted' 
                  AND COALESCE(ps.state, 'CURRENT') IN ('CURRENT', 'CANCELLED')
                  AND FIND_IN_SET(%s, REPLACE(p.previous_tax_declaration_number, ';', ',')) > 0 LIMIT 1",
                 $deleted_property_id,
@@ -1848,7 +1849,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                             'updated_by' => $user_id,
                             'updated_at' => current_time('mysql')
                         ],
-                        ['%d', '%s', '%d', '%s']
+                        ['%s', '%s', '%s', '%s']
                     );
                 }
             }

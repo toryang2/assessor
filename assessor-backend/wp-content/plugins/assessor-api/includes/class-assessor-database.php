@@ -29,7 +29,7 @@ class Assessor_Database {
         // Properties table
         $table_properties = $wpdb->prefix . 'assessor_properties';
         $sql_properties = "CREATE TABLE $table_properties (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             tax_declaration_number varchar(100) NOT NULL,
             previous_tax_declaration_number varchar(100),
             declarant_last_name varchar(255) NOT NULL,
@@ -79,7 +79,7 @@ class Assessor_Database {
         $table_versions = $wpdb->prefix . 'assessor_property_versions';
         $sql_versions = "CREATE TABLE $table_versions (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
-            property_id mediumint(9) NOT NULL,
+            property_id varchar(36) NOT NULL,
             version_number int NOT NULL,
             tax_declaration_number varchar(100) NOT NULL,
             previous_tax_declaration_number varchar(100),
@@ -125,7 +125,7 @@ class Assessor_Database {
         $table_documents = $wpdb->prefix . 'assessor_documents';
         $sql_documents = "CREATE TABLE $table_documents (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
-            property_id mediumint(9) NOT NULL,
+            property_id varchar(36) NOT NULL,
             filename varchar(255) NOT NULL,
             original_filename varchar(255) NOT NULL,
             file_path varchar(500) NOT NULL,
@@ -275,7 +275,7 @@ class Assessor_Database {
         $table_requests = $wpdb->prefix . 'assessor_requests';
         $sql_requests = "CREATE TABLE $table_requests (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            property_id bigint(20) DEFAULT NULL,
+            property_id varchar(36) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
             is_official_request tinyint(1) NOT NULL DEFAULT 0,
@@ -351,7 +351,7 @@ class Assessor_Database {
         $table_sync_queue = $wpdb->prefix . 'assessor_sync_queue';
         $sql_sync_queue = "CREATE TABLE $table_sync_queue (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            property_id mediumint(9) NOT NULL,
+            property_id varchar(36) NOT NULL,
             operation varchar(20) NOT NULL DEFAULT 'upsert',
             status varchar(20) NOT NULL DEFAULT 'pending',
             attempts int NOT NULL DEFAULT 0,
@@ -1240,7 +1240,7 @@ class Assessor_Database {
 
         $table_assessor_property_states = $wpdb->prefix . 'assessor_property_states';
         $sql_assessor_property_states = "CREATE TABLE $table_assessor_property_states (
-  property_id mediumint NOT NULL,
+  property_id varchar(36) NOT NULL,
   state varchar(20) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'CURRENT',
   updated_by mediumint DEFAULT NULL,
   updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

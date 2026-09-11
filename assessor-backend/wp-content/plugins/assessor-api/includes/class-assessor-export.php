@@ -103,8 +103,8 @@ class Assessor_Export {
         $query_params = array();
         
         if (!empty($filters['property_id'])) {
-            $where_clause .= " AND property_id = %d";
-            $query_params[] = intval($filters['property_id']);
+            $where_clause .= " AND property_id = %s";
+            $query_params[] = sanitize_text_field($filters['property_id']);
         }
         
         $query = "SELECT * FROM {$versions_table} {$where_clause} ORDER BY version_number DESC";

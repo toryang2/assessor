@@ -167,26 +167,26 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_property'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_property'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_property'),
             'permission_callback' => array($this, 'check_auth'),
         ));
         
         // Property State
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/state', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)/state', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_property_state'),
             'permission_callback' => array($this, 'check_auth'),
@@ -211,7 +211,7 @@ class Assessor_API {
             'callback' => array($this, 'public_search_properties'),
             'permission_callback' => array($public_api, 'check_api_key'),
         ));
-        register_rest_route('assessor/v1', '/public/properties/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/public/properties/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'public_get_property'),
             'permission_callback' => array($public_api, 'check_api_key'),
@@ -253,26 +253,26 @@ class Assessor_API {
         ));
         
         // Version history routes
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/versions', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)/versions', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_property_versions'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
         // Document routes
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/documents', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)/documents', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_property_documents'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/documents', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)/documents', array(
             'methods' => 'POST',
             'callback' => array($this, 'upload_document'),
             'permission_callback' => array($this, 'check_auth')
         ));
 
-        register_rest_route('assessor/v1', '/properties/(?P<id>\d+)/documents/(?P<doc_id>\d+)', array(
+        register_rest_route('assessor/v1', '/properties/(?P<id>[a-zA-Z0-9\-\_]+)/documents/(?P<doc_id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_document'),
             'permission_callback' => array($this, 'check_auth')

@@ -19,11 +19,11 @@ class Assessor_Requests {
         
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            property_id bigint(20) DEFAULT NULL,
+            property_id varchar(36) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
             is_official_request tinyint(1) NOT NULL DEFAULT 0,
-            date_issued date NOT NULL,
+            date_issued datetime NOT NULL,
             place_issued varchar(255) NOT NULL,
             prepared_by varchar(255) NOT NULL,
             payment_type varchar(50) NOT NULL,
@@ -35,8 +35,14 @@ class Assessor_Requests {
             remarks text,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            created_by bigint(20) DEFAULT NULL,
-            updated_by bigint(20) DEFAULT NULL,
+            created_by varchar(50) DEFAULT NULL,
+            updated_by varchar(50) DEFAULT NULL,
+            verifier_signatory_name varchar(255) DEFAULT NULL,
+            verifier_signatory_title varchar(255) DEFAULT NULL,
+            municipal_assessor_name varchar(255) DEFAULT NULL,
+            municipal_assessor_title varchar(255) DEFAULT NULL,
+            municipal_assessor_license varchar(255) DEFAULT NULL,
+            municipal_assessor_suffix varchar(255) DEFAULT NULL,
             PRIMARY KEY (id),
             KEY property_id (property_id),
             KEY receipt_number (receipt_number),
@@ -138,6 +144,7 @@ class Assessor_Requests {
             'date_issued' => sanitize_text_field($data['date_issued']),
             'place_issued' => sanitize_text_field($data['place_issued']),
             'prepared_by' => sanitize_text_field($data['prepared_by']),
+            'payment_type' => !empty($data['payment_type']) ? sanitize_text_field($data['payment_type']) : 'cash',
             'purpose' => sanitize_text_field($data['purpose']),
             'client_name' => sanitize_text_field($data['client_name']),
             'client_address' => sanitize_textarea_field($data['client_address']),
@@ -158,12 +165,13 @@ class Assessor_Requests {
         );
         
         $insert_format = array(
-            '%d', // property_id
+            '%s', // property_id
             '%f', // amount_paid
             '%s', // receipt_number
             '%s', // date_issued
             '%s', // place_issued
             '%s', // prepared_by
+            '%s', // payment_type
             '%s', // purpose
             '%s', // client_name
             '%s', // client_address
@@ -197,6 +205,21 @@ class Assessor_Requests {
      * Get a single request by ID
      */
     public function get_request($id) {
+        $table_users = $this->db->prefix . 'assessor_users';
+        $has_assessor_users = $this->db->get_var("SHOW TABLES LIKE '$table_users'");
+
+        $user_join = $has_assessor_users 
+            ? "LEFT JOIN {$table_users} u1 ON r.created_by = u1.id
+               LEFT JOIN {$table_users} u2 ON r.updated_by = u2.id"
+            : "LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
+               LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID";
+
+        $user_select = $has_assessor_users
+            ? "COALESCE(u1.full_name, u1.username) as created_by_name,
+               COALESCE(u2.full_name, u2.username) as updated_by_name"
+            : "u1.display_name as created_by_name,
+               u2.display_name as updated_by_name";
+
         $query = $this->db->prepare(
             "SELECT r.*, 
                     p.tax_declaration_number,
@@ -206,12 +229,16 @@ class Assessor_Requests {
                     p.business,
                     p.location,
                     p.assessed_value,
-                    u1.display_name as created_by_name,
-                    u2.display_name as updated_by_name
+                    p.kind_of_property,
+                    p.gen_class,
+                    pt.name as kind_of_property_name,
+                    gc.name as gen_class_name,
+                    $user_select
              FROM {$this->table_name} r
              LEFT JOIN {$this->db->prefix}assessor_properties p ON r.property_id = p.id
-             LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
-             LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID
+             LEFT JOIN {$this->db->prefix}assessor_property_types pt ON p.kind_of_property = pt.code
+             LEFT JOIN {$this->db->prefix}assessor_general_classes gc ON p.gen_class = gc.code
+             $user_join
              WHERE r.id = %d",
             $id
         );
@@ -269,7 +296,7 @@ class Assessor_Requests {
         
         // Property filter
         if (!empty($args['property_id'])) {
-            $where_conditions[] = "r.property_id = %d";
+            $where_conditions[] = "r.property_id = %s";
             $where_values[] = $args['property_id'];
         }
         
@@ -306,6 +333,22 @@ class Assessor_Requests {
         }
         $total = $this->db->get_var($count_query);
         
+        // Build user joins
+        $table_users = $this->db->prefix . 'assessor_users';
+        $has_assessor_users = $this->db->get_var("SHOW TABLES LIKE '$table_users'");
+
+        $user_join = $has_assessor_users 
+            ? "LEFT JOIN {$table_users} u1 ON r.created_by = u1.id
+               LEFT JOIN {$table_users} u2 ON r.updated_by = u2.id"
+            : "LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
+               LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID";
+
+        $user_select = $has_assessor_users
+            ? "COALESCE(u1.full_name, u1.username) as created_by_name,
+               COALESCE(u2.full_name, u2.username) as updated_by_name"
+            : "u1.display_name as created_by_name,
+               u2.display_name as updated_by_name";
+
         // Build the main query
         $query = "SELECT r.*, 
                          p.tax_declaration_number,
@@ -319,14 +362,12 @@ class Assessor_Requests {
                          p.gen_class,
                          pt.name as kind_of_property_name,
                          gc.name as gen_class_name,
-                         u1.display_name as created_by_name,
-                         u2.display_name as updated_by_name
+                         $user_select
                   FROM {$this->table_name} r
                   LEFT JOIN {$this->db->prefix}assessor_properties p ON r.property_id = p.id
                   LEFT JOIN {$this->db->prefix}assessor_property_types pt ON p.kind_of_property = pt.code
                   LEFT JOIN {$this->db->prefix}assessor_general_classes gc ON p.gen_class = gc.code
-                  LEFT JOIN {$this->db->users} u1 ON r.created_by = u1.ID
-                  LEFT JOIN {$this->db->users} u2 ON r.updated_by = u2.ID
+                  $user_join
                   WHERE {$where_clause}
                   ORDER BY r.created_at DESC";
         
@@ -426,12 +467,13 @@ class Assessor_Requests {
         $update_format = array();
         
         $fields = array(
-            'property_id' => '%d',
+            'property_id' => '%s',
             'amount_paid' => '%f',
             'receipt_number' => '%s',
             'date_issued' => '%s',
             'place_issued' => '%s',
             'prepared_by' => '%s',
+            'payment_type' => '%s',
             'purpose' => '%s',
             'client_name' => '%s',
             'client_address' => '%s',

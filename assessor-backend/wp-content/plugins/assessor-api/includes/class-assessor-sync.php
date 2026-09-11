@@ -102,7 +102,7 @@ class Assessor_Sync {
         // INSERT ... ON DUPLICATE KEY UPDATE so re-edits reset back to 'pending'
         $wpdb->query($wpdb->prepare(
             "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
-             VALUES (%d, %s, 'pending', 0, NULL, %s, NULL)
+             VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
              ON DUPLICATE KEY UPDATE
                 status     = 'pending',
                 attempts   = 0,
@@ -292,8 +292,8 @@ class Assessor_Sync {
             }
 
             // Collect full property rows
-            $ids          = array_map('intval', array_column($pending, 'property_id'));
-            $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+            $ids          = array_map('sanitize_text_field', array_column($pending, 'property_id'));
+            $placeholders = implode(',', array_fill(0, count($ids), '%s'));
             // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             $properties = $wpdb->get_results(
                 $wpdb->prepare(
@@ -312,13 +312,13 @@ class Assessor_Sync {
             // Build records array keeping queue_id + tax number for response matching
             $records = array();
             foreach ($pending as $qi) {
-                $pid = intval($qi['property_id']);
+                $pid = sanitize_text_field($qi['property_id']);
                 if (isset($prop_map[$pid])) {
                     $prop_data = $prop_map[$pid];
                     
                     // Attach local documents with base64 encoded physical files
                     $table_docs = $wpdb->prefix . 'assessor_documents';
-                    $docs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_docs WHERE property_id = %d", $pid), ARRAY_A);
+                    $docs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_docs WHERE property_id = %s", $pid), ARRAY_A);
                     if ($docs) {
                         foreach ($docs as &$doc) {
                             if (!empty($doc['file_path']) && file_exists($doc['file_path'])) {
@@ -332,7 +332,7 @@ class Assessor_Sync {
 
                     // Attach local property state
                     $table_states = $wpdb->prefix . 'assessor_property_states';
-                    $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %d", $pid));
+                    $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %s", $pid));
                     $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
 
                     $records[] = array(

@@ -42,6 +42,7 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-public-api.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-sync-receiver.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-hardware-lock.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-uuid.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs-sync.php';
 

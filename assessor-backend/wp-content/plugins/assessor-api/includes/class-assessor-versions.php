@@ -12,7 +12,7 @@ class Assessor_Versions {
             SELECT v.*, u.full_name as created_by_name
             FROM $table_versions v
             LEFT JOIN $table_users u ON v.created_by = u.id
-            WHERE v.property_id = %d
+            WHERE v.property_id = %s
             ORDER BY v.version_number DESC
         ";
         
@@ -83,7 +83,7 @@ class Assessor_Versions {
             ),
             array('id' => $property_id),
             array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f'),
-            array('%d')
+            array('%s')
         );
         
         if ($result === false) {
@@ -100,7 +100,7 @@ class Assessor_Versions {
         
         // Get next version number
         $current_version = $wpdb->get_var($wpdb->prepare(
-            "SELECT MAX(version_number) FROM $table_versions WHERE property_id = %d",
+            "SELECT MAX(version_number) FROM $table_versions WHERE property_id = %s",
             $property_id
         ));
         $next_version = ($current_version ? $current_version + 1 : 1);
@@ -135,7 +135,7 @@ class Assessor_Versions {
                 'change_reason' => $change_reason,
                 'created_by' => $property_data->updated_by
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            array('%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
     }
 }
