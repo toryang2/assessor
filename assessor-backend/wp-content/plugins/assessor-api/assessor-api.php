@@ -45,6 +45,7 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-hardware-lock.ph
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-uuid.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs-sync.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-migration-runner.php';
 
 // Initialize the plugin
 function assessor_api_init() {

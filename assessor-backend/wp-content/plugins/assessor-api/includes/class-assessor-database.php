@@ -62,17 +62,20 @@ class Assessor_Database {
             municipal_assessor_title varchar(255) DEFAULT '',
             municipal_assessor_license varchar(255) DEFAULT '',
             status varchar(50) NOT NULL DEFAULT 'active',
+            revision_id varchar(36) DEFAULT NULL,
             created_by varchar(50) DEFAULT NULL,
             updated_by varchar(50) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY tax_declaration_number (tax_declaration_number),
+            KEY tax_declaration_number (tax_declaration_number),
+            KEY idx_tdn_revision (tax_declaration_number, revision_id),
             KEY declarant_last_name (declarant_last_name),
             KEY declarant_first_name (declarant_first_name),
             KEY location (location(100)),
             KEY kind_of_property (kind_of_property),
-            KEY status (status)
+            KEY status (status),
+            KEY revision_id (revision_id)
         ) $charset_collate;";
         
         // Property versions table
@@ -115,9 +118,11 @@ class Assessor_Database {
             change_reason text,
             created_by varchar(50) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            revision_id varchar(36) DEFAULT NULL,
             PRIMARY KEY (id),
             KEY property_id (property_id),
             KEY version_number (version_number),
+            KEY revision_id (revision_id),
             KEY created_at (created_at)
         ) $charset_collate;";
         
@@ -309,7 +314,8 @@ class Assessor_Database {
         // Revision entries table
         $table_revision_entries = $wpdb->prefix . 'assessor_revision_entries';
         $sql_revision_entries = "CREATE TABLE $table_revision_entries (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
+            revision_code varchar(100) NOT NULL,
             revision_year varchar(100) NOT NULL,
             from_year varchar(10) NOT NULL,
             to_year varchar(20) NOT NULL,
@@ -318,6 +324,7 @@ class Assessor_Database {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
+            UNIQUE KEY revision_code (revision_code),
             KEY status (status),
             KEY sort_order (sort_order)
         ) $charset_collate;";
@@ -2068,7 +2075,8 @@ class Assessor_Database {
         if (!$table_exists) {
             $charset_collate = $wpdb->get_charset_collate();
             $sql_revision_entries = "CREATE TABLE $table_revision_entries (
-                id mediumint(9) NOT NULL AUTO_INCREMENT,
+                id varchar(36) NOT NULL,
+                revision_code varchar(100) NOT NULL,
                 revision_year varchar(100) NOT NULL,
                 from_year varchar(10) NOT NULL,
                 to_year varchar(20) NOT NULL,
@@ -2077,6 +2085,7 @@ class Assessor_Database {
                 created_at datetime DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
+                UNIQUE KEY revision_code (revision_code),
                 KEY status (status),
                 KEY sort_order (sort_order)
             ) $charset_collate;";
@@ -2086,6 +2095,12 @@ class Assessor_Database {
             $column_info = $wpdb->get_row($wpdb->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'to_year'", $table_revision_entries));
             if ($column_info && intval($column_info->CHARACTER_MAXIMUM_LENGTH) < 20) {
                 $wpdb->query("ALTER TABLE $table_revision_entries MODIFY to_year varchar(20) NOT NULL");
+            }
+            // Migration: Ensure revision_code column exists
+            $has_code = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'revision_code'", $table_revision_entries));
+            if (!$has_code) {
+                $wpdb->query("ALTER TABLE $table_revision_entries ADD COLUMN revision_code varchar(100) NOT NULL DEFAULT '' AFTER id");
+                $wpdb->query("ALTER TABLE $table_revision_entries ADD UNIQUE KEY revision_code (revision_code)");
             }
         }
 
@@ -2135,17 +2150,81 @@ class Assessor_Database {
             $wpdb->query("ALTER TABLE $table_versions MODIFY declarant_middle_initial varchar(255) NULL");
         }
 
-        // Migration: Add revision_id column to properties table
+        // Migration: Add/Update revision_id column on properties table
         $table_properties = $wpdb->prefix . 'assessor_properties';
-        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'revision_id'", $table_properties));
+        $column = $wpdb->get_row($wpdb->prepare("SHOW COLUMNS FROM $table_properties LIKE 'revision_id'"));
         if (!$column) {
             // Prefer placing after status if it exists; otherwise append at the end
             $has_status = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'status'", $table_properties));
             if ($has_status) {
-                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id mediumint(9) DEFAULT NULL AFTER status");
+                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id varchar(36) DEFAULT NULL AFTER status");
             } else {
-                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id mediumint(9) DEFAULT NULL");
+                $wpdb->query("ALTER TABLE $table_properties ADD COLUMN revision_id varchar(36) DEFAULT NULL");
             }
+        } elseif (stripos($column->Type, 'varchar(36)') === false) {
+            $wpdb->query("ALTER TABLE $table_properties MODIFY revision_id varchar(36) DEFAULT NULL");
+        }
+
+        // Ensure index on revision_id
+        $has_rev_index = $wpdb->get_results("SHOW INDEX FROM $table_properties WHERE Column_name = 'revision_id'");
+        if (empty($has_rev_index)) {
+            $wpdb->query("ALTER TABLE $table_properties ADD KEY revision_id (revision_id)");
+        }
+
+        // Ensure foreign key constraint if revision table exists
+        $table_revisions = $wpdb->prefix . 'assessor_revision_entries';
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_revisions))) {
+            $fk_exists = $wpdb->get_var($wpdb->prepare("
+                SELECT CONSTRAINT_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = %s
+                  AND COLUMN_NAME = 'revision_id'
+                  AND REFERENCED_TABLE_NAME = %s
+                  AND REFERENCED_COLUMN_NAME = 'id'
+            ", $table_properties, $table_revisions));
+
+            if (!$fk_exists) {
+                @$wpdb->query("
+                    ALTER TABLE $table_properties
+                    ADD CONSTRAINT fk_properties_revision_id
+                    FOREIGN KEY (revision_id) REFERENCES $table_revisions (id)
+                    ON DELETE SET NULL
+                    ON UPDATE CASCADE
+                ");
+            }
+
+            // Backfill revision_id on any property that is missing it but has a valid 4-digit effectivity year
+            $unlinked_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_properties WHERE revision_id IS NULL AND effectivity_date REGEXP '^[0-9]{4}$'");
+            if ($unlinked_count > 0) {
+                $revisions = $wpdb->get_results("SELECT id, from_year, to_year FROM $table_revisions WHERE status = 'active'", ARRAY_A);
+                foreach ($revisions as $rev) {
+                    $from = intval($rev['from_year']);
+                    $to = (strtolower(trim($rev['to_year'])) === 'present') ? 9999 : intval($rev['to_year']);
+                    $wpdb->query($wpdb->prepare("
+                        UPDATE $table_properties
+                        SET revision_id = %s
+                        WHERE revision_id IS NULL
+                          AND effectivity_date REGEXP '^[0-9]{4}$'
+                          AND CAST(effectivity_date AS UNSIGNED) >= %d
+                          AND CAST(effectivity_date AS UNSIGNED) <= %d
+                    ", $rev['id'], $from, $to));
+                }
+            }
+        }
+
+        // Migration: Make TDN index non-unique and add composite index (tax_declaration_number, revision_id)
+        $tdn_indexes = $wpdb->get_results("SHOW INDEX FROM $table_properties WHERE Key_name = 'tax_declaration_number'", ARRAY_A);
+        foreach ($tdn_indexes as $idx) {
+            if ($idx['Non_unique'] == 0) {
+                $wpdb->query("ALTER TABLE $table_properties DROP INDEX tax_declaration_number");
+                $wpdb->query("ALTER TABLE $table_properties ADD KEY tax_declaration_number (tax_declaration_number)");
+                break;
+            }
+        }
+        $composite_idx = $wpdb->get_results("SHOW INDEX FROM $table_properties WHERE Key_name = 'idx_tdn_revision'", ARRAY_A);
+        if (empty($composite_idx)) {
+            $wpdb->query("ALTER TABLE $table_properties ADD KEY idx_tdn_revision (tax_declaration_number, revision_id)");
         }
 
         // Migration: Add revision_id column to property_versions table

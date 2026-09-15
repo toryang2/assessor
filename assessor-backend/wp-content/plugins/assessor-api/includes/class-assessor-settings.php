@@ -419,11 +419,74 @@ class Assessor_Settings {
 		return array('success' => true);
 	}
 
+	/**
+	 * Canonical Revision Resolver:
+	 * Resolves a revision record by:
+	 * 1. UUID v7 / string ID
+	 * 2. revision_code
+	 * 3. Legacy numeric ID (via mapping table assessor_revision_id_uuid_map)
+	 *
+	 * @param string|int $identifier
+	 * @return object|null Canonical revision object
+	 */
+	public static function resolve_revision($identifier) {
+		if (empty($identifier)) {
+			return null;
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'assessor_revision_entries';
+		$identifier_str = trim(strval($identifier));
+
+		// 1. Direct lookup by id (UUID)
+		if (class_exists('Assessor_UUID') && Assessor_UUID::is_valid($identifier_str)) {
+			$row = $wpdb->get_row($wpdb->prepare(
+				"SELECT * FROM $table WHERE id = %s AND status = 'active' LIMIT 1",
+				$identifier_str
+			));
+			if ($row) {
+				return $row;
+			}
+		}
+
+		// 2. Direct lookup by revision_code
+		$row = $wpdb->get_row($wpdb->prepare(
+			"SELECT * FROM $table WHERE revision_code = %s AND status = 'active' LIMIT 1",
+			$identifier_str
+		));
+		if ($row) {
+			return $row;
+		}
+
+		// 3. Backward-compatibility: Lookup by legacy numeric ID via mapping table
+		if (is_numeric($identifier_str)) {
+			$table_map = $wpdb->prefix . 'assessor_revision_id_uuid_map';
+			$has_map = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_map));
+			if ($has_map) {
+				$uuid = $wpdb->get_var($wpdb->prepare(
+					"SELECT new_uuid FROM $table_map WHERE old_id = %d LIMIT 1",
+					intval($identifier_str)
+				));
+				if ($uuid) {
+					$row = $wpdb->get_row($wpdb->prepare(
+						"SELECT * FROM $table WHERE id = %s AND status = 'active' LIMIT 1",
+						$uuid
+					));
+					if ($row) {
+						return $row;
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
 	public function get_revision_entries() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_revision_entries';
 		$entries = $wpdb->get_results(
-			"SELECT * FROM $table WHERE status = 'active' ORDER BY sort_order ASC, from_year DESC",
+			"SELECT id, revision_code, revision_year, from_year, to_year, status, sort_order, created_at, updated_at FROM $table WHERE status = 'active' ORDER BY sort_order ASC, from_year DESC",
 			ARRAY_A
 		);
 		return array('items' => $entries);
@@ -439,17 +502,28 @@ class Assessor_Settings {
 		}
 
 		$revision_year = sanitize_text_field($params['revision_year'] ?? '');
+		$revision_code = sanitize_text_field($params['revision_code'] ?? '');
 		$from_year = sanitize_text_field($params['from_year'] ?? '');
 		$to_year = sanitize_text_field($params['to_year'] ?? 'present');
 		$status = sanitize_text_field($params['status'] ?? 'active');
 		$sort_order = intval($params['sort_order'] ?? 0);
-		$id = intval($params['id'] ?? 0);
+		$id = isset($params['id']) ? trim(strval($params['id'])) : '';
 
 		if (empty($revision_year) || empty($from_year)) {
 			return new WP_Error('missing_fields', 'Revision year and from year are required', array('status' => 400));
 		}
 
+		// Ensure a clean revision_code
+		if (empty($revision_code)) {
+			$clean = preg_replace('/[^a-zA-Z0-9]+/', '-', trim($revision_year));
+			$revision_code = strtoupper(trim($clean, '-'));
+			if (empty($revision_code)) {
+				$revision_code = 'REV-' . trim($from_year);
+			}
+		}
+
 		$data = array(
+			'revision_code' => $revision_code,
 			'revision_year' => $revision_year,
 			'from_year' => $from_year,
 			'to_year' => $to_year,
@@ -458,14 +532,25 @@ class Assessor_Settings {
 			'updated_at' => current_time('mysql')
 		);
 
-		if ($id > 0) {
+		// Check if updating an existing entry
+		$existing = null;
+		if (!empty($id)) {
+			$existing = self::resolve_revision($id);
+			if (!$existing) {
+				// Also check if id exists directly (e.g. if inactive)
+				$existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %s LIMIT 1", $id));
+			}
+		}
+
+		if ($existing) {
 			// Update existing entry
-			$wpdb->update($table, $data, array('id' => $id), array('%s', '%s', '%s', '%s', '%d', '%s'), array('%d'));
+			$wpdb->update($table, $data, array('id' => $existing->id), array('%s', '%s', '%s', '%s', '%s', '%d', '%s'), array('%s'));
 		} else {
-			// Insert new entry
+			// Insert new entry with UUID v7
+			$new_id = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+			$data['id'] = $new_id;
 			$data['created_at'] = current_time('mysql');
-			$wpdb->insert($table, $data, array('%s', '%s', '%s', '%s', '%d', '%s', '%s'));
-			$id = $wpdb->insert_id;
+			$wpdb->insert($table, $data, array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s'));
 		}
 
 		// Return updated list
@@ -484,12 +569,22 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$id = intval($params['id'] ?? 0);
-		if ($id <= 0) {
+		$id = isset($params['id']) ? trim(strval($params['id'])) : '';
+		if (empty($id)) {
 			return new WP_Error('invalid_id', 'Valid ID is required', array('status' => 400));
 		}
 
-		$wpdb->delete($table, array('id' => $id), array('%d'));
+		// Resolve canonical revision
+		$existing = self::resolve_revision($id);
+		if (!$existing) {
+			$existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %s LIMIT 1", $id));
+		}
+
+		if (!$existing) {
+			return new WP_Error('not_found', 'Revision entry not found', array('status' => 404));
+		}
+
+		$wpdb->delete($table, array('id' => $existing->id), array('%s'));
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_revision_entries');
 		}

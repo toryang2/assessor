@@ -69,21 +69,36 @@ class Assessor_Versions {
         
         // Update property with version data
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $update_data = array(
+            'tax_declaration_number' => $version->tax_declaration_number,
+            'previous_tax_declaration_number' => $version->previous_tax_declaration_number,
+            'declarant_last_name' => $version->declarant_last_name,
+            'declarant_first_name' => $version->declarant_first_name,
+            'declarant_middle_initial' => $version->declarant_middle_initial,
+            'location' => $version->location,
+            'lot_number' => $version->lot_number,
+            'unique_lot_number_identified' => $version->unique_lot_number_identified,
+            'survey_number' => isset($version->survey_number) ? $version->survey_number : $version->unique_lot_number_identified,
+            'area_hectare' => $version->area_hectare,
+            'title_number' => $version->title_number,
+            'assessed_value' => $version->assessed_value,
+            'assessed_value_old' => isset($version->assessed_value_old) ? $version->assessed_value_old : '',
+            'effectivity_date' => $version->effectivity_date,
+            'pin' => $version->pin,
+            'address' => $version->address,
+            'assessment_date' => $version->assessment_date,
+            'kind_of_property' => $version->kind_of_property,
+            'gen_class' => $version->gen_class,
+            'memoranda' => $version->memoranda,
+            'supporting_documents' => $version->supporting_documents,
+            'supporting_documents_old' => isset($version->supporting_documents_old) ? $version->supporting_documents_old : '',
+            'revision_id' => isset($version->revision_id) ? $version->revision_id : null
+        );
+
         $result = $wpdb->update(
             $table_properties,
-            array(
-                'owner_name' => $version->owner_name,
-                'owner_address' => $version->owner_address,
-                'property_location' => $version->property_location,
-                'property_type' => $version->property_type,
-                'land_area' => $version->land_area,
-                'building_area' => $version->building_area,
-                'assessed_value' => $version->assessed_value,
-                'market_value' => $version->market_value,
-            ),
-            array('id' => $property_id),
-            array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%f'),
-            array('%s')
+            $update_data,
+            array('id' => $property_id)
         );
         
         if ($result === false) {
@@ -133,9 +148,9 @@ class Assessor_Versions {
                 'supporting_documents' => $property_data->supporting_documents,
                 'supporting_documents_old' => isset($property_data->supporting_documents_old) ? $property_data->supporting_documents_old : '',
                 'change_reason' => $change_reason,
-                'created_by' => $property_data->updated_by
-            ),
-            array('%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+                'created_by' => isset($property_data->updated_by) ? $property_data->updated_by : (isset($property_data->created_by) ? $property_data->created_by : null),
+                'revision_id' => isset($property_data->revision_id) ? $property_data->revision_id : null
+            )
         );
     }
 }

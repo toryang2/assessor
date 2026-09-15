@@ -85,52 +85,52 @@ class Assessor_Properties {
 
         // Revision filter - filter by date range based on revision's from_year and to_year
         if (!empty($params['revision_id'])) {
-            $revision_id = intval($params['revision_id']);
+            $raw_revision_id = trim(strval($params['revision_id']));
             error_log("🔍 REVISION FILTER START:");
-            error_log("  - params['revision_id']: " . $params['revision_id']);
-            error_log("  - intval revision_id: " . $revision_id);
+            error_log("  - params['revision_id']: " . $raw_revision_id);
             
-            if ($revision_id > 0) {
-                // Get revision details to determine date range
+            // Resolve canonical revision (supports UUID v7, revision_code, and legacy numeric ID)
+            $revision = null;
+            if (class_exists('Assessor_Settings')) {
+                $revision = Assessor_Settings::resolve_revision($raw_revision_id);
+            } else {
                 $table_revisions = $wpdb->prefix . 'assessor_revision_entries';
                 $revision = $wpdb->get_row($wpdb->prepare(
-                    "SELECT from_year, to_year FROM $table_revisions WHERE id = %d AND status = 'active'",
-                    $revision_id
+                    "SELECT from_year, to_year FROM $table_revisions WHERE (id = %s OR revision_code = %s) AND status = 'active'",
+                    $raw_revision_id,
+                    $raw_revision_id
                 ));
+            }
+            
+            // Debug: Check if revision was found
+            error_log("🔍 REVISION QUERY RESULT:");
+            error_log("  - Revision found: " . ($revision ? 'YES' : 'NO'));
+            if ($revision) {
+                error_log("  - Revision data: " . print_r($revision, true));
                 
-                // Debug: Check if revision was found
-                error_log("🔍 REVISION QUERY RESULT:");
-                error_log("  - Query: SELECT from_year, to_year FROM $table_revisions WHERE id = $revision_id AND status = 'active'");
-                error_log("  - Revision found: " . ($revision ? 'YES' : 'NO'));
-                if ($revision) {
-                    error_log("  - Revision data: " . print_r($revision, true));
-                }
-
-                if ($revision) {
-                    $from_year = intval($revision->from_year);
-                    // Treat 'present' as open-ended to include future years as well
-                    $to_year = (strtolower($revision->to_year) === 'present') ? 9999 : intval($revision->to_year);
-                    
-                    // Debug logging
-                    error_log("🔍 REVISION FILTER DEBUG:");
-                    error_log("  - revision_id: " . $revision_id);
-                    error_log("  - from_year: " . $from_year);
-                    error_log("  - to_year: " . $to_year);
-                    error_log("  - revision->from_year: " . $revision->from_year);
-                    error_log("  - revision->to_year: " . $revision->to_year);
-                    
-                    // Filter by effectivity_date within the revision's date range
-                    // effectivity_date is stored as varchar, so convert to integer for comparison
-                    $where_conditions[] = "(
-                        CAST(p.effectivity_date AS UNSIGNED) >= %d AND CAST(p.effectivity_date AS UNSIGNED) <= %d
-                    )";
-                    $where_values[] = $from_year;
-                    $where_values[] = $to_year;
-                    
-                    error_log("  - Added WHERE condition with values: " . $from_year . " to " . $to_year);
-                } else {
-                    error_log("❌ REVISION FILTER: No revision found for ID: " . $revision_id);
-                }
+                $from_year = intval($revision->from_year);
+                // Treat 'present' as open-ended to include future years as well
+                $to_year = (strtolower($revision->to_year) === 'present') ? 9999 : intval($revision->to_year);
+                
+                // Debug logging
+                error_log("🔍 REVISION FILTER DEBUG:");
+                error_log("  - identifier: " . $raw_revision_id);
+                error_log("  - from_year: " . $from_year);
+                error_log("  - to_year: " . $to_year);
+                error_log("  - revision->from_year: " . $revision->from_year);
+                error_log("  - revision->to_year: " . $revision->to_year);
+                
+                // Filter by effectivity_date within the revision's date range
+                // effectivity_date is stored as varchar, so convert to integer for comparison
+                $where_conditions[] = "(
+                    CAST(p.effectivity_date AS UNSIGNED) >= %d AND CAST(p.effectivity_date AS UNSIGNED) <= %d
+                )";
+                $where_values[] = $from_year;
+                $where_values[] = $to_year;
+                
+                error_log("  - Added WHERE condition with values: " . $from_year . " to " . $to_year);
+            } else {
+                error_log("❌ REVISION FILTER: No revision found for identifier: " . $raw_revision_id);
             }
         }
 
@@ -540,27 +540,33 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
     
     public function create_property($request) {
         global $wpdb;
+        $table_properties = $wpdb->prefix . 'assessor_properties';
         
         $params = $request->get_params();
         $user_id = $this->get_user_id_from_request($request);
         
         // Validate required fields
-        $required_fields = array('tax_declaration_number', 'location', 'kind_of_property');
+        $required_fields = array('tax_declaration_number', 'location', 'kind_of_property', 'effectivity_date');
         foreach ($required_fields as $field) {
             if (empty($params[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
             }
         }
+
+        // Validate effectivity_date and resolve authoritative revision UUID
+        $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
+        $resolved_revision_id = $this->resolve_revision_by_effectivity_date($params['effectivity_date'], $client_rev);
+        if (is_wp_error($resolved_revision_id)) {
+            return $resolved_revision_id;
+        }
         
-        // Check if tax declaration number already exists
-        $table_properties = $wpdb->prefix . 'assessor_properties';
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
-            $params['tax_declaration_number']
-        ));
-        
-        if ($existing) {
-            return new WP_Error('duplicate_tax_number', 'Tax declaration number already exists', array('status' => 400));
+        // Check if tax declaration number already exists in this revision
+        if ($this->is_tdn_duplicate_in_revision($params['tax_declaration_number'], $resolved_revision_id)) {
+            return new WP_Error(
+                'duplicate_tax_number',
+                sprintf("Tax declaration number '%s' already exists in this revision.", $params['tax_declaration_number']),
+                array('status' => 400)
+            );
         }
         
         // Handle municipal_assessor_license with prefix to preserve leading zeros
@@ -621,16 +627,16 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'municipal_assessor_title' => sanitize_text_field($params['municipal_assessor_title']),
                 'municipal_assessor_license' => $license_value,
                 'status' => 'active',
+                'revision_id' => $resolved_revision_id,
                 'created_by' => $user_id,
                 'updated_by' => $user_id,
                 'created_at' => isset($params['created_at']) ? $params['created_at'] : date('Y-m-d H:i:s'),
                 'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
-            ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+            )
         );
         
         if ($result === false) {
-            return new WP_Error('insert_failed', 'Failed to create property', array('status' => 500));
+            return new WP_Error('insert_failed', 'Failed to create property: ' . $wpdb->last_error, array('status' => 500));
         }
         
         // Remove prefix from license after successful insert to restore original value
@@ -710,22 +716,24 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
             foreach ($tdn_list as $tdn) {
                 if (empty($tdn)) continue;
-                // Find property ID by TDN
-                $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+                // Find all property IDs with this TDN (across all revisions) to prevent leaving older revisions un-cancelled
+                $prev_prop_ids = $wpdb->get_col($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
                     $tdn
                 ));
-                if ($prev_prop_id) {
-                    $wpdb->replace(
-                        "{$wpdb->prefix}assessor_property_states",
-                        [
-                            'property_id' => $prev_prop_id,
-                            'state' => 'CANCELLED',
-                            'updated_by' => $user_id,
-                            'updated_at' => current_time('mysql')
-                        ],
-                        ['%s', '%s', '%s', '%s']
-                    );
+                if (!empty($prev_prop_ids)) {
+                    foreach ($prev_prop_ids as $prev_prop_id) {
+                        $wpdb->replace(
+                            "{$wpdb->prefix}assessor_property_states",
+                            [
+                                'property_id' => $prev_prop_id,
+                                'state' => 'CANCELLED',
+                                'updated_by' => $user_id,
+                                'updated_at' => current_time('mysql')
+                            ],
+                            ['%s', '%s', '%s', '%s']
+                        );
+                    }
                 }
             }
         }
@@ -793,7 +801,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'municipal_assessor_suffix',
             'municipal_assessor_title',
             'municipal_assessor_license',
-            'status'
+            'status',
+            'revision_id'
         );
         $old_values = array();
         $new_values = array();
@@ -869,18 +878,6 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         // Update property
         $table_properties = $wpdb->prefix . 'assessor_properties';
         
-        // If tax_declaration_number is being changed, enforce uniqueness
-        if (isset($params['tax_declaration_number'])) {
-            $new_tax_number = sanitize_text_field($params['tax_declaration_number']);
-            $duplicate_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND id != %d AND status != 'deleted'",
-                $new_tax_number,
-                $id
-            ));
-            if ($duplicate_id) {
-                return new WP_Error('duplicate_tax_number', 'Tax declaration number already exists', array('status' => 400));
-            }
-        }
         $update_data = array(
             'updated_by' => $user_id,
             'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
@@ -892,7 +889,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number', 'assessed_value', 'assessed_value_old', 'effectivity_date', 'pin', 
             'address', 'assessment_date', 'kind_of_property', 'gen_class', 'memoranda', 
             'supporting_documents', 'supporting_documents_old', 'verifier_signatory_name', 'verifier_signatory_title', 'municipal_assessor_name',
-            'municipal_assessor_suffix', 'municipal_assessor_title', 'municipal_assessor_license', 'status'
+            'municipal_assessor_suffix', 'municipal_assessor_title', 'municipal_assessor_license', 'status', 'revision_id'
         );
         
         foreach ($allowed_fields as $field) {
@@ -927,10 +924,72 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     }
                 } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
                     $update_data[$field] = floatval($params[$field]);
+                } else if ($field === 'revision_id') {
+                    // Handled authoritatively via effectivity_date logic below
+                    continue;
                 } else {
                     $update_data[$field] = sanitize_text_field($params[$field]);
                 }
             }
+        }
+
+        // Authoritative revision assignment on UPDATE:
+        // 1. If effectivity_date changes, recalculate revision UUID
+        // 2. If effectivity_date does not change, preserve revision UUID
+        // 3. If client provides revision_id, accept only after validating against resolved revision
+        $old_effectivity = isset($current_property->effectivity_date) ? trim((string)$current_property->effectivity_date) : '';
+        $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
+
+        if (array_key_exists('effectivity_date', $params)) {
+            $new_effectivity = trim((string)$params['effectivity_date']);
+            if ($new_effectivity !== $old_effectivity) {
+                // Effectivity date changed: recalculate revision UUID authoritatively
+                $resolved_rev_id = $this->resolve_revision_by_effectivity_date($new_effectivity, $client_rev);
+                if (is_wp_error($resolved_rev_id)) {
+                    return $resolved_rev_id;
+                }
+                $update_data['revision_id'] = $resolved_rev_id;
+            } else {
+                // Effectivity date did not change: preserve existing revision UUID
+                // If the property previously had no revision_id (e.g. legacy/NULL) and has a valid date, calculate it
+                if (empty($current_property->revision_id) && $new_effectivity !== '') {
+                    $resolved_rev_id = $this->resolve_revision_by_effectivity_date($new_effectivity, $client_rev);
+                    if (!is_wp_error($resolved_rev_id)) {
+                        $update_data['revision_id'] = $resolved_rev_id;
+                    }
+                } elseif (!empty($client_rev) && !empty($current_property->revision_id)) {
+                    // If client explicitly passed a revision_id while date didn't change, validate match
+                    if (strcasecmp(trim($client_rev), $current_property->revision_id) !== 0) {
+                        return new WP_Error(
+                            'revision_mismatch',
+                            sprintf("Client-supplied revision does not match current property revision for unchanged effectivity date '%s'.", $old_effectivity),
+                            array('status' => 400)
+                        );
+                    }
+                }
+            }
+        } elseif (!empty($client_rev)) {
+            // effectivity_date was not passed, but client passed revision_id: validate against current property revision
+            if (!empty($current_property->revision_id) && strcasecmp(trim($client_rev), $current_property->revision_id) !== 0) {
+                return new WP_Error(
+                    'revision_mismatch',
+                    'Client-supplied revision does not match the property revision.',
+                    array('status' => 400)
+                );
+            }
+        }
+
+        // Validate revision-aware TDN uniqueness:
+        // Exclude current property UUID ($id), reject if duplicate TDN exists in the target revision
+        $target_tdn = isset($update_data['tax_declaration_number']) ? $update_data['tax_declaration_number'] : $current_property->tax_declaration_number;
+        $target_rev_id = isset($update_data['revision_id']) ? $update_data['revision_id'] : $current_property->revision_id;
+
+        if ($this->is_tdn_duplicate_in_revision($target_tdn, $target_rev_id, $id)) {
+            return new WP_Error(
+                'duplicate_tax_number',
+                sprintf("Tax declaration number '%s' already exists in this revision.", $target_tdn),
+                array('status' => 400)
+            );
         }
         
         $result = $wpdb->update(
@@ -981,22 +1040,24 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             $tdn_list = array_map('trim', explode(';', $normalized_previous_tdn));
             foreach ($tdn_list as $tdn) {
                 if (empty($tdn)) continue;
-                // Find property ID by TDN
-                $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+                // Find all property IDs with this TDN (across all revisions) to prevent leaving older revisions un-cancelled
+                $prev_prop_ids = $wpdb->get_col($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
                     $tdn
                 ));
-                if ($prev_prop_id) {
-                    $wpdb->replace(
-                        "{$wpdb->prefix}assessor_property_states",
-                        [
-                            'property_id' => $prev_prop_id,
-                            'state' => 'CANCELLED',
-                            'updated_by' => $user_id,
-                            'updated_at' => current_time('mysql')
-                        ],
-                        ['%s', '%s', '%s', '%s']
-                    );
+                if (!empty($prev_prop_ids)) {
+                    foreach ($prev_prop_ids as $prev_prop_id) {
+                        $wpdb->replace(
+                            "{$wpdb->prefix}assessor_property_states",
+                            [
+                                'property_id' => $prev_prop_id,
+                                'state' => 'CANCELLED',
+                                'updated_by' => $user_id,
+                                'updated_at' => current_time('mysql')
+                            ],
+                            ['%s', '%s', '%s', '%s']
+                        );
+                    }
                 }
             }
         }
@@ -1151,21 +1212,23 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 $tdn_list = array_map('trim', explode(';', $previous_tax_declaration_number));
                 foreach ($tdn_list as $tdn) {
                     if (empty($tdn)) continue;
-                    $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+                    $prev_prop_ids = $wpdb->get_col($wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}assessor_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
                         $tdn
                     ));
-                    if ($prev_prop_id) {
-                        $wpdb->replace(
-                            $table_property_states,
-                            [
-                                'property_id' => $prev_prop_id,
-                                'state' => 'CANCELLED',
-                                'updated_by' => $user_id,
-                                'updated_at' => current_time('mysql')
-                            ],
-                            ['%s', '%s', '%s', '%s']
-                        );
+                    if (!empty($prev_prop_ids)) {
+                        foreach ($prev_prop_ids as $prev_prop_id) {
+                            $wpdb->replace(
+                                $table_property_states,
+                                [
+                                    'property_id' => $prev_prop_id,
+                                    'state' => 'CANCELLED',
+                                    'updated_by' => $user_id,
+                                    'updated_at' => current_time('mysql')
+                                ],
+                                ['%s', '%s', '%s', '%s']
+                            );
+                        }
                     }
                 }
             } else {
@@ -1258,7 +1321,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
             $visited[$current_number] = true;
 
-            $property = $wpdb->get_row($wpdb->prepare(
+            $matching_properties = $wpdb->get_results($wpdb->prepare(
                 "SELECT 
                         p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
@@ -1279,80 +1342,80 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                  LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
                  LEFT JOIN $table_property_states ps ON p.id = ps.property_id
                  WHERE p.tax_declaration_number = %s AND p.status != 'deleted' 
-                 ORDER BY p.created_at DESC 
-                 LIMIT 1",
+                 ORDER BY p.created_at DESC",
                 $current_number
             ));
 
-            if (!$property) {
+            if (empty($matching_properties)) {
                 continue;
             }
 
-            $memoranda_value = $property->memoranda;
-            if (empty($memoranda_value)) {
-                $memoranda_value = $wpdb->get_var($wpdb->prepare(
-                    "SELECT memoranda FROM $table_versions WHERE property_id = %d ORDER BY version_number DESC LIMIT 1",
-                    $property->id
-                ));
-            }
+            foreach ($matching_properties as $property) {
+                $memoranda_value = $property->memoranda;
+                if (empty($memoranda_value)) {
+                    $memoranda_value = $wpdb->get_var($wpdb->prepare(
+                        "SELECT memoranda FROM $table_versions WHERE property_id = %s ORDER BY version_number DESC LIMIT 1",
+                        $property->id
+                    ));
+                }
 
-            $business_name = $property->business;
+                $business_name = $property->business;
 
-            $history[] = array(
-                'id' => $property->id,
-                'tax_declaration_number' => $property->tax_declaration_number,
-                'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
-                'declarant_name' => trim($property->declarant_last_name . ', ' . $property->declarant_first_name . 
-                                       ($property->declarant_middle_initial ? ' ' . $property->declarant_middle_initial . '.' : '')),
-                'property_state' => $property->property_state,
-                'business_name' => $business_name,
-                'location' => $property->location,
-                'lot_number' => $property->lot_number,
-                'unique_lot_number_identified' => isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : '',
-                'survey_number' => isset($property->survey_number) && $property->survey_number !== '' ? $property->survey_number : (isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : ''),
-                'area_hectare' => $property->area_hectare,
-                'area_hectare_old' => $property->area_hectare_old,
-                'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
-                'title_number' => $property->title_number,
-                'effectivity_date' => $property->effectivity_date,
-                'assessed_value' => $property->assessed_value,
-                'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
-                'kind_of_property' => $property->kind_of_property,
-                'kind_of_property_name' => isset($property->kind_of_property_name) ? $property->kind_of_property_name : $property->kind_of_property,
-                'gen_class' => $property->gen_class,
-                'gen_class_name' => isset($property->gen_class_name) ? $property->gen_class_name : $property->gen_class,
-                'memoranda' => $memoranda_value,
-                'supporting_documents' => isset($property->supporting_documents) ? $property->supporting_documents : '',
-                'supporting_documents_old' => isset($property->supporting_documents_old) ? $property->supporting_documents_old : '',
-                'pin' => $property->pin,
-                'address' => $property->address,
-                'assessment_date' => $property->assessment_date,
-                'gen_class' => $property->gen_class,
-                'verifier_signatory_name' => $property->verifier_signatory_name,
-                'verifier_signatory_title' => $property->verifier_signatory_title,
-                'municipal_assessor_name' => $property->municipal_assessor_name,
-                'municipal_assessor_suffix' => $property->municipal_assessor_suffix,
-                'municipal_assessor_title' => $property->municipal_assessor_title,
-                'municipal_assessor_license' => $property->municipal_assessor_license,
-                'created_at' => $property->created_at,
-                'created_by_name' => $property->created_by_name,
-                'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
-                'updated_by_name' => isset($property->updated_by_name) ? $property->updated_by_name : ''
-            );
+                $history[] = array(
+                    'id' => $property->id,
+                    'tax_declaration_number' => $property->tax_declaration_number,
+                    'previous_tax_declaration_number' => $property->previous_tax_declaration_number,
+                    'declarant_name' => trim($property->declarant_last_name . ', ' . $property->declarant_first_name . 
+                                           ($property->declarant_middle_initial ? ' ' . $property->declarant_middle_initial . '.' : '')),
+                    'property_state' => $property->property_state,
+                    'business_name' => $business_name,
+                    'location' => $property->location,
+                    'lot_number' => $property->lot_number,
+                    'unique_lot_number_identified' => isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : '',
+                    'survey_number' => isset($property->survey_number) && $property->survey_number !== '' ? $property->survey_number : (isset($property->unique_lot_number_identified) ? $property->unique_lot_number_identified : ''),
+                    'area_hectare' => $property->area_hectare,
+                    'area_hectare_old' => $property->area_hectare_old,
+                    'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
+                    'title_number' => $property->title_number,
+                    'effectivity_date' => $property->effectivity_date,
+                    'assessed_value' => $property->assessed_value,
+                    'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
+                    'kind_of_property' => $property->kind_of_property,
+                    'kind_of_property_name' => isset($property->kind_of_property_name) ? $property->kind_of_property_name : $property->kind_of_property,
+                    'gen_class' => $property->gen_class,
+                    'gen_class_name' => isset($property->gen_class_name) ? $property->gen_class_name : $property->gen_class,
+                    'memoranda' => $memoranda_value,
+                    'supporting_documents' => isset($property->supporting_documents) ? $property->supporting_documents : '',
+                    'supporting_documents_old' => isset($property->supporting_documents_old) ? $property->supporting_documents_old : '',
+                    'pin' => $property->pin,
+                    'address' => $property->address,
+                    'assessment_date' => $property->assessment_date,
+                    'verifier_signatory_name' => $property->verifier_signatory_name,
+                    'verifier_signatory_title' => $property->verifier_signatory_title,
+                    'municipal_assessor_name' => $property->municipal_assessor_name,
+                    'municipal_assessor_suffix' => $property->municipal_assessor_suffix,
+                    'municipal_assessor_title' => $property->municipal_assessor_title,
+                    'municipal_assessor_license' => $property->municipal_assessor_license,
+                    'created_at' => $property->created_at,
+                    'created_by_name' => $property->created_by_name,
+                    'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
+                    'updated_by_name' => isset($property->updated_by_name) ? $property->updated_by_name : ''
+                );
 
-            // Enqueue all previous declaration numbers (branching if multiple)
-            $prev_raw = (string)$property->previous_tax_declaration_number;
-            if ($prev_raw !== '') {
-                if (strpos($prev_raw, ';') !== false) {
-                    $tokens = array_filter(array_map('trim', explode(';', $prev_raw)), function($t){ return $t !== ''; });
-                    foreach ($tokens as $t) {
-                        if ($t && !isset($visited[$t])) {
-                            $queue[] = $t;
+                // Enqueue all previous declaration numbers (branching if multiple)
+                $prev_raw = (string)$property->previous_tax_declaration_number;
+                if ($prev_raw !== '') {
+                    if (strpos($prev_raw, ';') !== false) {
+                        $tokens = array_filter(array_map('trim', explode(';', $prev_raw)), function($t){ return $t !== ''; });
+                        foreach ($tokens as $t) {
+                            if ($t && !isset($visited[$t])) {
+                                $queue[] = $t;
+                            }
                         }
-                    }
-                } else {
-                    if (!isset($visited[$prev_raw])) {
-                        $queue[] = $prev_raw;
+                    } else {
+                        if (!isset($visited[$prev_raw])) {
+                            $queue[] = $prev_raw;
+                        }
                     }
                 }
             }
@@ -1411,13 +1474,13 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         return $head_number;
     }
     
-    public function get_property_by_tax_number($tax_declaration_number, $resolve_to_current = false) {
+    public function get_property_by_tax_number($tax_declaration_number, $resolve_to_current = false, $revision_id = null, $all_matches = false) {
         global $wpdb;
 
         if ($resolve_to_current) {
             $tax_declaration_number = $this->resolve_head_tax_declaration_number($tax_declaration_number);
             if ($tax_declaration_number === '') {
-                return null;
+                return $all_matches ? array() : null;
             }
         }
         
@@ -1426,6 +1489,33 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
+
+        $where_rev = '';
+        $query_params = array($tax_declaration_number);
+        if (!empty($revision_id)) {
+            $where_rev = ' AND p.revision_id = %s';
+            $query_params[] = (string)$revision_id;
+        }
+
+        if ($all_matches) {
+            $query = "
+                SELECT p.*, 
+                       c.full_name as created_by_name,
+                       u.full_name as updated_by_name,
+                       p.business as business_name,
+                       pt.name as kind_of_property_name,
+                       gc.name as gen_class_name
+                FROM $table_properties p
+                LEFT JOIN $table_users c ON p.created_by = c.id
+                LEFT JOIN $table_users u ON p.updated_by = u.id
+                LEFT JOIN $table_property_types pt ON p.kind_of_property = pt.code
+                LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
+                WHERE p.tax_declaration_number = %s AND p.status != 'deleted' $where_rev
+                ORDER BY p.created_at DESC
+            ";
+            return $wpdb->get_results($wpdb->prepare($query, $query_params));
+        }
+
         $query = "
             SELECT p.*, 
                    c.full_name as created_by_name,
@@ -1438,12 +1528,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             LEFT JOIN $table_users u ON p.updated_by = u.id
             LEFT JOIN $table_property_types pt ON p.kind_of_property = pt.code
             LEFT JOIN $table_general_classes gc ON p.gen_class = gc.code
-            WHERE p.tax_declaration_number = %s AND p.status != 'deleted'
+            WHERE p.tax_declaration_number = %s AND p.status != 'deleted' $where_rev
             ORDER BY p.created_at DESC
             LIMIT 1
         ";
         
-        return $wpdb->get_row($wpdb->prepare($query, $tax_declaration_number));
+        return $wpdb->get_row($wpdb->prepare($query, $query_params));
     }
     
     private function create_property_version($property_id, $property_data, $change_reason) {
@@ -1494,9 +1584,9 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'municipal_assessor_title' => isset($property_data->municipal_assessor_title) ? $property_data->municipal_assessor_title : '',
                 'municipal_assessor_license' => isset($property_data->municipal_assessor_license) ? $property_data->municipal_assessor_license : '',
                 'change_reason' => $change_reason,
-                'created_by' => $property_data->updated_by
-            ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%f', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+                'created_by' => $property_data->updated_by,
+                'revision_id' => isset($property_data->revision_id) ? $property_data->revision_id : null
+            )
         );
     }
     
@@ -1556,12 +1646,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
     }
 
     private function append_where_property_id_in_clause($head_ids, &$where_conditions, &$where_values) {
-        $head_ids = array_values(array_unique(array_filter(array_map('intval', (array) $head_ids))));
+        $head_ids = array_values(array_unique(array_filter(array_map('strval', (array) $head_ids))));
         if (empty($head_ids)) {
             $where_conditions[] = '1=0';
             return;
         }
-        $placeholders = implode(',', array_fill(0, count($head_ids), '%d'));
+        $placeholders = implode(',', array_fill(0, count($head_ids), '%s'));
         $where_conditions[] = 'p.id IN (' . $placeholders . ')';
         foreach ($head_ids as $id) {
             $where_values[] = $id;
@@ -1606,15 +1696,15 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             if ($head_tdn === '') {
                 continue;
             }
-            $hid = $wpdb->get_var($wpdb->prepare(
+            $hids = $wpdb->get_col($wpdb->prepare(
                 "SELECT id FROM $table_properties
-                 WHERE tax_declaration_number = %s AND status != 'deleted'
-                 ORDER BY created_at DESC
-                 LIMIT 1",
+                 WHERE tax_declaration_number = %s AND status != 'deleted'",
                 $head_tdn
             ));
-            if ($hid) {
-                $head_ids[] = (int) $hid;
+            if (!empty($hids)) {
+                foreach ($hids as $hid) {
+                    $head_ids[] = (string) $hid;
+                }
             }
         }
 
@@ -1834,26 +1924,160 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             ));
 
             if (!$other_superseding_exists) {
-                // Find property ID by this TDN
-                $prev_prop_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+                // Find all property IDs by this TDN to revert them all back to CURRENT
+                $prev_prop_ids = $wpdb->get_col($wpdb->prepare(
+                    "SELECT id FROM $table_properties WHERE tax_declaration_number = %s AND status != 'deleted'",
                     $tdn
                 ));
 
-                if ($prev_prop_id) {
-                    $wpdb->replace(
-                        $table_property_states,
-                        [
-                            'property_id' => $prev_prop_id,
-                            'state' => 'CURRENT',
-                            'updated_by' => $user_id,
-                            'updated_at' => current_time('mysql')
-                        ],
-                        ['%s', '%s', '%s', '%s']
-                    );
+                if (!empty($prev_prop_ids)) {
+                    foreach ($prev_prop_ids as $prev_prop_id) {
+                        $wpdb->replace(
+                            $table_property_states,
+                            [
+                                'property_id' => $prev_prop_id,
+                                'state' => 'CURRENT',
+                                'updated_by' => $user_id,
+                                'updated_at' => current_time('mysql')
+                            ],
+                            ['%s', '%s', '%s', '%s']
+                        );
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Resolve exactly one active revision for a given effectivity_date string.
+     *
+     * Rules:
+     * - Date must contain a valid 4-digit year.
+     * - Must match exactly one active revision where from_year <= year <= to_year ('present' treated as open-ended).
+     * - If client provides $client_revision_id, validates that it matches the resolved revision.
+     *
+     * @param string $effectivity_date
+     * @param string|null $client_revision_id
+     * @return string|WP_Error Returns the resolved revision UUID (VARCHAR 36) or WP_Error on failure.
+     */
+    public function resolve_revision_by_effectivity_date($effectivity_date, $client_revision_id = null) {
+        global $wpdb;
+
+        $raw_date = trim((string)$effectivity_date);
+        if ($raw_date === '') {
+            return new WP_Error('invalid_effectivity_date', 'Effectivity date is required and cannot be empty.', array('status' => 400));
+        }
+
+        // Determine the effectivity year (4-digit year format)
+        if (!preg_match('/^(\d{4})$/', $raw_date, $matches)) {
+            return new WP_Error(
+                'malformed_effectivity_date',
+                sprintf("Malformed or unusable effectivity date '%s'. A valid 4-digit year is required.", $raw_date),
+                array('status' => 400)
+            );
+        }
+
+        $year = intval($matches[1]);
+        $table_revisions = $wpdb->prefix . 'assessor_revision_entries';
+        $active_revisions = $wpdb->get_results("SELECT id, revision_code, revision_year, from_year, to_year FROM $table_revisions WHERE status = 'active'", ARRAY_A);
+
+        if (empty($active_revisions)) {
+            return new WP_Error('no_active_revisions', 'No active property revisions found in system.', array('status' => 500));
+        }
+
+        $matching_revisions = array();
+        foreach ($active_revisions as $rev) {
+            $from = intval($rev['from_year']);
+            $to = (strtolower(trim($rev['to_year'])) === 'present') ? 9999 : intval($rev['to_year']);
+
+            if ($year >= $from && $year <= $to) {
+                $matching_revisions[] = $rev;
+            }
+        }
+
+        if (count($matching_revisions) === 0) {
+            return new WP_Error(
+                'no_matching_revision',
+                sprintf("No active revision found covering effectivity year %d.", $year),
+                array('status' => 400)
+            );
+        }
+
+        if (count($matching_revisions) > 1) {
+            $codes = implode(', ', array_column($matching_revisions, 'revision_code'));
+            return new WP_Error(
+                'multiple_matching_revisions',
+                sprintf("Ambiguous revision: multiple active revisions match year %d (%s).", $year, $codes),
+                array('status' => 400)
+            );
+        }
+
+        $resolved_revision = $matching_revisions[0];
+        $resolved_uuid = $resolved_revision['id'];
+
+        // If client provided a revision UUID, validate that it matches the authoritative server resolution
+        if (!empty($client_revision_id)) {
+            $client_id_clean = trim((string)$client_revision_id);
+            // Check if client passed the UUID or revision_code
+            if (strcasecmp($client_id_clean, $resolved_uuid) !== 0 && strcasecmp($client_id_clean, $resolved_revision['revision_code']) !== 0) {
+                return new WP_Error(
+                    'revision_mismatch',
+                    sprintf(
+                        "Client-supplied revision '%s' does not match the authoritative revision '%s' (%s) for effectivity year %d.",
+                        $client_id_clean,
+                        $resolved_revision['revision_code'],
+                        $resolved_uuid,
+                        $year
+                    ),
+                    array('status' => 400)
+                );
+            }
+        }
+
+        return $resolved_uuid;
+    }
+
+    /**
+     * Check if a tax declaration number already exists within the same active revision.
+     *
+     * Uniqueness rule:
+     * - (tax_declaration_number + revision_id) must be unique among active/non-deleted properties.
+     * - TDN X in Revision A is allowed even if TDN X exists in Revision B.
+     * - On update, $exclude_property_id (UUID string) is excluded from duplicate checks.
+     *
+     * @param string $tax_declaration_number
+     * @param string|null $revision_id
+     * @param string|null $exclude_property_id
+     * @return bool True if duplicate exists in same revision, false otherwise.
+     */
+    public function is_tdn_duplicate_in_revision($tax_declaration_number, $revision_id, $exclude_property_id = null) {
+        global $wpdb;
+
+        $tdn = trim((string)$tax_declaration_number);
+        if ($tdn === '') {
+            return false;
+        }
+
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+        $where_sql = "WHERE tax_declaration_number = %s AND status != 'deleted'";
+        $params = array($tdn);
+
+        if (!empty($revision_id)) {
+            $where_sql .= " AND revision_id = %s";
+            $params[] = $revision_id;
+        } else {
+            $where_sql .= " AND revision_id IS NULL";
+        }
+
+        if (!empty($exclude_property_id)) {
+            $where_sql .= " AND id != %s";
+            $params[] = (string)$exclude_property_id;
+        }
+
+        $query = "SELECT id FROM $table_properties $where_sql LIMIT 1";
+        $existing_id = $wpdb->get_var($wpdb->prepare($query, $params));
+
+        return !empty($existing_id);
     }
 }
 

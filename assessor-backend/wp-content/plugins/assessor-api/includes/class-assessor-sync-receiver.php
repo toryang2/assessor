@@ -113,7 +113,13 @@ class Assessor_Sync_Receiver {
 
             $result = $this->upsert_property($record, $table, $wpdb);
 
-            $results[$tax_num] = $result;
+            $prop_id = isset($record['id']) ? trim((string)$record['id']) : '';
+            $key = !empty($prop_id) ? $prop_id : $tax_num;
+            $results[$key] = $result;
+            // Also store under TDN for backward compatibility if not colliding
+            if (!empty($tax_num) && !isset($results[$tax_num])) {
+                $results[$tax_num] = $result;
+            }
             if ($result['status'] === 'synced') {
                 $synced++;
             } elseif ($result['status'] === 'skipped') {
@@ -142,14 +148,32 @@ class Assessor_Sync_Receiver {
      */
     private function upsert_property($record, $table, $wpdb) {
         $tax_num = trim($record['tax_declaration_number']);
+        $prop_id = isset($record['id']) ? trim((string)$record['id']) : '';
+        $revision_id = isset($record['revision_id']) && !empty($record['revision_id']) ? trim((string)$record['revision_id']) : null;
 
-        $existing = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s LIMIT 1",
-                $tax_num
-            ),
-            ARRAY_A
-        );
+        // Exact match by UUID first
+        $existing = null;
+        if (!empty($prop_id)) {
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    $prop_id
+                ),
+                ARRAY_A
+            );
+        }
+
+        // Secondary fallback: match by (tax_declaration_number, revision_id) if UUID didn't match
+        if (!$existing && !empty($tax_num) && !empty($revision_id)) {
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
+                    $tax_num,
+                    $revision_id
+                ),
+                ARRAY_A
+            );
+        }
 
         $remote_ts   = isset($record['updated_at']) ? strtotime($record['updated_at']) : 0;
         $existing_ts = $existing ? strtotime($existing['updated_at']) : 0;
@@ -204,10 +228,17 @@ class Assessor_Sync_Receiver {
             $base_dir = $upload_dir['basedir'] . '/assessor-documents';
             
             $tdn_safe = preg_replace('/[^A-Za-z0-9_.\-]/', '_', $tax_num);
-            if (empty($tdn_safe)) {
-                $tdn_safe = (string)$live_property_id;
+            $prop_id_safe = preg_replace('/[^A-Za-z0-9_\-]/', '_', (string)$live_property_id);
+            if (!empty($tdn_safe) && !empty($prop_id_safe)) {
+                $folder_name = $tdn_safe . '_' . $prop_id_safe;
+            } elseif (!empty($tdn_safe)) {
+                $folder_name = $tdn_safe;
+            } elseif (!empty($prop_id_safe)) {
+                $folder_name = $prop_id_safe;
+            } else {
+                $folder_name = 'unknown';
             }
-            $property_dir = $base_dir . '/' . $tdn_safe;
+            $property_dir = $base_dir . '/' . $folder_name;
             if (!file_exists($property_dir)) {
                 wp_mkdir_p($property_dir);
             }
@@ -433,7 +464,7 @@ class Assessor_Sync_Receiver {
      */
     private function sanitize_incoming_record($record) {
         $allowed = array(
-            'tax_declaration_number', 'previous_tax_declaration_number',
+            'id', 'tax_declaration_number', 'previous_tax_declaration_number',
             'declarant_last_name', 'declarant_first_name', 'declarant_middle_initial',
             'business', 'business_name', 'location', 'lot_number',
             'unique_lot_number_identified', 'survey_number',
@@ -445,7 +476,7 @@ class Assessor_Sync_Receiver {
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
-            'status', 'updated_at', 'created_at',
+            'status', 'revision_id', 'updated_at', 'created_at',
             'created_by', 'updated_by', 'property_state'
         );
 
@@ -464,7 +495,7 @@ class Assessor_Sync_Receiver {
      */
     private function sanitize_outgoing_record($record) {
         $allowed = array(
-            'tax_declaration_number', 'previous_tax_declaration_number',
+            'id', 'tax_declaration_number', 'previous_tax_declaration_number',
             'declarant_last_name', 'declarant_first_name', 'declarant_middle_initial',
             'business', 'business_name', 'location', 'lot_number',
             'unique_lot_number_identified', 'survey_number',
@@ -476,7 +507,7 @@ class Assessor_Sync_Receiver {
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
-            'status', 'updated_at', 'created_at',
+            'status', 'revision_id', 'updated_at', 'created_at',
             'created_by', 'updated_by', 'property_state'
         );
 

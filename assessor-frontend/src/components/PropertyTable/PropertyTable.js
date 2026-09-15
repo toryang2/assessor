@@ -1515,8 +1515,8 @@ const PropertyTable = () => {
                       const newValue = e.target.value;
                       setRevisionFilter(newValue);
                       setPage(0);
-                      // Immediately fetch with the new revision + current location, kind, class
-                      fetchPropertiesWithFilters(newValue, locationFilter, kindFilter, classFilter);
+                      // Immediately fetch with the new revision + current location, kind, class, state
+                      fetchPropertiesWithFilters(newValue, locationFilter, kindFilter, classFilter, stateFilter);
                     }}
                     label="Revision"
                     displayEmpty

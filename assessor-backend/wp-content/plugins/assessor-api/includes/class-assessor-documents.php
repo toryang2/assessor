@@ -247,14 +247,20 @@ class Assessor_Documents {
     
     private function create_upload_directory($property) {
         $base_dir = $this->upload_dir['basedir'] . '/assessor-documents';
-        // Use Tax Declaration Number as folder name; sanitize to safe folder string
+        // Use TDN and Property UUID to namespace folder cleanly
         $tdn_raw = isset($property->tax_declaration_number) ? $property->tax_declaration_number : '';
         $tdn_safe = preg_replace('/[^A-Za-z0-9_.\-]/', '_', $tdn_raw);
-        if (empty($tdn_safe)) {
-            // Fallback to property id if TDN missing
-            $tdn_safe = isset($property->id) ? (string)$property->id : 'unknown';
+        $prop_id_safe = isset($property->id) ? preg_replace('/[^A-Za-z0-9_\-]/', '_', (string)$property->id) : '';
+        if (!empty($tdn_safe) && !empty($prop_id_safe)) {
+            $folder_name = $tdn_safe . '_' . $prop_id_safe;
+        } elseif (!empty($tdn_safe)) {
+            $folder_name = $tdn_safe;
+        } elseif (!empty($prop_id_safe)) {
+            $folder_name = $prop_id_safe;
+        } else {
+            $folder_name = 'unknown';
         }
-        $property_dir = $base_dir . '/' . $tdn_safe;
+        $property_dir = $base_dir . '/' . $folder_name;
         
         // Create base directory if it doesn't exist
         if (!file_exists($base_dir)) {

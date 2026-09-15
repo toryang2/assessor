@@ -321,7 +321,8 @@ class Assessor_Public_API {
 
     public function get_property_by_tax_number($request) {
         $properties = new Assessor_Properties();
-        $property = $properties->get_property_by_tax_number($request['tax_number'], true);
+        $revision_id = $request->get_param('revision_id') ?: $request->get_param('revision');
+        $property = $properties->get_property_by_tax_number($request['tax_number'], true, $revision_id);
 
         if (is_wp_error($property)) {
             return $property;

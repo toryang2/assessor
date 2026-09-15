@@ -735,6 +735,32 @@ class Assessor_API {
             'callback' => array($this, 'etracs_get_rpu_detail'),
             'permission_callback' => array($this, 'check_admin'),
         ));
+
+        // ──────────────────────────────────────────────
+        // MIGRATION RUNNER ROUTES (manager/admin only)
+        // ──────────────────────────────────────────────
+        $migration_runner = new Assessor_Migration_Runner();
+
+        // 1. Read-only preflight
+        register_rest_route('assessor/v1', '/migrations/preflight', array(
+            'methods'             => 'GET',
+            'callback'            => array($migration_runner, 'get_preflight'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        // 2. Status inspection
+        register_rest_route('assessor/v1', '/migrations/status', array(
+            'methods'             => 'GET',
+            'callback'            => array($migration_runner, 'get_status'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
+        // 3. Explicit single-migration execution
+        register_rest_route('assessor/v1', '/migrations/execute', array(
+            'methods'             => 'POST',
+            'callback'            => array($migration_runner, 'execute_migration'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
     }
     
     public function check_auth($request) {
@@ -921,7 +947,13 @@ class Assessor_API {
 
     public function get_property_by_tax_number($request) {
         $properties = new Assessor_Properties();
-        return $properties->get_property_by_tax_number($request['tax_number']);
+        $revision_id = $request->get_param('revision_id') ?: $request->get_param('revision');
+        $all_matches = filter_var($request->get_param('all'), FILTER_VALIDATE_BOOLEAN) || filter_var($request->get_param('all_matches'), FILTER_VALIDATE_BOOLEAN);
+        $result = $properties->get_property_by_tax_number($request['tax_number'], false, $revision_id, $all_matches);
+        if ($result === null) {
+            return new WP_Error('property_not_found', 'Property not found', array('status' => 404));
+        }
+        return $result;
     }
 
     public function public_search_properties($request) {

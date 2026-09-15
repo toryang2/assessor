@@ -39,42 +39,56 @@ class Assessor_Export {
         $query_params = array();
         
         if (!empty($filters['search'])) {
-            $where_clause .= " AND (property_number LIKE %s OR owner_name LIKE %s OR address LIKE %s)";
+            $where_clause .= " AND (p.tax_declaration_number LIKE %s OR p.declarant_last_name LIKE %s OR p.declarant_first_name LIKE %s OR p.address LIKE %s OR p.business LIKE %s)";
             $search_term = '%' . $wpdb->esc_like($filters['search']) . '%';
+            $query_params[] = $search_term;
+            $query_params[] = $search_term;
             $query_params[] = $search_term;
             $query_params[] = $search_term;
             $query_params[] = $search_term;
         }
         
         if (!empty($filters['status'])) {
-            $where_clause .= " AND status = %s";
+            $where_clause .= " AND p.status = %s";
             $query_params[] = $filters['status'];
         }
         
         if (!empty($filters['location'])) {
-            $where_clause .= " AND location = %s";
+            $where_clause .= " AND p.location = %s";
             $query_params[] = $filters['location'];
         }
         
         if (!empty($filters['dateFrom'])) {
-            $where_clause .= " AND created_at >= %s";
+            $where_clause .= " AND p.created_at >= %s";
             $query_params[] = $filters['dateFrom'];
         }
         
         if (!empty($filters['dateTo'])) {
-            $where_clause .= " AND created_at <= %s";
+            $where_clause .= " AND p.created_at <= %s";
             $query_params[] = $filters['dateTo'];
         }
         
         if (!empty($filters['propertyType'])) {
-            $where_clause .= " AND kind_of_property = %s";
+            $where_clause .= " AND p.kind_of_property = %s";
             $query_params[] = $filters['propertyType'];
         }
         
-        // Always exclude deleted properties from exports
-        $where_clause .= " AND status != 'deleted'";
+        $revisions_table = $wpdb->prefix . 'assessor_revision_entries';
         
-        $query = "SELECT * FROM {$properties_table} {$where_clause} ORDER BY created_at DESC";
+        // Always exclude deleted properties from exports
+        $where_clause .= " AND p.status != 'deleted'";
+        
+        $query = "SELECT 
+                    p.*,
+                    p.id AS property_uuid,
+                    r.revision_code,
+                    r.revision_year,
+                    r.from_year AS revision_from_year,
+                    r.to_year AS revision_to_year
+                  FROM {$properties_table} p
+                  LEFT JOIN {$revisions_table} r ON p.revision_id = r.id
+                  {$where_clause} 
+                  ORDER BY p.created_at DESC";
         
         if (!empty($query_params)) {
             $query = $wpdb->prepare($query, $query_params);
@@ -102,12 +116,23 @@ class Assessor_Export {
         $where_clause = "WHERE 1=1";
         $query_params = array();
         
+        $revisions_table = $wpdb->prefix . 'assessor_revision_entries';
+        
         if (!empty($filters['property_id'])) {
-            $where_clause .= " AND property_id = %s";
+            $where_clause .= " AND v.property_id = %s";
             $query_params[] = sanitize_text_field($filters['property_id']);
         }
         
-        $query = "SELECT * FROM {$versions_table} {$where_clause} ORDER BY version_number DESC";
+        $query = "SELECT 
+                    v.*,
+                    r.revision_code,
+                    r.revision_year,
+                    r.from_year AS revision_from_year,
+                    r.to_year AS revision_to_year
+                  FROM {$versions_table} v
+                  LEFT JOIN {$revisions_table} r ON v.revision_id = r.id
+                  {$where_clause} 
+                  ORDER BY v.version_number DESC";
         
         if (!empty($query_params)) {
             $query = $wpdb->prepare($query, $query_params);

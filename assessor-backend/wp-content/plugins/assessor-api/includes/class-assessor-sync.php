@@ -37,7 +37,7 @@ class Assessor_Sync {
         'assessor_locations'         => 'code',
         'assessor_property_types'    => 'code',
         'assessor_request_purposes'  => 'purpose',
-        'assessor_revision_entries'  => 'revision_year',
+        'assessor_revision_entries'  => 'revision_code',
     );
 
     // -------------------------------------------------------------------------
@@ -336,10 +336,11 @@ class Assessor_Sync {
                     $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
 
                     $records[] = array(
-                        'queue_id' => intval($qi['queue_id']),
-                        'attempts' => intval($qi['attempts']),
-                        'tax_num'  => $prop_data['tax_declaration_number'],
-                        'data'     => $prop_data,
+                        'queue_id'    => intval($qi['queue_id']),
+                        'property_id' => $pid,
+                        'attempts'    => intval($qi['attempts']),
+                        'tax_num'     => $prop_data['tax_declaration_number'],
+                        'data'        => $prop_data,
                     );
                 }
             }
@@ -389,7 +390,15 @@ class Assessor_Sync {
             $results = isset($body['results']) ? $body['results'] : array();
 
             foreach ($records as $rec) {
-                $res_item   = isset($results[$rec['tax_num']]) ? $results[$rec['tax_num']] : array('status' => 'error', 'message' => 'No response from live site');
+                // Match by property_id first, then fallback to tax_num
+                $pid = $rec['property_id'];
+                if (isset($results[$pid])) {
+                    $res_item = $results[$pid];
+                } elseif (isset($results[$rec['tax_num']])) {
+                    $res_item = $results[$rec['tax_num']];
+                } else {
+                    $res_item = array('status' => 'error', 'message' => 'No response from live site');
+                }
                 $res_status = isset($res_item['status']) ? $res_item['status'] : 'error';
 
                 if ($res_status === 'synced') {
@@ -640,17 +649,36 @@ class Assessor_Sync {
         $table = $wpdb->prefix . 'assessor_properties';
 
         $tax_num = isset($remote['tax_declaration_number']) ? trim($remote['tax_declaration_number']) : '';
-        if ($tax_num === '') {
-            return 'skipped: missing tax_declaration_number';
+        $prop_id = isset($remote['id']) ? trim((string)$remote['id']) : '';
+        $revision_id = isset($remote['revision_id']) && !empty($remote['revision_id']) ? trim((string)$remote['revision_id']) : null;
+
+        if ($tax_num === '' && $prop_id === '') {
+            return 'skipped: missing tax_declaration_number and id';
         }
 
-        $local = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s LIMIT 1",
-                $tax_num
-            ),
-            ARRAY_A
-        );
+        // Exact match by UUID first
+        $local = null;
+        if (!empty($prop_id)) {
+            $local = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    $prop_id
+                ),
+                ARRAY_A
+            );
+        }
+
+        // Secondary fallback: match by (tax_declaration_number, revision_id) if UUID didn't match
+        if (!$local && !empty($tax_num) && !empty($revision_id)) {
+            $local = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
+                    $tax_num,
+                    $revision_id
+                ),
+                ARRAY_A
+            );
+        }
 
         $remote_ts = isset($remote['updated_at']) ? strtotime($remote['updated_at']) : 0;
         $local_ts  = $local ? strtotime($local['updated_at']) : 0;
@@ -682,13 +710,15 @@ class Assessor_Sync {
         }
 
         if ($local) {
-            $wpdb->update($table, $safe, array('id' => intval($local['id'])));
+            $wpdb->update($table, $safe, array('id' => $local['id']), null, array('%s'));
             if ($wpdb->last_error) {
                 return 'error updating ' . $tax_num . ': ' . $wpdb->last_error;
             }
-            $local_property_id = intval($local['id']);
+            $local_property_id = $local['id'];
         } else {
-            unset($safe['id']);
+            if (empty($safe['id'])) {
+                $safe['id'] = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+            }
             if (empty($safe['created_by'])) {
                 $safe['created_by'] = null;
             }
@@ -699,7 +729,7 @@ class Assessor_Sync {
             if ($result === false) {
                 return 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
             }
-            $local_property_id = $wpdb->insert_id;
+            $local_property_id = $safe['id'];
         }
 
         // Sync documents if present
@@ -732,7 +762,7 @@ class Assessor_Sync {
             $wpdb->replace($table_property_states, array(
                 'property_id' => $local_property_id,
                 'state'       => strtoupper(trim($property_state))
-            ), array('%d', '%s'));
+            ), array('%s', '%s'));
         }
 
         return 'synced';
@@ -744,7 +774,7 @@ class Assessor_Sync {
      */
     private static function sanitize_sync_record($record) {
         $allowed = array(
-            'tax_declaration_number', 'previous_tax_declaration_number',
+            'id', 'tax_declaration_number', 'previous_tax_declaration_number',
             'declarant_last_name', 'declarant_first_name', 'declarant_middle_initial',
             'business', 'business_name', 'location', 'lot_number',
             'unique_lot_number_identified', 'survey_number',
@@ -756,7 +786,7 @@ class Assessor_Sync {
             'verifier_signatory_name', 'verifier_signatory_title',
             'municipal_assessor_name', 'municipal_assessor_suffix',
             'municipal_assessor_title', 'municipal_assessor_license',
-            'status', 'updated_at', 'created_at',
+            'status', 'revision_id', 'updated_at', 'created_at',
             'created_by', 'updated_by', 'property_state', // Allow syncing user IDs and state
         );
 
