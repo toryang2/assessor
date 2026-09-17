@@ -59,14 +59,29 @@ if (!$loaded) {
     die("FATAL: Cannot locate wp-load.php. Please run within WordPress environment.\n");
 }
 
-// Authorization check (WordPress is now loaded, so sanitize_text_field and wp_die are defined)
+// Authorization check (WordPress is now loaded, so current_user_can and wp_die are defined)
 if (php_sapi_name() !== 'cli') {
-    $secret_key = isset($_GET['key']) ? sanitize_text_field($_GET['key']) : '';
-    if ($secret_key !== 'masso-migrate-uuid') {
+    $authorized = false;
+
+    // 1. Authenticated WordPress Administrator session
+    if (current_user_can('manage_options')) {
+        $authorized = true;
+    }
+
+    // 2. Authenticated HTTP Header matching server-side secret constant
+    if (!$authorized && defined('ASSESSOR_MIGRATION_KEY') && !empty(ASSESSOR_MIGRATION_KEY)) {
+        $header_key = isset($_SERVER['HTTP_X_ASSESSOR_MIGRATION_KEY']) ? sanitize_text_field($_SERVER['HTTP_X_ASSESSOR_MIGRATION_KEY']) : '';
+        if (!empty($header_key) && hash_equals((string) ASSESSOR_MIGRATION_KEY, (string) $header_key)) {
+            $authorized = true;
+        }
+    }
+
+    if (!$authorized) {
         if (function_exists('wp_die')) {
-            wp_die('Unauthorized. Provide ?key=masso-migrate-uuid to run via browser.');
+            wp_die('Unauthorized access: Administrator login required or configure ASSESSOR_MIGRATION_KEY with X-Assessor-Migration-Key HTTP header.', 'Unauthorized', array('response' => 403));
         } else {
-            die("Unauthorized. Provide ?key=masso-migrate-uuid to run via browser.\n");
+            header('HTTP/1.1 403 Forbidden');
+            die("Unauthorized access: Administrator login required or configure ASSESSOR_MIGRATION_KEY with X-Assessor-Migration-Key HTTP header.\n");
         }
     }
 }
