@@ -778,47 +778,227 @@ class Assessor_Sync {
     // -------------------------------------------------------------------------
 
     /**
+     * Dedicated sync function for assessor_property_types.
+     * Synchronizes complete local snapshot to live using UUID v7 id and unique business key 'code'.
+     *
+     * @param bool $force If true, ignores dirty flag and synchronizes immediately.
+     * @return array { success: bool, table: string, rows_sent: int, rows_inserted: int, message: string, error: string|null }
+     */
+    public static function sync_property_types($force = false) {
+        return self::sync_lookup_table('assessor_property_types', 'code', $force);
+    }
+
+    /**
+     * Dedicated sync function for assessor_general_classes.
+     * Synchronizes complete local snapshot to live using UUID v7 id and unique business key 'code'.
+     *
+     * @param bool $force If true, ignores dirty flag and synchronizes immediately.
+     * @return array { success: bool, table: string, rows_sent: int, rows_inserted: int, message: string, error: string|null }
+     */
+    public static function sync_general_classes($force = false) {
+        return self::sync_lookup_table('assessor_general_classes', 'code', $force);
+    }
+
+    /**
+     * Dedicated sync function for assessor_locations.
+     * Synchronizes complete local snapshot to live using UUID v7 id and unique business key 'code'.
+     *
+     * @param bool $force If true, ignores dirty flag and synchronizes immediately.
+     * @return array { success: bool, table: string, rows_sent: int, rows_inserted: int, message: string, error: string|null }
+     */
+    public static function sync_locations($force = false) {
+        return self::sync_lookup_table('assessor_locations', 'code', $force);
+    }
+
+    /**
+     * Dedicated sync function for assessor_request_purposes.
+     * Synchronizes complete local snapshot to live using UUID v7 id and unique business key 'purpose'.
+     *
+     * @param bool $force If true, ignores dirty flag and synchronizes immediately.
+     * @return array { success: bool, table: string, rows_sent: int, rows_inserted: int, message: string, error: string|null }
+     */
+    public static function sync_request_purposes($force = false) {
+        return self::sync_lookup_table('assessor_request_purposes', 'purpose', $force);
+    }
+
+    /**
+     * Internal implementation helper for dedicated lookup table synchronization.
+     *
+     * @param string $table_suffix e.g. 'assessor_property_types'
+     * @param string $unique_col   e.g. 'code' or 'purpose'
+     * @param bool   $force        Sync even if dirty flag is not '1'
+     * @return array
+     */
+    private static function sync_lookup_table($table_suffix, $unique_col, $force = false) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return array(
+                'success'       => false,
+                'table'         => $table_suffix,
+                'rows_sent'     => 0,
+                'rows_inserted' => 0,
+                'message'       => 'Outbound config sync is only permitted from Local builds.',
+                'error'         => 'not_local_build',
+            );
+        }
+
+        $meta_key = 'config_dirty_' . $table_suffix;
+        $dirty    = self::get_meta($meta_key);
+
+        if (!$force && $dirty !== '1') {
+            return array(
+                'success'       => true,
+                'table'         => $table_suffix,
+                'rows_sent'     => 0,
+                'rows_inserted' => 0,
+                'message'       => 'Table is clean (not dirty). Skipped.',
+                'error'         => null,
+            );
+        }
+
+        global $wpdb;
+        $full_table = $wpdb->prefix . $table_suffix;
+        $rows = $wpdb->get_results("SELECT * FROM $full_table", ARRAY_A);
+
+        if ($rows === null) {
+            $err_msg = 'Database query failure reading ' . $full_table . ': ' . $wpdb->last_error;
+            error_log('Assessor Sync: ' . $table_suffix . ' push failed — ' . $err_msg);
+            return array(
+                'success'       => false,
+                'table'         => $table_suffix,
+                'rows_sent'     => 0,
+                'rows_inserted' => 0,
+                'message'       => $err_msg,
+                'error'         => 'db_query_failed',
+            );
+        }
+
+        $row_count = count($rows);
+        $payload   = array(
+            'table' => $table_suffix,
+            'rows'  => $rows,
+        );
+
+        $response = self::live_api_request('POST', '/assessor/v1/sync/push-config', $payload);
+
+        if (is_wp_error($response)) {
+            $err_msg = $response->get_error_message();
+            error_log('Assessor Sync: ' . $table_suffix . ' push failed — ' . $err_msg);
+            return array(
+                'success'       => false,
+                'table'         => $table_suffix,
+                'rows_sent'     => $row_count,
+                'rows_inserted' => 0,
+                'message'       => $err_msg,
+                'error'         => 'http_request_failed',
+            );
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $inserted = isset($body['inserted']) ? intval($body['inserted']) : $row_count;
+
+        // Reset dirty flag only after successful delivery & acceptance
+        self::set_meta($meta_key, '0');
+
+        error_log('Assessor Sync: ' . str_replace('assessor_', '', $table_suffix) . ' pushed — rows=' . $inserted);
+
+        return array(
+            'success'       => true,
+            'table'         => $table_suffix,
+            'rows_sent'     => $row_count,
+            'rows_inserted' => $inserted,
+            'message'       => "Successfully synchronized $table_suffix ($inserted rows confirmed by live).",
+            'error'         => null,
+        );
+    }
+
+    /**
      * Push all dirty config tables to the live site.
-     * Each dirty table is sent in full; live site does a complete replace.
+     * Dispatches dedicated sync functions for each lookup table,
+     * and synchronizes revision entries using its established snapshot behavior.
      *
      * @return array { tables_pushed: [], tables_skipped: [], errors: [] }
      */
     public static function push_pending_config() {
-        global $wpdb;
         $pushed  = array();
         $skipped = array();
         $errors  = array();
 
-        foreach (self::$config_tables as $table_suffix => $unique_col) {
-            $meta_key = 'config_dirty_' . $table_suffix;
-            $dirty    = self::get_meta($meta_key);
-
-            if ($dirty !== '1') {
-                $skipped[] = $table_suffix;
-                continue;
+        // 1. Dedicated sync for assessor_property_types
+        $dirty_pt = (self::get_meta('config_dirty_assessor_property_types') === '1');
+        if ($dirty_pt) {
+            $res = self::sync_property_types();
+            if ($res['success']) {
+                $pushed[] = 'assessor_property_types';
+            } else {
+                $errors[] = 'assessor_property_types: ' . $res['message'];
             }
+        } else {
+            $skipped[] = 'assessor_property_types';
+        }
 
-            // Fetch all rows from this table
-            $table = $wpdb->prefix . $table_suffix;
+        // 2. Dedicated sync for assessor_general_classes
+        $dirty_gc = (self::get_meta('config_dirty_assessor_general_classes') === '1');
+        if ($dirty_gc) {
+            $res = self::sync_general_classes();
+            if ($res['success']) {
+                $pushed[] = 'assessor_general_classes';
+            } else {
+                $errors[] = 'assessor_general_classes: ' . $res['message'];
+            }
+        } else {
+            $skipped[] = 'assessor_general_classes';
+        }
+
+        // 3. Dedicated sync for assessor_locations
+        $dirty_loc = (self::get_meta('config_dirty_assessor_locations') === '1');
+        if ($dirty_loc) {
+            $res = self::sync_locations();
+            if ($res['success']) {
+                $pushed[] = 'assessor_locations';
+            } else {
+                $errors[] = 'assessor_locations: ' . $res['message'];
+            }
+        } else {
+            $skipped[] = 'assessor_locations';
+        }
+
+        // 4. Dedicated sync for assessor_request_purposes
+        $dirty_rp = (self::get_meta('config_dirty_assessor_request_purposes') === '1');
+        if ($dirty_rp) {
+            $res = self::sync_request_purposes();
+            if ($res['success']) {
+                $pushed[] = 'assessor_request_purposes';
+            } else {
+                $errors[] = 'assessor_request_purposes: ' . $res['message'];
+            }
+        } else {
+            $skipped[] = 'assessor_request_purposes';
+        }
+
+        // 5. Existing config snapshot behavior for assessor_revision_entries
+        $dirty_rev = (self::get_meta('config_dirty_assessor_revision_entries') === '1');
+        if ($dirty_rev) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'assessor_revision_entries';
             $rows  = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
             if ($rows === null) {
                 $rows = array();
             }
 
-            $payload  = array(
-                'table'  => $table_suffix,
-                'rows'   => $rows,
+            $payload = array(
+                'table' => 'assessor_revision_entries',
+                'rows'  => $rows,
             );
             $response = self::live_api_request('POST', '/assessor/v1/sync/push-config', $payload);
 
             if (is_wp_error($response)) {
-                $errors[] = $table_suffix . ': ' . $response->get_error_message();
-                continue;
+                $errors[] = 'assessor_revision_entries: ' . $response->get_error_message();
+            } else {
+                self::set_meta('config_dirty_assessor_revision_entries', '0');
+                $pushed[] = 'assessor_revision_entries';
             }
-
-            // Clear dirty flag on success
-            self::set_meta($meta_key, '0');
-            $pushed[] = $table_suffix;
+        } else {
+            $skipped[] = 'assessor_revision_entries';
         }
 
         return array('pushed' => $pushed, 'skipped' => $skipped, 'errors' => $errors);
