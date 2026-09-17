@@ -280,11 +280,12 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
-		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($existing_id > 0) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%d'));
+		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%s'));
 		} else {
-			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
+			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%d','%s'));
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_property_types');
@@ -297,13 +298,13 @@ class Assessor_Settings {
 		if (!$params) {
 			$params = $request->get_params();
 		}
-		$id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($id <= 0) {
+		$id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (empty($id)) {
 			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
-		$wpdb->delete($table, array('id' => $id), array('%d'));
+		$wpdb->delete($table, array('id' => $id), array('%s'));
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_property_types');
 		}
@@ -334,11 +335,12 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
-		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($existing_id > 0) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%d'));
+		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%s'));
 		} else {
-			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%d','%s'));
+			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%d','%s'));
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_general_classes');
@@ -351,13 +353,13 @@ class Assessor_Settings {
 		if (!$params) {
 			$params = $request->get_params();
 		}
-		$id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($id <= 0) {
+		$id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (empty($id)) {
 			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
-		$wpdb->delete($table, array('id' => $id), array('%d'));
+		$wpdb->delete($table, array('id' => $id), array('%s'));
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_general_classes');
 		}
@@ -389,11 +391,12 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
-		$existing_id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($existing_id > 0) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%s','%d','%s'), array('%d'));
+		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
+			$wpdb->update($table, array('code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%s','%d','%s'), array('%s'));
 		} else {
-			$wpdb->insert($table, array('code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%d','%s'));
+			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%s','%d','%s'));
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_locations');
@@ -406,13 +409,13 @@ class Assessor_Settings {
 		if (!$params) {
 			$params = $request->get_params();
 		}
-		$id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($id <= 0) {
+		$id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (empty($id)) {
 			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
-		$wpdb->delete($table, array('id' => $id), array('%d'));
+		$wpdb->delete($table, array('id' => $id), array('%s'));
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_locations');
 		}
@@ -679,7 +682,7 @@ class Assessor_Settings {
 		$amount = isset($params['amount']) ? $params['amount'] : 0;
 		$status = isset($params['status']) ? sanitize_text_field($params['status']) : 'active';
 		$sort_order = isset($params['sort_order']) ? intval($params['sort_order']) : 0;
-		$id = isset($params['id']) ? intval($params['id']) : 0;
+		$id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
 
 		if ($purpose === '') {
 			return new WP_Error('invalid_input', 'Purpose is required', array('status' => 400));
@@ -700,7 +703,7 @@ class Assessor_Settings {
 
 		// Prevent duplicates (case-insensitive)
 		$existing = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(purpose) = LOWER(%s) LIMIT 1", $purpose), ARRAY_A);
-		if ($existing && intval($existing['id']) !== $id) {
+		if ($existing && strval($existing['id']) !== $id) {
 			return new WP_Error('duplicate_purpose', 'Purpose already exists', array('status' => 400, 'code' => 'duplicate_purpose'));
 		}
 
@@ -712,11 +715,13 @@ class Assessor_Settings {
 			'updated_at' => current_time('mysql')
 		);
 
-		if ($id > 0) {
-			$wpdb->update($table, $data, array('id' => $id), array('%s','%f','%s','%d','%s'), array('%d'));
+		if (!empty($id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $id))) {
+			$wpdb->update($table, $data, array('id' => $id), array('%s','%f','%s','%d','%s'), array('%s'));
 		} else {
+			$new_id = (!empty($id) && Assessor_UUID::is_valid($id)) ? $id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+			$data['id'] = $new_id;
 			$data['created_at'] = current_time('mysql');
-			$wpdb->insert($table, $data, array('%s','%f','%s','%d','%s','%s'));
+			$wpdb->insert($table, $data, array('%s','%f','%s','%d','%s','%s','%s'));
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_request_purposes');
@@ -730,14 +735,14 @@ class Assessor_Settings {
 		if (!$params) {
 			$params = $request->get_params();
 		}
-		$id = isset($params['id']) ? intval($params['id']) : 0;
-		if ($id <= 0) {
+		$id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		if (empty($id)) {
 			return new WP_Error('invalid_id', 'Invalid id', array('status' => 400));
 		}
 
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_request_purposes';
-		$wpdb->delete($table, array('id' => $id), array('%d'));
+		$wpdb->delete($table, array('id' => $id), array('%s'));
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_request_purposes');
 		}

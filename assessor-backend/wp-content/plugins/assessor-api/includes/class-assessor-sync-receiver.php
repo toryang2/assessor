@@ -560,12 +560,13 @@ class Assessor_Sync_Receiver {
                 continue;
             }
             
-            // Remove 'id' so it matches on the UNIQUE keys (code, purpose, etc.) rather than overwriting unrelated IDs
-            if (isset($clean['id'])) {
+            // If 'id' is present and is a UUID string, preserve it so live and local share identical UUID v7 IDs.
+            // Only strip if id is empty or numeric 0 to avoid DB errors on non-null PK columns.
+            if (isset($clean['id']) && (empty($clean['id']) || (is_numeric($clean['id']) && intval($clean['id']) <= 0))) {
                 unset($clean['id']);
             }
 
-            // wpdb->replace uses REPLACE INTO, which updates if unique key exists, or inserts if not
+            // wpdb->replace uses REPLACE INTO, which updates if primary/unique key exists, or inserts if not
             $result = $wpdb->replace($table, $clean);
             if ($result !== false) {
                 $inserted++;

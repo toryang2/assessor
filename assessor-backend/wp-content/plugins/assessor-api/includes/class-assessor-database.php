@@ -214,7 +214,7 @@ class Assessor_Database {
         // Property types table
         $table_property_types = $wpdb->prefix . 'assessor_property_types';
         $sql_property_types = "CREATE TABLE $table_property_types (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             code varchar(50) NOT NULL,
             name varchar(100) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'active',
@@ -230,7 +230,7 @@ class Assessor_Database {
         // General classes table
         $table_general_classes = $wpdb->prefix . 'assessor_general_classes';
         $sql_general_classes = "CREATE TABLE $table_general_classes (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             code varchar(50) NOT NULL,
             name varchar(100) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'active',
@@ -246,7 +246,7 @@ class Assessor_Database {
         // Locations table
         $table_locations = $wpdb->prefix . 'assessor_locations';
         $sql_locations = "CREATE TABLE $table_locations (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             code varchar(100) NOT NULL,
             name varchar(150) NOT NULL,
             pin varchar(50) DEFAULT NULL,
@@ -263,7 +263,7 @@ class Assessor_Database {
         // Request purposes table (Purpose + Amount Paid)
         $table_request_purposes = $wpdb->prefix . 'assessor_request_purposes';
         $sql_request_purposes = "CREATE TABLE $table_request_purposes (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             purpose varchar(150) NOT NULL,
             amount decimal(10,2) NOT NULL DEFAULT 0.00,
             status varchar(20) NOT NULL DEFAULT 'active',
@@ -1825,31 +1825,31 @@ class Assessor_Database {
         $types_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_property_types"));
         if ($types_count === 0) {
             $default_types = array(
-                array('code' => 'LAND', 'name' => 'LAND', 'sort_order' => 1, 'status' => 'active'),
-                array('code' => 'BUILDING', 'name' => 'BUILDING', 'sort_order' => 2, 'status' => 'active'),
-                array('code' => 'MACHINERY', 'name' => 'MACHINERY', 'sort_order' => 3, 'status' => 'active'),
-                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 4, 'status' => 'active'),
-                array('code' => 'PLANT_TREES', 'name' => 'PLANT/TREES', 'sort_order' => 5, 'status' => 'active')
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'LAND', 'name' => 'LAND', 'sort_order' => 1, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'BUILDING', 'name' => 'BUILDING', 'sort_order' => 2, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'MACHINERY', 'name' => 'MACHINERY', 'sort_order' => 3, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 4, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'PLANT_TREES', 'name' => 'PLANT/TREES', 'sort_order' => 5, 'status' => 'active')
             );
             foreach ($default_types as $row) {
-                $wpdb->insert($table_property_types, $row, array('%s','%s','%d','%s'));
+                $wpdb->insert($table_property_types, $row, array('%s','%s','%s','%d','%s'));
             }
         }
 
         $classes_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_general_classes"));
         if ($classes_count === 0) {
             $default_classes = array(
-                array('code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1, 'status' => 'active'),
-                array('code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 2, 'status' => 'active'),
-                array('code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 3, 'status' => 'active'),
-                array('code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 4, 'status' => 'active'),
-                array('code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5, 'status' => 'active'),
-                array('code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6, 'status' => 'active'),
-                array('code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7, 'status' => 'active'),
-                array('code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8, 'status' => 'active')
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'RESIDENTIAL', 'name' => 'RESIDENTIAL', 'sort_order' => 1, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'AGRICULTURAL', 'name' => 'AGRICULTURAL', 'sort_order' => 2, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'COMMERCIAL', 'name' => 'COMMERCIAL', 'sort_order' => 3, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'INDUSTRIAL', 'name' => 'INDUSTRIAL', 'sort_order' => 4, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8, 'status' => 'active')
             );
             foreach ($default_classes as $row) {
-                $wpdb->insert($table_general_classes, $row, array('%s','%s','%d','%s'));
+                $wpdb->insert($table_general_classes, $row, array('%s','%s','%s','%d','%s'));
             }
         }
 
@@ -1857,10 +1857,10 @@ class Assessor_Database {
         $locations_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_locations"));
         if ($locations_count === 0) {
             $default_locations = array(
-                array('code' => 'BARANGAY', 'name' => 'BARANGAY', 'sort_order' => 1, 'status' => 'active')
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'BARANGAY', 'name' => 'BARANGAY', 'sort_order' => 1, 'status' => 'active')
             );
             foreach ($default_locations as $row) {
-                $wpdb->insert($table_locations, $row, array('%s','%s','%d','%s'));
+                $wpdb->insert($table_locations, $row, array('%s','%s','%s','%d','%s'));
             }
         }
     }

@@ -52,6 +52,12 @@ class Assessor_Migration_Runner {
                 'description' => 'Deterministically populates assessor_properties.revision_id based on property effectivity_date and active revision year intervals.',
                 'handler'     => array($this, 'run_property_revision_backfill_migration'),
             ),
+            '005_lookup_tables_uuid_migration' => array(
+                'name'        => '005_lookup_tables_uuid_migration',
+                'title'       => 'Migrate Assessor Lookup Tables Primary Keys to UUID v7',
+                'description' => 'Migrates assessor_property_types, assessor_general_classes, assessor_locations, and assessor_request_purposes id columns to UUID v7 (RFC 9562).',
+                'handler'     => array($this, 'run_lookup_tables_uuid_migration'),
+            ),
         );
     }
 
@@ -1188,6 +1194,174 @@ class Assessor_Migration_Runner {
             'assigned_per_revision'   => $assigned_per_revision,
             'effectivity_dates_valid' => true,
         );
+    }
+
+    /**
+     * Migration 005: Migrate Assessor Lookup Tables Primary Keys to UUID v7
+     *
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function run_lookup_tables_uuid_migration($params = array()) {
+        global $wpdb;
+
+        if (!class_exists('Assessor_UUID')) {
+            $uuid_file = dirname(__FILE__) . '/class-assessor-uuid.php';
+            if (file_exists($uuid_file)) {
+                require_once $uuid_file;
+            } else {
+                throw new Exception("Cannot locate class-assessor-uuid.php");
+            }
+        }
+
+        $table_map = $wpdb->prefix . 'assessor_lookup_id_uuid_map';
+        $charset_collate = $wpdb->get_charset_collate();
+
+        // 1. Ensure persistent map table
+        $wpdb->query("
+            CREATE TABLE IF NOT EXISTS $table_map (
+                id bigint(20) NOT NULL AUTO_INCREMENT,
+                table_name VARCHAR(64) NOT NULL,
+                old_id INT NOT NULL,
+                new_uuid VARCHAR(36) NOT NULL,
+                business_key VARCHAR(150) NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_table_old_id (table_name, old_id),
+                UNIQUE KEY uq_table_new_uuid (table_name, new_uuid),
+                KEY idx_table_business (table_name, business_key)
+            ) $charset_collate;
+        ");
+
+        $tables_to_migrate = array(
+            'assessor_property_types'   => 'code',
+            'assessor_general_classes'  => 'code',
+            'assessor_locations'        => 'code',
+            'assessor_request_purposes' => 'purpose',
+        );
+
+        $results = array();
+
+        foreach ($tables_to_migrate as $table_suffix => $business_key_col) {
+            $full_table = $wpdb->prefix . $table_suffix;
+
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $full_table));
+            if ($exists !== $full_table) {
+                throw new Exception("Table $full_table does not exist.");
+            }
+
+            $id_col = $wpdb->get_row("SHOW COLUMNS FROM $full_table LIKE 'id'");
+            if (!$id_col) {
+                throw new Exception("Table $full_table has no 'id' column.");
+            }
+
+            $is_already_varchar = (stripos($id_col->Type, 'varchar') !== false || stripos($id_col->Type, 'char') !== false);
+            $initial_rows = $wpdb->get_results("SELECT * FROM $full_table", ARRAY_A);
+            $initial_count = count($initial_rows);
+
+            // Backup table
+            $backup_table = $full_table . '_backup_' . date('Ymd_His');
+            $create_backup = $wpdb->query("CREATE TABLE $backup_table LIKE $full_table");
+            if ($create_backup === false) {
+                throw new Exception("Failed to create backup table for $full_table: " . $wpdb->last_error);
+            }
+            if ($initial_count > 0) {
+                $wpdb->query("INSERT INTO $backup_table SELECT * FROM $full_table");
+            }
+            $backup_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM $backup_table");
+            if ($backup_count !== $initial_count) {
+                throw new Exception("Backup count mismatch for $full_table: expected $initial_count, found $backup_count.");
+            }
+
+            // Populate mapping table
+            foreach ($initial_rows as $row) {
+                $curr_id = $row['id'];
+                $biz_key = isset($row[$business_key_col]) ? (string)$row[$business_key_col] : '';
+                $is_uuid = Assessor_UUID::is_valid($curr_id);
+
+                if ($is_uuid) {
+                    $map_entry = $wpdb->get_row($wpdb->prepare(
+                        "SELECT * FROM $table_map WHERE table_name = %s AND new_uuid = %s",
+                        $table_suffix, $curr_id
+                    ), ARRAY_A);
+                } else {
+                    $map_entry = $wpdb->get_row($wpdb->prepare(
+                        "SELECT * FROM $table_map WHERE table_name = %s AND old_id = %d",
+                        $table_suffix, intval($curr_id)
+                    ), ARRAY_A);
+                }
+
+                if (!$map_entry) {
+                    $assigned_uuid = $is_uuid ? $curr_id : Assessor_UUID::v7();
+                    $int_old_id    = $is_uuid ? 0 : intval($curr_id);
+
+                    $wpdb->insert($table_map, array(
+                        'table_name'   => $table_suffix,
+                        'old_id'       => $int_old_id,
+                        'new_uuid'     => $assigned_uuid,
+                        'business_key' => $biz_key,
+                        'created_at'   => current_time('mysql')
+                    ), array('%s', '%d', '%s', '%s', '%s'));
+                }
+            }
+
+            // Schema conversion
+            if (!$is_already_varchar) {
+                $wpdb->query("ALTER TABLE $full_table MODIFY id mediumint NOT NULL");
+
+                $has_temp = $wpdb->get_row("SHOW COLUMNS FROM $full_table LIKE 'temp_uuid'");
+                if (!$has_temp) {
+                    $wpdb->query("ALTER TABLE $full_table ADD COLUMN temp_uuid VARCHAR(36) NULL AFTER id");
+                }
+
+                $wpdb->query("
+                    UPDATE $full_table t
+                    JOIN $table_map m ON t.id = m.old_id AND m.table_name = '$table_suffix'
+                    SET t.temp_uuid = m.new_uuid
+                ");
+
+                $wpdb->query("ALTER TABLE $full_table DROP PRIMARY KEY");
+                $wpdb->query("ALTER TABLE $full_table DROP COLUMN id");
+                $wpdb->query("ALTER TABLE $full_table CHANGE COLUMN temp_uuid id VARCHAR(36) NOT NULL");
+                $wpdb->query("ALTER TABLE $full_table ADD PRIMARY KEY (id)");
+            } else {
+                $wpdb->query("
+                    UPDATE $full_table t
+                    JOIN $table_map m ON t.$business_key_col = m.business_key AND m.table_name = '$table_suffix'
+                    SET t.id = m.new_uuid
+                    WHERE t.id != m.new_uuid
+                ");
+            }
+
+            // Verification
+            $final_rows = $wpdb->get_results("SELECT * FROM $full_table", ARRAY_A);
+            $final_count = count($final_rows);
+
+            if ($final_count !== $initial_count) {
+                throw new Exception("Integrity error on $full_table: final count ($final_count) != initial count ($initial_count).");
+            }
+
+            $uuid_seen = array();
+            foreach ($final_rows as $fr) {
+                $id_val = $fr['id'];
+                if (!Assessor_UUID::is_valid($id_val)) {
+                    throw new Exception("Invalid UUID generated in $full_table: '$id_val'");
+                }
+                if (isset($uuid_seen[$id_val])) {
+                    throw new Exception("Duplicate UUID detected in $full_table: '$id_val'");
+                }
+                $uuid_seen[$id_val] = true;
+            }
+
+            $results[$table_suffix] = array(
+                'backup_table' => $backup_table,
+                'row_count'    => $final_count,
+                'all_uuid_v7'  => true
+            );
+        }
+
+        return $results;
     }
 }
 
