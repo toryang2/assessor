@@ -101,6 +101,29 @@ class Assessor_Sync_Receiver {
                 continue;
             }
 
+            // Check if this record is a request
+            $record_type = isset($record['_record_type']) ? $record['_record_type'] : '';
+            if (empty($record_type) && isset($record['receipt_number']) && !isset($record['tax_declaration_number'])) {
+                $record_type = 'request';
+            }
+
+            if ($record_type === 'request') {
+                $table_requests = $wpdb->prefix . 'assessor_requests';
+                $result = $this->upsert_request($record, $table_requests, $wpdb);
+                $req_id = isset($record['id']) ? trim((string)$record['id']) : '';
+                $key = !empty($req_id) ? $req_id : '__missing_req_id_' . ($errors + 1);
+                $results[$key] = $result;
+
+                if ($result['status'] === 'synced') {
+                    $synced++;
+                } elseif ($result['status'] === 'skipped') {
+                    $skipped++;
+                } else {
+                    $errors++;
+                }
+                continue;
+            }
+
             $tax_num = isset($record['tax_declaration_number']) ? trim($record['tax_declaration_number']) : '';
             if ($tax_num === '') {
                 $errors++;
@@ -183,13 +206,16 @@ class Assessor_Sync_Receiver {
             return array('status' => 'skipped', 'message' => 'Live record is up to date');
         }
 
-        $safe = $this->sanitize_incoming_record($record);
-        
-        $property_state = null;
-        if (isset($safe['property_state'])) {
-            $property_state = $safe['property_state'];
-            unset($safe['property_state']);
+        $property_state = isset($record['property_state'])
+            ? strtoupper(trim((string)$record['property_state']))
+            : null;
+
+        $record_for_property = $record;
+        if ($property_state !== null) {
+            unset($record_for_property['property_state']);
         }
+
+        $safe = $this->sanitize_incoming_record($record_for_property);
 
         if ($existing) {
             // UPDATE existing record
@@ -267,12 +293,62 @@ class Assessor_Sync_Receiver {
         }
 
         // Sync property state if provided
-        if ($property_state !== null) {
+        if ($property_state !== null && $property_state !== '') {
             $table_property_states = $wpdb->prefix . 'assessor_property_states';
             $wpdb->replace($table_property_states, array(
                 'property_id' => $live_property_id,
-                'state'       => strtoupper(trim($property_state))
+                'state'       => $property_state,
             ), array('%s', '%s'));
+        }
+
+        return array('status' => 'synced');
+    }
+
+    /**
+     * Upsert a single request record with last-write-wins and soft-delete support.
+     *
+     * @return array { status: 'synced'|'skipped'|'error', message?: string }
+     */
+    private function upsert_request($record, $table, $wpdb) {
+        $req_id = isset($record['id']) ? trim((string)$record['id']) : '';
+        if (empty($req_id)) {
+            return array('status' => 'error', 'message' => 'Missing request ID (UUID)');
+        }
+
+        // Exact match by UUID
+        $existing = $wpdb->get_row(
+            $wpdb->prepare("SELECT id, updated_at, deleted_at FROM $table WHERE id = %s LIMIT 1", $req_id),
+            ARRAY_A
+        );
+
+        $remote_ts   = isset($record['updated_at']) ? strtotime($record['updated_at']) : 0;
+        $existing_ts = $existing ? strtotime($existing['updated_at']) : 0;
+
+        // Skip if live record is same age or newer (live wins)
+        if ($existing && $existing_ts >= $remote_ts) {
+            return array('status' => 'skipped', 'message' => 'Live record is up to date');
+        }
+
+        $safe = $this->sanitize_incoming_request_record($record);
+
+        if ($existing) {
+            // UPDATE existing record
+            $updated = $wpdb->update($table, $safe, array('id' => $existing['id']), null, array('%s'));
+            if ($updated === false) {
+                return array('status' => 'error', 'message' => $wpdb->last_error);
+            }
+        } else {
+            // INSERT new record (preserve incoming UUID v7!)
+            $inserted = $wpdb->insert($table, $safe);
+            if ($inserted === false) {
+                return array('status' => 'error', 'message' => $wpdb->last_error);
+            }
+        }
+
+        if (class_exists('Assessor_Audit')) {
+            $audit = new Assessor_Audit();
+            $action = !empty($safe['deleted_at']) ? 'SYNC_DELETE_REQUEST' : 'SYNC_REQUEST_FROM_LOCAL';
+            $audit->log_activity(0, $action, $table, $req_id, null, array('receipt_number' => $record['receipt_number'] ?? ''));
         }
 
         return array('status' => 'synced');
@@ -331,6 +407,38 @@ class Assessor_Sync_Receiver {
             );
         }
 
+        if ($type === 'requests') {
+            $table_requests = $wpdb->prefix . 'assessor_requests';
+            // Pull records updated since $since, including soft-deleted ones (deleted_at IS NOT NULL)
+            $records = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM $table_requests WHERE updated_at > %s ORDER BY updated_at ASC, id ASC LIMIT %d OFFSET %d",
+                    $since,
+                    $limit,
+                    $offset
+                ),
+                ARRAY_A
+            );
+
+            $safe_records = array();
+            if ($records) {
+                foreach ($records as $record) {
+                    $safe = $this->sanitize_outgoing_request_record($record);
+                    $safe['_record_type'] = 'request';
+                    $safe_records[] = $safe;
+                }
+            }
+
+            update_option('assessor_last_local_pull_requests', current_time('mysql'));
+
+            return array(
+                'records'   => $safe_records,
+                'count'     => count($safe_records),
+                'since'     => $since,
+                'server_ts' => current_time('mysql'),
+            );
+        }
+
         $table = $wpdb->prefix . 'assessor_properties';
 
         $records = $wpdb->get_results(
@@ -356,15 +464,32 @@ class Assessor_Sync_Receiver {
             
             // Attach documents metadata (excluding local-only uploaded_by)
             $docs = $wpdb->get_results(
-                $wpdb->prepare("SELECT filename, original_filename, file_path, file_type, description, uploaded_at FROM $table_docs WHERE property_id = %d", $record['id']),
+                $wpdb->prepare("SELECT filename, original_filename, file_path, file_type, description, uploaded_at FROM $table_docs WHERE property_id = %s", $record['id']),
                 ARRAY_A
             );
             $safe['assessor_documents'] = $docs ? $docs : array();
             
             // Attach property state
             $table_states = $wpdb->prefix . 'assessor_property_states';
-            $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %d", $record['id']));
-            $safe['property_state'] = $local_state ? $local_state : 'CURRENT';
+            $property_state = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT state
+                     FROM $table_states
+                     WHERE property_id = %s
+                     LIMIT 1",
+                    $record['id']
+                )
+            );
+
+            $safe['property_state'] = $property_state !== null
+                ? strtoupper(trim($property_state))
+                : 'CURRENT';
+
+            error_log(
+                'Assessor Sync Pull: property_id=' . $record['id'] .
+                ' tax_declaration_number=' . ($record['tax_declaration_number'] ?? '') .
+                ' property_state=' . ($safe['property_state'] ?? 'NULL')
+            );
             
             $safe_records[] = $safe;
         }
@@ -509,6 +634,56 @@ class Assessor_Sync_Receiver {
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'revision_id', 'updated_at', 'created_at',
             'created_by', 'updated_by', 'property_state'
+        );
+
+        $safe = array();
+        foreach ($allowed as $col) {
+            if (array_key_exists($col, $record)) {
+                $safe[$col] = $record[$col];
+            }
+        }
+        return $safe;
+    }
+
+    /**
+     * Columns accepted from an incoming (local -> live) request push.
+     */
+    private function sanitize_incoming_request_record($record) {
+        $allowed = array(
+            'id', 'property_id', 'amount_paid', 'receipt_number',
+            'is_official_request', 'date_issued', 'place_issued',
+            'prepared_by', 'payment_type', 'purpose', 'client_name',
+            'client_address', 'contact_number', 'email', 'remarks',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+            'deleted_at',
+            'verifier_signatory_name', 'verifier_signatory_title',
+            'municipal_assessor_name', 'municipal_assessor_suffix',
+            'municipal_assessor_title', 'municipal_assessor_license'
+        );
+
+        $safe = array();
+        foreach ($allowed as $col) {
+            if (array_key_exists($col, $record)) {
+                $safe[$col] = $record[$col];
+            }
+        }
+        return $safe;
+    }
+
+    /**
+     * Columns sent to local builds in a request pull response.
+     */
+    private function sanitize_outgoing_request_record($record) {
+        $allowed = array(
+            'id', 'property_id', 'amount_paid', 'receipt_number',
+            'is_official_request', 'date_issued', 'place_issued',
+            'prepared_by', 'payment_type', 'purpose', 'client_name',
+            'client_address', 'contact_number', 'email', 'remarks',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+            'deleted_at',
+            'verifier_signatory_name', 'verifier_signatory_title',
+            'municipal_assessor_name', 'municipal_assessor_suffix',
+            'municipal_assessor_title', 'municipal_assessor_license'
         );
 
         $safe = array();

@@ -486,19 +486,19 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/requests/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_request'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/requests/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_request'),
             'permission_callback' => array($this, 'check_auth')
         ));
         
-        register_rest_route('assessor/v1', '/requests/(?P<id>\d+)', array(
+        register_rest_route('assessor/v1', '/requests/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_request'),
             'permission_callback' => array($this, 'check_auth')
@@ -1062,15 +1062,15 @@ class Assessor_API {
         ";
         $rpts_this_month = (int)$wpdb->get_var($wpdb->prepare($rpts_this_month_query, $curr_start, $next_start));
 
-        // Requests totals and monthly counts (based on created_at)
-        $total_requests = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_requests");
+        // Requests totals and monthly counts (excluding soft-deleted)
+        $total_requests = (int)$wpdb->get_var("SELECT COUNT(*) FROM $table_requests WHERE deleted_at IS NULL");
         $requests_this_month = (int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_requests WHERE created_at >= %s AND created_at < %s",
+            "SELECT COUNT(*) FROM $table_requests WHERE deleted_at IS NULL AND created_at >= %s AND created_at < %s",
             $curr_start,
             $next_start
         ));
         $requests_last_month = (int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_requests WHERE created_at >= %s AND created_at < %s",
+            "SELECT COUNT(*) FROM $table_requests WHERE deleted_at IS NULL AND created_at >= %s AND created_at < %s",
             $prev_start,
             $curr_start
         ));

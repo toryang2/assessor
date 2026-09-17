@@ -18,7 +18,7 @@ class Assessor_Requests {
         $charset_collate = $this->db->get_charset_collate();
         
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             property_id varchar(36) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
@@ -33,6 +33,7 @@ class Assessor_Requests {
             contact_number varchar(50),
             email varchar(255),
             remarks text,
+            deleted_at datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             created_by varchar(50) DEFAULT NULL,
@@ -47,6 +48,7 @@ class Assessor_Requests {
             KEY property_id (property_id),
             KEY receipt_number (receipt_number),
             KEY date_issued (date_issued),
+            KEY deleted_at (deleted_at),
             KEY created_at (created_at)
         ) $charset_collate;";
         
@@ -137,7 +139,10 @@ class Assessor_Requests {
         // Fetch current settings to use as fallback if frontend doesn't send signatories
         $settings = $this->db->get_row("SELECT * FROM {$this->db->prefix}assessor_settings ORDER BY id DESC LIMIT 1", ARRAY_A);
         
+        $request_id = Assessor_UUID::v7();
+
         $insert_data = array(
+            'id' => $request_id,
             'property_id' => $data['property_id'],
             'amount_paid' => $data['amount_paid'],
             'receipt_number' => sanitize_text_field($data['receipt_number']),
@@ -165,6 +170,7 @@ class Assessor_Requests {
         );
         
         $insert_format = array(
+            '%s', // id
             '%s', // property_id
             '%f', // amount_paid
             '%s', // receipt_number
@@ -196,15 +202,21 @@ class Assessor_Requests {
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to create request', array('status' => 500));
         }
+
+        // Enqueue for sync to live site (only on local builds, and not when write came from sync)
+        if (class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_request($request_id, 'upsert');
+        }
         
-        $request_id = $this->db->insert_id;
         return $this->get_request($request_id);
     }
     
     /**
      * Get a single request by ID
      */
-    public function get_request($id) {
+    public function get_request($id, $include_deleted = false) {
+        $id = sanitize_text_field($id);
+
         $table_users = $this->db->prefix . 'assessor_users';
         $has_assessor_users = $this->db->get_var("SHOW TABLES LIKE '$table_users'");
 
@@ -219,6 +231,8 @@ class Assessor_Requests {
                COALESCE(u2.full_name, u2.username) as updated_by_name"
             : "u1.display_name as created_by_name,
                u2.display_name as updated_by_name";
+
+        $deleted_clause = $include_deleted ? "" : "AND r.deleted_at IS NULL";
 
         $query = $this->db->prepare(
             "SELECT r.*, 
@@ -239,7 +253,7 @@ class Assessor_Requests {
              LEFT JOIN {$this->db->prefix}assessor_property_types pt ON p.kind_of_property = pt.code
              LEFT JOIN {$this->db->prefix}assessor_general_classes gc ON p.gen_class = gc.code
              $user_join
-             WHERE r.id = %d",
+             WHERE r.id = %s $deleted_clause",
             $id
         );
         
@@ -265,7 +279,8 @@ class Assessor_Requests {
             'payment_type' => null,
             'purpose' => null,
             'prepared_by' => null,
-            'all' => false
+            'all' => false,
+            'include_deleted' => false
         );
         
         $args = wp_parse_args($args, $defaults);
@@ -275,6 +290,11 @@ class Assessor_Requests {
         
         $where_conditions = array('1=1');
         $where_values = array();
+
+        // Soft-delete exclusion by default
+        if (empty($args['include_deleted'])) {
+            $where_conditions[] = "r.deleted_at IS NULL";
+        }
         
         // Search filter
         if (!empty($args['search'])) {
@@ -327,7 +347,7 @@ class Assessor_Requests {
         $where_clause = implode(' AND ', $where_conditions);
         
         // Count total records
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} r WHERE {$where_clause}";
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} r LEFT JOIN {$this->db->prefix}assessor_properties p ON r.property_id = p.id WHERE {$where_clause}";
         if (!empty($where_values)) {
             $count_query = $this->db->prepare($count_query, $where_values);
         }
@@ -449,10 +469,12 @@ class Assessor_Requests {
             return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400, 'code' => 'invalid_date'));
         }
         
+        $id = sanitize_text_field($id);
+
         // Check for duplicate receipt number if changed
         if (isset($data['receipt_number']) && $data['receipt_number'] !== $existing['receipt_number']) {
             $duplicate = $this->db->get_var($this->db->prepare(
-                "SELECT id FROM {$this->table_name} WHERE receipt_number = %s AND id != %d",
+                "SELECT id FROM {$this->table_name} WHERE receipt_number = %s AND id != %s",
                 $data['receipt_number'],
                 $id
             ));
@@ -497,7 +519,7 @@ class Assessor_Requests {
         
         // Add updated_by and updated_at
         $update_data['updated_by'] = $current_user_id;
-        $update_data['updated_at'] = date('Y-m-d H:i:s');
+        $update_data['updated_at'] = current_time('mysql');
         $update_format[] = '%s';
         $update_format[] = '%s';
         
@@ -510,34 +532,52 @@ class Assessor_Requests {
             $update_data,
             array('id' => $id),
             $update_format,
-            array('%d')
+            array('%s')
         );
         
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to update request', array('status' => 500));
+        }
+
+        // Enqueue for sync to live site (only on local builds, and not when write came from sync)
+        if (class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_request($id, 'upsert');
         }
         
         return $this->get_request($id);
     }
     
     /**
-     * Delete a request
+     * Soft delete a request (sets deleted_at and updated_at, keeps row in DB)
      */
     public function delete_request($id) {
-        // Check if request exists
+        $id = sanitize_text_field($id);
+
+        // Check if request exists (only active ones can be deleted normally)
         $existing = $this->get_request($id);
         if (is_wp_error($existing)) {
             return $existing;
         }
         
-        $result = $this->db->delete(
+        $now = current_time('mysql');
+        $result = $this->db->update(
             $this->table_name,
+            array(
+                'deleted_at' => $now,
+                'updated_at' => $now
+            ),
             array('id' => $id),
-            array('%d')
+            array('%s', '%s'),
+            array('%s')
         );
         
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to delete request', array('status' => 500));
+        }
+
+        // Enqueue for sync to live site (only on local builds, and not when write came from sync)
+        if (class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_request($id, 'delete');
         }
         
         return array('message' => 'Request deleted successfully');
@@ -550,7 +590,8 @@ class Assessor_Requests {
         $defaults = array(
             'date_from' => null,
             'date_to' => null,
-            'summary_only' => false
+            'summary_only' => false,
+            'include_deleted' => false
         );
         
         $args = wp_parse_args($args, $defaults);
@@ -558,6 +599,11 @@ class Assessor_Requests {
         
         $where_conditions = array('1=1');
         $where_values = array();
+
+        // Default: exclude soft-deleted records from statistics
+        if (empty($args['include_deleted'])) {
+            $where_conditions[] = "deleted_at IS NULL";
+        }
         
         // Date range filter
         if (!empty($args['date_from'])) {
@@ -586,18 +632,18 @@ class Assessor_Requests {
         }
         $total_requests = $this->db->get_var($total_requests_query) ?: 0;
         
-        // This month / last month counts (based on created_at for consistency)
+        // This month / last month counts (based on created_at for consistency, excluding deleted)
         $now_ts = current_time('timestamp');
         $curr_start = date('Y-m-01', $now_ts);
         $next_start = date('Y-m-01', strtotime('+1 month', $now_ts));
         $prev_start = date('Y-m-01', strtotime('-1 month', $now_ts));
         $this_month_count = (int)$this->db->get_var($this->db->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE created_at >= %s AND created_at < %s",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE deleted_at IS NULL AND created_at >= %s AND created_at < %s",
             $curr_start,
             $next_start
         ));
         $last_month_count = (int)$this->db->get_var($this->db->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE created_at >= %s AND created_at < %s",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE deleted_at IS NULL AND created_at >= %s AND created_at < %s",
             $prev_start,
             $curr_start
         ));

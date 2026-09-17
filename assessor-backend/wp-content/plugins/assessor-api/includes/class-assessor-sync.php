@@ -99,21 +99,95 @@ class Assessor_Sync {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_sync_queue';
 
-        // INSERT ... ON DUPLICATE KEY UPDATE so re-edits reset back to 'pending'
-        $wpdb->query($wpdb->prepare(
-            "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
-             VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
-             ON DUPLICATE KEY UPDATE
-                status     = 'pending',
-                attempts   = 0,
-                last_error = NULL,
-                queued_at  = %s,
-                synced_at  = NULL",
-            $property_id,
-            $operation,
-            current_time('mysql'),
-            current_time('mysql')
-        ));
+        // Check if record_type column exists
+        $has_record_type = $wpdb->get_row("SHOW COLUMNS FROM $table LIKE 'record_type'");
+
+        if ($has_record_type) {
+            // INSERT ... ON DUPLICATE KEY UPDATE with record_type
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $table (record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES ('property', %s, %s, 'pending', 0, NULL, %s, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    status     = 'pending',
+                    attempts   = 0,
+                    last_error = NULL,
+                    queued_at  = %s,
+                    synced_at  = NULL",
+                $property_id,
+                $operation,
+                current_time('mysql'),
+                current_time('mysql')
+            ));
+        } else {
+            // Backward compatibility
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    status     = 'pending',
+                    attempts   = 0,
+                    last_error = NULL,
+                    queued_at  = %s,
+                    synced_at  = NULL",
+                $property_id,
+                $operation,
+                current_time('mysql'),
+                current_time('mysql')
+            ));
+        }
+    }
+
+    /**
+     * Add or reset a request to the sync queue.
+     * Called automatically after create_request() / update_request() / delete_request().
+     * Skipped when Assessor_Sync::$syncing is true (write came from sync pull).
+     *
+     * @param string $request_id UUID v7 of the request.
+     * @param string $operation  'upsert' | 'delete'
+     */
+    public static function enqueue_request($request_id, $operation = 'upsert') {
+        if (self::$syncing) {
+            return; // Came from sync — do not re-enqueue
+        }
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return; // Only queue on local builds
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'assessor_sync_queue';
+        $has_record_type = $wpdb->get_row("SHOW COLUMNS FROM $table LIKE 'record_type'");
+
+        if ($has_record_type) {
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $table (record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES ('request', %s, %s, 'pending', 0, NULL, %s, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    status     = 'pending',
+                    attempts   = 0,
+                    last_error = NULL,
+                    queued_at  = %s,
+                    synced_at  = NULL",
+                $request_id,
+                $operation,
+                current_time('mysql'),
+                current_time('mysql')
+            ));
+        } else {
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    status     = 'pending',
+                    attempts   = 0,
+                    last_error = NULL,
+                    queued_at  = %s,
+                    synced_at  = NULL",
+                $request_id,
+                $operation,
+                current_time('mysql'),
+                current_time('mysql')
+            ));
+        }
     }
 
     /**
@@ -208,15 +282,17 @@ class Assessor_Sync {
             return;
         }
 
-        $push_result        = self::push_pending();
-        $push_config_result = self::push_pending_config();
-        $pull_result        = self::pull_from_live();
-        $pull_users_result  = self::pull_users_from_live();
+        $push_result          = self::push_pending();
+        $push_config_result   = self::push_pending_config();
+        $pull_result          = self::pull_from_live();
+        $pull_requests_result = self::pull_requests_from_live();
+        $pull_users_result    = self::pull_users_from_live();
 
-        error_log('Assessor Sync: Property push result: '  . json_encode($push_result));
-        error_log('Assessor Sync: Config push result: '    . json_encode($push_config_result));
-        error_log('Assessor Sync: Property pull result: '  . json_encode($pull_result));
-        error_log('Assessor Sync: Users pull result: '     . json_encode($pull_users_result));
+        error_log('Assessor Sync: Property push result: '     . json_encode($push_result));
+        error_log('Assessor Sync: Config push result: '       . json_encode($push_config_result));
+        error_log('Assessor Sync: Property pull result: '     . json_encode($pull_result));
+        error_log('Assessor Sync: Requests pull result: '     . json_encode($pull_requests_result));
+        error_log('Assessor Sync: Users pull result: '        . json_encode($pull_users_result));
     }
 
     /**
@@ -236,12 +312,15 @@ class Assessor_Sync {
             // Reset the pull cursor so every record on the live site is fetched again.
             self::set_meta('last_pull_at', '2000-01-01 00:00:00');
             self::set_meta('pull_offset', 0);
+            self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
+            self::set_meta('pull_requests_offset', 0);
         }
 
-        $push   = self::push_pending();
-        $config = self::push_pending_config();
-        $pull   = self::pull_from_live($force_full);
-        $users  = self::pull_users_from_live();
+        $push     = self::push_pending();
+        $config   = self::push_pending_config();
+        $pull     = self::pull_from_live($force_full);
+        $requests = self::pull_requests_from_live($force_full);
+        $users    = self::pull_users_from_live();
 
         $message = $force_full
             ? 'Full resync completed. All records pulled from live site.'
@@ -254,6 +333,7 @@ class Assessor_Sync {
             'push'       => $push,
             'config'     => $config,
             'pull'       => $pull,
+            'requests'   => $requests,
             'users'      => $users,
         );
     }
@@ -271,96 +351,162 @@ class Assessor_Sync {
         global $wpdb;
         $table_queue      = $wpdb->prefix . 'assessor_sync_queue';
         $table_properties = $wpdb->prefix . 'assessor_properties';
+        $table_requests   = $wpdb->prefix . 'assessor_requests';
 
         $total_pushed  = 0;
         $total_skipped = 0;
         $total_errors  = array();
 
+        // Check if record_type column exists
+        $has_record_type = $wpdb->get_row("SHOW COLUMNS FROM $table_queue LIKE 'record_type'");
+
         // Loop until all pending records have been sent (100 per batch).
         while (true) {
-            $pending = $wpdb->get_results(
-                "SELECT q.id AS queue_id, q.property_id, q.attempts
-                 FROM $table_queue q
-                 WHERE q.status = 'pending' AND q.operation = 'upsert'
-                 ORDER BY q.queued_at ASC
-                 LIMIT 100",
-                ARRAY_A
-            );
+            if ($has_record_type) {
+                $pending = $wpdb->get_results(
+                    "SELECT q.id AS queue_id, q.record_type, q.property_id, q.attempts, q.operation
+                     FROM $table_queue q
+                     WHERE q.status = 'pending' AND q.operation IN ('upsert', 'delete')
+                     ORDER BY q.queued_at ASC
+                     LIMIT 100",
+                    ARRAY_A
+                );
+            } else {
+                $pending = $wpdb->get_results(
+                    "SELECT q.id AS queue_id, 'property' AS record_type, q.property_id, q.attempts, q.operation
+                     FROM $table_queue q
+                     WHERE q.status = 'pending' AND q.operation IN ('upsert', 'delete')
+                     ORDER BY q.queued_at ASC
+                     LIMIT 100",
+                    ARRAY_A
+                );
+            }
 
             if (empty($pending)) {
                 break; // No more pending records — done.
             }
 
-            // Collect full property rows
-            $ids          = array_map('sanitize_text_field', array_column($pending, 'property_id'));
-            $placeholders = implode(',', array_fill(0, count($ids), '%s'));
-            // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-            $properties = $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT * FROM $table_properties WHERE id IN ($placeholders)",
-                    $ids
-                ),
-                ARRAY_A
-            );
-
-            // Map property_id -> row
-            $prop_map = array();
-            foreach ($properties as $p) {
-                $prop_map[$p['id']] = $p;
-            }
-
-            // Build records array keeping queue_id + tax number for response matching
-            $records = array();
+            // Separate into property and request IDs
+            $prop_queue_items = array();
+            $req_queue_items  = array();
             foreach ($pending as $qi) {
-                $pid = sanitize_text_field($qi['property_id']);
-                if (isset($prop_map[$pid])) {
-                    $prop_data = $prop_map[$pid];
-                    
-                    // Attach local documents with base64 encoded physical files
-                    $table_docs = $wpdb->prefix . 'assessor_documents';
-                    $docs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_docs WHERE property_id = %s", $pid), ARRAY_A);
-                    if ($docs) {
-                        foreach ($docs as &$doc) {
-                            if (!empty($doc['file_path']) && file_exists($doc['file_path'])) {
-                                $doc['file_data'] = base64_encode(file_get_contents($doc['file_path']));
-                            } else {
-                                $doc['file_data'] = null;
-                            }
-                        }
-                    }
-                    $prop_data['assessor_documents'] = $docs ? $docs : array();
-
-                    // Attach local property state
-                    $table_states = $wpdb->prefix . 'assessor_property_states';
-                    $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %s", $pid));
-                    $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
-
-                    $records[] = array(
-                        'queue_id'    => intval($qi['queue_id']),
-                        'property_id' => $pid,
-                        'attempts'    => intval($qi['attempts']),
-                        'tax_num'     => $prop_data['tax_declaration_number'],
-                        'data'        => $prop_data,
-                    );
+                $rtype = !empty($qi['record_type']) ? $qi['record_type'] : 'property';
+                if ($rtype === 'request') {
+                    $req_queue_items[] = $qi;
+                } else {
+                    $prop_queue_items[] = $qi;
                 }
             }
 
-            if (empty($records)) {
-                // All queued IDs in this batch were missing from the properties table — mark failed.
-                foreach ($pending as $qi) {
+            $prop_map = array();
+            if (!empty($prop_queue_items)) {
+                $prop_ids     = array_map('sanitize_text_field', array_column($prop_queue_items, 'property_id'));
+                $placeholders = implode(',', array_fill(0, count($prop_ids), '%s'));
+                $props = $wpdb->get_results(
+                    $wpdb->prepare("SELECT * FROM $table_properties WHERE id IN ($placeholders)", $prop_ids),
+                    ARRAY_A
+                );
+                if ($props) {
+                    foreach ($props as $p) {
+                        $prop_map[$p['id']] = $p;
+                    }
+                }
+            }
+
+            $req_map = array();
+            if (!empty($req_queue_items)) {
+                $req_ids      = array_map('sanitize_text_field', array_column($req_queue_items, 'property_id'));
+                $placeholders = implode(',', array_fill(0, count($req_ids), '%s'));
+                $reqs = $wpdb->get_results(
+                    $wpdb->prepare("SELECT * FROM $table_requests WHERE id IN ($placeholders)", $req_ids),
+                    ARRAY_A
+                );
+                if ($reqs) {
+                    foreach ($reqs as $r) {
+                        $req_map[$r['id']] = $r;
+                    }
+                }
+            }
+
+            // Build records array keeping queue_id for response matching
+            $records = array();
+            $missing_queue_ids = array();
+
+            foreach ($pending as $qi) {
+                $rtype = !empty($qi['record_type']) ? $qi['record_type'] : 'property';
+                $rec_id = sanitize_text_field($qi['property_id']);
+
+                if ($rtype === 'request') {
+                    if (isset($req_map[$rec_id])) {
+                        $req_data = $req_map[$rec_id];
+                        $req_data['_record_type'] = 'request';
+                        $records[] = array(
+                            'queue_id'    => intval($qi['queue_id']),
+                            'property_id' => $rec_id,
+                            'record_type' => 'request',
+                            'attempts'    => intval($qi['attempts']),
+                            'match_key'   => $rec_id,
+                            'data'        => $req_data,
+                        );
+                    } else {
+                        $missing_queue_ids[] = $qi;
+                    }
+                } else {
+                    if (isset($prop_map[$rec_id])) {
+                        $prop_data = $prop_map[$rec_id];
+                        $prop_data['_record_type'] = 'property';
+
+                        // Attach local documents with base64 encoded physical files
+                        $table_docs = $wpdb->prefix . 'assessor_documents';
+                        $docs = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_docs WHERE property_id = %s", $rec_id), ARRAY_A);
+                        if ($docs) {
+                            foreach ($docs as &$doc) {
+                                if (!empty($doc['file_path']) && file_exists($doc['file_path'])) {
+                                    $doc['file_data'] = base64_encode(file_get_contents($doc['file_path']));
+                                } else {
+                                    $doc['file_data'] = null;
+                                }
+                            }
+                        }
+                        $prop_data['assessor_documents'] = $docs ? $docs : array();
+
+                        // Attach local property state
+                        $table_states = $wpdb->prefix . 'assessor_property_states';
+                        $local_state = $wpdb->get_var($wpdb->prepare("SELECT state FROM $table_states WHERE property_id = %s", $rec_id));
+                        $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
+
+                        $records[] = array(
+                            'queue_id'    => intval($qi['queue_id']),
+                            'property_id' => $rec_id,
+                            'record_type' => 'property',
+                            'attempts'    => intval($qi['attempts']),
+                            'match_key'   => $prop_data['tax_declaration_number'],
+                            'data'        => $prop_data,
+                        );
+                    } else {
+                        $missing_queue_ids[] = $qi;
+                    }
+                }
+            }
+
+            if (!empty($missing_queue_ids)) {
+                foreach ($missing_queue_ids as $qi) {
                     $wpdb->update(
                         $table_queue,
                         array(
                             'status'     => 'failed',
                             'attempts'   => intval($qi['attempts']) + 1,
-                            'last_error' => 'Property row not found',
+                            'last_error' => 'Row not found for queued ID',
                         ),
                         array('id' => intval($qi['queue_id'])),
                         array('%s', '%d', '%s'),
                         array('%d')
                     );
                 }
-                $total_errors[] = 'Properties not found for queued IDs';
+                $total_errors[] = 'Rows not found for ' . count($missing_queue_ids) . ' queued IDs';
+            }
+
+            if (empty($records)) {
                 continue; // Try next batch
             }
 
@@ -369,15 +515,15 @@ class Assessor_Sync {
 
             if (is_wp_error($response)) {
                 $err_msg = $response->get_error_message();
-                foreach ($pending as $qi) {
+                foreach ($records as $rec) {
                     $wpdb->update(
                         $table_queue,
                         array(
                             'status'     => 'failed',
-                            'attempts'   => intval($qi['attempts']) + 1,
+                            'attempts'   => intval($rec['attempts']) + 1,
                             'last_error' => $err_msg,
                         ),
-                        array('id' => intval($qi['queue_id'])),
+                        array('id' => intval($rec['queue_id'])),
                         array('%s', '%d', '%s'),
                         array('%d')
                     );
@@ -390,12 +536,13 @@ class Assessor_Sync {
             $results = isset($body['results']) ? $body['results'] : array();
 
             foreach ($records as $rec) {
-                // Match by property_id first, then fallback to tax_num
                 $pid = $rec['property_id'];
+                $match_key = $rec['match_key'];
+
                 if (isset($results[$pid])) {
                     $res_item = $results[$pid];
-                } elseif (isset($results[$rec['tax_num']])) {
-                    $res_item = $results[$rec['tax_num']];
+                } elseif (isset($results[$match_key])) {
+                    $res_item = $results[$match_key];
                 } else {
                     $res_item = array('status' => 'error', 'message' => 'No response from live site');
                 }
@@ -409,7 +556,7 @@ class Assessor_Sync {
                     $total_skipped++;
                 } else {
                     $queue_status = 'failed';
-                    $total_errors[] = $rec['tax_num'] . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
+                    $total_errors[] = $pid . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
                 }
 
                 $wpdb->update(
@@ -758,6 +905,11 @@ class Assessor_Sync {
 
         // Sync property state if provided
         if ($property_state !== null) {
+            error_log(
+                'Assessor Sync Pull Apply: property_id=' . $local_property_id .
+                ' property_state=' . strtoupper(trim($property_state))
+            );
+
             $table_property_states = $wpdb->prefix . 'assessor_property_states';
             $wpdb->replace($table_property_states, array(
                 'property_id' => $local_property_id,
@@ -788,6 +940,157 @@ class Assessor_Sync {
             'municipal_assessor_title', 'municipal_assessor_license',
             'status', 'revision_id', 'updated_at', 'created_at',
             'created_by', 'updated_by', 'property_state', // Allow syncing user IDs and state
+        );
+
+        $safe = array();
+        foreach ($allowed as $col) {
+            if (array_key_exists($col, $record)) {
+                $safe[$col] = $record[$col];
+            }
+        }
+        return $safe;
+    }
+
+    /**
+     * Fetch recently changed request records from the live site and upsert locally.
+     *
+     * @param bool $force_full If true, passes the flag to apply_remote_request to force overwrite.
+     * @return array { pulled, skipped, errors }
+     */
+    public static function pull_requests_from_live($force_full = false) {
+        $last_pull = self::get_meta('last_pull_requests_at');
+        $since     = $last_pull ? $last_pull : '2000-01-01 00:00:00';
+
+        $pulled  = 0;
+        $skipped = 0;
+        $errors  = array();
+        $page_limit = 500;
+        $sync_start = '';
+        $pull_completed_successfully = true;
+
+        $offset = (int) self::get_meta('pull_requests_offset');
+
+        self::$syncing = true;
+
+        while (true) {
+            $response = self::live_api_request(
+                'GET',
+                '/assessor/v1/sync/pull',
+                array('since' => $since, 'limit' => $page_limit, 'offset' => $offset, 'type' => 'requests')
+            );
+
+            if (is_wp_error($response)) {
+                $errors[] = $response->get_error_message();
+                $pull_completed_successfully = false;
+                break;
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+
+            if (empty($sync_start) && !empty($body['server_ts'])) {
+                $sync_start = $body['server_ts'];
+            }
+
+            $records = isset($body['records']) ? $body['records'] : array();
+
+            if (empty($records)) {
+                break;
+            }
+
+            foreach ($records as $remote) {
+                $result = self::apply_remote_request($remote, $force_full);
+                if ($result === 'synced') {
+                    $pulled++;
+                } elseif ($result === 'skipped') {
+                    $skipped++;
+                } else {
+                    $errors[] = $result;
+                }
+            }
+
+            $count = count($records);
+
+            if ($count < $page_limit) {
+                break;
+            }
+
+            $offset += $page_limit;
+            self::set_meta('pull_requests_offset', $offset);
+        }
+
+        self::$syncing = false;
+
+        if ($pull_completed_successfully && !empty($sync_start)) {
+            self::set_meta('last_pull_requests_at', $sync_start);
+            self::set_meta('pull_requests_offset', 0);
+        }
+
+        return array('pulled' => $pulled, 'skipped' => $skipped, 'errors' => $errors);
+    }
+
+    /**
+     * Apply a single request record from the live site to the local database.
+     * Last-write-wins: only writes if remote updated_at > local updated_at.
+     * Preserves UUID v7 and supports soft-deletes (deleted_at).
+     *
+     * @param array $remote The record array from the live site.
+     * @param bool $force_full If true, ignores timestamps and forces an overwrite of the local record.
+     * @return string 'synced' | 'skipped' | error message
+     */
+    private static function apply_remote_request($remote, $force_full = false) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'assessor_requests';
+
+        $req_id = isset($remote['id']) ? trim((string)$remote['id']) : '';
+        if (empty($req_id)) {
+            return 'skipped: missing id';
+        }
+
+        // Exact match by UUID
+        $local = $wpdb->get_row(
+            $wpdb->prepare("SELECT id, updated_at, deleted_at FROM $table WHERE id = %s LIMIT 1", $req_id),
+            ARRAY_A
+        );
+
+        $remote_ts = isset($remote['updated_at']) ? strtotime($remote['updated_at']) : 0;
+        $local_ts  = $local ? strtotime($local['updated_at']) : 0;
+
+        // Skip if local is same age or newer (unless forcing a full resync)
+        if (!$force_full && $local && $local_ts >= $remote_ts) {
+            return 'skipped';
+        }
+
+        $safe = self::sanitize_sync_request_record($remote);
+
+        if ($local) {
+            $updated = $wpdb->update($table, $safe, array('id' => $local['id']), null, array('%s'));
+            if ($updated === false) {
+                return 'error updating request ' . $req_id . ': ' . $wpdb->last_error;
+            }
+        } else {
+            $inserted = $wpdb->insert($table, $safe);
+            if ($inserted === false) {
+                return 'error inserting request ' . $req_id . ': ' . $wpdb->last_error;
+            }
+        }
+
+        return 'synced';
+    }
+
+    /**
+     * Whitelist columns safe to sync for requests.
+     */
+    private static function sanitize_sync_request_record($record) {
+        $allowed = array(
+            'id', 'property_id', 'amount_paid', 'receipt_number',
+            'is_official_request', 'date_issued', 'place_issued',
+            'prepared_by', 'payment_type', 'purpose', 'client_name',
+            'client_address', 'contact_number', 'email', 'remarks',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+            'deleted_at',
+            'verifier_signatory_name', 'verifier_signatory_title',
+            'municipal_assessor_name', 'municipal_assessor_suffix',
+            'municipal_assessor_title', 'municipal_assessor_license'
         );
 
         $safe = array();

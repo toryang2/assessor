@@ -279,7 +279,7 @@ class Assessor_Database {
         // Requests table
         $table_requests = $wpdb->prefix . 'assessor_requests';
         $sql_requests = "CREATE TABLE $table_requests (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             property_id varchar(36) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
@@ -294,6 +294,7 @@ class Assessor_Database {
             contact_number varchar(50),
             email varchar(255),
             remarks text,
+            deleted_at datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             created_by varchar(50) DEFAULT NULL,
@@ -308,6 +309,7 @@ class Assessor_Database {
             KEY property_id (property_id),
             KEY receipt_number (receipt_number),
             KEY date_issued (date_issued),
+            KEY deleted_at (deleted_at),
             KEY created_at (created_at)
         ) $charset_collate;";
 
@@ -353,11 +355,12 @@ class Assessor_Database {
             KEY created_at (created_at)
         ) $charset_collate;";
 
-        // Sync queue table — used on LOCAL builds to track properties pending upload to the live site.
+        // Sync queue table — used on LOCAL builds to track properties and requests pending upload to the live site.
         // On the live site this table exists but stays empty (live pushes nothing upstream).
         $table_sync_queue = $wpdb->prefix . 'assessor_sync_queue';
         $sql_sync_queue = "CREATE TABLE $table_sync_queue (
             id bigint(20) NOT NULL AUTO_INCREMENT,
+            record_type varchar(20) NOT NULL DEFAULT 'property',
             property_id varchar(36) NOT NULL,
             operation varchar(20) NOT NULL DEFAULT 'upsert',
             status varchar(20) NOT NULL DEFAULT 'pending',
@@ -366,7 +369,8 @@ class Assessor_Database {
             queued_at datetime DEFAULT CURRENT_TIMESTAMP,
             synced_at datetime NULL,
             PRIMARY KEY (id),
-            UNIQUE KEY property_op (property_id, operation),
+            UNIQUE KEY record_op (record_type, property_id, operation),
+            KEY record_type (record_type),
             KEY status (status),
             KEY queued_at (queued_at)
         ) $charset_collate;";
