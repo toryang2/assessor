@@ -282,14 +282,23 @@ class Assessor_Sync {
             return;
         }
 
-        $push_result          = self::push_pending();
-        $push_config_result   = self::push_pending_config();
+        $push_result            = self::push_pending();
+        $push_config_result     = self::push_pending_config();
+        $pull_revisions_result  = self::pull_revision_entries_from_live(false);
+
+        error_log('Assessor Sync: Property push result: '     . json_encode($push_result));
+        error_log('Assessor Sync: Config push result: '       . json_encode($push_config_result));
+        error_log('Assessor Sync: Revision pull result: '     . json_encode($pull_revisions_result));
+
+        if (empty($pull_revisions_result['success'])) {
+            error_log('Assessor Sync: Property pull blocked because revision entries could not be synchronized.');
+            return;
+        }
+
         $pull_result          = self::pull_from_live();
         $pull_requests_result = self::pull_requests_from_live();
         $pull_users_result    = self::pull_users_from_live();
 
-        error_log('Assessor Sync: Property push result: '     . json_encode($push_result));
-        error_log('Assessor Sync: Config push result: '       . json_encode($push_config_result));
         error_log('Assessor Sync: Property pull result: '     . json_encode($pull_result));
         error_log('Assessor Sync: Requests pull result: '     . json_encode($pull_requests_result));
         error_log('Assessor Sync: Users pull result: '        . json_encode($pull_users_result));
@@ -316,11 +325,34 @@ class Assessor_Sync {
             self::set_meta('pull_requests_offset', 0);
         }
 
-        $push     = self::push_pending();
-        $config   = self::push_pending_config();
-        $pull     = self::pull_from_live($force_full);
-        $requests = self::pull_requests_from_live($force_full);
-        $users    = self::pull_users_from_live();
+        $push       = self::push_pending();
+        $config     = self::push_pending_config();
+
+        $revisions  = self::pull_revision_entries_from_live($force_full);
+
+        if (empty($revisions['success'])) {
+            return array(
+                'success'   => false,
+                'message'   => 'Revision synchronization failed. Property pull was not started.',
+                'force_full'=> $force_full,
+                'push'      => $push,
+                'config'    => $config,
+                'revisions' => $revisions,
+                'pull'      => array(
+                    'pulled'  => 0,
+                    'skipped' => 0,
+                    'errors'  => array(
+                        'Property pull blocked because revision entries could not be synchronized.'
+                    ),
+                ),
+                'requests'  => array('pulled' => 0, 'skipped' => 0, 'errors' => array()),
+                'users'     => array('upserted' => 0, 'errors' => array()),
+            );
+        }
+
+        $pull       = self::pull_from_live($force_full);
+        $requests   = self::pull_requests_from_live($force_full);
+        $users      = self::pull_users_from_live();
 
         $message = $force_full
             ? 'Full resync completed. All records pulled from live site.'
@@ -332,9 +364,111 @@ class Assessor_Sync {
             'force_full' => $force_full,
             'push'       => $push,
             'config'     => $config,
+            'revisions'  => $revisions,
             'pull'       => $pull,
             'requests'   => $requests,
             'users'      => $users,
+        );
+    }
+
+    /**
+     * Pull revision entries from live site and upsert locally preserving original UUIDs.
+     *
+     * @param bool $force_full
+     * @return array
+     */
+    public static function pull_revision_entries_from_live($force_full = false) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'assessor_revision_entries';
+
+        $response = self::live_api_request(
+            'GET',
+            '/assessor/v1/sync/revision-entries/'
+        );
+
+        if (is_wp_error($response)) {
+            return array(
+                'success'  => false,
+                'upserted' => 0,
+                'errors'   => array($response->get_error_message()),
+            );
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!is_array($body)) {
+            return array(
+                'success'  => false,
+                'upserted' => 0,
+                'errors'   => array('Invalid JSON returned by revision-entries endpoint.'),
+            );
+        }
+
+        $records = isset($body['records']) && is_array($body['records'])
+            ? $body['records']
+            : array();
+
+        $upserted = 0;
+        $errors   = array();
+
+        foreach ($records as $row) {
+            if (!is_array($row) || empty($row['id'])) {
+                $errors[] = 'Skipped revision entry with missing id.';
+                continue;
+            }
+
+            $clean = array(
+                'id'            => (string) $row['id'],
+                'revision_code' => isset($row['revision_code']) ? (string) $row['revision_code'] : '',
+                'revision_year' => isset($row['revision_year']) ? (string) $row['revision_year'] : '',
+                'from_year'     => isset($row['from_year']) ? (string) $row['from_year'] : '',
+                'to_year'       => isset($row['to_year']) ? (string) $row['to_year'] : '',
+                'status'        => isset($row['status']) ? (string) $row['status'] : 'active',
+                'sort_order'    => isset($row['sort_order']) ? (int) $row['sort_order'] : 0,
+                'created_at'    => isset($row['created_at']) ? (string) $row['created_at'] : null,
+                'updated_at'    => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+            );
+
+            $existing = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT id
+                     FROM $table
+                     WHERE id = %s
+                     LIMIT 1",
+                    $clean['id']
+                )
+            );
+
+            if ($existing) {
+                $result = $wpdb->update(
+                    $table,
+                    $clean,
+                    array('id' => $clean['id'])
+                );
+            } else {
+                $result = $wpdb->insert(
+                    $table,
+                    $clean
+                );
+            }
+
+            if ($result === false) {
+                $errors[] =
+                    'Failed revision ' . $clean['id'] .
+                    ' (' . $clean['revision_code'] . '): ' .
+                    $wpdb->last_error;
+                continue;
+            }
+
+            $upserted++;
+        }
+
+        return array(
+            'success'  => empty($errors),
+            'upserted' => $upserted,
+            'errors'   => $errors,
+            'count'    => count($records),
         );
     }
 

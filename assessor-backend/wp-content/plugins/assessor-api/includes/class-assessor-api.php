@@ -536,6 +536,13 @@ class Assessor_API {
             'permission_callback' => array($sync_receiver, 'verify_sync_token'),
         ));
 
+        // Live site: serve revision entries (for local pull)
+        register_rest_route('assessor/v1', '/sync/revision-entries', array(
+            'methods'             => 'GET',
+            'callback'            => array($sync_receiver, 'serve_revision_entries'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
         // Local admin: queue status dashboard
         register_rest_route('assessor/v1', '/sync/queue-status', array(
             'methods'             => 'GET',

@@ -694,4 +694,41 @@ class Assessor_Sync_Receiver {
         }
         return $safe;
     }
+
+    /**
+     * GET /assessor/v1/sync/revision-entries
+     * Serve all revision entries from live site to local.
+     */
+    public function serve_revision_entries($request) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'assessor_revision_entries';
+
+        $rows = $wpdb->get_results(
+            "SELECT
+                id,
+                revision_code,
+                revision_year,
+                from_year,
+                to_year,
+                status,
+                sort_order,
+                created_at,
+                updated_at
+             FROM $table
+             ORDER BY sort_order ASC, id ASC",
+            ARRAY_A
+        );
+
+        if ($rows === null) {
+            $rows = array();
+        }
+
+        return array(
+            'records'   => $rows,
+            'count'     => count($rows),
+            'server_ts' => current_time('mysql'),
+        );
+    }
 }
+
