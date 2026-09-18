@@ -772,5 +772,139 @@ class Assessor_Sync_Receiver {
             'server_ts' => current_time('mysql'),
         );
     }
+
+    /**
+     * POST /assessor/v1/sync/report/publish
+     * Mirrored sync run receiver on Live site.
+     * Authenticated via X-Sync-Token.
+     */
+    public function receive_publish_report($request) {
+        $params = $request->get_json_params();
+        if (empty($params['run']) || !is_array($params['run'])) {
+            return new WP_Error('invalid_payload', 'Missing "run" payload.', array('status' => 400));
+        }
+
+        $run = $params['run'];
+        $run_id = isset($run['id']) ? trim($run['id']) : '';
+        if (empty($run_id)) {
+            return new WP_Error('invalid_run_id', 'Run ID is required.', array('status' => 400));
+        }
+
+        global $wpdb;
+        $table_runs = $wpdb->prefix . 'assessor_sync_runs';
+        $table_meta = $wpdb->prefix . 'assessor_sync_meta';
+
+        // Check if assessor_sync_runs exists on Live
+        $runs_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_runs));
+        if (!$runs_exists) {
+            return new WP_Error('table_missing', 'assessor_sync_runs table is missing on Live.', array('status' => 500));
+        }
+
+        $mode         = isset($run['mode']) ? sanitize_text_field($run['mode']) : 'incremental';
+        $status       = isset($run['status']) ? sanitize_text_field($run['status']) : 'completed';
+        $started_at   = isset($run['started_at']) ? sanitize_text_field($run['started_at']) : current_time('mysql');
+        $completed_at = isset($run['completed_at']) ? sanitize_text_field($run['completed_at']) : current_time('mysql');
+        $created_at   = isset($run['created_at']) ? sanitize_text_field($run['created_at']) : current_time('mysql');
+        $summary_json = isset($run['summary']) ? wp_json_encode($run['summary']) : '{}';
+
+        // Upsert into assessor_sync_runs preserving original UUID
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $table_runs (id, mode, status, started_at, completed_at, summary_json, created_at)
+             VALUES (%s, %s, %s, %s, %s, %s, %s)
+             ON DUPLICATE KEY UPDATE
+                mode         = VALUES(mode),
+                status       = VALUES(status),
+                started_at   = VALUES(started_at),
+                completed_at = VALUES(completed_at),
+                summary_json = VALUES(summary_json)",
+            $run_id,
+            $mode,
+            $status,
+            $started_at,
+            $completed_at,
+            $summary_json,
+            $created_at
+        ));
+
+        // Update last_sync_run_id in assessor_sync_meta on Live
+        $meta_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_meta));
+        if ($meta_exists) {
+            $uuid = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $table_meta (id, meta_key, meta_value) VALUES (%s, 'last_sync_run_id', %s)
+                 ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                $uuid,
+                $run_id
+            ));
+        }
+
+        return array(
+            'success' => true,
+            'message' => 'Sync run mirrored successfully.',
+            'run_id'  => $run_id,
+        );
+    }
+
+    /**
+     * POST /assessor/v1/sync/report/publish-items
+     * Mirrored sync run items batch receiver on Live site.
+     * Authenticated via X-Sync-Token.
+     */
+    public function receive_publish_items($request) {
+        $params = $request->get_json_params();
+        $run_id = isset($params['run_id']) ? trim($params['run_id']) : '';
+        $items  = isset($params['items']) && is_array($params['items']) ? $params['items'] : array();
+
+        if (empty($run_id) || empty($items)) {
+            return new WP_Error('invalid_payload', 'Missing run_id or items array.', array('status' => 400));
+        }
+
+        global $wpdb;
+        $table_items = $wpdb->prefix . 'assessor_sync_run_items';
+
+        $items_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_items));
+        if (!$items_exists) {
+            return new WP_Error('table_missing', 'assessor_sync_run_items table is missing on Live.', array('status' => 500));
+        }
+
+        $placeholders = array();
+        $values       = array();
+
+        foreach ($items as $item) {
+            $item_id     = isset($item['id']) ? trim($item['id']) : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+            $record_type = isset($item['record_type']) ? sanitize_text_field($item['record_type']) : 'property';
+            $record_id   = isset($item['record_id']) ? sanitize_text_field($item['record_id']) : '';
+            $direction   = isset($item['direction']) ? sanitize_text_field($item['direction']) : 'local_to_live';
+            $action      = isset($item['action']) ? sanitize_text_field($item['action']) : 'updated';
+            $display_json = isset($item['display_data_json']) ? (string)$item['display_data_json'] : '{}';
+            $created_at  = isset($item['created_at']) ? sanitize_text_field($item['created_at']) : current_time('mysql');
+
+            $placeholders[] = "(%s, %s, %s, %s, %s, %s, %s, %s)";
+            $values[] = $item_id;
+            $values[] = $run_id;
+            $values[] = $record_type;
+            $values[] = $record_id;
+            $values[] = $direction;
+            $values[] = $action;
+            $values[] = $display_json;
+            $values[] = $created_at;
+        }
+
+        if (!empty($placeholders)) {
+            $sql = "INSERT INTO $table_items (id, run_id, record_type, record_id, direction, action, display_data_json, created_at) VALUES "
+                 . implode(', ', $placeholders)
+                 . " ON DUPLICATE KEY UPDATE
+                    action            = VALUES(action),
+                    display_data_json = VALUES(display_data_json)";
+
+            $wpdb->query($wpdb->prepare($sql, $values));
+        }
+
+        return array(
+            'success' => true,
+            'count'   => count($items),
+            'run_id'  => $run_id,
+        );
+    }
 }
 

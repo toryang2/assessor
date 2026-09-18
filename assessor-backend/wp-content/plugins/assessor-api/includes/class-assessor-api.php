@@ -543,6 +543,20 @@ class Assessor_API {
             'permission_callback' => array($sync_receiver, 'verify_sync_token'),
         ));
 
+        // Live site: receive mirrored sync run report from local
+        register_rest_route('assessor/v1', '/sync/report/publish', array(
+            'methods'             => 'POST',
+            'callback'            => array($sync_receiver, 'receive_publish_report'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
+        // Live site: receive mirrored sync run items batch from local
+        register_rest_route('assessor/v1', '/sync/report/publish-items', array(
+            'methods'             => 'POST',
+            'callback'            => array($sync_receiver, 'receive_publish_items'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
         // Local admin: queue status dashboard
         register_rest_route('assessor/v1', '/sync/queue-status', array(
             'methods'             => 'GET',
@@ -629,6 +643,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/sync/report/latest', array(
             'methods'             => 'GET',
             'callback'            => array($this, 'sync_get_latest_report'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/report/history', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_get_report_history'),
             'permission_callback' => array($this, 'check_auth'),
         ));
 
@@ -986,6 +1006,21 @@ class Assessor_API {
         }
         $run = Assessor_Sync_Report::get_latest_run();
         return array('success' => true, 'run' => $run);
+    }
+
+    /** GET /assessor/v1/sync/report/history */
+    public function sync_get_report_history($request) {
+        if (!class_exists('Assessor_Sync_Report')) {
+            return new WP_Error('not_found', 'Sync Report engine not loaded.', array('status' => 500));
+        }
+        $params = array(
+            'status'   => $request->get_param('status'),
+            'mode'     => $request->get_param('mode'),
+            'page'     => $request->get_param('page'),
+            'per_page' => $request->get_param('per_page'),
+        );
+        $result = Assessor_Sync_Report::get_history($params);
+        return array_merge(array('success' => true), $result);
     }
 
     /** GET /assessor/v1/sync/report/{run_id} */

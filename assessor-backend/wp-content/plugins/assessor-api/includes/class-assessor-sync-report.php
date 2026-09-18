@@ -70,7 +70,32 @@ class Assessor_Sync_Report {
             array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
+        // Persist global last sync run pointer in assessor_sync_meta
+        self::persist_last_run_pointer($report->run_id);
+
         return $report;
+    }
+
+    /**
+     * Persist last_sync_run_id in assessor_sync_meta safely with UUID v7 PK.
+     *
+     * @param string $run_id
+     */
+    public static function persist_last_run_pointer($run_id) {
+        global $wpdb;
+        $table_meta = $wpdb->prefix . 'assessor_sync_meta';
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_meta));
+        if (!$table_exists) {
+            return;
+        }
+
+        $uuid = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $table_meta (id, meta_key, meta_value) VALUES (%s, 'last_sync_run_id', %s)
+             ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+            $uuid,
+            (string) $run_id
+        ));
     }
 
     public function get_run_id() {
@@ -205,11 +230,31 @@ class Assessor_Sync_Report {
 
     /**
      * Get the latest sync run summary.
+     * First checks assessor_sync_meta for 'last_sync_run_id' pointer.
+     * Falls back to ORDER BY started_at DESC if pointer is missing.
      */
     public static function get_latest_run() {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_sync_runs';
-        $row = $wpdb->get_row("SELECT * FROM $table ORDER BY started_at DESC LIMIT 1", ARRAY_A);
+        $table_meta = $wpdb->prefix . 'assessor_sync_meta';
+
+        $row = null;
+
+        // 1. Try global pointer from assessor_sync_meta
+        $meta_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_meta));
+        if ($meta_exists) {
+            $last_run_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM $table_meta WHERE meta_key = 'last_sync_run_id' LIMIT 1"
+            ));
+            if (!empty($last_run_id)) {
+                $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %s LIMIT 1", $last_run_id), ARRAY_A);
+            }
+        }
+
+        // 2. Fallback to latest run by started_at if pointer was missing or row not found
+        if (!$row) {
+            $row = $wpdb->get_row("SELECT * FROM $table ORDER BY started_at DESC LIMIT 1", ARRAY_A);
+        }
 
         if (!$row) {
             return null;
@@ -334,17 +379,87 @@ class Assessor_Sync_Report {
     }
 
     /**
+     * Retrieve recent synchronization runs history.
+     *
+     * @param array $params Filtering and pagination params: page, per_page, status, mode
+     * @return array
+     */
+    public static function get_history($params = array()) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'assessor_sync_runs';
+
+        $page = isset($params['page']) ? max(1, (int) $params['page']) : 1;
+        $per_page = isset($params['per_page']) ? max(1, min(100, (int) $params['per_page'])) : 10;
+        $offset = ($page - 1) * $per_page;
+
+        $where = array('1=1');
+        $query_params = array();
+
+        if (!empty($params['status'])) {
+            $where[] = 'status = %s';
+            $query_params[] = sanitize_text_field($params['status']);
+        }
+
+        if (!empty($params['mode'])) {
+            $where[] = 'mode = %s';
+            $query_params[] = sanitize_text_field($params['mode']);
+        }
+
+        $where_sql = implode(' AND ', $where);
+
+        $count_sql = "SELECT COUNT(*) FROM $table WHERE $where_sql";
+        $total = (int) $wpdb->get_var(!empty($query_params) ? $wpdb->prepare($count_sql, $query_params) : $count_sql);
+
+        $data_sql = "SELECT * FROM $table WHERE $where_sql ORDER BY started_at DESC LIMIT %d OFFSET %d";
+        $fetch_params = array_merge($query_params, array($per_page, $offset));
+        $rows = $wpdb->get_results($wpdb->prepare($data_sql, $fetch_params), ARRAY_A);
+
+        $runs = array();
+        if ($rows) {
+            foreach ($rows as $row) {
+                $runs[] = self::format_run_row($row);
+            }
+        }
+
+        $total_pages = $total > 0 ? (int) ceil($total / $per_page) : 1;
+
+        return array(
+            'runs'        => $runs,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        );
+    }
+
+    /**
      * Cleanup old sync reports older than X days.
+     * Preserves last_sync_run_id and last_published_sync_run_id pointers.
      */
     public static function cleanup_runs($days = 30) {
         global $wpdb;
         $table_runs  = $wpdb->prefix . 'assessor_sync_runs';
         $table_items = $wpdb->prefix . 'assessor_sync_run_items';
+        $table_meta  = $wpdb->prefix . 'assessor_sync_meta';
 
         $cutoff = date('Y-m-d H:i:s', strtotime("-$days days"));
 
+        // Protected run IDs (last active pointer and last published pointer)
+        $protected_ids = array();
+        $meta_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_meta));
+        if ($meta_exists) {
+            $pointers = $wpdb->get_col("SELECT meta_value FROM $table_meta WHERE meta_key IN ('last_sync_run_id', 'last_published_sync_run_id')");
+            if (!empty($pointers)) {
+                $protected_ids = array_filter(array_unique($pointers));
+            }
+        }
+
         // Find run IDs to delete
         $run_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $table_runs WHERE started_at < %s", $cutoff));
+
+        if (!empty($protected_ids) && !empty($run_ids)) {
+            $run_ids = array_diff($run_ids, $protected_ids);
+        }
 
         if (!empty($run_ids)) {
             $placeholders = implode(',', array_fill(0, count($run_ids), '%s'));

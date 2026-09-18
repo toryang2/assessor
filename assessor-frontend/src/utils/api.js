@@ -119,9 +119,12 @@ export const endpoints = {
   syncDownloadBatch: '/sync/download-batch',
   syncDownloadStatus: '/sync/download-status',
   syncReportLatest: '/sync/report/latest',
+  syncReportHistory: '/sync/report/history',
   syncReport: (id) => `/sync/report/${id}`,
   syncReportItems: (id) => `/sync/report/${id}/items`,
   syncReportCleanup: '/sync/report/cleanup',
+  syncReportPublish: '/sync/report/publish',
+  syncReportPublishItems: '/sync/report/publish-items',
 
   // Hardware Lock
   hardwareLockStatus: '/hardware-lock/status',
@@ -839,6 +842,33 @@ export const apiService = {
   cleanupSyncReports: async (days = 30) => {
     try {
       const response = await api.post(endpoints.syncReportCleanup, { days });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getSyncReportHistory: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.syncReportHistory, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  publishSyncReport: async (run) => {
+    try {
+      const response = await api.post(endpoints.syncReportPublish, { run });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  publishSyncReportItems: async (runId, items) => {
+    try {
+      const response = await api.post(endpoints.syncReportPublishItems, { run_id: runId, items });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

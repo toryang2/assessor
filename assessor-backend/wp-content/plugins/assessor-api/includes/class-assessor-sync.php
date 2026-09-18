@@ -284,14 +284,39 @@ class Assessor_Sync {
         if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
             return;
         }
+
+        // Before sync, check if there is any pending report from a previous run that needs mirroring
+        self::check_pending_report_mirror();
+
         if (!self::is_online()) {
-            error_log('Assessor Sync: No internet — skipping sync cycle.');
+            error_log('Assessor Sync: No internet — recording failed connection run.');
+            if (class_exists('Assessor_Sync_Report')) {
+                $failed_report = Assessor_Sync_Report::start_run('incremental');
+                $failed_report->finish_run('failed', 'Unable to connect to Live Server.');
+            }
             return;
         }
 
-        $push_result            = self::push_pending();
-        $push_config_result     = self::push_pending_config();
-        $pull_revisions_result  = self::pull_revision_entries_from_live(false);
+        $report = class_exists('Assessor_Sync_Report')
+            ? Assessor_Sync_Report::start_run('incremental')
+            : null;
+
+        if ($report) {
+            $report->update_phase('push', 'running');
+        }
+        $push_result = self::push_pending($report);
+        if ($report) {
+            $report->update_phase('push', empty($push_result['errors']) ? 'completed' : 'failed', $push_result);
+            $report->update_phase('config', 'running');
+        }
+
+        $push_config_result = self::push_pending_config();
+        if ($report) {
+            $report->update_phase('config', empty($push_config_result['errors']) ? 'completed' : 'failed', $push_config_result);
+            $report->update_phase('revisions', 'running');
+        }
+
+        $pull_revisions_result = self::pull_revision_entries_from_live(false);
 
         error_log('Assessor Sync: Property push result: '     . json_encode($push_result));
         error_log('Assessor Sync: Config push result: '       . json_encode($push_config_result));
@@ -299,16 +324,60 @@ class Assessor_Sync {
 
         if (empty($pull_revisions_result['success'])) {
             error_log('Assessor Sync: Property pull blocked because revision entries could not be synchronized.');
+            if ($report) {
+                $report->update_phase('revisions', 'failed', $pull_revisions_result);
+                $report->finish_run('failed', 'Revision synchronization failed. Property pull was not started.');
+                self::mirror_report_to_live($report->get_run_id());
+            }
             return;
         }
 
-        $pull_result          = self::pull_from_live();
-        $pull_requests_result = self::pull_requests_from_live();
-        $pull_users_result    = self::pull_users_from_live();
+        if ($report) {
+            $report->update_phase('revisions', 'completed', $pull_revisions_result);
+            $report->update_phase('properties', 'running');
+        }
+
+        $pull_result = self::pull_from_live(false, $report);
+        if ($report) {
+            $report->update_phase('properties', empty($pull_result['errors']) ? 'completed' : 'failed', $pull_result);
+            $report->update_phase('requests', 'running');
+        }
+
+        $pull_requests_result = self::pull_requests_from_live(false, $report);
+        if ($report) {
+            $report->update_phase('requests', empty($pull_requests_result['errors']) ? 'completed' : 'failed', $pull_requests_result);
+            $report->update_phase('users', 'running');
+        }
+
+        $pull_users_result = self::pull_users_from_live();
+        if ($report) {
+            $report->update_phase('users', empty($pull_users_result['errors']) ? 'completed' : 'failed', $pull_users_result);
+        }
 
         error_log('Assessor Sync: Property pull result: '     . json_encode($pull_result));
         error_log('Assessor Sync: Requests pull result: '     . json_encode($pull_requests_result));
         error_log('Assessor Sync: Users pull result: '        . json_encode($pull_users_result));
+
+        if ($report) {
+            $has_errors = !empty($push_result['errors']) || !empty($push_config_result['errors']) ||
+                          !empty($pull_result['errors']) || !empty($pull_requests_result['errors']) || !empty($pull_users_result['errors']);
+
+            $total_changes = 0;
+            if (isset($pull_result['synced'])) $total_changes += (int)$pull_result['synced'];
+            if (isset($pull_requests_result['synced'])) $total_changes += (int)$pull_requests_result['synced'];
+            if (isset($push_result['synced'])) $total_changes += (int)$push_result['synced'];
+
+            if ($has_errors) {
+                $final_status = 'failed';
+                $message = 'Background sync encountered errors.';
+            } else {
+                $final_status = 'completed';
+                $message = $total_changes === 0 ? 'No changes found. Data is already synchronized.' : 'Background sync completed successfully.';
+            }
+
+            $report->finish_run($final_status, $message);
+            self::mirror_report_to_live($report->get_run_id());
+        }
     }
 
     /**
@@ -412,6 +481,7 @@ class Assessor_Sync {
 
         if ($report) {
             $report->finish_run($final_status, $message);
+            self::mirror_report_to_live($report->get_run_id());
         }
 
         return array(
@@ -2388,6 +2458,120 @@ class Assessor_Sync {
             return $parent;
         }
         return false;
+    }
+
+    /**
+     * Check if there is an unmirrored sync run and attempt to publish it.
+     */
+    public static function check_pending_report_mirror() {
+        $last_run_id = self::get_meta('last_sync_run_id');
+        $last_pub_id = self::get_meta('last_published_sync_run_id');
+        $pending     = self::get_meta('sync_report_publish_pending');
+
+        if (!empty($last_run_id) && ($last_run_id !== $last_pub_id || !empty($pending))) {
+            self::mirror_report_to_live($last_run_id);
+        }
+    }
+
+    /**
+     * Mirror a completed sync report and its items to the Live Server.
+     * Authenticated via X-Sync-Token using live_api_request.
+     * Never fails or marks the local database sync as failed if Live mirroring fails.
+     *
+     * @param string $run_id UUID v7 of the sync run.
+     */
+    public static function mirror_report_to_live($run_id) {
+        if (empty($run_id)) {
+            return;
+        }
+
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return; // Only local pushes mirrored reports to live
+        }
+
+        if (!self::is_online()) {
+            self::set_meta('sync_report_publish_pending', '1');
+            return;
+        }
+
+        global $wpdb;
+        $table_runs  = $wpdb->prefix . 'assessor_sync_runs';
+        $table_items = $wpdb->prefix . 'assessor_sync_run_items';
+
+        $run_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_runs WHERE id = %s LIMIT 1", $run_id), ARRAY_A);
+        if (!$run_row) {
+            return;
+        }
+
+        $summary = !empty($run_row['summary_json']) ? json_decode($run_row['summary_json'], true) : array();
+
+        $run_payload = array(
+            'run' => array(
+                'id'           => $run_row['id'],
+                'mode'         => $run_row['mode'],
+                'status'       => $run_row['status'],
+                'started_at'   => $run_row['started_at'],
+                'completed_at' => $run_row['completed_at'],
+                'created_at'   => $run_row['created_at'],
+                'summary'      => $summary,
+            )
+        );
+
+        // 1. Publish the run metadata
+        $res = self::live_api_request('POST', '/assessor/v1/sync/report/publish', $run_payload);
+        if (is_wp_error($res)) {
+            error_log('Assessor Sync: Failed to publish sync report to Live: ' . $res->get_error_message());
+            self::set_meta('sync_report_publish_pending', '1');
+            return;
+        }
+
+        // 2. Publish items in batches of 100
+        $items_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_items WHERE run_id = %s", $run_id));
+        $batch_size = 100;
+        $pages = $items_count > 0 ? (int) ceil($items_count / $batch_size) : 0;
+
+        for ($p = 0; $p < $pages; $p++) {
+            $offset = $p * $batch_size;
+            $items = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, run_id, record_type, record_id, direction, action, display_data_json, created_at
+                 FROM $table_items WHERE run_id = %s ORDER BY id ASC LIMIT %d OFFSET %d",
+                $run_id,
+                $batch_size,
+                $offset
+            ), ARRAY_A);
+
+            if (empty($items)) {
+                continue;
+            }
+
+            $batch_payload = array(
+                'run_id' => $run_id,
+                'items'  => array_map(function($it) {
+                    return array(
+                        'id'                => $it['id'],
+                        'run_id'            => $it['run_id'],
+                        'record_type'       => $it['record_type'],
+                        'record_id'         => $it['record_id'],
+                        'direction'         => $it['direction'],
+                        'action'            => $it['action'],
+                        'display_data_json' => $it['display_data_json'],
+                        'created_at'        => $it['created_at'],
+                    );
+                }, $items)
+            );
+
+            $item_res = self::live_api_request('POST', '/assessor/v1/sync/report/publish-items', $batch_payload);
+            if (is_wp_error($item_res)) {
+                error_log("Assessor Sync: Failed to publish batch $p for run $run_id: " . $item_res->get_error_message());
+                self::set_meta('sync_report_publish_pending', '1');
+                return;
+            }
+        }
+
+        // Successfully published run and all items
+        self::set_meta('last_published_sync_run_id', $run_id);
+        self::set_meta('sync_report_publish_pending', '0');
+        error_log("Assessor Sync: Successfully published sync report $run_id to Live Server.");
     }
 }
 

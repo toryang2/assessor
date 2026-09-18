@@ -495,128 +495,287 @@ const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' })
   );
 };
 
-// ─── Live Server Dashboard ────────────────────────────────────────
-const LiveServerDashboard = ({ syncConfig }) => {
-  const theme = useTheme();
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+// ─── Live Server Dashboard / Monitor ──────────────────────────────
+const LiveServerDashboard = ({ syncConfig, onOpenBrowser }) => {
+  const [latestReport, setLatestReport] = useState(null);
+  const [reportHistory, setReportHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLiveMonitorData = async () => {
+    setLoading(true);
+    try {
+      const [repRes, histRes] = await Promise.all([
+        apiService.getLatestSyncReport(),
+        apiService.getSyncReportHistory({ per_page: 8 }),
+      ]);
+      if (repRes?.run) {
+        setLatestReport(repRes.run);
+      }
+      if (histRes?.runs) {
+        setReportHistory(histRes.runs);
+      }
+    } catch (err) {
+      console.error("Failed to load Live Monitor data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setLoadingLogs(true);
-    apiService.getAuditTrail({ action: 'SYNC_FROM_LOCAL', per_page: 10 })
-      .then(res => setAuditLogs(res.logs || []))
-      .catch(err => console.error("Failed to fetch audit logs:", err))
-      .finally(() => setLoadingLogs(false));
+    fetchLiveMonitorData();
   }, []);
 
+  const counters = latestReport?.summary?.counters || {
+    properties: { created: 0, updated: 0, skipped: 0, failed: 0, total: 0 },
+    requests: { created: 0, updated: 0, skipped: 0, failed: 0, deleted: 0, total: 0 },
+  };
+
+  // Determine age notice if older than 3 hours
+  const hoursSinceLastSync = useMemo(() => {
+    if (!latestReport?.completed_at && !latestReport?.started_at) return null;
+    const syncTime = new Date(latestReport.completed_at || latestReport.started_at).getTime();
+    const diffHours = Math.floor((Date.now() - syncTime) / (1000 * 60 * 60));
+    return diffHours;
+  }, [latestReport]);
+
   return (
-    <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {/* Informational Header */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
         gap: 1.5,
         p: { xs: 1.5, sm: 2 },
-        mb: { xs: 1.5, sm: 3 },
-        borderRadius: 1,
-        bgcolor: 'info.light',
-        color: 'info.dark',
+        borderRadius: 1.5,
+        bgcolor: 'primary.50',
+        color: 'primary.900',
         border: `1px solid`,
-        borderColor: 'info.main',
-        opacity: 0.9,
+        borderColor: 'primary.200',
       }}>
-        <InfoIcon sx={{ fontSize: 20, color: 'info.main' }} />
-        <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, fontWeight: 500, lineHeight: 1.4 }}>
-          Live Server Dashboard. Data synchronization is managed directly from the Local Server.
-        </Typography>
+        <InfoIcon sx={{ fontSize: 22, color: 'primary.main', flexShrink: 0 }} />
+        <Box>
+          <Typography sx={{ fontSize: { xs: '0.8rem', sm: '0.9rem' }, fontWeight: 700, lineHeight: 1.3 }}>
+            Live Server Monitor
+          </Typography>
+          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' }, color: 'text.secondary', mt: 0.25 }}>
+            Synchronization is initiated by the Local Server. This screen displays the mirrored synchronization activity received by this server.
+          </Typography>
+        </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
-        {[
-          { label: 'Last Push', value: formatDate(syncConfig?.last_local_push) },
-          { label: 'Last Pull', value: formatDate(syncConfig?.last_local_pull) }
-        ].map(card => (
-          <Box key={card.label} sx={{
-            flex: 1,
-            p: { xs: 1.5, sm: 2.5 },
-            borderRadius: 1,
-            bgcolor: 'background.default',
-            border: `1px solid`,
-            borderColor: 'divider',
-          }}>
-            <Typography sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5 }}>
-              {card.label}
-            </Typography>
-            <Typography sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem' }, fontWeight: 600, color: 'text.primary' }}>
-              {card.value}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-
-      <Typography variant="h6" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' }, mb: { xs: 1, sm: 1.5 } }}>
-        Recent Activity
-      </Typography>
-      <TableContainer sx={{
-        flex: 1,
-        overflowY: 'auto',
-        borderRadius: 1,
-        border: `1px solid`,
+      {/* Connection & Latest Run Status Banner */}
+      <Box sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 2,
+        p: 2,
+        borderRadius: 1.5,
+        bgcolor: 'background.default',
+        border: '1px solid',
         borderColor: 'divider',
-        '&::-webkit-scrollbar': { display: 'none' },
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
       }}>
-        <Table size="small" stickyHeader>
-          <TableHead>
-            <TableRow>
-              {['Timestamp', 'Table', 'Record ID', 'Details'].map(col => (
-                <TableCell key={col}>{col}</TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loadingLogs ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Chip
+            icon={<DotIcon sx={{ fontSize: '10px !important', color: 'success.main' }} />}
+            label="Connected"
+            size="small"
+            color="success"
+            variant="outlined"
+            sx={{ fontWeight: 700, fontSize: '0.75rem' }}
+          />
+          <Box>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', color: 'text.primary' }}>
+              Last synchronized: {latestReport?.completed_at || latestReport?.started_at ? formatDate(latestReport.completed_at || latestReport.started_at) : 'No synchronization recorded'}
+            </Typography>
+            {hoursSinceLastSync !== null && hoursSinceLastSync >= 3 && (
+              <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500, display: 'block' }}>
+                Note: Last synchronization was {hoursSinceLastSync} hours ago.
+              </Typography>
+            )}
+            {latestReport?.id && (
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                Sync Mode: <span style={{ textTransform: 'capitalize' }}>{latestReport.mode}</span> • Run ID: <span style={{ fontFamily: 'monospace' }}>{latestReport.id}</span>
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Chip
+            label={latestReport?.status === 'completed' ? '✓ Completed' : (latestReport?.status || 'Idle')}
+            color={latestReport?.status === 'completed' ? 'success' : (latestReport?.status === 'failed' ? 'error' : 'default')}
+            size="small"
+            sx={{ fontWeight: 600, textTransform: 'capitalize' }}
+          />
+          <IconButton size="small" onClick={fetchLiveMonitorData} disabled={loading} sx={{ color: 'text.secondary' }}>
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {/* Properties and Requests Metric Cards */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        {/* Properties Card */}
+        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DescriptionIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+              <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Properties</Typography>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              endIcon={<OpenInNewIcon fontSize="small" />}
+              onClick={() => onOpenBrowser('property', latestReport?.id)}
+              disabled={!latestReport?.id}
+              sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.2, px: 1 }}
+            >
+              View Properties
+            </Button>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, textAlign: 'center' }}>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>New</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'success.main', fontSize: '1.05rem' }}>{counters.properties?.created || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Updated</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'info.main', fontSize: '1.05rem' }}>{counters.properties?.updated || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Skipped</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'warning.main', fontSize: '1.05rem' }}>{counters.properties?.skipped || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Failed</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'error.main', fontSize: '1.05rem' }}>{counters.properties?.failed || 0}</Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Requests Card */}
+        <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ReceiptIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+              <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Requests</Typography>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              endIcon={<OpenInNewIcon fontSize="small" />}
+              onClick={() => onOpenBrowser('request', latestReport?.id)}
+              disabled={!latestReport?.id}
+              sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.2, px: 1 }}
+            >
+              View Requests
+            </Button>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, textAlign: 'center' }}>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>New</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'success.main', fontSize: '1.05rem' }}>{counters.requests?.created || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Updated</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'info.main', fontSize: '1.05rem' }}>{counters.requests?.updated || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Deleted</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'error.main', fontSize: '1.05rem' }}>{counters.requests?.deleted || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Skipped</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'warning.main', fontSize: '1.05rem' }}>{counters.requests?.skipped || 0}</Typography>
+            </Box>
+            <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Failed</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'error.main', fontSize: '1.05rem' }}>{counters.requests?.failed || 0}</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Sync Activity / History Section */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 200 }}>
+        <Typography variant="h6" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' }, mb: 1, fontWeight: 700 }}>
+          Sync Activity
+        </Typography>
+        <TableContainer sx={{
+          flex: 1,
+          overflowY: 'auto',
+          borderRadius: 1.5,
+          border: `1px solid`,
+          borderColor: 'divider',
+        }}>
+          <Table size="small" stickyHeader>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4, borderBottom: 'none' }}>
-                  <CircularProgress size={20} />
-                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Run Time</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Mode</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Summary</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Records</TableCell>
               </TableRow>
-            ) : auditLogs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '0.85rem', borderBottom: 'none' }}>
-                  No recent activity found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              auditLogs.map((log) => (
-                <TableRow key={log.id} sx={{
-                  '&:last-child td, &:last-child th': { border: 0 },
-                  '&:hover': { bgcolor: 'action.hover' },
-                }}>
-                  <TableCell sx={{ fontSize: '0.8rem' }}>{formatDate(log.created_at)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={log.table_name.replace('assessor_', '')}
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ fontWeight: 600, fontSize: '0.7rem' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.8rem' }}>{log.record_id}</TableCell>
-                  <TableCell sx={{ fontSize: '0.8rem' }}>
-                    {log.new_values && JSON.parse(log.new_values)?.tax_declaration_number ?
-                      <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>
-                        {JSON.parse(log.new_values).tax_declaration_number}
-                      </Typography>
-                       : 'Synced'}
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4, borderBottom: 'none' }}>
+                    <CircularProgress size={20} />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ) : reportHistory.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '0.85rem', borderBottom: 'none' }}>
+                    No sync activity recorded yet on Live Server.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                reportHistory.map((run, idx) => {
+                  const rCounters = run.summary?.counters || {};
+                  const pTot = (rCounters.properties?.created || 0) + (rCounters.properties?.updated || 0);
+                  const qTot = (rCounters.requests?.created || 0) + (rCounters.requests?.updated || 0);
+                  return (
+                    <TableRow key={run.id} sx={{
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}>
+                      <TableCell sx={{ fontSize: '0.8rem', fontWeight: idx === 0 ? 700 : 400 }}>
+                        {formatDate(run.started_at)}
+                        {idx === 0 && <Chip label="Latest" size="small" color="primary" sx={{ ml: 1, height: 18, fontSize: '0.65rem' }} />}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.8rem', textTransform: 'capitalize' }}>{run.mode}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={run.status === 'completed' ? '✓ Completed' : run.status}
+                          size="small"
+                          color={run.status === 'completed' ? 'success' : (run.status === 'failed' ? 'error' : 'warning')}
+                          variant="outlined"
+                          sx={{ fontWeight: 600, fontSize: '0.7rem', height: 20 }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                        {run.summary?.message || 'Synchronization cycle'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => onOpenBrowser('property', run.id)}
+                          sx={{ textTransform: 'none', py: 0, px: 0.5, fontSize: '0.75rem' }}
+                        >
+                          {pTot} props, {qTot} reqs
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
     </Box>
   );
 };
@@ -949,7 +1108,16 @@ const SyncModal = ({ open, onClose }) => {
             <CircularProgress size={32} />
           </Box>
         ) : !isLocalBuild ? (
-          <LiveServerDashboard syncConfig={syncConfig} />
+          <LiveServerDashboard
+            syncConfig={syncConfig}
+            onOpenBrowser={(type, runId) => {
+              setBrowserType(type);
+              if (runId && activeReport?.id !== runId) {
+                setActiveReport(prev => ({ ...(prev || {}), id: runId }));
+              }
+              setBrowserOpen(true);
+            }}
+          />
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, width: '100%' }}>
 
@@ -975,9 +1143,16 @@ const SyncModal = ({ open, onClose }) => {
                     <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: syncStatus === 'failed' ? '#991b1b' : (syncStatus === 'success' ? '#166534' : 'text.primary') }}>
                       {isSyncing ? 'Synchronizing with Live Server...' : (syncMessage || renderStatusText())}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {activeReport?.id ? `Sync Run: ${activeReport.id.substring(0, 8)}... (${activeReport.mode})` : 'Background synchronization runs automatically every 5 minutes.'}
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                      {activeReport?.completed_at || activeReport?.started_at
+                        ? `Last synchronized: ${formatDate(activeReport.completed_at || activeReport.started_at)}`
+                        : 'Background synchronization runs automatically every 5 minutes.'}
                     </Typography>
+                    {activeReport?.id && (
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', display: 'block', mt: 0.25 }}>
+                        Mode: <span style={{ textTransform: 'capitalize' }}>{activeReport.mode}</span> • Run ID: <span style={{ fontFamily: 'monospace' }}>{activeReport.id}</span>
+                      </Typography>
+                    )}
                   </Box>
                   <IconButton size="small" onClick={refreshSyncData} disabled={queueLoading || isSyncing} sx={{ color: 'text.secondary' }}>
                     <RefreshIcon fontSize="small" />
