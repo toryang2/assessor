@@ -233,7 +233,7 @@ class Assessor_Public_API {
         $wpdb->update(
             $table,
             array(
-                'last_used_at' => current_time('mysql'),
+                'last_used_at' => Assessor_Timezone::now_mysql(),
                 'last_used_ip' => $ip,
             ),
             array('id' => $key_id),
@@ -571,7 +571,7 @@ class Assessor_Public_API {
             $update['status'] = $status;
             $formats[] = '%s';
             if ($status === 'disabled') {
-                $update['revoked_at'] = current_time('mysql');
+                $update['revoked_at'] = Assessor_Timezone::now_mysql();
                 $formats[] = '%s';
             }
         }

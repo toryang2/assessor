@@ -118,8 +118,8 @@ class Assessor_Sync {
                 $uuid,
                 $property_id,
                 $operation,
-                current_time('mysql'),
-                current_time('mysql')
+                Assessor_Timezone::now_mysql(),
+                Assessor_Timezone::now_mysql()
             ));
         } else {
             // Backward compatibility
@@ -135,8 +135,8 @@ class Assessor_Sync {
                 $uuid,
                 $property_id,
                 $operation,
-                current_time('mysql'),
-                current_time('mysql')
+                Assessor_Timezone::now_mysql(),
+                Assessor_Timezone::now_mysql()
             ));
         }
     }
@@ -175,8 +175,8 @@ class Assessor_Sync {
                 $uuid,
                 $request_id,
                 $operation,
-                current_time('mysql'),
-                current_time('mysql')
+                Assessor_Timezone::now_mysql(),
+                Assessor_Timezone::now_mysql()
             ));
         } else {
             $wpdb->query($wpdb->prepare(
@@ -191,8 +191,8 @@ class Assessor_Sync {
                 $uuid,
                 $request_id,
                 $operation,
-                current_time('mysql'),
-                current_time('mysql')
+                Assessor_Timezone::now_mysql(),
+                Assessor_Timezone::now_mysql()
             ));
         }
     }
@@ -866,7 +866,7 @@ class Assessor_Sync {
                         'status'     => $queue_status,
                         'attempts'   => $rec['attempts'] + 1,
                         'last_error' => $queue_status === 'failed' ? (isset($res_item['message']) ? $res_item['message'] : 'unknown') : null,
-                        'synced_at'  => $queue_status !== 'failed' ? current_time('mysql') : null,
+                        'synced_at'  => $queue_status !== 'failed' ? Assessor_Timezone::now_mysql() : null,
                     ),
                     array('id' => (string) $rec['queue_id']),
                     array('%s', '%d', '%s', '%s'),
@@ -901,7 +901,7 @@ class Assessor_Sync {
         } // end while
 
         if ($total_pushed > 0 || $total_skipped > 0 || !empty($total_errors)) {
-            self::set_meta('last_push_at', current_time('mysql'));
+            self::set_meta('last_push_at', Assessor_Timezone::now_mysql());
         }
         return array('pushed' => $total_pushed, 'skipped' => $total_skipped, 'errors' => $total_errors);
     }

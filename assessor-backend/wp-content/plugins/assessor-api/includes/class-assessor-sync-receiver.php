@@ -54,7 +54,7 @@ class Assessor_Sync_Receiver {
     public function health($request) {
         return array(
             'status'    => 'ok',
-            'server_ts' => current_time('mysql'),
+            'server_ts' => Assessor_Timezone::now_mysql(),
         );
     }
 
@@ -152,7 +152,7 @@ class Assessor_Sync_Receiver {
             }
         }
 
-        update_option('assessor_last_local_push', current_time('mysql'));
+        update_option('assessor_last_local_push', Assessor_Timezone::now_mysql());
 
         return array(
             'results' => $results,
@@ -429,13 +429,13 @@ class Assessor_Sync_Receiver {
                 }
             }
 
-            update_option('assessor_last_local_pull_requests', current_time('mysql'));
+            update_option('assessor_last_local_pull_requests', Assessor_Timezone::now_mysql());
 
             return array(
                 'records'   => $safe_records,
                 'count'     => count($safe_records),
                 'since'     => $since,
-                'server_ts' => current_time('mysql'),
+                'server_ts' => Assessor_Timezone::now_mysql(),
             );
         }
 
@@ -494,13 +494,13 @@ class Assessor_Sync_Receiver {
             $safe_records[] = $safe;
         }
 
-        update_option('assessor_last_local_pull', current_time('mysql'));
+        update_option('assessor_last_local_pull', Assessor_Timezone::now_mysql());
 
         return array(
             'records'   => $safe_records,
             'count'     => count($safe_records),
             'since'     => $since,
-            'server_ts' => current_time('mysql'),
+            'server_ts' => Assessor_Timezone::now_mysql(),
         );
     }
 
@@ -576,7 +576,7 @@ class Assessor_Sync_Receiver {
         return array(
             'table'     => $table_suffix,
             'inserted'  => $inserted,
-            'server_ts' => current_time('mysql'),
+            'server_ts' => Assessor_Timezone::now_mysql(),
         );
     }
 
@@ -617,7 +617,7 @@ class Assessor_Sync_Receiver {
         return rest_ensure_response(array(
             'success'   => true,
             'tables'    => $tables_data,
-            'server_ts' => current_time('mysql'),
+            'server_ts' => Assessor_Timezone::now_mysql(),
         ));
     }
 
@@ -769,7 +769,7 @@ class Assessor_Sync_Receiver {
         return array(
             'records'   => $rows,
             'count'     => count($rows),
-            'server_ts' => current_time('mysql'),
+            'server_ts' => Assessor_Timezone::now_mysql(),
         );
     }
 
@@ -802,9 +802,9 @@ class Assessor_Sync_Receiver {
 
         $mode         = isset($run['mode']) ? sanitize_text_field($run['mode']) : 'incremental';
         $status       = isset($run['status']) ? sanitize_text_field($run['status']) : 'completed';
-        $started_at   = isset($run['started_at']) ? sanitize_text_field($run['started_at']) : current_time('mysql');
-        $completed_at = isset($run['completed_at']) ? sanitize_text_field($run['completed_at']) : current_time('mysql');
-        $created_at   = isset($run['created_at']) ? sanitize_text_field($run['created_at']) : current_time('mysql');
+        $started_at   = isset($run['started_at']) ? sanitize_text_field($run['started_at']) : Assessor_Timezone::now_mysql();
+        $completed_at = isset($run['completed_at']) ? sanitize_text_field($run['completed_at']) : Assessor_Timezone::now_mysql();
+        $created_at   = isset($run['created_at']) ? sanitize_text_field($run['created_at']) : Assessor_Timezone::now_mysql();
         $summary_json = isset($run['summary']) ? wp_json_encode($run['summary']) : '{}';
 
         // Upsert into assessor_sync_runs preserving original UUID
@@ -877,7 +877,7 @@ class Assessor_Sync_Receiver {
             $direction   = isset($item['direction']) ? sanitize_text_field($item['direction']) : 'local_to_live';
             $action      = isset($item['action']) ? sanitize_text_field($item['action']) : 'updated';
             $display_json = isset($item['display_data_json']) ? (string)$item['display_data_json'] : '{}';
-            $created_at  = isset($item['created_at']) ? sanitize_text_field($item['created_at']) : current_time('mysql');
+            $created_at  = isset($item['created_at']) ? sanitize_text_field($item['created_at']) : Assessor_Timezone::now_mysql();
 
             $placeholders[] = "(%s, %s, %s, %s, %s, %s, %s, %s)";
             $values[] = $item_id;

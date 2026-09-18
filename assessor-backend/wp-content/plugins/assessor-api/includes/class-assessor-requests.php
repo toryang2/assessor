@@ -92,8 +92,8 @@ class Assessor_Requests {
             'remarks' => '',
             'created_by' => $current_user_id,
             'updated_by' => $current_user_id,
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s')
+            'created_at' => Assessor_Timezone::now_mysql(),
+            'updated_at' => Assessor_Timezone::now_mysql()
         );
         
         $data = wp_parse_args($data, $defaults);
@@ -519,7 +519,7 @@ class Assessor_Requests {
         
         // Add updated_by and updated_at
         $update_data['updated_by'] = $current_user_id;
-        $update_data['updated_at'] = current_time('mysql');
+        $update_data['updated_at'] = Assessor_Timezone::now_mysql();
         $update_format[] = '%s';
         $update_format[] = '%s';
         
@@ -559,7 +559,7 @@ class Assessor_Requests {
             return $existing;
         }
         
-        $now = current_time('mysql');
+        $now = Assessor_Timezone::now_mysql();
         $result = $this->db->update(
             $this->table_name,
             array(
@@ -633,10 +633,10 @@ class Assessor_Requests {
         $total_requests = $this->db->get_var($total_requests_query) ?: 0;
         
         // This month / last month counts (based on created_at for consistency, excluding deleted)
-        $now_ts = current_time('timestamp');
-        $curr_start = date('Y-m-01', $now_ts);
-        $next_start = date('Y-m-01', strtotime('+1 month', $now_ts));
-        $prev_start = date('Y-m-01', strtotime('-1 month', $now_ts));
+        $now_dt = Assessor_Timezone::now();
+        $curr_start = $now_dt->format('Y-m-01');
+        $next_start = (clone $now_dt)->modify('+1 month')->format('Y-m-01');
+        $prev_start = (clone $now_dt)->modify('-1 month')->format('Y-m-01');
         $this_month_count = (int)$this->db->get_var($this->db->prepare(
             "SELECT COUNT(*) FROM {$this->table_name} WHERE deleted_at IS NULL AND created_at >= %s AND created_at < %s",
             $curr_start,

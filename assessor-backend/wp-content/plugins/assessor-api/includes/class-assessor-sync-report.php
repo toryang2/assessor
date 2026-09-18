@@ -49,7 +49,7 @@ class Assessor_Sync_Report {
         $report = new self();
         $report->run_id = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
         $report->mode = $mode === 'full' ? 'full' : 'incremental';
-        $report->started_at = current_time('mysql');
+        $report->started_at = Assessor_Timezone::now_mysql();
 
         $table_runs = $wpdb->prefix . 'assessor_sync_runs';
         $wpdb->insert(
@@ -111,7 +111,7 @@ class Assessor_Sync_Report {
      */
     public function update_phase($phase, $status, $details = array()) {
         $this->phases[$phase] = array_merge(
-            array('status' => $status, 'updated_at' => current_time('mysql')),
+            array('status' => $status, 'updated_at' => Assessor_Timezone::now_mysql()),
             $details
         );
     }
@@ -193,7 +193,7 @@ class Assessor_Sync_Report {
             'direction'         => $direction,
             'action'            => $action,
             'display_data_json' => wp_json_encode($display_data),
-            'created_at'        => current_time('mysql'),
+            'created_at'        => Assessor_Timezone::now_mysql(),
         );
 
         if (count($this->item_buffer) >= $this->batch_size) {
@@ -259,7 +259,7 @@ class Assessor_Sync_Report {
             $table_runs,
             array(
                 'status'       => $overall_status,
-                'completed_at' => current_time('mysql'),
+                'completed_at' => Assessor_Timezone::now_mysql(),
                 'summary_json' => wp_json_encode($summary),
             ),
             array('id' => $this->run_id),

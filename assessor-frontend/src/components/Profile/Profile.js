@@ -27,6 +27,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { animations } from '../../theme/theme';
 import { keyframes } from '@mui/system';
 import EditProfile from './EditProfile';
+import { formatAppDate } from '../../utils/dateTime';
 
 const glow = keyframes`
   0% { filter: drop-shadow(0 0 0px rgba(156, 39, 176, 0.0)); }
@@ -317,7 +318,7 @@ const Profile = () => {
                       Account Created
                     </Typography>
                     <Typography variant="body2">
-                      {new Date(user.created_at).toLocaleDateString()}
+                      {formatAppDate(user.created_at)}
                     </Typography>
                   </Box>
                 )}
@@ -328,7 +329,7 @@ const Profile = () => {
                       Last Updated
                     </Typography>
                     <Typography variant="body2">
-                      {new Date(user.updated_at).toLocaleDateString()}
+                      {formatAppDate(user.updated_at)}
                     </Typography>
                   </Box>
                 )}

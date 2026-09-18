@@ -63,6 +63,7 @@ import useSafetyWatchdog from '../../hooks/useSafetyWatchdog';
 import SyncModal from '../SyncModal/SyncModal';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
 import ChangelogModal from '../ChangelogModal/ChangelogModal';
+import { formatAppDateTime } from '../../utils/dateTime';
 
 const drawerWidth = '21.5rem'; // ~344px at 16px font size
 
@@ -713,7 +714,7 @@ const Layout = ({ children }) => {
                                 {notif.message}
                               </Typography>
                               <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
-                                {new Date(notif.timestamp).toLocaleString()}
+                                {formatAppDateTime(notif.timestamp)}
                               </Typography>
                             </>
                           }

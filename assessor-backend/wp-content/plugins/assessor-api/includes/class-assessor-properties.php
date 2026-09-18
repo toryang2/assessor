@@ -729,7 +729,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                 'property_id' => $prev_prop_id,
                                 'state' => 'CANCELLED',
                                 'updated_by' => $user_id,
-                                'updated_at' => current_time('mysql')
+                                'updated_at' => Assessor_Timezone::now_mysql()
                             ],
                             ['%s', '%s', '%s', '%s']
                         );
@@ -1053,7 +1053,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                 'property_id' => $prev_prop_id,
                                 'state' => 'CANCELLED',
                                 'updated_by' => $user_id,
-                                'updated_at' => current_time('mysql')
+                                'updated_at' => Assessor_Timezone::now_mysql()
                             ],
                             ['%s', '%s', '%s', '%s']
                         );
@@ -1192,7 +1192,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'property_id' => $id,
                 'state'       => strtoupper($state),
                 'updated_by'  => $user_id,
-                'updated_at'  => current_time('mysql')
+                'updated_at'  => Assessor_Timezone::now_mysql()
             ],
             ['%s', '%s', '%s', '%s']
         );
@@ -1224,7 +1224,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                     'property_id' => $prev_prop_id,
                                     'state' => 'CANCELLED',
                                     'updated_by' => $user_id,
-                                    'updated_at' => current_time('mysql')
+                                    'updated_at' => Assessor_Timezone::now_mysql()
                                 ],
                                 ['%s', '%s', '%s', '%s']
                             );
@@ -1891,7 +1891,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     'property_id' => $property_id,
                     'state' => 'CANCELLED',
                     'updated_by' => $user_id,
-                    'updated_at' => current_time('mysql')
+                    'updated_at' => Assessor_Timezone::now_mysql()
                 ],
                 ['%s', '%s', '%s', '%s']
             );
@@ -1938,7 +1938,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                 'property_id' => $prev_prop_id,
                                 'state' => 'CURRENT',
                                 'updated_by' => $user_id,
-                                'updated_at' => current_time('mysql')
+                                'updated_at' => Assessor_Timezone::now_mysql()
                             ],
                             ['%s', '%s', '%s', '%s']
                         );

@@ -50,6 +50,14 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../utils/api';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
+import {
+  APP_TIMEZONE,
+  APP_TIMEZONE_LABEL,
+  APP_TIMEZONE_OFFSET,
+  formatAppDateTime,
+  formatAppDate,
+  formatAppTime,
+} from '../../utils/dateTime';
 
 // ─── Animated Pulse Ring (behind icon during sync) ────────────────
 const PulseRing = () => (
@@ -79,19 +87,7 @@ const PulseRing = () => (
 );
 
 // ─── Helper formatters ────────────────────────────────────────────
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never';
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return dateString;
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-};
+const formatDate = (dateString) => formatAppDateTime(dateString);
 
 // Perspective-aware Direction Label and Tooltip Helper
 const getDirectionInfo = (direction, perspective = 'local') => {
@@ -1177,7 +1173,7 @@ const SyncModal = ({ open, onClose }) => {
                 Sync Center
               </Typography>
               {/* Connection Status Indicator */}
-              <Tooltip title={isLocalBuild ? "Connected to Local Server" : "Connected to Live Server"}>
+              <Tooltip title={`Connected to ${isLocalBuild ? 'Local' : 'Live'} Server • Timezone: ${APP_TIMEZONE} (${APP_TIMEZONE_OFFSET})`}>
                 <Chip
                   icon={<DotIcon sx={{ fontSize: '10px !important', color: 'success.main' }} />}
                   label={isLocalBuild ? "Local Server" : "Live Server"}
@@ -1186,6 +1182,12 @@ const SyncModal = ({ open, onClose }) => {
                   sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
                 />
               </Tooltip>
+              <Chip
+                label={`${APP_TIMEZONE_LABEL} (${APP_TIMEZONE_OFFSET})`}
+                size="small"
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.65rem', color: 'text.secondary', borderColor: 'divider' }}
+              />
             </Box>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {activeReport?.completed_at ? `Last synced: ${formatDate(activeReport.completed_at)}` : (queueStatus?.last_pull ? `Last pull: ${formatDate(queueStatus.last_pull)}` : 'Real-time synchronization engine')}

@@ -532,7 +532,7 @@ class Assessor_Settings {
 			'to_year' => $to_year,
 			'status' => $status,
 			'sort_order' => $sort_order,
-			'updated_at' => current_time('mysql')
+			'updated_at' => Assessor_Timezone::now_mysql()
 		);
 
 		// Check if updating an existing entry
@@ -552,7 +552,7 @@ class Assessor_Settings {
 			// Insert new entry with UUID v7
 			$new_id = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
 			$data['id'] = $new_id;
-			$data['created_at'] = current_time('mysql');
+			$data['created_at'] = Assessor_Timezone::now_mysql();
 			$wpdb->insert($table, $data, array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s'));
 		}
 
@@ -712,7 +712,7 @@ class Assessor_Settings {
 			'amount' => $amount,
 			'status' => $status,
 			'sort_order' => $sort_order,
-			'updated_at' => current_time('mysql')
+			'updated_at' => Assessor_Timezone::now_mysql()
 		);
 
 		if (!empty($id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $id))) {
@@ -720,7 +720,7 @@ class Assessor_Settings {
 		} else {
 			$new_id = (!empty($id) && Assessor_UUID::is_valid($id)) ? $id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
 			$data['id'] = $new_id;
-			$data['created_at'] = current_time('mysql');
+			$data['created_at'] = Assessor_Timezone::now_mysql();
 			$wpdb->insert($table, $data, array('%s','%f','%s','%d','%s','%s','%s'));
 		}
 		if (class_exists('Assessor_Sync')) {

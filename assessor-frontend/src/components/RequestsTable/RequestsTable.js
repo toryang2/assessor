@@ -48,6 +48,7 @@ import { useReactToPrint } from 'react-to-print';
 import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
+import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -122,50 +123,19 @@ const normalizeDeclarantString = (name) => {
 // Format date function - accessible to both components
 const formatDate = (dateString) => {
   if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = date.getHours();
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 || 12;
-
-    return `${month}/${day}/${year} @ ${hours12}:${minutes} ${ampm}`;
-  } catch {
-    return dateString;
-  }
+  return formatAppDateTime(dateString);
 };
 
-// Format date only (mm/dd/yyyy)
+// Format date only
 const formatDateOnly = (dateString) => {
   if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    return `${month}/${day}/${year}`;
-  } catch {
-    return dateString;
-  }
+  return formatAppDate(dateString, { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
-// Format date function - accessible to both components
+// Format date function - table cells
 const formatDateTable = (dateString) => {
   if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    return `${month}/${day}/${year}`;
-  } catch {
-    return dateString;
-  }
+  return formatAppDate(dateString, { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
 // Custom hook for debounced search

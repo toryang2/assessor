@@ -28,6 +28,7 @@ add_action('init', function() {
 });
 
 // Include required files
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-timezone.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-api.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-auth.php';

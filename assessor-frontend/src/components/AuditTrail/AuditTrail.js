@@ -51,6 +51,7 @@ import { format } from 'date-fns';
 
 import { apiService } from '../../utils/api';
 import { statusColors } from '../../theme/theme';
+import { formatAppDateTime } from '../../utils/dateTime';
 import LoadingDots from '../LoadingDots';
 
 const AuditTrail = () => {
@@ -565,7 +566,7 @@ const AuditTrail = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {format(new Date(log.created_at), 'MMM dd, yyyy hh:mm:ss a')}
+                        {formatAppDateTime(log.created_at)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -767,7 +768,7 @@ const AuditTrail = () => {
                   <ListItem>
                     <ListItemText
                       primary="Date & Time"
-                      secondary={format(new Date(selectedLog.created_at), 'MMM dd, yyyy hh:mm:ss a')}
+                      secondary={formatAppDateTime(selectedLog.created_at)}
                     />
                   </ListItem>
                   <ListItem>
@@ -840,7 +841,7 @@ const AuditTrail = () => {
                             {getActionIcon(h.action)}
                           </ListItemIcon>
                           <ListItemText
-                            primary={`${format(new Date(h.created_at), 'MMM dd, yyyy hh:mm:ss a')} • ${h.action.toUpperCase()} • ${h.user_name || h.user_id || 'System'}`}
+                            primary={`${formatAppDateTime(h.created_at)} • ${h.action.toUpperCase()} • ${h.user_name || h.user_id || 'System'}`}
                             secondary={
                               <Box sx={{ mt: 0.5 }}>
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>

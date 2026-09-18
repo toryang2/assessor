@@ -15,6 +15,7 @@ import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import EtracsBuildingRevisionSettings from './EtracsBuildingRevisionSettings';
+import { formatAppDate } from '../../utils/dateTime';
 
 const DEFAULT_API_SECRET_LENGTH = 48;
 
@@ -484,12 +485,7 @@ const Settings = () => {
     }
   };
 
-  const formatApiKeyDate = (value) => {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return value;
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  };
+  const formatApiKeyDate = (value) => formatAppDate(value);
 
   const sortedPublicApiKeys = useMemo(() => {
     const items = [...(publicApiKeys || [])];
