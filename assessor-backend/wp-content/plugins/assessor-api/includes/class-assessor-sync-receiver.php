@@ -580,6 +580,47 @@ class Assessor_Sync_Receiver {
         );
     }
 
+    /**
+     * Serve full snapshots of the four lookup tables for bidirectional reconciliation.
+     *
+     * GET /assessor/v1/sync/pull-config
+     * Returns the 4 lookup tables with original UUIDs and complete column sets.
+     * Does NOT mutate any data.
+     *
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response|WP_Error
+     */
+    public function serve_config_pull($request) {
+        global $wpdb;
+
+        $lookup_tables = array(
+            'assessor_property_types',
+            'assessor_general_classes',
+            'assessor_locations',
+            'assessor_request_purposes',
+        );
+
+        $tables_data = array();
+
+        foreach ($lookup_tables as $table_suffix) {
+            $table = $wpdb->prefix . $table_suffix;
+            $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+
+            if ($table_exists === $table) {
+                $rows = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
+                $tables_data[$table_suffix] = $rows ? $rows : array();
+            } else {
+                $tables_data[$table_suffix] = array();
+            }
+        }
+
+        return rest_ensure_response(array(
+            'success'   => true,
+            'tables'    => $tables_data,
+            'server_ts' => current_time('mysql'),
+        ));
+    }
+
     // -------------------------------------------------------------------------
     // Sanitization helpers
     // -------------------------------------------------------------------------

@@ -571,6 +571,13 @@ class Assessor_API {
             'permission_callback' => array($sync_receiver, 'verify_sync_token'),
         ));
 
+        // Live site: serve complete snapshots of the 4 lookup tables for bidirectional reconciliation
+        register_rest_route('assessor/v1', '/sync/pull-config', array(
+            'methods'             => 'GET',
+            'callback'            => array($sync_receiver, 'serve_config_pull'),
+            'permission_callback' => array($sync_receiver, 'verify_sync_token'),
+        ));
+
         // Local admin: bulk download missing image files from live
         register_rest_route('assessor/v1', '/sync/download-files', array(
             'methods'             => 'POST',

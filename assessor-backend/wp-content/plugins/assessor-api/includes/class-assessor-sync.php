@@ -326,7 +326,10 @@ class Assessor_Sync {
         }
 
         $push       = self::push_pending();
+        // Force bidirectional lookup tables reconciliation regardless of dirty flags
+        $lookup_reconcile = self::sync_lookup_tables_bidirectional(true);
         $config     = self::push_pending_config();
+        $config['lookups'] = $lookup_reconcile;
 
         $revisions  = self::pull_revision_entries_from_live($force_full);
 
@@ -822,7 +825,7 @@ class Assessor_Sync {
     }
 
     /**
-     * Internal implementation helper for dedicated lookup table synchronization.
+     * Internal implementation helper for dedicated lookup table synchronization (push-only).
      *
      * @param string $table_suffix e.g. 'assessor_property_types'
      * @param string $unique_col   e.g. 'code' or 'purpose'
@@ -912,8 +915,312 @@ class Assessor_Sync {
     }
 
     /**
+     * Reconcile the 4 lookup tables bidirectionally between Local and Live.
+     *
+     * Authority is row-level based on updated_at timestamps (last write wins),
+     * with deterministic content-hash tie-breaking when timestamps match.
+     *
+     * 1. GET /assessor/v1/sync/pull-config from Live
+     * 2. For each table, match by UUID then by business key
+     * 3. Select winning row (Local vs Live)
+     * 4. Write canonical rows locally under self::$syncing guard
+     * 5. Push canonical snapshot to Live via POST /assessor/v1/sync/push-config
+     * 6. Clear dirty flag on success; preserve dirty flag on failure
+     *
+     * @param bool $force If true, forces reconciliation even if local dirty flags are 0.
+     * @return array
+     */
+    public static function sync_lookup_tables_bidirectional($force = false) {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return array(
+                'success' => false,
+                'message' => 'Bidirectional lookup reconciliation is initiated by Local.',
+                'tables'  => array(),
+            );
+        }
+
+        $target_tables = array(
+            'assessor_property_types'   => 'code',
+            'assessor_general_classes'  => 'code',
+            'assessor_locations'        => 'code',
+            'assessor_request_purposes' => 'purpose',
+        );
+
+        // Check if any table is dirty or if reconciliation is forced
+        $has_dirty = false;
+        foreach ($target_tables as $table_suffix => $biz_col) {
+            if (self::get_meta('config_dirty_' . $table_suffix) === '1') {
+                $has_dirty = true;
+                break;
+            }
+        }
+
+        if (!$force && !$has_dirty) {
+            // Check if remote check is desired; per Step 14, small lookup tables can be checked
+            // but if not forced and not dirty, we still proceed to ensure Live edits are pulled.
+        }
+
+        error_log('Assessor Sync: Starting bidirectional lookup reconciliation.');
+
+        // Step 1: Fetch Live lookup snapshot
+        $response = self::live_api_request('GET', '/assessor/v1/sync/pull-config');
+
+        if (is_wp_error($response)) {
+            $err_msg = $response->get_error_message();
+            error_log('Assessor Sync: Unable to retrieve live lookup snapshot — ' . $err_msg);
+            return array(
+                'success' => false,
+                'message' => 'Unable to retrieve live lookup snapshot.',
+                'errors'  => array($err_msg),
+                'tables'  => array(),
+            );
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!is_array($body) || empty($body['success']) || !isset($body['tables'])) {
+            $err_msg = 'Invalid JSON response from /assessor/v1/sync/pull-config';
+            error_log('Assessor Sync: ' . $err_msg);
+            return array(
+                'success' => false,
+                'message' => $err_msg,
+                'errors'  => array($err_msg),
+                'tables'  => array(),
+            );
+        }
+
+        $remote_tables = $body['tables'];
+        $table_results = array();
+        $overall_success = true;
+
+        foreach ($target_tables as $table_suffix => $biz_col) {
+            $remote_rows = isset($remote_tables[$table_suffix]) && is_array($remote_tables[$table_suffix])
+                ? $remote_tables[$table_suffix]
+                : array();
+
+            $result = self::reconcile_single_lookup_table($table_suffix, $biz_col, $remote_rows);
+            $table_results[$table_suffix] = $result;
+
+            if (!$result['success']) {
+                $overall_success = false;
+                error_log("Assessor Sync: Lookup reconciliation failed for $table_suffix — " . ($result['error'] ?? 'unknown'));
+            } else {
+                error_log("Assessor Sync: $table_suffix — LOCAL won: {$result['local_wins']}, LIVE won: {$result['live_wins']}, unchanged: {$result['unchanged']}.");
+            }
+        }
+
+        if ($overall_success) {
+            error_log('Assessor Sync: Lookup reconciliation completed successfully.');
+        }
+
+        return array(
+            'success' => $overall_success,
+            'message' => $overall_success ? 'Lookup tables reconciled successfully.' : 'One or more lookup tables failed reconciliation.',
+            'tables'  => $table_results,
+        );
+    }
+
+    /**
+     * Reconcile a single lookup table against remote rows.
+     *
+     * @param string $table_suffix
+     * @param string $biz_col
+     * @param array  $remote_rows
+     * @return array
+     */
+    private static function reconcile_single_lookup_table($table_suffix, $biz_col, $remote_rows) {
+        global $wpdb;
+        $meta_key   = 'config_dirty_' . $table_suffix;
+        $full_table = $wpdb->prefix . $table_suffix;
+
+        $local_rows = $wpdb->get_results("SELECT * FROM $full_table", ARRAY_A);
+        if ($local_rows === null) {
+            return array(
+                'success'           => false,
+                'table'             => $table_suffix,
+                'local_rows'        => 0,
+                'live_rows'         => count($remote_rows),
+                'local_wins'        => 0,
+                'live_wins'         => 0,
+                'unchanged'         => 0,
+                'new_rows'          => 0,
+                'rows_sent_to_live' => 0,
+                'error'             => 'Local DB query error: ' . $wpdb->last_error,
+            );
+        }
+
+        // Index local rows by UUID and business key
+        $local_by_uuid = array();
+        $local_by_biz  = array();
+        foreach ($local_rows as $lr) {
+            $id = (string)($lr['id'] ?? '');
+            $bk = (string)($lr[$biz_col] ?? '');
+            if ($id !== '') {
+                $local_by_uuid[$id] = $lr;
+            }
+            if ($bk !== '') {
+                $local_by_biz[$bk] = $lr;
+            }
+        }
+
+        // Track matched/processed local records
+        $matched_local_ids = array();
+        $canonical_rows    = array();
+
+        $local_wins = 0;
+        $live_wins  = 0;
+        $unchanged  = 0;
+        $new_rows   = 0;
+
+        foreach ($remote_rows as $rr) {
+            if (!is_array($rr) || empty($rr['id'])) {
+                continue;
+            }
+            $r_id  = (string)$rr['id'];
+            $r_biz = (string)($rr[$biz_col] ?? '');
+
+            // Priority 1: Match by UUID
+            $local_match = null;
+            if (isset($local_by_uuid[$r_id])) {
+                $local_match = $local_by_uuid[$r_id];
+            } elseif ($r_biz !== '' && isset($local_by_biz[$r_biz])) {
+                // Priority 2: Match by business key
+                $local_match = $local_by_biz[$r_biz];
+            }
+
+            if ($local_match) {
+                $matched_local_ids[(string)$local_match['id']] = true;
+
+                // Compare updated_at
+                $l_ts = isset($local_match['updated_at']) ? strtotime($local_match['updated_at']) : 0;
+                $r_ts = isset($rr['updated_at']) ? strtotime($rr['updated_at']) : 0;
+
+                if ($l_ts > $r_ts) {
+                    // Local is newer -> LOCAL wins
+                    $canonical_rows[] = $local_match;
+                    $local_wins++;
+                } elseif ($r_ts > $l_ts) {
+                    // Live is newer -> LIVE wins
+                    $canonical_rows[] = $rr;
+                    $live_wins++;
+                } else {
+                    // Timestamps equal: compare deterministic content hashes
+                    $l_hash = self::hash_lookup_row($local_match, $biz_col);
+                    $r_hash = self::hash_lookup_row($rr, $biz_col);
+
+                    if ($l_hash === $r_hash) {
+                        // Identical content
+                        $canonical_rows[] = $local_match;
+                        $unchanged++;
+                    } else {
+                        // Lexical tie-breaker: larger hash wins deterministically
+                        if (strcmp($l_hash, $r_hash) >= 0) {
+                            $canonical_rows[] = $local_match;
+                            $local_wins++;
+                        } else {
+                            $canonical_rows[] = $rr;
+                            $live_wins++;
+                        }
+                    }
+                }
+            } else {
+                // Row exists only on Live -> LIVE is canonical
+                $canonical_rows[] = $rr;
+                $live_wins++;
+                $new_rows++;
+            }
+        }
+
+        // Rows existing only on Local -> LOCAL is canonical
+        foreach ($local_rows as $lr) {
+            $l_id = (string)($lr['id'] ?? '');
+            if (!isset($matched_local_ids[$l_id])) {
+                $canonical_rows[] = $lr;
+                $local_wins++;
+                $new_rows++;
+            }
+        }
+
+        // Step 4: Write canonical rows to Local (under $syncing guard)
+        $prev_syncing = self::$syncing;
+        self::$syncing = true;
+        try {
+            foreach ($canonical_rows as $crow) {
+                $clean = array_filter($crow, 'is_scalar');
+                if (empty($clean['id'])) {
+                    continue;
+                }
+                $wpdb->replace($full_table, $clean);
+            }
+        } finally {
+            self::$syncing = $prev_syncing;
+        }
+
+        // Step 5: Push the already-reconciled canonical snapshot to Live
+        $payload = array(
+            'table' => $table_suffix,
+            'rows'  => $canonical_rows,
+        );
+
+        $push_resp = self::live_api_request('POST', '/assessor/v1/sync/push-config', $payload);
+
+        if (is_wp_error($push_resp)) {
+            $err_msg = $push_resp->get_error_message();
+            self::set_meta($meta_key, '1'); // Preserve dirty flag for retry
+            return array(
+                'success'           => false,
+                'table'             => $table_suffix,
+                'local_rows'        => count($local_rows),
+                'live_rows'         => count($remote_rows),
+                'local_wins'        => $local_wins,
+                'live_wins'         => $live_wins,
+                'unchanged'         => $unchanged,
+                'new_rows'          => $new_rows,
+                'rows_sent_to_live' => count($canonical_rows),
+                'error'             => 'Push to Live failed: ' . $err_msg,
+            );
+        }
+
+        // Step 6: Mark table clean on success
+        self::set_meta($meta_key, '0');
+
+        return array(
+            'success'           => true,
+            'table'             => $table_suffix,
+            'local_rows'        => count($local_rows),
+            'live_rows'         => count($remote_rows),
+            'local_wins'        => $local_wins,
+            'live_wins'         => $live_wins,
+            'unchanged'         => $unchanged,
+            'new_rows'          => $new_rows,
+            'rows_sent_to_live' => count($canonical_rows),
+            'error'             => null,
+        );
+    }
+
+    /**
+     * Compute a deterministic content hash for a lookup row.
+     *
+     * @param array  $row
+     * @param string $biz_col
+     * @return string
+     */
+    private static function hash_lookup_row($row, $biz_col) {
+        $data = array(
+            'id'         => (string)($row['id'] ?? ''),
+            'biz'        => (string)($row[$biz_col] ?? ''),
+            'name'       => (string)($row['name'] ?? ''),
+            'status'     => (string)($row['status'] ?? 'active'),
+            'sort_order' => (int)($row['sort_order'] ?? 0),
+            'pin'        => (string)($row['pin'] ?? ''),
+            'amount'     => isset($row['amount']) ? (string)floatval($row['amount']) : '',
+        );
+        ksort($data);
+        return md5(json_encode($data));
+    }
+
+    /**
      * Push all dirty config tables to the live site.
-     * Dispatches dedicated sync functions for each lookup table,
+     * Dispatches bidirectional lookup reconciliation for the 4 lookup tables,
      * and synchronizes revision entries using its established snapshot behavior.
      *
      * @return array { tables_pushed: [], tables_skipped: [], errors: [] }
@@ -923,59 +1230,21 @@ class Assessor_Sync {
         $skipped = array();
         $errors  = array();
 
-        // 1. Dedicated sync for assessor_property_types
-        $dirty_pt = (self::get_meta('config_dirty_assessor_property_types') === '1');
-        if ($dirty_pt) {
-            $res = self::sync_property_types();
-            if ($res['success']) {
-                $pushed[] = 'assessor_property_types';
-            } else {
-                $errors[] = 'assessor_property_types: ' . $res['message'];
+        // 1. Bidirectional reconciliation for the 4 lookup tables
+        $reconcile_res = self::sync_lookup_tables_bidirectional(false);
+        if (!empty($reconcile_res['tables'])) {
+            foreach ($reconcile_res['tables'] as $table_suffix => $tinfo) {
+                if (!empty($tinfo['success'])) {
+                    $pushed[] = $table_suffix;
+                } else {
+                    $errors[] = $table_suffix . ': ' . ($tinfo['error'] ?? 'Reconciliation failed');
+                }
             }
-        } else {
-            $skipped[] = 'assessor_property_types';
+        } elseif (!$reconcile_res['success']) {
+            $errors[] = 'Lookup reconciliation: ' . $reconcile_res['message'];
         }
 
-        // 2. Dedicated sync for assessor_general_classes
-        $dirty_gc = (self::get_meta('config_dirty_assessor_general_classes') === '1');
-        if ($dirty_gc) {
-            $res = self::sync_general_classes();
-            if ($res['success']) {
-                $pushed[] = 'assessor_general_classes';
-            } else {
-                $errors[] = 'assessor_general_classes: ' . $res['message'];
-            }
-        } else {
-            $skipped[] = 'assessor_general_classes';
-        }
-
-        // 3. Dedicated sync for assessor_locations
-        $dirty_loc = (self::get_meta('config_dirty_assessor_locations') === '1');
-        if ($dirty_loc) {
-            $res = self::sync_locations();
-            if ($res['success']) {
-                $pushed[] = 'assessor_locations';
-            } else {
-                $errors[] = 'assessor_locations: ' . $res['message'];
-            }
-        } else {
-            $skipped[] = 'assessor_locations';
-        }
-
-        // 4. Dedicated sync for assessor_request_purposes
-        $dirty_rp = (self::get_meta('config_dirty_assessor_request_purposes') === '1');
-        if ($dirty_rp) {
-            $res = self::sync_request_purposes();
-            if ($res['success']) {
-                $pushed[] = 'assessor_request_purposes';
-            } else {
-                $errors[] = 'assessor_request_purposes: ' . $res['message'];
-            }
-        } else {
-            $skipped[] = 'assessor_request_purposes';
-        }
-
-        // 5. Existing config snapshot behavior for assessor_revision_entries
+        // 2. Existing config snapshot behavior for assessor_revision_entries
         $dirty_rev = (self::get_meta('config_dirty_assessor_revision_entries') === '1');
         if ($dirty_rev) {
             global $wpdb;
