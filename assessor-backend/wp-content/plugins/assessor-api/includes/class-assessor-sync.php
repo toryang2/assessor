@@ -809,10 +809,15 @@ class Assessor_Sync {
                         $rdata = isset($rec['data']) ? $rec['data'] : array();
                         $display = array('error' => $err_msg);
                         if ($rec['record_type'] === 'property') {
-                            $display['tax_declaration_number'] = $rdata['tax_declaration_number'] ?? '';
-                            $display['owner_name']             = trim(($rdata['declarant_last_name'] ?? '') . ', ' . ($rdata['declarant_first_name'] ?? ''));
-                            $display['location']               = $rdata['location'] ?? '';
-                            $display['pin']                    = $rdata['pin'] ?? '';
+                            $display['tax_declaration_number']  = $rdata['tax_declaration_number'] ?? '';
+                            $display['declarant_last_name']     = $rdata['declarant_last_name'] ?? '';
+                            $display['declarant_first_name']    = $rdata['declarant_first_name'] ?? '';
+                            $display['declarant_middle_initial'] = $rdata['declarant_middle_initial'] ?? '';
+                            $display['business_name']           = $rdata['business_name'] ?? '';
+                            $display['location']                = $rdata['location'] ?? '';
+                            $display['pin']                     = $rdata['pin'] ?? '';
+                            $display['assessed_value']          = $rdata['assessed_value'] ?? null;
+                            $display['assessed_value_old']      = $rdata['assessed_value_old'] ?? null;
                         } else {
                             $display['receipt_number'] = $rdata['receipt_number'] ?? '';
                             $display['client_name']    = $rdata['client_name'] ?? '';
@@ -875,11 +880,15 @@ class Assessor_Sync {
                         $display['error'] = isset($res_item['message']) ? $res_item['message'] : 'unknown';
                     }
                     if ($rec['record_type'] === 'property') {
-                        $display['tax_declaration_number'] = $rdata['tax_declaration_number'] ?? '';
-                        $display['owner_name']             = trim(($rdata['declarant_last_name'] ?? '') . ', ' . ($rdata['declarant_first_name'] ?? ''));
-                        $display['location']               = $rdata['location'] ?? '';
-                        $display['pin']                    = $rdata['pin'] ?? '';
-                        $display['assessed_value']         = $rdata['assessed_value'] ?? null;
+                        $display['tax_declaration_number']  = $rdata['tax_declaration_number'] ?? '';
+                        $display['declarant_last_name']     = $rdata['declarant_last_name'] ?? '';
+                        $display['declarant_first_name']    = $rdata['declarant_first_name'] ?? '';
+                        $display['declarant_middle_initial'] = $rdata['declarant_middle_initial'] ?? '';
+                        $display['business_name']           = $rdata['business_name'] ?? '';
+                        $display['location']                = $rdata['location'] ?? '';
+                        $display['pin']                     = $rdata['pin'] ?? '';
+                        $display['assessed_value']          = $rdata['assessed_value'] ?? null;
+                        $display['assessed_value_old']      = $rdata['assessed_value_old'] ?? null;
                     } else {
                         $display['receipt_number'] = $rdata['receipt_number'] ?? '';
                         $display['client_name']    = $rdata['client_name'] ?? '';
@@ -1578,7 +1587,7 @@ class Assessor_Sync {
         if (!empty($prop_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, location, pin, assessed_value, status, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, declarant_middle_initial, business_name, location, pin, assessed_value, assessed_value_old, revision_id, status, updated_at FROM $table WHERE id = %s LIMIT 1",
                     $prop_id
                 ),
                 ARRAY_A
@@ -1589,7 +1598,7 @@ class Assessor_Sync {
         if (!$local && !empty($tax_num) && !empty($revision_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, location, pin, assessed_value, status, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
+                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, declarant_middle_initial, business_name, location, pin, assessed_value, assessed_value_old, revision_id, status, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
                     $tax_num,
                     $revision_id
                 ),
@@ -1604,11 +1613,18 @@ class Assessor_Sync {
         if (!$force_full && $local && $local_ts >= $remote_ts) {
             if ($report) {
                 $report->record_item('property', $local['id'], 'live_to_local', 'skipped', array(
-                    'tax_declaration_number' => $tax_num ?: ($local['tax_declaration_number'] ?? ''),
-                    'owner_name'             => trim(($local['declarant_last_name'] ?? '') . ', ' . ($local['declarant_first_name'] ?? '')),
-                    'location'               => $local['location'] ?? '',
-                    'pin'                    => $local['pin'] ?? '',
-                    'reason'                 => 'local version is equal or newer'
+                    'tax_declaration_number'   => $tax_num ?: ($local['tax_declaration_number'] ?? ''),
+                    'declarant_last_name'      => $local['declarant_last_name'] ?? ($remote['declarant_last_name'] ?? ''),
+                    'declarant_first_name'     => $local['declarant_first_name'] ?? ($remote['declarant_first_name'] ?? ''),
+                    'declarant_middle_initial' => $local['declarant_middle_initial'] ?? ($remote['declarant_middle_initial'] ?? ''),
+                    'business_name'            => $local['business_name'] ?? ($remote['business_name'] ?? ''),
+                    'location'                 => $local['location'] ?? ($remote['location'] ?? ''),
+                    'pin'                      => $local['pin'] ?? ($remote['pin'] ?? ''),
+                    'assessed_value'           => $local['assessed_value'] ?? ($remote['assessed_value'] ?? null),
+                    'assessed_value_old'       => $local['assessed_value_old'] ?? ($remote['assessed_value_old'] ?? null),
+                    'revision_id'              => $local['revision_id'] ?? ($remote['revision_id'] ?? ''),
+                    'status'                   => $local['status'] ?? ($remote['status'] ?? 'active'),
+                    'reason'                   => 'local version is equal or newer'
                 ));
             }
             return 'skipped';
@@ -1645,8 +1661,16 @@ class Assessor_Sync {
                 $err = 'error updating ' . $tax_num . ': ' . $wpdb->last_error;
                 if ($report) {
                     $report->record_item('property', $local['id'], 'live_to_local', 'failed', array(
-                        'tax_declaration_number' => $tax_num,
-                        'error'                  => $wpdb->last_error,
+                        'tax_declaration_number'   => $tax_num,
+                        'declarant_last_name'      => $safe['declarant_last_name'] ?? ($local['declarant_last_name'] ?? ''),
+                        'declarant_first_name'     => $safe['declarant_first_name'] ?? ($local['declarant_first_name'] ?? ''),
+                        'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? ($local['declarant_middle_initial'] ?? ''),
+                        'business_name'            => $safe['business_name'] ?? ($local['business_name'] ?? ''),
+                        'location'                 => $safe['location'] ?? ($local['location'] ?? ''),
+                        'pin'                      => $safe['pin'] ?? ($local['pin'] ?? ''),
+                        'assessed_value'           => $safe['assessed_value'] ?? ($local['assessed_value'] ?? null),
+                        'assessed_value_old'       => $old_assessed_value,
+                        'error'                    => $wpdb->last_error,
                     ));
                 }
                 return $err;
@@ -1667,8 +1691,16 @@ class Assessor_Sync {
                 $err = 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
                 if ($report) {
                     $report->record_item('property', $safe['id'], 'live_to_local', 'failed', array(
-                        'tax_declaration_number' => $tax_num,
-                        'error'                  => $wpdb->last_error,
+                        'tax_declaration_number'   => $tax_num,
+                        'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
+                        'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
+                        'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
+                        'business_name'            => $safe['business_name'] ?? '',
+                        'location'                 => $safe['location'] ?? '',
+                        'pin'                      => $safe['pin'] ?? '',
+                        'assessed_value'           => $safe['assessed_value'] ?? null,
+                        'assessed_value_old'       => null,
+                        'error'                    => $wpdb->last_error,
                     ));
                 }
                 return $err;
@@ -1716,15 +1748,18 @@ class Assessor_Sync {
 
         if ($report) {
             $report->record_item('property', $local_property_id, 'live_to_local', $action, array(
-                'tax_declaration_number' => $tax_num,
-                'owner_name'             => trim(($safe['declarant_last_name'] ?? '') . ', ' . ($safe['declarant_first_name'] ?? '')),
-                'location'               => $safe['location'] ?? '',
-                'pin'                    => $safe['pin'] ?? '',
-                'revision_id'            => $safe['revision_id'] ?? '',
-                'assessed_value'         => $safe['assessed_value'] ?? null,
-                'assessed_value_old'     => $old_assessed_value,
-                'status'                 => $safe['status'] ?? 'active',
-                'status_old'             => $old_status,
+                'tax_declaration_number'   => $tax_num,
+                'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
+                'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
+                'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
+                'business_name'            => $safe['business_name'] ?? '',
+                'location'                 => $safe['location'] ?? '',
+                'pin'                      => $safe['pin'] ?? '',
+                'revision_id'              => $safe['revision_id'] ?? '',
+                'assessed_value'           => $safe['assessed_value'] ?? null,
+                'assessed_value_old'       => $old_assessed_value,
+                'status'                   => $safe['status'] ?? 'active',
+                'status_old'               => $old_status,
             ));
         }
 

@@ -138,6 +138,52 @@ class Assessor_Sync_Report {
             $grp['total']++;
         }
 
+        // Normalize property display data
+        if ($record_type === 'property' && is_array($display_data)) {
+            $last   = isset($display_data['declarant_last_name']) ? trim((string)$display_data['declarant_last_name']) : '';
+            $first  = isset($display_data['declarant_first_name']) ? trim((string)$display_data['declarant_first_name']) : '';
+            $middle = isset($display_data['declarant_middle_initial']) ? trim((string)$display_data['declarant_middle_initial']) : '';
+
+            // Clean middle: remove dots
+            $mi = str_replace('.', '', $middle);
+            $middle_formatted = $mi !== '' ? (strlen($mi) === 1 ? " {$mi}." : " {$mi}") : '';
+
+            // Generate clean canonical owner_name without dangling commas
+            if ($last !== '' && $first !== '') {
+                $clean_owner = "{$last}, {$first}{$middle_formatted}";
+            } elseif ($last !== '') {
+                $clean_owner = $last;
+            } elseif ($first !== '') {
+                $clean_owner = trim("{$first}{$middle_formatted}");
+            } else {
+                $clean_owner = isset($display_data['owner_name']) ? trim((string)$display_data['owner_name']) : '';
+                // Strip trailing/leading/double commas from legacy owner_name
+                $clean_owner = trim(preg_replace('/^,\s*|\s*,\s*$/', '', preg_replace('/\s*,\s*/', ', ', $clean_owner)));
+                if ($clean_owner === ',') {
+                    $clean_owner = '';
+                }
+            }
+
+            $display_data['owner_name'] = $clean_owner;
+
+            // Ensure discrete fields are preserved if provided
+            if (!isset($display_data['declarant_last_name'])) $display_data['declarant_last_name'] = $last;
+            if (!isset($display_data['declarant_first_name'])) $display_data['declarant_first_name'] = $first;
+            if (!isset($display_data['declarant_middle_initial'])) $display_data['declarant_middle_initial'] = $middle;
+
+            // Normalize business_name
+            if (isset($display_data['business_name'])) {
+                $display_data['business_name'] = trim(preg_replace('/,\s*/', ' ', (string)$display_data['business_name']));
+            } else {
+                $display_data['business_name'] = '';
+            }
+
+            // Ensure assessed_value is present
+            if (!array_key_exists('assessed_value', $display_data)) {
+                $display_data['assessed_value'] = null;
+            }
+        }
+
         $item_id = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
         $this->item_buffer[] = array(
             'id'                => $item_id,

@@ -93,6 +93,80 @@ const formatDate = (dateString) => {
   });
 };
 
+// Perspective-aware Direction Label and Tooltip Helper
+const getDirectionInfo = (direction, perspective = 'local') => {
+  const isLocalPerspective = perspective === 'local';
+  if (direction === 'local_to_live') {
+    return isLocalPerspective
+      ? { label: 'Push', tooltip: 'Pushed to Live Server', full: 'Local → Live' }
+      : { label: 'Received', tooltip: 'Received from Local Server', full: 'Received from Local' };
+  }
+  if (direction === 'live_to_local') {
+    return isLocalPerspective
+      ? { label: 'Pull', tooltip: 'Pulled from Live Server', full: 'Live → Local' }
+      : { label: 'Sent', tooltip: 'Sent to Local Server', full: 'Sent to Local' };
+  }
+  return { label: direction || 'Synced', tooltip: direction || 'Synced', full: direction || 'Synced' };
+};
+
+// Declarant & Business formatting helper matching PropertyTable.js
+const formatSyncDeclarant = (displayData) => {
+  if (!displayData) return '';
+  const last = (displayData.declarant_last_name || '').trim();
+  const first = (displayData.declarant_first_name || '').trim();
+  const middle = (displayData.declarant_middle_initial || '').trim();
+
+  const hasParts = !!(last || first);
+  if (hasParts) {
+    const mi = middle.replace(/\./g, '');
+    const middleFormatted = mi ? (mi.length === 1 ? ` ${mi}.` : ` ${mi}`) : '';
+    if (last && first) {
+      return `${last}, ${first}${middleFormatted}`.trim();
+    } else if (last) {
+      return last;
+    } else {
+      return `${first}${middleFormatted}`.trim();
+    }
+  }
+
+  // Fallback to owner_name if discrete parts are not populated
+  if (displayData.owner_name) {
+    const s = String(displayData.owner_name).trim();
+    return s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
+  }
+  return '';
+};
+
+const formatSyncBusiness = (displayData) => {
+  if (!displayData || !displayData.business_name) return '';
+  return String(displayData.business_name).replace(/,\s*/g, ' ').trim();
+};
+
+const formatSyncAssessedValue = (displayData) => {
+  if (!displayData) return '₱0.00';
+  const currentValue = displayData.assessed_value;
+  const oldValue = displayData.assessed_value_old;
+  const hasCurrent = currentValue !== undefined && currentValue !== null && currentValue !== '';
+  const hasOld = oldValue !== undefined && oldValue !== null && oldValue !== '';
+
+  if (!hasCurrent && !hasOld) return '₱0.00';
+
+  let displayValue = '';
+  if (hasCurrent && !isNaN(Number(currentValue))) {
+    displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } else if (hasCurrent) {
+    displayValue = String(currentValue);
+  }
+
+  if (hasOld && displayValue) {
+    return `${displayValue} (${oldValue})`;
+  } else if (hasOld) {
+    return String(oldValue);
+  } else {
+    return displayValue || '₱0.00';
+  }
+};
+
 const getActionChipProps = (action) => {
   switch (action) {
     case 'created':
@@ -152,9 +226,13 @@ const PhaseItem = ({ label, status, details }) => {
 };
 
 // ─── Record Detail Dialog ─────────────────────────────────────────
-const RecordDetailDialog = ({ open, onClose, item }) => {
+const RecordDetailDialog = ({ open, onClose, item, perspective = 'local' }) => {
   if (!item) return null;
   const { record_type, record_id, action, direction, display_data, created_at } = item;
+  const dirInfo = getDirectionInfo(direction, perspective);
+
+  const declarant = record_type === 'property' ? formatSyncDeclarant(display_data) : '';
+  const business = record_type === 'property' ? formatSyncBusiness(display_data) : '';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -176,7 +254,9 @@ const RecordDetailDialog = ({ open, onClose, item }) => {
               <Typography sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{record_id}</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Chip size="small" label={direction === 'local_to_live' ? 'Local → Live' : 'Live → Local'} variant="outlined" sx={{ fontSize: '0.7rem' }} />
+              <Tooltip title={dirInfo.tooltip}>
+                <Chip size="small" label={dirInfo.full} variant="outlined" sx={{ fontSize: '0.7rem' }} />
+              </Tooltip>
               <Chip size="small" {...getActionChipProps(action)} sx={{ fontSize: '0.7rem' }} />
             </Box>
           </Box>
@@ -190,8 +270,25 @@ const RecordDetailDialog = ({ open, onClose, item }) => {
                   <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{display_data?.tax_declaration_number || '—'}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Declarant / Owner</TableCell>
-                  <TableCell>{display_data?.owner_name || '—'}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary', verticalAlign: 'top' }}>Declarant / Owner</TableCell>
+                  <TableCell>
+                    {!declarant && !business ? (
+                      '—'
+                    ) : (
+                      <Box>
+                        {declarant && (
+                          <Typography variant="body2" sx={{ fontWeight: 700, display: 'block' }}>
+                            {declarant}
+                          </Typography>
+                        )}
+                        {business && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
+                            {business}
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Location</TableCell>
@@ -203,13 +300,8 @@ const RecordDetailDialog = ({ open, onClose, item }) => {
                 </TableRow>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Assessed Value</TableCell>
-                  <TableCell>
-                    {display_data?.assessed_value != null ? `₱${Number(display_data.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
-                    {display_data?.assessed_value_old != null && (
-                      <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1, textDecoration: 'line-through' }}>
-                        ₱${Number(display_data.assessed_value_old).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </Typography>
-                    )}
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    {formatSyncAssessedValue(display_data)}
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -275,7 +367,7 @@ const RecordDetailDialog = ({ open, onClose, item }) => {
 };
 
 // ─── Full Record Browser Dialog ───────────────────────────────────
-const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' }) => {
+const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property', perspective = 'local' }) => {
   const [activeType, setActiveType] = useState(initialType);
   const [actionFilter, setActionFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -423,18 +515,41 @@ const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' })
               ) : (
                 itemsData.items.map((row) => {
                   const d = row.display_data || {};
+                  const dirInfo = getDirectionInfo(row.direction, perspective);
                   return (
                     <TableRow key={row.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                       {activeType === 'property' ? (
                         <>
                           <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{d.tax_declaration_number || '—'}</TableCell>
-                          <TableCell sx={{ fontSize: '0.8rem' }}>{d.owner_name || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem', verticalAlign: 'top' }}>
+                            {(() => {
+                              const declarant = formatSyncDeclarant(d);
+                              const business = formatSyncBusiness(d);
+                              if (!declarant && !business) return '—';
+                              return (
+                                <Box>
+                                  {declarant && (
+                                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.25 }}>
+                                      {declarant}
+                                    </Typography>
+                                  )}
+                                  {business && (
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.725rem', display: 'block', mt: 0.25, lineHeight: 1.2 }}>
+                                      {business}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              );
+                            })()}
+                          </TableCell>
                           <TableCell sx={{ fontSize: '0.8rem' }}>{d.location || '—'}</TableCell>
-                          <TableCell sx={{ fontSize: '0.8rem' }}>
-                            {d.assessed_value != null ? `₱${Number(d.assessed_value).toLocaleString('en-US')}` : '—'}
+                          <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                            {formatSyncAssessedValue(d)}
                           </TableCell>
                           <TableCell>
-                            <Chip size="small" label={row.direction === 'local_to_live' ? 'Push' : 'Pull'} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            <Tooltip title={dirInfo.tooltip}>
+                              <Chip size="small" label={dirInfo.label} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            </Tooltip>
                           </TableCell>
                           <TableCell>
                             <Chip size="small" {...getActionChipProps(row.action)} sx={{ fontSize: '0.65rem', height: 20 }} />
@@ -454,7 +569,9 @@ const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' })
                             {d.amount_paid != null ? `₱${Number(d.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
                           </TableCell>
                           <TableCell>
-                            <Chip size="small" label={row.direction === 'local_to_live' ? 'Push' : 'Pull'} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            <Tooltip title={dirInfo.tooltip}>
+                              <Chip size="small" label={dirInfo.label} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            </Tooltip>
                           </TableCell>
                           <TableCell>
                             <Chip size="small" {...getActionChipProps(row.action)} sx={{ fontSize: '0.65rem', height: 20 }} />
@@ -490,6 +607,7 @@ const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' })
         open={Boolean(selectedItem)}
         onClose={() => setSelectedItem(null)}
         item={selectedItem}
+        perspective={perspective}
       />
     </Dialog>
   );
@@ -1260,7 +1378,27 @@ const SyncModal = ({ open, onClose }) => {
                         propertyPreviewItems.slice(0, 4).map(item => (
                           <TableRow key={item.id} hover>
                             <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{item.display_data?.tax_declaration_number || '—'}</TableCell>
-                            <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.owner_name || '—'}</TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem', verticalAlign: 'top' }}>
+                              {(() => {
+                                const declarant = formatSyncDeclarant(item.display_data);
+                                const business = formatSyncBusiness(item.display_data);
+                                if (!declarant && !business) return '—';
+                                return (
+                                  <Box>
+                                    {declarant && (
+                                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem', lineHeight: 1.25 }}>
+                                        {declarant}
+                                      </Typography>
+                                    )}
+                                    {business && (
+                                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.725rem', display: 'block', mt: 0.25, lineHeight: 1.2 }}>
+                                        {business}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.location || '—'}</TableCell>
                             <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.65rem', height: 20 }} /></TableCell>
                             <TableCell align="center">
@@ -1357,7 +1495,27 @@ const SyncModal = ({ open, onClose }) => {
                         propertyPreviewItems.map(item => (
                           <TableRow key={item.id} hover>
                             <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.display_data?.tax_declaration_number || '—'}</TableCell>
-                            <TableCell>{item.display_data?.owner_name || '—'}</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top' }}>
+                              {(() => {
+                                const declarant = formatSyncDeclarant(item.display_data);
+                                const business = formatSyncBusiness(item.display_data);
+                                if (!declarant && !business) return '—';
+                                return (
+                                  <Box>
+                                    {declarant && (
+                                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                                        {declarant}
+                                      </Typography>
+                                    )}
+                                    {business && (
+                                      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
+                                        {business}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell>{item.display_data?.location || '—'}</TableCell>
                             <TableCell sx={{ fontFamily: 'monospace' }}>{item.display_data?.pin || '—'}</TableCell>
                             <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.7rem' }} /></TableCell>
@@ -1670,6 +1828,7 @@ const SyncModal = ({ open, onClose }) => {
         onClose={() => setBrowserOpen(false)}
         runId={activeReport?.id || syncRunId}
         initialType={browserType}
+        perspective={isLocalBuild ? 'local' : 'live'}
       />
 
       {/* Record Detail Dialog */}
@@ -1677,6 +1836,7 @@ const SyncModal = ({ open, onClose }) => {
         open={Boolean(selectedItem)}
         onClose={() => setSelectedItem(null)}
         item={selectedItem}
+        perspective={isLocalBuild ? 'local' : 'live'}
       />
     </Dialog>
   );
