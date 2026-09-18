@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Button,
   Typography,
   Box,
@@ -17,10 +18,35 @@ import {
   LinearProgress,
   Chip,
   Divider,
-  useTheme
+  Tabs,
+  Tab,
+  TextField,
+  InputAdornment,
+  TablePagination,
+  Alert,
+  Tooltip,
+  useTheme,
 } from '@mui/material';
-import { Close as CloseIcon, CloudSync as CloudSyncIcon, InfoOutlined as InfoIcon, CheckCircleOutline as CheckCircleIcon, Error as ErrorIcon, Warning as WarningIcon, Refresh as RefreshIcon, PlayArrow as PlayIcon, Stop as StopIcon, Download as DownloadIcon } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Close as CloseIcon,
+  CloudSync as CloudSyncIcon,
+  InfoOutlined as InfoIcon,
+  Warning as WarningIcon,
+  Refresh as RefreshIcon,
+  PlayArrow as PlayIcon,
+  Stop as StopIcon,
+  Download as DownloadIcon,
+  Search as SearchIcon,
+  OpenInNew as OpenInNewIcon,
+  Replay as ReplayIcon,
+  CheckCircle as CheckCircleFilledIcon,
+  Cancel as CancelIcon,
+  HourglassEmpty as HourglassIcon,
+  Description as DescriptionIcon,
+  Receipt as ReceiptIcon,
+  FiberManualRecord as DotIcon,
+} from '@mui/icons-material';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../utils/api';
 import AnimatedCloudIcon from '../AnimatedCloudIcon/AnimatedCloudIcon';
@@ -33,7 +59,8 @@ const PulseRing = () => (
         key={i}
         style={{
           position: 'absolute',
-          width: 72, height: 72,
+          width: 72,
+          height: 72,
           borderRadius: '50%',
           border: '2px solid',
           borderColor: 'rgba(37, 99, 235, 0.15)',
@@ -51,6 +78,423 @@ const PulseRing = () => (
   </Box>
 );
 
+// ─── Helper formatters ────────────────────────────────────────────
+const formatDate = (dateString) => {
+  if (!dateString) return 'Never';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+const getActionChipProps = (action) => {
+  switch (action) {
+    case 'created':
+      return { label: 'Created', color: 'success', variant: 'outlined' };
+    case 'updated':
+      return { label: 'Updated', color: 'primary', variant: 'outlined' };
+    case 'skipped':
+      return { label: 'Skipped', color: 'default', variant: 'outlined' };
+    case 'failed':
+      return { label: 'Failed', color: 'error', variant: 'filled' };
+    case 'deleted':
+      return { label: 'Deleted', color: 'error', variant: 'outlined' };
+    default:
+      return { label: action || 'Synced', color: 'default', variant: 'outlined' };
+  }
+};
+
+// ─── Phase Item Row ───────────────────────────────────────────────
+const PhaseItem = ({ label, status, details }) => {
+  const getIcon = () => {
+    switch (status) {
+      case 'running':
+        return <CircularProgress size={16} color="primary" />;
+      case 'completed':
+        return <CheckCircleFilledIcon sx={{ fontSize: 18, color: 'success.main' }} />;
+      case 'failed':
+        return <CancelIcon sx={{ fontSize: 18, color: 'error.main' }} />;
+      default:
+        return <HourglassIcon sx={{ fontSize: 18, color: 'text.disabled' }} />;
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.75, px: 1.5, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+        {getIcon()}
+        <Typography variant="body2" sx={{ fontWeight: 500, color: status === 'pending' ? 'text.secondary' : 'text.primary' }}>
+          {label}
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {details && (
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
+            {details}
+          </Typography>
+        )}
+        <Chip
+          size="small"
+          label={status}
+          color={status === 'completed' ? 'success' : (status === 'failed' ? 'error' : (status === 'running' ? 'primary' : 'default'))}
+          variant="outlined"
+          sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }}
+        />
+      </Box>
+    </Box>
+  );
+};
+
+// ─── Record Detail Dialog ─────────────────────────────────────────
+const RecordDetailDialog = ({ open, onClose, item }) => {
+  if (!item) return null;
+  const { record_type, record_id, action, direction, display_data, created_at } = item;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {record_type === 'property' ? <DescriptionIcon color="primary" /> : <ReceiptIcon color="secondary" />}
+          <Typography variant="h6" sx={{ fontSize: '1.05rem', fontWeight: 600 }}>
+            {record_type === 'property' ? 'Property Sync Details' : 'Request Sync Details'}
+          </Typography>
+        </Box>
+        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+      </DialogTitle>
+      <DialogContent dividers sx={{ pt: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* Status header banner */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5, borderRadius: 1, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Record ID / UUID</Typography>
+              <Typography sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{record_id}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Chip size="small" label={direction === 'local_to_live' ? 'Local → Live' : 'Live → Local'} variant="outlined" sx={{ fontSize: '0.7rem' }} />
+              <Chip size="small" {...getActionChipProps(action)} sx={{ fontSize: '0.7rem' }} />
+            </Box>
+          </Box>
+
+          {/* Properties Details */}
+          {record_type === 'property' && (
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, width: '40%', color: 'text.secondary' }}>Tax Declaration No.</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{display_data?.tax_declaration_number || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Declarant / Owner</TableCell>
+                  <TableCell>{display_data?.owner_name || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Location</TableCell>
+                  <TableCell>{display_data?.location || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>PIN</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace' }}>{display_data?.pin || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Assessed Value</TableCell>
+                  <TableCell>
+                    {display_data?.assessed_value != null ? `₱${Number(display_data.assessed_value).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                    {display_data?.assessed_value_old != null && (
+                      <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1, textDecoration: 'line-through' }}>
+                        ₱${Number(display_data.assessed_value_old).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Status</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={display_data?.status || 'Active'} variant="outlined" sx={{ textTransform: 'capitalize', fontSize: '0.7rem' }} />
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Requests Details */}
+          {record_type === 'request' && (
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, width: '40%', color: 'text.secondary' }}>Receipt Number</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{display_data?.receipt_number || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Client Name</TableCell>
+                  <TableCell>{display_data?.client_name || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Purpose</TableCell>
+                  <TableCell>{display_data?.purpose || '—'}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Amount Paid</TableCell>
+                  <TableCell>
+                    {display_data?.amount_paid != null ? `₱${Number(display_data.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>Date Issued</TableCell>
+                  <TableCell>{display_data?.date_issued || '—'}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Error / Diagnostic details if any */}
+          {display_data?.error && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Sync Error Diagnostic</Typography>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', mt: 0.5 }}>
+                {display_data.error}
+              </Typography>
+            </Alert>
+          )}
+
+          <Typography variant="caption" sx={{ color: 'text.disabled', textAlign: 'right' }}>
+            Synchronized at: {formatDate(created_at)}
+          </Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// ─── Full Record Browser Dialog ───────────────────────────────────
+const RecordBrowserDialog = ({ open, onClose, runId, initialType = 'property' }) => {
+  const [activeType, setActiveType] = useState(initialType);
+  const [actionFilter, setActionFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [itemsData, setItemsData] = useState({ items: [], total: 0 });
+  const [loading, setLoading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  useEffect(() => {
+    setActiveType(initialType);
+    setPage(0);
+  }, [initialType, open]);
+
+  const fetchItems = () => {
+    if (!runId || !open) return;
+    setLoading(true);
+    apiService.getSyncReportItems(runId, {
+      record_type: activeType,
+      action: actionFilter,
+      search: searchTerm,
+      page: page + 1,
+      per_page: rowsPerPage,
+    })
+      .then(res => {
+        setItemsData({ items: res.items || [], total: res.total || 0 });
+      })
+      .catch(err => console.error("Failed to load sync items:", err))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchItems();
+  }, [runId, open, activeType, actionFilter, page, rowsPerPage]);
+
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      setPage(0);
+      fetchItems();
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { height: '80vh', display: 'flex', flexDirection: 'column' } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <CloudSyncIcon color="primary" />
+          <Box>
+            <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>Sync Record Browser</Typography>
+            <Typography variant="caption" color="text.secondary">Run ID: {runId || 'N/A'}</Typography>
+          </Box>
+        </Box>
+        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+      </DialogTitle>
+
+      {/* Tabs & Filters */}
+      <Box sx={{ px: 3, pt: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+        <Tabs value={activeType} onChange={(e, val) => { setActiveType(val); setPage(0); }} sx={{ minHeight: 40 }}>
+          <Tab value="property" label="Properties" icon={<DescriptionIcon sx={{ fontSize: 16 }} />} iconPosition="start" sx={{ minHeight: 40, py: 0, textTransform: 'none', fontWeight: 600 }} />
+          <Tab value="request" label="Requests" icon={<ReceiptIcon sx={{ fontSize: 16 }} />} iconPosition="start" sx={{ minHeight: 40, py: 0, textTransform: 'none', fontWeight: 600 }} />
+        </Tabs>
+
+        {/* Quick action filter chips */}
+        <Box sx={{ display: 'flex', gap: 0.75, pb: 1 }}>
+          {['all', 'created', 'updated', 'skipped', 'failed'].map((act) => (
+            <Chip
+              key={act}
+              label={act.charAt(0).toUpperCase() + act.slice(1)}
+              size="small"
+              clickable
+              color={actionFilter === act ? 'primary' : 'default'}
+              variant={actionFilter === act ? 'filled' : 'outlined'}
+              onClick={() => { setActionFilter(act); setPage(0); }}
+              sx={{ fontSize: '0.7rem', height: 24 }}
+            />
+          ))}
+        </Box>
+      </Box>
+
+      {/* Search Input Bar */}
+      <Box sx={{ px: 3, py: 1.5, bgcolor: 'background.default', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 2 }}>
+        <TextField
+          size="small"
+          placeholder={activeType === 'property' ? "Search by TDN, Declarant, or PIN..." : "Search by Receipt, Client, or Purpose..."}
+          fullWidth
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyPress={handleSearchKeyPress}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <Button variant="contained" size="small" onClick={() => { setPage(0); fetchItems(); }} sx={{ textTransform: 'none', px: 3 }}>
+          Search
+        </Button>
+      </Box>
+
+      {/* Records Table */}
+      <DialogContent sx={{ p: 0, flex: 1, overflow: 'auto' }}>
+        <TableContainer sx={{ height: '100%' }}>
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                {activeType === 'property' ? (
+                  <>
+                    <TableCell sx={{ fontWeight: 600 }}>TDN</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Owner / Declarant</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Location</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Assessed Value</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Direction</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Details</TableCell>
+                  </>
+                ) : (
+                  <>
+                    <TableCell sx={{ fontWeight: 600 }}>Receipt No.</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Client Name</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Direction</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Details</TableCell>
+                  </>
+                )}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={24} />
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>Loading sync records...</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : itemsData.items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                    No sync records found for the selected criteria.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                itemsData.items.map((row) => {
+                  const d = row.display_data || {};
+                  return (
+                    <TableRow key={row.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                      {activeType === 'property' ? (
+                        <>
+                          <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{d.tax_declaration_number || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{d.owner_name || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{d.location || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>
+                            {d.assessed_value != null ? `₱${Number(d.assessed_value).toLocaleString('en-US')}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip size="small" label={row.direction === 'local_to_live' ? 'Push' : 'Pull'} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                          </TableCell>
+                          <TableCell>
+                            <Chip size="small" {...getActionChipProps(row.action)} sx={{ fontSize: '0.65rem', height: 20 }} />
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton size="small" onClick={() => setSelectedItem(row)}>
+                              <OpenInNewIcon fontSize="small" sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{d.receipt_number || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{d.client_name || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>{d.purpose || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8rem' }}>
+                            {d.amount_paid != null ? `₱${Number(d.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip size="small" label={row.direction === 'local_to_live' ? 'Push' : 'Pull'} variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                          </TableCell>
+                          <TableCell>
+                            <Chip size="small" {...getActionChipProps(row.action)} sx={{ fontSize: '0.65rem', height: 20 }} />
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton size="small" onClick={() => setSelectedItem(row)}>
+                              <OpenInNewIcon fontSize="small" sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </DialogContent>
+
+      <TablePagination
+        component="div"
+        count={itemsData.total}
+        page={page}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+        rowsPerPageOptions={[10, 25, 50, 100]}
+        sx={{ borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}
+      />
+
+      <RecordDetailDialog
+        open={Boolean(selectedItem)}
+        onClose={() => setSelectedItem(null)}
+        item={selectedItem}
+      />
+    </Dialog>
+  );
+};
+
 // ─── Live Server Dashboard ────────────────────────────────────────
 const LiveServerDashboard = ({ syncConfig }) => {
   const theme = useTheme();
@@ -65,17 +509,8 @@ const LiveServerDashboard = ({ syncConfig }) => {
       .finally(() => setLoadingLogs(false));
   }, []);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: 'numeric', minute: '2-digit', hour12: true
-    });
-  };
-
   return (
     <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Info banner */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
@@ -95,7 +530,6 @@ const LiveServerDashboard = ({ syncConfig }) => {
         </Typography>
       </Box>
 
-      {/* Last Push / Last Pull cards */}
       <Box sx={{ display: 'flex', gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
         {[
           { label: 'Last Push', value: formatDate(syncConfig?.last_local_push) },
@@ -119,7 +553,6 @@ const LiveServerDashboard = ({ syncConfig }) => {
         ))}
       </Box>
 
-      {/* Recent Activity */}
       <Typography variant="h6" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' }, mb: { xs: 1, sm: 1.5 } }}>
         Recent Activity
       </Typography>
@@ -188,18 +621,66 @@ const LiveServerDashboard = ({ syncConfig }) => {
   );
 };
 
-// ─── Main SyncModal Component ─────────────────────────────────────
+// ─── Main SyncModal / Sync Center Component ───────────────────────
 const SyncModal = ({ open, onClose }) => {
   const theme = useTheme();
-  const { syncStatus, syncMessage, triggerManualSync } = useAuth();
+  const { syncStatus, syncMessage, syncRunId, triggerManualSync } = useAuth();
   const [syncConfig, setSyncConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
+  // Sync reporting & queue status
+  const [activeReport, setActiveReport] = useState(null);
+  const [queueStatus, setQueueStatus] = useState(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [recentItems, setRecentItems] = useState([]);
+  const [recentItemsLoading, setRecentItemsLoading] = useState(false);
+
+  // Active view inside modal: 'overview' | 'properties' | 'requests' | 'phases' | 'files'
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Full Record Browser Dialog & Record Detail Dialog
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserType, setBrowserType] = useState('property');
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  // Confirmation Dialog for Full Resync
+  const [fullResyncConfirmOpen, setFullResyncConfirmOpen] = useState(false);
+
+  // File Download state
   const [fileDownloadStatus, setFileDownloadStatus] = useState(null);
   const [fileDownloadStatusLoading, setFileDownloadStatusLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({ downloaded: 0, failed: 0, remaining: 0, total: 0, isFetching: false });
   const downloadAbortRef = useRef(false);
+
+  // Fetch report and queue details
+  const refreshSyncData = async () => {
+    if (!open) return;
+    setQueueLoading(true);
+    try {
+      const qRes = await apiService.getSyncQueueStatus();
+      setQueueStatus(qRes);
+    } catch (e) {
+      console.error('Failed to load sync queue status', e);
+    } finally {
+      setQueueLoading(false);
+    }
+
+    try {
+      const repRes = await apiService.getLatestSyncReport();
+      if (repRes?.run) {
+        setActiveReport(repRes.run);
+        // Load recent items for preview tables
+        setRecentItemsLoading(true);
+        const itemsRes = await apiService.getSyncReportItems(repRes.run.id, { per_page: 8 });
+        setRecentItems(itemsRes?.items || []);
+      }
+    } catch (e) {
+      console.error('Failed to load latest sync report', e);
+    } finally {
+      setRecentItemsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -208,8 +689,17 @@ const SyncModal = ({ open, onClose }) => {
         .then(config => setSyncConfig(config))
         .catch(err => console.error("Failed to load sync config:", err))
         .finally(() => setLoadingConfig(false));
+
+      refreshSyncData();
     }
   }, [open]);
+
+  // Refresh report when sync status changes or a sync run completes
+  useEffect(() => {
+    if (syncStatus === 'success' || syncStatus === 'failed') {
+      refreshSyncData();
+    }
+  }, [syncStatus, syncRunId]);
 
   const loadDownloadStatus = async () => {
     setFileDownloadStatusLoading(true);
@@ -306,7 +796,24 @@ const SyncModal = ({ open, onClose }) => {
   };
 
   const handleSyncNow = () => triggerManualSync();
-  const handleFullResync = () => triggerManualSync(true);
+
+  const handleExecuteFullResync = () => {
+    setFullResyncConfirmOpen(false);
+    triggerManualSync(true);
+  };
+
+  const handleRetryFailed = async () => {
+    try {
+      await apiService.clearFailedSyncItems();
+      await refreshSyncData();
+      triggerManualSync();
+    } catch (e) {
+      console.error('Failed to retry failed items:', e);
+    }
+  };
+
+  const isSyncing = syncStatus === 'syncing';
+  const isLocalBuild = syncConfig?.is_local_build !== false;
 
   const renderStatusText = () => {
     switch (syncStatus) {
@@ -328,49 +835,53 @@ const SyncModal = ({ open, onClose }) => {
     }
   };
 
-  const getStatusAlertSeverity = () => {
-    switch (syncStatus) {
-      case 'success': return 'success';
-      case 'failed': return 'error';
-      case 'incomplete': return 'warning';
-      case 'syncing': return 'info';
-      default: return 'info';
-    }
+  const chipProps = getStatusChipProps();
+
+  // Parse counters from activeReport summary
+  const summaryCounters = activeReport?.summary?.counters || {
+    properties: { created: 0, updated: 0, skipped: 0, failed: 0, total: 0 },
+    requests: { created: 0, updated: 0, skipped: 0, failed: 0, deleted: 0, total: 0 },
   };
 
-  const isSyncing = syncStatus === 'syncing';
-  const isLocalBuild = syncConfig?.is_local_build !== false; 
+  const summaryPhases = activeReport?.summary?.phases || {};
+
+  const propCount = (summaryCounters.properties?.created || 0) + (summaryCounters.properties?.updated || 0);
+  const reqCount  = (summaryCounters.requests?.created || 0) + (summaryCounters.requests?.updated || 0);
+  const skippedCount = (summaryCounters.properties?.skipped || 0) + (summaryCounters.requests?.skipped || 0);
+  const failedCount  = (summaryCounters.properties?.failed || 0) + (summaryCounters.requests?.failed || 0);
 
   const progressPercent = downloadProgress.total > 0
     ? Math.min(100, Math.round(((downloadProgress.total - downloadProgress.remaining) / downloadProgress.total) * 100))
     : 0;
 
-  const chipProps = getStatusChipProps();
+  // Filter preview items
+  const propertyPreviewItems = useMemo(() => recentItems.filter(i => i.record_type === 'property'), [recentItems]);
+  const requestPreviewItems  = useMemo(() => recentItems.filter(i => i.record_type === 'request'), [recentItems]);
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
       PaperProps={{
         component: motion.div,
         initial: { opacity: 0, y: 20 },
         animate: { opacity: 1, y: 0 },
         transition: { duration: 0.3 },
-        sx: { 
-          height: { xs: '90vh', sm: '80vh', md: '700px' },
-          maxHeight: '90vh',
+        sx: {
+          height: { xs: '95vh', sm: '85vh', md: '780px' },
+          maxHeight: '95vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          m: { xs: 2, sm: 0 },
+          m: { xs: 1, sm: 2 },
         }
       }}
     >
-      {/* ─── Header (matches app's DialogTitle pattern) ──── */}
-      <DialogTitle sx={{ 
-        bgcolor: 'background.default', 
+      {/* ─── Header ───────────────────────────────────────────── */}
+      <DialogTitle sx={{
+        bgcolor: 'background.default',
         color: 'text.primary',
         display: 'flex',
         alignItems: 'center',
@@ -382,322 +893,616 @@ const SyncModal = ({ open, onClose }) => {
         flexShrink: 0,
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <CloudSyncIcon sx={{ fontSize: { xs: 20, sm: 24 }, color: 'primary.main' }} />
+          <CloudSyncIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: 'primary.main' }} />
           <Box>
-            <Typography sx={{ fontWeight: 600, fontSize: { xs: '0.95rem', sm: '1.05rem' }, lineHeight: 1.3, color: 'text.primary' }}>
-              Synchronization
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.15rem' }, lineHeight: 1.3, color: 'text.primary' }}>
+                Sync Center
+              </Typography>
+              {/* Connection Status Indicator */}
+              <Tooltip title={isLocalBuild ? "Connected to Local Server" : "Connected to Live Server"}>
+                <Chip
+                  icon={<DotIcon sx={{ fontSize: '10px !important', color: 'success.main' }} />}
+                  label={isLocalBuild ? "Local Server" : "Live Server"}
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+                />
+              </Tooltip>
+            </Box>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {isLocalBuild ? 'Local Server' : 'Live Server'}
+              {activeReport?.completed_at ? `Last synced: ${formatDate(activeReport.completed_at)}` : (queueStatus?.last_pull ? `Last pull: ${formatDate(queueStatus.last_pull)}` : 'Real-time synchronization engine')}
             </Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip 
+          <Chip
             label={chipProps.label}
             size="small"
             color={chipProps.color}
             variant="outlined"
-            sx={{ 
-              fontWeight: 600, 
-              fontSize: '0.7rem',
-              height: 24,
-              '& .MuiChip-label': { px: 1 },
-            }} 
+            sx={{ fontWeight: 600, fontSize: '0.75rem', height: 26 }}
           />
-          <IconButton
-            onClick={onClose}
-            disabled={isSyncing}
-            size="small"
-            sx={{
-              color: 'text.secondary',
-              '&:hover': { bgcolor: 'action.hover' },
-            }}
-          >
+          <IconButton onClick={onClose} disabled={isSyncing} size="small" sx={{ color: 'text.secondary' }}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
       </DialogTitle>
-      
-      {/* ─── Body ────────────────────────────────────────────── */}
-      <DialogContent sx={{ 
-        p: { xs: 2.5, sm: 3 }, 
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+
+      {/* ─── Navigation Tabs ──────────────────────────────────── */}
+      {isLocalBuild && (
+        <Box sx={{ px: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', flexShrink: 0 }}>
+          <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} sx={{ minHeight: 44 }}>
+            <Tab label="Overview" sx={{ minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab label={`Properties (${propCount})`} sx={{ minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab label={`Requests (${reqCount})`} sx={{ minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab label="Phases & Steps" sx={{ minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+            <Tab label={`Attachments (${fileDownloadStatus?.missing_files ?? '...'})`} sx={{ minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.85rem' }} />
+          </Tabs>
+        </Box>
+      )}
+
+      {/* ─── Body Content ─────────────────────────────────────── */}
+      <DialogContent sx={{ p: { xs: 2, sm: 3 }, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
         {loadingConfig ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-            <CircularProgress size={28} />
+            <CircularProgress size={32} />
           </Box>
         ) : !isLocalBuild ? (
           <LiveServerDashboard syncConfig={syncConfig} />
         ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-            
-            {/* Status area */}
-            <Box sx={{
-              mt: { xs: 0, sm: 1 },
-              mb: { xs: 2, sm: 4 },
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              flexShrink: 1,
-              minHeight: 0,
-              overflow: 'hidden',
-              width: '100%',
-            }}>
-              {/* Animated icon container */}
-              <Box sx={{
-                height: { xs: 70, sm: 90 },
-                mb: { xs: 1, sm: 2 },
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-              }}>
-                {isSyncing && <PulseRing />}
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={syncStatus}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.25 }}
-                    style={{ position: 'relative', zIndex: 1 }}
-                  >
-                    <Box sx={{ transform: { xs: 'scale(0.8)', sm: 'scale(1)' }, display: 'flex', justifyContent: 'center' }}>
-                      <AnimatedCloudIcon status={syncStatus} size={72} />
-                    </Box>
-                  </motion.div>
-                </AnimatePresence>
-              </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, width: '100%' }}>
 
-              {syncStatus === 'idle' ? (
-                <Typography variant="body2" sx={{
-                  color: 'text.secondary',
-                  textAlign: 'center',
-                  maxWidth: '85%',
-                  lineHeight: 1.6,
-                }}>
-                  Push local changes and pull recent updates. Background sync runs automatically every 5 minutes.
-                </Typography>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                  style={{ width: '100%' }}
-                >
-                  <Box sx={{
-                    width: '100%',
-                    px: { xs: 2, sm: 3 },
-                    py: { xs: 1.5, sm: 2 },
-                    borderRadius: 1,
-                    bgcolor: syncStatus === 'failed' ? '#fef2f2' : (syncStatus === 'success' ? '#f0fdf4' : (syncStatus === 'syncing' ? '#f8fafc' : '#fffbeb')),
-                    border: '1px solid',
-                    borderColor: syncStatus === 'failed' ? '#fecaca' : (syncStatus === 'success' ? '#bbf7d0' : (syncStatus === 'syncing' ? '#e2e8f0' : '#fde68a')),
-                    color: syncStatus === 'failed' ? '#991b1b' : (syncStatus === 'success' ? '#166534' : (syncStatus === 'syncing' ? '#334155' : '#92400e')),
-                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                    fontWeight: 600,
-                    textAlign: 'center',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1.5,
-                    opacity: 0.9,
-                  }}>
-                    {syncStatus === 'syncing' && <CircularProgress size={16} sx={{ color: 'inherit' }} />}
-                    {syncStatus === 'success' && <CheckCircleIcon sx={{ fontSize: 20 }} />}
-                    {syncStatus === 'failed' && <ErrorIcon sx={{ fontSize: 20 }} />}
-                    {syncStatus === 'incomplete' && <WarningIcon sx={{ fontSize: 20 }} />}
-                    {syncStatus === 'syncing'
-                      ? 'Synchronizing with Live Server...'
-                      : (syncMessage || renderStatusText())}
-                  </Box>
-                </motion.div>
-              )}
-            </Box>
-
-            {/* ─── Image Downloader Card ─────────────────────── */}
-            <Box sx={{ 
-              width: '100%', 
-              mt: 'auto', 
-              p: { xs: 2, sm: 3 }, 
-              borderRadius: 1,
-              bgcolor: 'background.default',
-              border: '1px solid',
-              borderColor: 'divider',
-              flexShrink: 0,
-            }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: { xs: 2, sm: 2.5 } }}>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <DownloadIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      Image Downloader
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    Concurrent bulk downloading for missing files.
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'right', minWidth: 60 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Missing
-                  </Typography>
-                  <Typography sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 700, color: 'text.primary', lineHeight: 1, mt: 0.5 }}>
-                    {fileDownloadStatusLoading
-                      ? <CircularProgress size={16} thickness={4} />
-                      : (fileDownloadStatus?.missing_files ?? '?')}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Divider sx={{ mb: 2 }} />
-              
-              {/* Action buttons */}
-              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
-                <Button 
-                  variant="outlined"
-                  size="small"
-                  onClick={loadDownloadStatus} 
-                  disabled={fileDownloadStatusLoading || isDownloading}
-                  startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
-                  sx={{ textTransform: 'none', fontWeight: 500 }}
-                >
-                  Refresh
-                </Button>
-                {!isDownloading ? (
-                  <Button 
-                    variant="contained"
-                    size="small"
-                    onClick={handleBulkDownload}
-                    disabled={!fileDownloadStatus || fileDownloadStatus.missing_files === 0}
-                    startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                    sx={{ textTransform: 'none', fontWeight: 500 }}
-                  >
-                    Start
-                  </Button>
-                ) : (
-                  <Button 
-                    variant="contained"
-                    color="error"
-                    size="small"
-                    onClick={stopBulkDownload}
-                    startIcon={<StopIcon sx={{ fontSize: 16 }} />}
-                    sx={{ textTransform: 'none', fontWeight: 500 }}
-                  >
-                    Stop
-                  </Button>
-                )}
-              </Box>
-
-              {/* Progress bar */}
-              {downloadProgress.total > 0 && (
-                <Box sx={{ mt: 2.5 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      {progressPercent}% Complete
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {downloadProgress.remaining} left
-                    </Typography>
-                  </Box>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={progressPercent}
-                    color={progressPercent === 100 ? 'success' : 'primary'}
-                    sx={{ 
-                      height: 6, 
-                      borderRadius: 3,
-                    }}
-                  />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, gap: 1 }}>
-                    <Chip
-                      label={`${downloadProgress.downloaded} Downloaded`}
-                      size="small"
-                      color="success"
-                      variant="outlined"
-                      sx={{ fontSize: '0.65rem', height: 22 }}
-                    />
-                    {downloadProgress.failed > 0 && (
-                      <Chip
-                        label={`${downloadProgress.failed} Failed`}
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', height: 22 }}
-                      />
-                    )}
-                  </Box>
-                </Box>
-              )}
-
-              {/* Status text */}
-              {(isDownloading || downloadProgress.downloaded > 0 || downloadProgress.failed > 0) && (
-                <Box sx={{ 
-                  mt: 1.5,
+            {/* TAB 0: OVERVIEW */}
+            {activeTab === 0 && (
+              <>
+                {/* Status and Active Pulse Banner */}
+                <Box sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1,
+                  gap: 2,
+                  p: 2,
+                  borderRadius: 1.5,
+                  bgcolor: syncStatus === 'failed' ? '#fef2f2' : (syncStatus === 'success' ? '#f0fdf4' : (syncStatus === 'syncing' ? '#eff6ff' : 'background.default')),
+                  border: '1px solid',
+                  borderColor: syncStatus === 'failed' ? '#fecaca' : (syncStatus === 'success' ? '#bbf7d0' : (syncStatus === 'syncing' ? '#bfdbfe' : 'divider')),
                 }}>
-                  {isDownloading && <CircularProgress size={12} />}
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    {downloadProgress.isFetching ? 
-                      "Scanning database..." : 
-                      isDownloading ? "Downloading files sequentially..." : "Sequence complete."}
-                  </Typography>
+                  <Box sx={{ position: 'relative', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isSyncing && <PulseRing />}
+                    <AnimatedCloudIcon status={syncStatus} size={40} />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', color: syncStatus === 'failed' ? '#991b1b' : (syncStatus === 'success' ? '#166534' : 'text.primary') }}>
+                      {isSyncing ? 'Synchronizing with Live Server...' : (syncMessage || renderStatusText())}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {activeReport?.id ? `Sync Run: ${activeReport.id.substring(0, 8)}... (${activeReport.mode})` : 'Background synchronization runs automatically every 5 minutes.'}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={refreshSyncData} disabled={queueLoading || isSyncing} sx={{ color: 'text.secondary' }}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
                 </Box>
-              )}
-            </Box>
+
+                {/* Summary Metrics Cards */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+                  <Box sx={{ p: 1.75, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Properties
+                    </Typography>
+                    <Typography sx={{ fontSize: '1.4rem', fontWeight: 700, color: 'primary.main', mt: 0.5 }}>
+                      {propCount}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {summaryCounters.properties?.created || 0} new, {summaryCounters.properties?.updated || 0} updated
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ p: 1.75, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Requests
+                    </Typography>
+                    <Typography sx={{ fontSize: '1.4rem', fontWeight: 700, color: 'secondary.main', mt: 0.5 }}>
+                      {reqCount}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {summaryCounters.requests?.created || 0} new, {summaryCounters.requests?.updated || 0} updated
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ p: 1.75, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Skipped
+                    </Typography>
+                    <Typography sx={{ fontSize: '1.4rem', fontWeight: 700, color: 'text.primary', mt: 0.5 }}>
+                      {skippedCount}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      Unchanged / up-to-date
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ p: 1.75, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: failedCount > 0 || (queueStatus?.failed || 0) > 0 ? 'error.light' : 'divider' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: failedCount > 0 ? 'error.main' : 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Failed / Pending
+                    </Typography>
+                    <Typography sx={{ fontSize: '1.4rem', fontWeight: 700, color: failedCount > 0 ? 'error.main' : 'text.primary', mt: 0.5 }}>
+                      {queueStatus?.failed ?? failedCount} / {queueStatus?.pending ?? 0}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      Queue status
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Queue Failure Alert with Retry Failed button */}
+                {(queueStatus?.failed > 0 || failedCount > 0) && (
+                  <Alert
+                    severity="warning"
+                    action={
+                      <Button color="inherit" size="small" onClick={handleRetryFailed} startIcon={<ReplayIcon sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontWeight: 600 }}>
+                        Retry Failed
+                      </Button>
+                    }
+                    sx={{ borderRadius: 1.5 }}
+                  >
+                    There are {queueStatus?.failed || failedCount} synchronization items that encountered an error. You can reset them to pending to retry.
+                  </Alert>
+                )}
+
+                {/* Compact Table Preview: Properties */}
+                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, bgcolor: 'background.default', borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <DescriptionIcon fontSize="small" color="primary" />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Recent Property Records</Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      onClick={() => { setBrowserType('property'); setBrowserOpen(true); }}
+                      endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+                      sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                    >
+                      View All Properties
+                    </Button>
+                  </Box>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>TDN</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Owner</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Location</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Details</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {recentItemsLoading ? (
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}><CircularProgress size={20} /></TableCell></TableRow>
+                      ) : propertyPreviewItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>No property changes in recent run.</TableCell></TableRow>
+                      ) : (
+                        propertyPreviewItems.slice(0, 4).map(item => (
+                          <TableRow key={item.id} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{item.display_data?.tax_declaration_number || '—'}</TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.owner_name || '—'}</TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.location || '—'}</TableCell>
+                            <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.65rem', height: 20 }} /></TableCell>
+                            <TableCell align="center">
+                              <IconButton size="small" onClick={() => setSelectedItem(item)}><OpenInNewIcon sx={{ fontSize: 15 }} /></IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+
+                {/* Compact Table Preview: Requests */}
+                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, bgcolor: 'background.default', borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <ReceiptIcon fontSize="small" color="secondary" />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Recent Request Records</Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      onClick={() => { setBrowserType('request'); setBrowserOpen(true); }}
+                      endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+                      sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                    >
+                      View All Requests
+                    </Button>
+                  </Box>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Receipt</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Details</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {recentItemsLoading ? (
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}><CircularProgress size={20} /></TableCell></TableRow>
+                      ) : requestPreviewItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>No request changes in recent run.</TableCell></TableRow>
+                      ) : (
+                        requestPreviewItems.slice(0, 4).map(item => (
+                          <TableRow key={item.id} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8rem' }}>{item.display_data?.receipt_number || '—'}</TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.client_name || '—'}</TableCell>
+                            <TableCell sx={{ fontSize: '0.8rem' }}>{item.display_data?.purpose || '—'}</TableCell>
+                            <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.65rem', height: 20 }} /></TableCell>
+                            <TableCell align="center">
+                              <IconButton size="small" onClick={() => setSelectedItem(item)}><OpenInNewIcon sx={{ fontSize: 15 }} /></IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </>
+            )}
+
+            {/* TAB 1: PROPERTIES LIST */}
+            {activeTab === 1 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Properties Synchronized</Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={() => { setBrowserType('property'); setBrowserOpen(true); }}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Open Full Browser
+                  </Button>
+                </Box>
+                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>TDN</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Owner</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Location</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>PIN</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {propertyPreviewItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>No property items in the current sync run.</TableCell></TableRow>
+                      ) : (
+                        propertyPreviewItems.map(item => (
+                          <TableRow key={item.id} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.display_data?.tax_declaration_number || '—'}</TableCell>
+                            <TableCell>{item.display_data?.owner_name || '—'}</TableCell>
+                            <TableCell>{item.display_data?.location || '—'}</TableCell>
+                            <TableCell sx={{ fontFamily: 'monospace' }}>{item.display_data?.pin || '—'}</TableCell>
+                            <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="center">
+                              <Button size="small" onClick={() => setSelectedItem(item)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>View Details</Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {/* TAB 2: REQUESTS LIST */}
+            {activeTab === 2 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Requests Synchronized</Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<SearchIcon />}
+                    onClick={() => { setBrowserType('request'); setBrowserOpen(true); }}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Open Full Browser
+                  </Button>
+                </Box>
+                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Receipt</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Amount Paid</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {requestPreviewItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>No request items in the current sync run.</TableCell></TableRow>
+                      ) : (
+                        requestPreviewItems.map(item => (
+                          <TableRow key={item.id} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.display_data?.receipt_number || '—'}</TableCell>
+                            <TableCell>{item.display_data?.client_name || '—'}</TableCell>
+                            <TableCell>{item.display_data?.purpose || '—'}</TableCell>
+                            <TableCell>{item.display_data?.amount_paid != null ? `₱${Number(item.display_data.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</TableCell>
+                            <TableCell><Chip size="small" {...getActionChipProps(item.action)} sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="center">
+                              <Button size="small" onClick={() => setSelectedItem(item)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>View Details</Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {/* TAB 3: PHASES & STEPS */}
+            {activeTab === 3 && (
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Synchronization Execution Pipeline</Typography>
+                <PhaseItem
+                  label="1. Uploading Local Changes (Push Queue)"
+                  status={summaryPhases.push?.status || (isSyncing ? 'running' : 'completed')}
+                  details={`${summaryPhases.push?.pushed ?? (queueStatus?.synced ?? 0)} pushed`}
+                />
+                <Divider />
+                <PhaseItem
+                  label="2. Reconciling Configuration & Lookups"
+                  status={summaryPhases.config?.status || (isSyncing ? 'pending' : 'completed')}
+                  details={summaryPhases.config?.tables ? `${summaryPhases.config.tables.length} tables` : 'bidirectional'}
+                />
+                <Divider />
+                <PhaseItem
+                  label="3. Synchronizing Revision Entries"
+                  status={summaryPhases.revisions?.status || (isSyncing ? 'pending' : 'completed')}
+                  details={summaryPhases.revisions?.upserted ? `${summaryPhases.revisions.upserted} upserted` : null}
+                />
+                <Divider />
+                <PhaseItem
+                  label="4. Pulling Property Records"
+                  status={summaryPhases.properties?.status || (isSyncing ? 'pending' : 'completed')}
+                  details={`${summaryPhases.properties?.pulled ?? propCount} pulled`}
+                />
+                <Divider />
+                <PhaseItem
+                  label="5. Pulling Request Records"
+                  status={summaryPhases.requests?.status || (isSyncing ? 'pending' : 'completed')}
+                  details={`${summaryPhases.requests?.pulled ?? reqCount} pulled`}
+                />
+                <Divider />
+                <PhaseItem
+                  label="6. Updating System Users"
+                  status={summaryPhases.users?.status || (isSyncing ? 'pending' : 'completed')}
+                  details={summaryPhases.users?.upserted ? `${summaryPhases.users.upserted} users` : null}
+                />
+              </Box>
+            )}
+
+            {/* TAB 4: ATTACHMENTS & FILE DOWNLOADER */}
+            {activeTab === 4 && (
+              <Box sx={{
+                width: '100%',
+                p: { xs: 2, sm: 3 },
+                borderRadius: 1.5,
+                bgcolor: 'background.default',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                      <DownloadIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                        Attachment File Downloader
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Downloads missing property photos and supporting PDF documents from the live server.
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', minWidth: 70 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Missing Files
+                    </Typography>
+                    <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: 'text.primary', lineHeight: 1, mt: 0.5 }}>
+                      {fileDownloadStatusLoading ? <CircularProgress size={18} thickness={4} /> : (fileDownloadStatus?.missing_files ?? '?')}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Divider sx={{ mb: 2 }} />
+
+                <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={loadDownloadStatus}
+                    disabled={fileDownloadStatusLoading || isDownloading}
+                    startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
+                    sx={{ textTransform: 'none', fontWeight: 500 }}
+                  >
+                    Refresh
+                  </Button>
+                  {!isDownloading ? (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleBulkDownload}
+                      disabled={!fileDownloadStatus || fileDownloadStatus.missing_files === 0}
+                      startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Start Download
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="error"
+                      size="small"
+                      onClick={stopBulkDownload}
+                      startIcon={<StopIcon sx={{ fontSize: 16 }} />}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Stop
+                    </Button>
+                  )}
+                </Box>
+
+                {/* Progress bar */}
+                {downloadProgress.total > 0 && (
+                  <Box sx={{ mt: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                        {progressPercent}% Complete
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {downloadProgress.remaining} remaining
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={progressPercent}
+                      color={progressPercent === 100 ? 'success' : 'primary'}
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, gap: 1 }}>
+                      <Chip
+                        label={`${downloadProgress.downloaded} Downloaded`}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', height: 22 }}
+                      />
+                      {downloadProgress.failed > 0 && (
+                        <Chip
+                          label={`${downloadProgress.failed} Failed`}
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', height: 22 }}
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Status text with corrected wording */}
+                {(isDownloading || downloadProgress.downloaded > 0 || downloadProgress.failed > 0) && (
+                  <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {isDownloading && <CircularProgress size={14} />}
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                      {downloadProgress.isFetching
+                        ? "Scanning database for missing files..."
+                        : isDownloading
+                        ? "Downloading files with 5 concurrent workers..."
+                        : "Download cycle complete."}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
+
           </Box>
         )}
       </DialogContent>
-      
-      {/* ─── Footer ──────────────────────────────────────────── */}
+
+      {/* ─── Footer Action Bar ────────────────────────────────── */}
       {isLocalBuild && (
-        <Box sx={{ 
-          px: { xs: 2.5, sm: 3 }, 
-          py: { xs: 1.5, sm: 2 }, 
+        <Box sx={{
+          px: { xs: 2.5, sm: 3 },
+          py: { xs: 1.5, sm: 2 },
           bgcolor: 'background.default',
           borderTop: '1px solid',
           borderColor: 'divider',
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          gap: { xs: 1.5, sm: 2 },
           flexShrink: 0,
         }}>
-          <Button
-            variant="outlined"
-            onClick={handleFullResync}
-            disabled={isSyncing}
-            sx={{ 
-              textTransform: 'none', 
-              fontWeight: 500,
-              fontSize: { xs: '0.85rem', sm: '0.875rem' },
-            }}
-          >
-            Full Resync
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => { setBrowserType('property'); setBrowserOpen(true); }}
+              startIcon={<SearchIcon sx={{ fontSize: 16 }} />}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              Browse All Records
+            </Button>
+          </Box>
 
-          <Button 
-            variant="contained"
-            onClick={handleSyncNow} 
-            disabled={isSyncing}
-            startIcon={isSyncing ? <CircularProgress size={16} color="inherit" /> : <CloudSyncIcon sx={{ fontSize: 18 }} />}
-            sx={{ 
-              textTransform: 'none', 
-              fontWeight: 500,
-              fontSize: { xs: '0.85rem', sm: '0.875rem' },
-            }}
-          >
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={() => setFullResyncConfirmOpen(true)}
+              disabled={isSyncing}
+              sx={{ textTransform: 'none', fontWeight: 500 }}
+            >
+              Full Resync...
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleSyncNow}
+              disabled={isSyncing}
+              startIcon={isSyncing ? <CircularProgress size={16} color="inherit" /> : <CloudSyncIcon sx={{ fontSize: 18 }} />}
+              sx={{ textTransform: 'none', fontWeight: 600, px: 2.5 }}
+            >
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+          </Box>
         </Box>
       )}
+
+      {/* Full Resync Confirmation Dialog */}
+      <Dialog open={fullResyncConfirmOpen} onClose={() => setFullResyncConfirmOpen(false)} maxWidth="xs">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'warning.main' }}>
+          <WarningIcon />
+          <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>Confirm Full Resync</Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+            A Full Resync will reset all sync cursors and re-evaluate every property and request record on the Live Server from the beginning of time.
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 600, mt: 1.5 }}>
+            Are you sure you want to proceed?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, pb: 2 }}>
+          <Button onClick={() => setFullResyncConfirmOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" color="warning" onClick={handleExecuteFullResync} sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Start Full Resync
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Record Browser Dialog */}
+      <RecordBrowserDialog
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        runId={activeReport?.id || syncRunId}
+        initialType={browserType}
+      />
+
+      {/* Record Detail Dialog */}
+      <RecordDetailDialog
+        open={Boolean(selectedItem)}
+        onClose={() => setSelectedItem(null)}
+        item={selectedItem}
+      />
     </Dialog>
   );
 };

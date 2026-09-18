@@ -625,6 +625,31 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_manager'),
         ));
 
+        // Sync Report Routes
+        register_rest_route('assessor/v1', '/sync/report/latest', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_get_latest_report'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/report/(?P<run_id>[a-zA-Z0-9\-\_]+)', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_get_report'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/report/(?P<run_id>[a-zA-Z0-9\-\_]+)/items', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'sync_get_report_items'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route('assessor/v1', '/sync/report/cleanup', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'sync_cleanup_reports'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
         // ──────────────────────────────────────────────
         // ETRACS MODULE ROUTES (admin+ only)
         // ──────────────────────────────────────────────
@@ -952,6 +977,56 @@ class Assessor_API {
     /** POST /assessor/v1/sync/save-token */
     public function sync_save_token($request) {
         return Assessor_Sync::rest_save_token($request);
+    }
+
+    /** GET /assessor/v1/sync/report/latest */
+    public function sync_get_latest_report($request) {
+        if (!class_exists('Assessor_Sync_Report')) {
+            return new WP_Error('not_found', 'Sync Report engine not loaded.', array('status' => 500));
+        }
+        $run = Assessor_Sync_Report::get_latest_run();
+        return array('success' => true, 'run' => $run);
+    }
+
+    /** GET /assessor/v1/sync/report/{run_id} */
+    public function sync_get_report($request) {
+        if (!class_exists('Assessor_Sync_Report')) {
+            return new WP_Error('not_found', 'Sync Report engine not loaded.', array('status' => 500));
+        }
+        $run_id = sanitize_text_field($request->get_param('run_id'));
+        $run = Assessor_Sync_Report::get_run($run_id);
+        if (!$run) {
+            return new WP_Error('not_found', 'Sync run not found.', array('status' => 404));
+        }
+        return array('success' => true, 'run' => $run);
+    }
+
+    /** GET /assessor/v1/sync/report/{run_id}/items */
+    public function sync_get_report_items($request) {
+        if (!class_exists('Assessor_Sync_Report')) {
+            return new WP_Error('not_found', 'Sync Report engine not loaded.', array('status' => 500));
+        }
+        $run_id = sanitize_text_field($request->get_param('run_id'));
+        $params = array(
+            'record_type' => $request->get_param('record_type'),
+            'action'      => $request->get_param('action'),
+            'direction'   => $request->get_param('direction'),
+            'search'      => $request->get_param('search'),
+            'page'        => $request->get_param('page'),
+            'per_page'    => $request->get_param('per_page'),
+        );
+        $result = Assessor_Sync_Report::get_run_items($run_id, $params);
+        return array_merge(array('success' => true), $result);
+    }
+
+    /** POST /assessor/v1/sync/report/cleanup */
+    public function sync_cleanup_reports($request) {
+        if (!class_exists('Assessor_Sync_Report')) {
+            return new WP_Error('not_found', 'Sync Report engine not loaded.', array('status' => 500));
+        }
+        $days = intval($request->get_param('days') ?: 30);
+        $deleted = Assessor_Sync_Report::cleanup_runs($days);
+        return array('success' => true, 'deleted_runs' => $deleted);
     }
 
     public function get_tax_declaration_history($request) {

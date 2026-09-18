@@ -102,17 +102,20 @@ class Assessor_Sync {
         // Check if record_type column exists
         $has_record_type = $wpdb->get_row("SHOW COLUMNS FROM $table LIKE 'record_type'");
 
+        $uuid = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
+
         if ($has_record_type) {
             // INSERT ... ON DUPLICATE KEY UPDATE with record_type
             $wpdb->query($wpdb->prepare(
-                "INSERT INTO $table (record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
-                 VALUES ('property', %s, %s, 'pending', 0, NULL, %s, NULL)
+                "INSERT INTO $table (id, record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, 'property', %s, %s, 'pending', 0, NULL, %s, NULL)
                  ON DUPLICATE KEY UPDATE
                     status     = 'pending',
                     attempts   = 0,
                     last_error = NULL,
                     queued_at  = %s,
                     synced_at  = NULL",
+                $uuid,
                 $property_id,
                 $operation,
                 current_time('mysql'),
@@ -121,14 +124,15 @@ class Assessor_Sync {
         } else {
             // Backward compatibility
             $wpdb->query($wpdb->prepare(
-                "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
-                 VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
+                "INSERT INTO $table (id, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, %s, %s, 'pending', 0, NULL, %s, NULL)
                  ON DUPLICATE KEY UPDATE
                     status     = 'pending',
                     attempts   = 0,
                     last_error = NULL,
                     queued_at  = %s,
                     synced_at  = NULL",
+                $uuid,
                 $property_id,
                 $operation,
                 current_time('mysql'),
@@ -156,17 +160,19 @@ class Assessor_Sync {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_sync_queue';
         $has_record_type = $wpdb->get_row("SHOW COLUMNS FROM $table LIKE 'record_type'");
+        $uuid = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
 
         if ($has_record_type) {
             $wpdb->query($wpdb->prepare(
-                "INSERT INTO $table (record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
-                 VALUES ('request', %s, %s, 'pending', 0, NULL, %s, NULL)
+                "INSERT INTO $table (id, record_type, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, 'request', %s, %s, 'pending', 0, NULL, %s, NULL)
                  ON DUPLICATE KEY UPDATE
                     status     = 'pending',
                     attempts   = 0,
                     last_error = NULL,
                     queued_at  = %s,
                     synced_at  = NULL",
+                $uuid,
                 $request_id,
                 $operation,
                 current_time('mysql'),
@@ -174,14 +180,15 @@ class Assessor_Sync {
             ));
         } else {
             $wpdb->query($wpdb->prepare(
-                "INSERT INTO $table (property_id, operation, status, attempts, last_error, queued_at, synced_at)
-                 VALUES (%s, %s, 'pending', 0, NULL, %s, NULL)
+                "INSERT INTO $table (id, property_id, operation, status, attempts, last_error, queued_at, synced_at)
+                 VALUES (%s, %s, %s, 'pending', 0, NULL, %s, NULL)
                  ON DUPLICATE KEY UPDATE
                     status     = 'pending',
                     attempts   = 0,
                     last_error = NULL,
                     queued_at  = %s,
                     synced_at  = NULL",
+                $uuid,
                 $request_id,
                 $operation,
                 current_time('mysql'),
@@ -317,6 +324,10 @@ class Assessor_Sync {
         // Ensure the sync finishes in the background even if the frontend/proxy times out the request
         ignore_user_abort(true);
 
+        $report = class_exists('Assessor_Sync_Report') 
+            ? Assessor_Sync_Report::start_run($force_full ? 'full' : 'incremental')
+            : null;
+
         if ($force_full) {
             // Reset the pull cursor so every record on the live site is fetched again.
             self::set_meta('last_pull_at', '2000-01-01 00:00:00');
@@ -325,52 +336,95 @@ class Assessor_Sync {
             self::set_meta('pull_requests_offset', 0);
         }
 
-        $push       = self::push_pending();
+        if ($report) {
+            $report->update_phase('push', 'running');
+        }
+        $push = self::push_pending($report);
+        if ($report) {
+            $report->update_phase('push', empty($push['errors']) ? 'completed' : 'failed', $push);
+            $report->update_phase('config', 'running');
+        }
+
         // Force bidirectional lookup tables reconciliation regardless of dirty flags
         $lookup_reconcile = self::sync_lookup_tables_bidirectional(true);
         $config     = self::push_pending_config();
         $config['lookups'] = $lookup_reconcile;
+        if ($report) {
+            $report->update_phase('config', empty($config['errors']) ? 'completed' : 'failed', $config);
+            $report->update_phase('revisions', 'running');
+        }
 
         $revisions  = self::pull_revision_entries_from_live($force_full);
 
         if (empty($revisions['success'])) {
+            if ($report) {
+                $report->update_phase('revisions', 'failed', $revisions);
+                $report->finish_run('failed', 'Revision synchronization failed. Property pull was not started.');
+            }
             return array(
-                'success'   => false,
-                'message'   => 'Revision synchronization failed. Property pull was not started.',
-                'force_full'=> $force_full,
-                'push'      => $push,
-                'config'    => $config,
-                'revisions' => $revisions,
-                'pull'      => array(
+                'success'     => false,
+                'message'     => 'Revision synchronization failed. Property pull was not started.',
+                'force_full'  => $force_full,
+                'sync_run_id' => $report ? $report->get_run_id() : null,
+                'push'        => $push,
+                'config'      => $config,
+                'revisions'   => $revisions,
+                'pull'        => array(
                     'pulled'  => 0,
                     'skipped' => 0,
                     'errors'  => array(
                         'Property pull blocked because revision entries could not be synchronized.'
                     ),
                 ),
-                'requests'  => array('pulled' => 0, 'skipped' => 0, 'errors' => array()),
-                'users'     => array('upserted' => 0, 'errors' => array()),
+                'requests'    => array('pulled' => 0, 'skipped' => 0, 'errors' => array()),
+                'users'       => array('upserted' => 0, 'errors' => array()),
             );
         }
 
-        $pull       = self::pull_from_live($force_full);
-        $requests   = self::pull_requests_from_live($force_full);
-        $users      = self::pull_users_from_live();
+        if ($report) {
+            $report->update_phase('revisions', 'completed', $revisions);
+            $report->update_phase('properties', 'running');
+        }
+
+        $pull = self::pull_from_live($force_full, $report);
+        if ($report) {
+            $report->update_phase('properties', empty($pull['errors']) ? 'completed' : 'failed', $pull);
+            $report->update_phase('requests', 'running');
+        }
+
+        $requests = self::pull_requests_from_live($force_full, $report);
+        if ($report) {
+            $report->update_phase('requests', empty($requests['errors']) ? 'completed' : 'failed', $requests);
+            $report->update_phase('users', 'running');
+        }
+
+        $users = self::pull_users_from_live();
+        if ($report) {
+            $report->update_phase('users', empty($users['errors']) ? 'completed' : 'failed', $users);
+        }
 
         $message = $force_full
             ? 'Full resync completed. All records pulled from live site.'
             : 'Sync completed.';
 
+        $has_errors = !empty($push['errors']) || !empty($config['errors']) || !empty($pull['errors']) || !empty($requests['errors']) || !empty($users['errors']);
+        $final_status = $has_errors ? 'failed' : 'completed';
+
+        if ($report) {
+            $report->finish_run($final_status, $message);
+        }
+
         return array(
-            'success'    => true,
-            'message'    => $message,
-            'force_full' => $force_full,
-            'push'       => $push,
-            'config'     => $config,
-            'revisions'  => $revisions,
-            'pull'       => $pull,
-            'requests'   => $requests,
-            'users'      => $users,
+            'success'     => true,
+            'message'     => $message,
+            'force_full'  => $force_full,
+            'sync_run_id' => $report ? $report->get_run_id() : null,
+            'push'        => $push,
+            'config'      => $config,
+            'revisions'   => $revisions,
+            'pull'        => $pull,
+            'requests'    => $requests,
+            'users'       => $users,
         );
     }
 
@@ -484,7 +538,13 @@ class Assessor_Sync {
      *
      * @return array { pushed, skipped, errors }
      */
-    public static function push_pending() {
+    /**
+     * Send all pending local records to the live site.
+     *
+     * @param Assessor_Sync_Report|null $report
+     * @return array { pushed, skipped, errors }
+     */
+    public static function push_pending($report = null) {
         global $wpdb;
         $table_queue      = $wpdb->prefix . 'assessor_sync_queue';
         $table_properties = $wpdb->prefix . 'assessor_properties';
@@ -572,13 +632,14 @@ class Assessor_Sync {
             foreach ($pending as $qi) {
                 $rtype = !empty($qi['record_type']) ? $qi['record_type'] : 'property';
                 $rec_id = sanitize_text_field($qi['property_id']);
+                $qid    = (string) $qi['queue_id'];
 
                 if ($rtype === 'request') {
                     if (isset($req_map[$rec_id])) {
                         $req_data = $req_map[$rec_id];
                         $req_data['_record_type'] = 'request';
                         $records[] = array(
-                            'queue_id'    => intval($qi['queue_id']),
+                            'queue_id'    => $qid,
                             'property_id' => $rec_id,
                             'record_type' => 'request',
                             'attempts'    => intval($qi['attempts']),
@@ -613,7 +674,7 @@ class Assessor_Sync {
                         $prop_data['property_state'] = $local_state ? $local_state : 'CURRENT';
 
                         $records[] = array(
-                            'queue_id'    => intval($qi['queue_id']),
+                            'queue_id'    => $qid,
                             'property_id' => $rec_id,
                             'record_type' => 'property',
                             'attempts'    => intval($qi['attempts']),
@@ -635,10 +696,20 @@ class Assessor_Sync {
                             'attempts'   => intval($qi['attempts']) + 1,
                             'last_error' => 'Row not found for queued ID',
                         ),
-                        array('id' => intval($qi['queue_id'])),
+                        array('id' => (string) $qi['queue_id']),
                         array('%s', '%d', '%s'),
-                        array('%d')
+                        array('%s')
                     );
+                    if ($report) {
+                        $rtype = !empty($qi['record_type']) ? $qi['record_type'] : 'property';
+                        $report->record_item(
+                            $rtype,
+                            $qi['property_id'],
+                            'local_to_live',
+                            'failed',
+                            array('error' => 'Row not found for queued ID')
+                        );
+                    }
                 }
                 $total_errors[] = 'Rows not found for ' . count($missing_queue_ids) . ' queued IDs';
             }
@@ -660,10 +731,25 @@ class Assessor_Sync {
                             'attempts'   => intval($rec['attempts']) + 1,
                             'last_error' => $err_msg,
                         ),
-                        array('id' => intval($rec['queue_id'])),
+                        array('id' => (string) $rec['queue_id']),
                         array('%s', '%d', '%s'),
-                        array('%d')
+                        array('%s')
                     );
+                    if ($report) {
+                        $rdata = isset($rec['data']) ? $rec['data'] : array();
+                        $display = array('error' => $err_msg);
+                        if ($rec['record_type'] === 'property') {
+                            $display['tax_declaration_number'] = $rdata['tax_declaration_number'] ?? '';
+                            $display['owner_name']             = trim(($rdata['declarant_last_name'] ?? '') . ', ' . ($rdata['declarant_first_name'] ?? ''));
+                            $display['location']               = $rdata['location'] ?? '';
+                            $display['pin']                    = $rdata['pin'] ?? '';
+                        } else {
+                            $display['receipt_number'] = $rdata['receipt_number'] ?? '';
+                            $display['client_name']    = $rdata['client_name'] ?? '';
+                            $display['purpose']        = $rdata['purpose'] ?? '';
+                        }
+                        $report->record_item($rec['record_type'], $rec['property_id'], 'local_to_live', 'failed', $display);
+                    }
                 }
                 $total_errors[] = $err_msg;
                 break; // Network error — stop trying; will retry on next sync cycle.
@@ -687,12 +773,15 @@ class Assessor_Sync {
 
                 if ($res_status === 'synced') {
                     $queue_status = 'synced';
+                    $item_action  = 'updated'; // Pushed upstream
                     $total_pushed++;
                 } elseif ($res_status === 'skipped') {
                     $queue_status = 'skipped';
+                    $item_action  = 'skipped';
                     $total_skipped++;
                 } else {
                     $queue_status = 'failed';
+                    $item_action  = 'failed';
                     $total_errors[] = $pid . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
                 }
 
@@ -704,10 +793,31 @@ class Assessor_Sync {
                         'last_error' => $queue_status === 'failed' ? (isset($res_item['message']) ? $res_item['message'] : 'unknown') : null,
                         'synced_at'  => $queue_status !== 'failed' ? current_time('mysql') : null,
                     ),
-                    array('id' => $rec['queue_id']),
+                    array('id' => (string) $rec['queue_id']),
                     array('%s', '%d', '%s', '%s'),
-                    array('%d')
+                    array('%s')
                 );
+
+                if ($report) {
+                    $rdata = isset($rec['data']) ? $rec['data'] : array();
+                    $display = array();
+                    if ($queue_status === 'failed') {
+                        $display['error'] = isset($res_item['message']) ? $res_item['message'] : 'unknown';
+                    }
+                    if ($rec['record_type'] === 'property') {
+                        $display['tax_declaration_number'] = $rdata['tax_declaration_number'] ?? '';
+                        $display['owner_name']             = trim(($rdata['declarant_last_name'] ?? '') . ', ' . ($rdata['declarant_first_name'] ?? ''));
+                        $display['location']               = $rdata['location'] ?? '';
+                        $display['pin']                    = $rdata['pin'] ?? '';
+                        $display['assessed_value']         = $rdata['assessed_value'] ?? null;
+                    } else {
+                        $display['receipt_number'] = $rdata['receipt_number'] ?? '';
+                        $display['client_name']    = $rdata['client_name'] ?? '';
+                        $display['purpose']        = $rdata['purpose'] ?? '';
+                        $display['amount_paid']    = $rdata['amount_paid'] ?? null;
+                    }
+                    $report->record_item($rec['record_type'], $rec['property_id'], 'local_to_live', $item_action, $display);
+                }
             }
         } // end while
 
@@ -1281,9 +1391,10 @@ class Assessor_Sync {
      * Fetch recently changed records from the live site and upsert locally.
      *
      * @param bool $force_full If true, passes the flag to apply_remote_record to force overwrite.
+     * @param Assessor_Sync_Report|null $report
      * @return array { pulled, skipped, errors }
      */
-    public static function pull_from_live($force_full = false) {
+    public static function pull_from_live($force_full = false, $report = null) {
         $last_pull = self::get_meta('last_pull_at');
         $since     = $last_pull ? $last_pull : '2000-01-01 00:00:00';
         
@@ -1328,7 +1439,7 @@ class Assessor_Sync {
             }
 
             foreach ($records as $remote) {
-                $result = self::apply_remote_record($remote, $force_full);
+                $result = self::apply_remote_record($remote, $force_full, $report);
                 if ($result === 'synced') {
                     $pulled++;
                 } elseif ($result === 'skipped') {
@@ -1372,9 +1483,10 @@ class Assessor_Sync {
      *
      * @param array $remote The record array from the live site.
      * @param bool $force_full If true, ignores timestamps and forces an overwrite of the local record.
+     * @param Assessor_Sync_Report|null $report
      * @return string 'synced' | 'skipped' | error message
      */
-    private static function apply_remote_record($remote, $force_full = false) {
+    private static function apply_remote_record($remote, $force_full = false, $report = null) {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_properties';
 
@@ -1383,6 +1495,11 @@ class Assessor_Sync {
         $revision_id = isset($remote['revision_id']) && !empty($remote['revision_id']) ? trim((string)$remote['revision_id']) : null;
 
         if ($tax_num === '' && $prop_id === '') {
+            if ($report) {
+                $report->record_item('property', $prop_id ?: 'unknown', 'live_to_local', 'skipped', array(
+                    'reason' => 'missing tax_declaration_number and id'
+                ));
+            }
             return 'skipped: missing tax_declaration_number and id';
         }
 
@@ -1391,7 +1508,7 @@ class Assessor_Sync {
         if (!empty($prop_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, location, pin, assessed_value, status, updated_at FROM $table WHERE id = %s LIMIT 1",
                     $prop_id
                 ),
                 ARRAY_A
@@ -1402,7 +1519,7 @@ class Assessor_Sync {
         if (!$local && !empty($tax_num) && !empty($revision_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
+                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, location, pin, assessed_value, status, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
                     $tax_num,
                     $revision_id
                 ),
@@ -1415,6 +1532,15 @@ class Assessor_Sync {
 
         // Skip if local is same age or newer (unless forcing a full resync)
         if (!$force_full && $local && $local_ts >= $remote_ts) {
+            if ($report) {
+                $report->record_item('property', $local['id'], 'live_to_local', 'skipped', array(
+                    'tax_declaration_number' => $tax_num ?: ($local['tax_declaration_number'] ?? ''),
+                    'owner_name'             => trim(($local['declarant_last_name'] ?? '') . ', ' . ($local['declarant_first_name'] ?? '')),
+                    'location'               => $local['location'] ?? '',
+                    'pin'                    => $local['pin'] ?? '',
+                    'reason'                 => 'local version is equal or newer'
+                ));
+            }
             return 'skipped';
         }
 
@@ -1439,10 +1565,21 @@ class Assessor_Sync {
             unset($safe['property_state']);
         }
 
+        $action = $local ? 'updated' : 'created';
+        $old_assessed_value = $local ? ($local['assessed_value'] ?? null) : null;
+        $old_status         = $local ? ($local['status'] ?? null) : null;
+
         if ($local) {
             $wpdb->update($table, $safe, array('id' => $local['id']), null, array('%s'));
             if ($wpdb->last_error) {
-                return 'error updating ' . $tax_num . ': ' . $wpdb->last_error;
+                $err = 'error updating ' . $tax_num . ': ' . $wpdb->last_error;
+                if ($report) {
+                    $report->record_item('property', $local['id'], 'live_to_local', 'failed', array(
+                        'tax_declaration_number' => $tax_num,
+                        'error'                  => $wpdb->last_error,
+                    ));
+                }
+                return $err;
             }
             $local_property_id = $local['id'];
         } else {
@@ -1457,7 +1594,14 @@ class Assessor_Sync {
             }
             $result = $wpdb->insert($table, $safe);
             if ($result === false) {
-                return 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
+                $err = 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
+                if ($report) {
+                    $report->record_item('property', $safe['id'], 'live_to_local', 'failed', array(
+                        'tax_declaration_number' => $tax_num,
+                        'error'                  => $wpdb->last_error,
+                    ));
+                }
+                return $err;
             }
             $local_property_id = $safe['id'];
         }
@@ -1500,6 +1644,20 @@ class Assessor_Sync {
             ), array('%s', '%s'));
         }
 
+        if ($report) {
+            $report->record_item('property', $local_property_id, 'live_to_local', $action, array(
+                'tax_declaration_number' => $tax_num,
+                'owner_name'             => trim(($safe['declarant_last_name'] ?? '') . ', ' . ($safe['declarant_first_name'] ?? '')),
+                'location'               => $safe['location'] ?? '',
+                'pin'                    => $safe['pin'] ?? '',
+                'revision_id'            => $safe['revision_id'] ?? '',
+                'assessed_value'         => $safe['assessed_value'] ?? null,
+                'assessed_value_old'     => $old_assessed_value,
+                'status'                 => $safe['status'] ?? 'active',
+                'status_old'             => $old_status,
+            ));
+        }
+
         return 'synced';
     }
 
@@ -1538,9 +1696,10 @@ class Assessor_Sync {
      * Fetch recently changed request records from the live site and upsert locally.
      *
      * @param bool $force_full If true, passes the flag to apply_remote_request to force overwrite.
+     * @param Assessor_Sync_Report|null $report
      * @return array { pulled, skipped, errors }
      */
-    public static function pull_requests_from_live($force_full = false) {
+    public static function pull_requests_from_live($force_full = false, $report = null) {
         $last_pull = self::get_meta('last_pull_requests_at');
         $since     = $last_pull ? $last_pull : '2000-01-01 00:00:00';
 
@@ -1581,7 +1740,7 @@ class Assessor_Sync {
             }
 
             foreach ($records as $remote) {
-                $result = self::apply_remote_request($remote, $force_full);
+                $result = self::apply_remote_request($remote, $force_full, $report);
                 if ($result === 'synced') {
                     $pulled++;
                 } elseif ($result === 'skipped') {
@@ -1618,20 +1777,24 @@ class Assessor_Sync {
      *
      * @param array $remote The record array from the live site.
      * @param bool $force_full If true, ignores timestamps and forces an overwrite of the local record.
+     * @param Assessor_Sync_Report|null $report
      * @return string 'synced' | 'skipped' | error message
      */
-    private static function apply_remote_request($remote, $force_full = false) {
+    private static function apply_remote_request($remote, $force_full = false, $report = null) {
         global $wpdb;
         $table = $wpdb->prefix . 'assessor_requests';
 
         $req_id = isset($remote['id']) ? trim((string)$remote['id']) : '';
         if (empty($req_id)) {
+            if ($report) {
+                $report->record_item('request', 'unknown', 'live_to_local', 'skipped', array('reason' => 'missing id'));
+            }
             return 'skipped: missing id';
         }
 
         // Exact match by UUID
         $local = $wpdb->get_row(
-            $wpdb->prepare("SELECT id, updated_at, deleted_at FROM $table WHERE id = %s LIMIT 1", $req_id),
+            $wpdb->prepare("SELECT id, receipt_number, client_name, purpose, amount_paid, updated_at, deleted_at FROM $table WHERE id = %s LIMIT 1", $req_id),
             ARRAY_A
         );
 
@@ -1640,21 +1803,59 @@ class Assessor_Sync {
 
         // Skip if local is same age or newer (unless forcing a full resync)
         if (!$force_full && $local && $local_ts >= $remote_ts) {
+            if ($report) {
+                $report->record_item('request', $req_id, 'live_to_local', 'skipped', array(
+                    'receipt_number' => $remote['receipt_number'] ?? ($local['receipt_number'] ?? ''),
+                    'client_name'    => $remote['client_name'] ?? ($local['client_name'] ?? ''),
+                    'purpose'        => $remote['purpose'] ?? ($local['purpose'] ?? ''),
+                    'reason'         => 'local version is equal or newer'
+                ));
+            }
             return 'skipped';
         }
 
         $safe = self::sanitize_sync_request_record($remote);
 
+        $is_deleted = !empty($remote['deleted_at']);
+        $action = $is_deleted ? 'deleted' : ($local ? 'updated' : 'created');
+
         if ($local) {
             $updated = $wpdb->update($table, $safe, array('id' => $local['id']), null, array('%s'));
             if ($updated === false) {
-                return 'error updating request ' . $req_id . ': ' . $wpdb->last_error;
+                $err = 'error updating request ' . $req_id . ': ' . $wpdb->last_error;
+                if ($report) {
+                    $report->record_item('request', $req_id, 'live_to_local', 'failed', array(
+                        'receipt_number' => $safe['receipt_number'] ?? '',
+                        'client_name'    => $safe['client_name'] ?? '',
+                        'error'          => $wpdb->last_error,
+                    ));
+                }
+                return $err;
             }
         } else {
             $inserted = $wpdb->insert($table, $safe);
             if ($inserted === false) {
-                return 'error inserting request ' . $req_id . ': ' . $wpdb->last_error;
+                $err = 'error inserting request ' . $req_id . ': ' . $wpdb->last_error;
+                if ($report) {
+                    $report->record_item('request', $req_id, 'live_to_local', 'failed', array(
+                        'receipt_number' => $safe['receipt_number'] ?? '',
+                        'client_name'    => $safe['client_name'] ?? '',
+                        'error'          => $wpdb->last_error,
+                    ));
+                }
+                return $err;
             }
+        }
+
+        if ($report) {
+            $report->record_item('request', $req_id, 'live_to_local', $action, array(
+                'receipt_number' => $safe['receipt_number'] ?? '',
+                'client_name'    => $safe['client_name'] ?? '',
+                'purpose'        => $safe['purpose'] ?? '',
+                'amount_paid'    => $safe['amount_paid'] ?? null,
+                'date_issued'    => $safe['date_issued'] ?? '',
+                'deleted_at'     => $safe['deleted_at'] ?? null,
+            ));
         }
 
         return 'synced';
@@ -2060,9 +2261,11 @@ class Assessor_Sync {
         if (!$table_exists) {
             return;
         }
+        $uuid = class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4();
         $wpdb->query($wpdb->prepare(
-            "INSERT INTO $table (meta_key, meta_value) VALUES (%s, %s)
+            "INSERT INTO $table (id, meta_key, meta_value) VALUES (%s, %s, %s)
              ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+            $uuid,
             $key,
             $value
         ));

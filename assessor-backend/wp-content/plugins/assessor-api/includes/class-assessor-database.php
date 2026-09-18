@@ -357,9 +357,10 @@ class Assessor_Database {
 
         // Sync queue table — used on LOCAL builds to track properties and requests pending upload to the live site.
         // On the live site this table exists but stays empty (live pushes nothing upstream).
+        // Primary key is UUID v7 (varchar(36)).
         $table_sync_queue = $wpdb->prefix . 'assessor_sync_queue';
         $sql_sync_queue = "CREATE TABLE $table_sync_queue (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             record_type varchar(20) NOT NULL DEFAULT 'property',
             property_id varchar(36) NOT NULL,
             operation varchar(20) NOT NULL DEFAULT 'upsert',
@@ -376,14 +377,51 @@ class Assessor_Database {
         ) $charset_collate;";
 
         // Sync meta table — one row per site, stores timestamps for last successful push/pull.
+        // Primary key is UUID v7 (varchar(36)).
         $table_sync_meta = $wpdb->prefix . 'assessor_sync_meta';
         $sql_sync_meta = "CREATE TABLE $table_sync_meta (
-            id int(11) NOT NULL AUTO_INCREMENT,
+            id varchar(36) NOT NULL,
             meta_key varchar(80) NOT NULL,
             meta_value text NULL,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY meta_key (meta_key)
+        ) $charset_collate;";
+
+        // Sync runs table — tracks historical synchronization sessions.
+        // Primary key is UUID v7 (varchar(36)).
+        $table_sync_runs = $wpdb->prefix . 'assessor_sync_runs';
+        $sql_sync_runs = "CREATE TABLE $table_sync_runs (
+            id varchar(36) NOT NULL,
+            mode varchar(20) NOT NULL DEFAULT 'incremental',
+            status varchar(20) NOT NULL DEFAULT 'running',
+            started_at datetime NOT NULL,
+            completed_at datetime DEFAULT NULL,
+            summary_json longtext NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY status (status),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+
+        // Sync run items table — captures affected record-level data for properties and requests per run.
+        // Primary key is UUID v7 (varchar(36)), run_id references assessor_sync_runs.
+        $table_sync_run_items = $wpdb->prefix . 'assessor_sync_run_items';
+        $sql_sync_run_items = "CREATE TABLE $table_sync_run_items (
+            id varchar(36) NOT NULL,
+            run_id varchar(36) NOT NULL,
+            record_type varchar(20) NOT NULL,
+            record_id varchar(50) NOT NULL,
+            direction varchar(20) NOT NULL,
+            action varchar(20) NOT NULL,
+            display_data_json text NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY run_id (run_id),
+            KEY record_type (record_type),
+            KEY action (action),
+            KEY direction (direction),
+            KEY created_at (created_at)
         ) $charset_collate;";
 
         // ETRACS Synced Tables
@@ -1626,6 +1664,8 @@ class Assessor_Database {
         dbDelta($sql_api_keys);
         dbDelta($sql_sync_queue);
         dbDelta($sql_sync_meta);
+        dbDelta($sql_sync_runs);
+        dbDelta($sql_sync_run_items);
         
         dbDelta($sql_bldgrysetting);
         dbDelta($sql_bldgkind);

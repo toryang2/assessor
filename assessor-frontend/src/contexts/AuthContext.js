@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }) => {
   // Sync state management
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'failed' | 'incomplete'
   const [syncMessage, setSyncMessage] = useState(null);
+  const [syncRunId, setSyncRunId] = useState(null);
   const isSyncingRef = useRef(false);
 
   // AFK timeout management
@@ -320,6 +321,9 @@ export const AuthProvider = ({ children }) => {
         setSyncStatus('failed');
         setSyncMessage(response?.message || 'Sync failed');
       }
+      if (response?.sync_run_id) {
+        setSyncRunId(response.sync_run_id);
+      }
       return response;
     } catch (err) {
       console.error('❌ AuthContext: Background sync failed', err);
@@ -380,6 +384,7 @@ export const AuthProvider = ({ children }) => {
     refreshCurrentUser,
     syncStatus,
     syncMessage,
+    syncRunId,
     triggerManualSync,
   };
 

@@ -118,6 +118,10 @@ export const endpoints = {
   syncMissingFilesList: '/sync/missing-files-list',
   syncDownloadBatch: '/sync/download-batch',
   syncDownloadStatus: '/sync/download-status',
+  syncReportLatest: '/sync/report/latest',
+  syncReport: (id) => `/sync/report/${id}`,
+  syncReportItems: (id) => `/sync/report/${id}/items`,
+  syncReportCleanup: '/sync/report/cleanup',
 
   // Hardware Lock
   hardwareLockStatus: '/hardware-lock/status',
@@ -781,6 +785,60 @@ export const apiService = {
   downloadBatch: async (files) => {
     try {
       const response = await api.post(endpoints.syncDownloadBatch, { files }, { timeout: 120000 });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getSyncQueueStatus: async () => {
+    try {
+      const response = await api.get(endpoints.syncQueueStatus);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  clearFailedSyncItems: async () => {
+    try {
+      const response = await api.post(endpoints.syncClearFailed);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getLatestSyncReport: async () => {
+    try {
+      const response = await api.get(endpoints.syncReportLatest);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getSyncReport: async (runId) => {
+    try {
+      const response = await api.get(endpoints.syncReport(runId));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getSyncReportItems: async (runId, params = {}) => {
+    try {
+      const response = await api.get(endpoints.syncReportItems(runId), { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  cleanupSyncReports: async (days = 30) => {
+    try {
+      const response = await api.post(endpoints.syncReportCleanup, { days });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
