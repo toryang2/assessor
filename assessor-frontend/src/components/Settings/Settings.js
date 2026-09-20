@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, CircularProgress } from '@mui/material';
+import { Box, Card, CardContent, TextField, Button, Grid, Typography, Alert, Divider, List, ListItem, ListItemText, IconButton, Switch, FormControlLabel, Paper, Snackbar, ListItemIcon, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, CircularProgress, Chip } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -10,6 +10,14 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import TuneIcon from '@mui/icons-material/Tune';
+import StorageIcon from '@mui/icons-material/Storage';
+import EventRepeatIcon from '@mui/icons-material/EventRepeat';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import DomainIcon from '@mui/icons-material/Domain';
 import { motion } from 'framer-motion';
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -223,6 +231,10 @@ const Settings = () => {
     ...DEFAULTS,
     afk_timeout: afkTimeout || DEFAULTS.afk_timeout
   });
+  const [originalForm, setOriginalForm] = useState({
+    ...DEFAULTS,
+    afk_timeout: afkTimeout || DEFAULTS.afk_timeout
+  });
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [propertyTypes, setPropertyTypes] = useState([]);
@@ -378,7 +390,7 @@ const Settings = () => {
     const load = async () => {
       try {
         const data = await apiService.getSettings();
-        setForm({
+        const loadedSettings = {
           app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
           header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
           header_province: data.header_province || DEFAULTS.header_province,
@@ -400,7 +412,9 @@ const Settings = () => {
           assessor_etracs_db_password: data.assessor_etracs_db_password || '',
           assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
           enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
-        });
+        };
+        setForm(loadedSettings);
+        setOriginalForm(loadedSettings);
         const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
           apiService.getPropertyTypes(),
           apiService.getGeneralClasses(),
@@ -441,7 +455,7 @@ const Settings = () => {
   const refreshData = async () => {
     try {
       const data = await apiService.getSettings();
-      setForm({
+      const loadedSettings = {
         app_logo_url: data.app_logo_url || DEFAULTS.app_logo_url,
         header_photo_url: data.header_photo_url || DEFAULTS.header_photo_url,
         header_province: data.header_province || DEFAULTS.header_province,
@@ -463,7 +477,9 @@ const Settings = () => {
         assessor_etracs_db_password: data.assessor_etracs_db_password || '',
         assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
         enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
-      });
+      };
+      setForm(loadedSettings);
+      setOriginalForm(loadedSettings);
       const [typesRes, classesRes, locationsRes, revisionEntriesRes] = await Promise.all([
         apiService.getPropertyTypes(),
         apiService.getGeneralClasses(),
@@ -497,6 +513,11 @@ const Settings = () => {
     });
     return items;
   }, [publicApiKeys, apiKeyDateSort]);
+
+  const isFormDirty = useMemo(() => {
+    if (pendingLogoFile || pendingHeaderPhotoFile) return true;
+    return Object.keys(originalForm).some(key => form[key] !== originalForm[key]);
+  }, [form, originalForm, pendingLogoFile, pendingHeaderPhotoFile]);
 
   if (!canManage) {
     return (
@@ -581,6 +602,7 @@ const Settings = () => {
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
+      setOriginalForm(saved);
 
       // Update the auth context with the new AFK timeout
       updateAfkTimeout(form.afk_timeout);
@@ -1663,724 +1685,1239 @@ const Settings = () => {
     );
   };
 
-  const renderGeneralSettings = () => (
+  const handleCancelSettings = () => {
+    if (pendingLogoPreview) {
+      try { URL.revokeObjectURL(pendingLogoPreview); } catch (e) { }
+    }
+    if (pendingHeaderPhotoPreview) {
+      try { URL.revokeObjectURL(pendingHeaderPhotoPreview); } catch (e) { }
+    }
+    setPendingLogoFile(null);
+    setPendingLogoPreview('');
+    setPendingHeaderPhotoFile(null);
+    setPendingHeaderPhotoPreview('');
+    setForm(originalForm);
+  };
 
-    <Grid container spacing={2}>
-      <Grid item xs={12}>
-        <Grid container spacing={2} alignItems="flex-start">
-          <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'center' }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center', maxWidth: 360, width: '100%' }}>
-              <Typography variant="h6" sx={{ mb: 1 }}>Branding</Typography>
-              <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 140, height: 140, alignSelf: 'center', position: 'relative' }}>
-                {/* Current logo (fallback) */}
-                {form.app_logo_url && !pendingLogoPreview && (
-                  <img src={form.app_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                )}
-                {/* Pending preview overlays current */}
-                {pendingLogoPreview && (
-                  <img src={pendingLogoPreview} alt="New Logo Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                )}
-                {!form.app_logo_url && !pendingLogoPreview && (
-                  <Typography variant="caption" color="text.secondary">No logo uploaded</Typography>
-                )}
-              </Paper>
-              <TextField
-                fullWidth
-                size="small"
-                label="Logo URL"
-                value={form.app_logo_url}
-                onChange={(e) => handleChange('app_logo_url', e.target.value)}
-                helperText="Paste a URL or upload an image."
-              />
-              <Button fullWidth variant="outlined" component="label">
-                Upload Image
-                <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
-              </Button>
-              {pendingLogoFile && (
-                <Typography variant="caption" color="text.secondary">Staged: {pendingLogoFile.name} (will apply on Save)</Typography>
-              )}
-              <Typography variant="h6" sx={{ mb: 1 }}>Header Photo</Typography>
-              <Paper variant="outlined" sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 280, height: 35, alignSelf: 'center', position: 'relative' }}>
-                {/* Current header photo (fallback) */}
-                {form.header_photo_url && !pendingHeaderPhotoPreview && (
-                  <img src={form.header_photo_url} alt="Header Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                )}
-                {/* Pending preview overlays current */}
-                {pendingHeaderPhotoPreview && (
-                  <img src={pendingHeaderPhotoPreview} alt="New Header Photo Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                )}
-                {!form.header_photo_url && !pendingHeaderPhotoPreview && (
-                  <Typography variant="caption" color="text.secondary">No header photo uploaded</Typography>
-                )}
-              </Paper>
-              <TextField
-                fullWidth
-                size="small"
-                label="Header Photo URL"
-                value={form.header_photo_url}
-                onChange={(e) => handleChange('header_photo_url', e.target.value)}
-                helperText="Paste a URL or upload an image (8:1 aspect ratio recommended)."
-              />
-              <Button fullWidth variant="outlined" component="label">
-                Upload Header Photo
-                <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
-              </Button>
-              {pendingHeaderPhotoFile && (
-                <Typography variant="caption" color="text.secondary">Staged: {pendingHeaderPhotoFile.name} (will apply on Save)</Typography>
-              )}
-            </Box>
+  const renderGeneralSettings = () => (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {/* 1. Appearance & Branding */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
+            Appearance & Branding
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Manage the application logo and document header banner displayed across official certificates and exports.
+          </Typography>
+
+          <Grid container spacing={2.5}>
+            {/* Logo Section */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+                  Application Logo
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 1.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'background.default',
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      p: 0.5
+                    }}
+                  >
+                    {pendingLogoPreview ? (
+                      <img src={pendingLogoPreview} alt="Logo Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    ) : form.app_logo_url ? (
+                      <img src={form.app_logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary" align="center">No logo</Typography>
+                    )}
+                  </Paper>
+                  <Box sx={{ flex: 1 }}>
+                    <Button variant="outlined" size="small" component="label" sx={{ mb: 0.75, textTransform: 'none' }}>
+                      Choose Image…
+                      <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
+                    </Button>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Square PNG/JPG up to 2MB.
+                    </Typography>
+                    {pendingLogoFile && (
+                      <Chip
+                        size="small"
+                        color="warning"
+                        label={`Pending save: ${pendingLogoFile.name}`}
+                        sx={{ mt: 0.75, fontSize: '0.75rem', height: 22 }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Logo Image URL"
+                  value={form.app_logo_url || ''}
+                  onChange={(e) => handleChange('app_logo_url', e.target.value)}
+                  placeholder="https://..."
+                  helperText="Direct image URL link"
+                  sx={{ mt: 'auto' }}
+                />
+              </Box>
+            </Grid>
+
+            {/* Header Photo Section */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+                  Header Photo
+                </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      width: '100%',
+                      height: 52,
+                      borderRadius: 1.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'background.default',
+                      overflow: 'hidden',
+                      p: 0.5
+                    }}
+                  >
+                    {pendingHeaderPhotoPreview ? (
+                      <img src={pendingHeaderPhotoPreview} alt="Header Banner Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : form.header_photo_url ? (
+                      <img src={form.header_photo_url} alt="Header Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">No header banner uploaded</Typography>
+                    )}
+                  </Paper>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+                    <Button variant="outlined" size="small" component="label" sx={{ textTransform: 'none' }}>
+                      Choose Banner…
+                      <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
+                    </Button>
+                    {pendingHeaderPhotoFile && (
+                      <Chip
+                        size="small"
+                        color="warning"
+                        label={`Pending save: ${pendingHeaderPhotoFile.name}`}
+                        sx={{ fontSize: '0.75rem', height: 22 }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Header Banner URL"
+                  value={form.header_photo_url || ''}
+                  onChange={(e) => handleChange('header_photo_url', e.target.value)}
+                  placeholder="https://..."
+                  helperText="Recommended wide ratio (~8:1)"
+                  sx={{ mt: 'auto' }}
+                />
+              </Box>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
-              <Typography variant="h6" sx={{ mb: 1 }}>Print Header Details</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Province"
-                    value={form.header_province.toUpperCase()}
-                    onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Municipality"
-                    value={form.header_municipality.toUpperCase()}
-                    onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="User ID Prefix (ULID)"
-                    value={form.municipality_prefix ? form.municipality_prefix.toUpperCase() : ''}
-                    onChange={(e) => handleChange('municipality_prefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3))}
-                    helperText="Max 3 letters, e.g. KIT"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="LGU Base PIN"
-                    value={form.lgu_pin || ''}
-                    onChange={(e) => handleChange('lgu_pin', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Office"
-                    value={form.header_office.toUpperCase()}
-                    onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="caption" color="text.secondary">
-                    The first line (Republic of the Philippines) and header title are fixed in the printout.
-                  </Typography>
-                </Grid>
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Security Settings
+        </CardContent>
+      </Card>
+
+      {/* 2. Office & Jurisdiction Information */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
+            Office & Jurisdiction Information
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Official local government unit identifiers and municipality jurisdictional settings.
+          </Typography>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Province"
+                value={(form.header_province || '').toUpperCase()}
+                onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
+                placeholder="BUKIDNON"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Municipality"
+                value={(form.header_municipality || '').toUpperCase()}
+                onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                placeholder="KITAOTAO"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Office Department Header"
+                value={(form.header_office || '').toUpperCase()}
+                onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
+                placeholder="OFFICE OF THE MUNICIPAL ASSESSOR"
+                helperText="Appears on formal municipal tax declaration forms and certificates"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="LGU Base PIN"
+                value={form.lgu_pin || ''}
+                onChange={(e) => handleChange('lgu_pin', e.target.value)}
+                helperText="Base Property Identification Number prefix"
+                placeholder="059-10"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="User ID Prefix"
+                value={form.municipality_prefix ? form.municipality_prefix.toUpperCase() : ''}
+                onChange={(e) => handleChange('municipality_prefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3))}
+                helperText="Max 3 alphanumeric characters (e.g. KIT)"
+                placeholder="KIT"
+              />
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* 3. Print Signatories & Authority */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
+            Print Signatories & Authority
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Default verifiers and municipal assessors endorsing official certificates and assessment rolls.
+          </Typography>
+
+          <Grid container spacing={2.5}>
+            {/* Municipal Assessor Sub-section */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mb: 1.5 }}>
+                  Municipal Assessor
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      label="Auto-logout timeout (minutes)"
-                      type="number"
-                      value={form.afk_timeout ?? 30}
-                      onChange={(e) => handleAfkTimeoutChange(e.target.value)}
-                      helperText={`Automatically log out after ${form.afk_timeout ?? 30} minutes of inactivity. Login will also expire when browser is closed for security. (5-480 minutes)`}
-                      inputProps={{ min: 5, max: 480 }}
                       size="small"
-                      error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+                      label="Municipal Assessor Name"
+                      value={(form.municipal_assessor_name || '').toUpperCase()}
+                      onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
+                      placeholder="FULL NAME"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Official Title / Designation"
+                      value={(form.municipal_assessor_title || '').toUpperCase()}
+                      onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
+                      placeholder="MUNICIPAL ASSESSOR / ACTING MUNICIPAL ASSESSOR"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="License Number"
+                      value={(form.municipal_assessor_license || '').toUpperCase()}
+                      onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
+                      placeholder="PRC LICENSE NO."
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Suffix (Degrees)"
+                      value={(form.municipal_assessor_suffix || '').toUpperCase()}
+                      onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
+                      placeholder="MMREM, REA, REB, LPT"
                     />
                   </Grid>
                 </Grid>
-              </Grid>
-            </Box>
+              </Box>
+            </Grid>
+
+            {/* Verifier / Signatory Sub-section */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mb: 1.5 }}>
+                  Verifier / Signatory
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Verifier Signatory Name"
+                      value={(form.verifier_signatory_name || '').toUpperCase()}
+                      onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
+                      placeholder="FULL NAME"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Verifier Signatory Title"
+                      value={(form.verifier_signatory_title || '').toUpperCase()}
+                      onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
+                      placeholder="ASSESSMENT CLERK / LAOO"
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}>
-              <Typography variant="h6" sx={{ mb: 1 }}>Signatory Details</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Verifier Signatory Name"
-                    value={(form.verifier_signatory_name || '').toUpperCase()}
-                    onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Verifier Signatory Title"
-                    value={(form.verifier_signatory_title || '').toUpperCase()}
-                    onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Municipal Assessor Name"
-                    value={(form.municipal_assessor_name || '').toUpperCase()}
-                    onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Municipal Assessor Title/Suffix (e.g., MMREM, REA, REB, LPT)"
-                    value={(form.municipal_assessor_suffix || '').toUpperCase()}
-                    onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Title(Municipal Assessor / Acting)"
-                    value={(form.municipal_assessor_title || '').toUpperCase()}
-                    onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Municipal Assessor License Number"
-                    value={(form.municipal_assessor_license || '').toUpperCase()}
-                    onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
-                  />
-                </Grid>
-              </Grid>
+        </CardContent>
+      </Card>
+
+      {/* 4. Session & Security Controls */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
+            Session & Security Controls
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Automatically sign users out after a period of inactivity.
+          </Typography>
+
+          <Box sx={{ maxWidth: 360 }}>
+            <TextField
+              fullWidth
+              label="Automatic Logout"
+              type="number"
+              value={form.afk_timeout ?? 30}
+              onChange={(e) => handleAfkTimeoutChange(e.target.value)}
+              helperText={`Automatically logs out inactive users after ${form.afk_timeout || 30} minutes (5–480 min).`}
+              inputProps={{ min: 5, max: 480 }}
+              size="small"
+              error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+            />
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* 5. Advanced Features */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
+            Advanced Features
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Configure extended integration features and legacy database services.
+          </Typography>
+
+          <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                ETRACS Integration
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Enable ETRACS-related properties, taxpayers, and navigation features.
+              </Typography>
             </Box>
-          </Grid>
-        </Grid>
-      </Grid>
-      <Grid item xs={12}>
-        <Divider sx={{ my: 3 }} />
-        <Typography variant="h6" sx={{ mb: 2 }}>Experimental Features</Typography>
-        <FormControlLabel
-          control={
             <Switch
-              checked={form.enable_etracs_features == 1}
+              checked={Number(form.enable_etracs_features) === 1}
               onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
               color="primary"
             />
-          }
-          label="Enable ETRACS Integration (Properties & Taxpayers)"
-        />
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Turning this on will reveal the "ETRACS Properties" and "Taxpayers" navigation items.
-        </Typography>
-      </Grid>
-      <Grid item xs={12} textAlign="right">
-        <Button variant="contained" onClick={handleSave}>Save</Button>
-      </Grid>
-    </Grid>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 
   const renderDataManagement = () => (
-    <Grid container spacing={2}>
+    <Grid container spacing={3}>
+      {/* Property Types Card */}
       <Grid item xs={12} md={6} lg={4}>
-        <Typography variant="h6">Property Types</Typography>
-        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Code" required value={newType.code}
-              onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Name" required value={newType.name}
-              onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Button fullWidth variant="outlined" onClick={addPropertyType}>Add</Button>
-          </Grid>
-        </Grid>
-        <List dense>
-          {(propertyTypes || []).map((t, index) => (
-            <ListItem key={t.id} draggable onDragStart={() => handleDragStart('propertyTypes', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('propertyTypes', index)} secondaryAction={
-              <IconButton edge="end" aria-label="delete" onClick={async () => {
-                try {
-                  await apiService.deletePropertyType(t.id);
-                  const res = await apiService.getPropertyTypes();
-                  setPropertyTypes(res?.items || []);
-                  setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
-                }
-              }}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                <DragIndicatorIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={t.name} />
-              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={t.status === 'active'} onChange={async (e) => {
-                try {
-                  const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
-                  setPropertyTypes(updated?.items || []);
-                  setToast({ open: true, message: 'Property type updated.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
-                }
-              }} />} label={t.status === 'active' ? 'Active' : 'Disabled'} />
-            </ListItem>
-          ))}
-        </List>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Property Types
+              </Typography>
+              <Chip size="small" label={`${propertyTypes?.length || 0} types`} sx={{ height: 22, fontSize: '0.75rem' }} />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+              Drag items to reorder priority in dropdowns.
+            </Typography>
+
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
+              <Grid container spacing={1}>
+                <Grid item xs={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Code"
+                    placeholder="LAND"
+                    value={newType.code}
+                    onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+                  />
+                </Grid>
+                <Grid item xs={8}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Type Name"
+                    placeholder="Land"
+                    value={newType.name}
+                    onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Button fullWidth variant="contained" size="small" onClick={addPropertyType} sx={{ textTransform: 'none', py: 0.75 }}>
+                    + Add Property Type
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
+              {(propertyTypes || []).map((t, index) => (
+                <ListItem
+                  key={t.id}
+                  draggable
+                  onDragStart={() => handleDragStart('propertyTypes', index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop('propertyTypes', index)}
+                  secondaryAction={
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Switch
+                        size="small"
+                        checked={t.status === 'active'}
+                        onChange={async (e) => {
+                          try {
+                            const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
+                            setPropertyTypes(updated?.items || []);
+                            setToast({ open: true, message: 'Property type updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label="delete"
+                        onClick={async () => {
+                          try {
+                            await apiService.deletePropertyType(t.id);
+                            const res = await apiService.getPropertyTypes();
+                            setPropertyTypes(res?.items || []);
+                            setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
+                          }
+                        }}
+                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    mb: 1,
+                    px: 1,
+                    py: 0.75,
+                    bgcolor: 'background.paper',
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
+                    <DragIndicatorIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={t.code}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            bgcolor: 'action.hover',
+                            borderRadius: 0.75
+                          }}
+                        />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {t.name}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={t.status === 'active' ? 'Active' : 'Disabled'}
+                    secondaryTypographyProps={{ variant: 'caption', color: t.status === 'active' ? 'text.secondary' : 'text.disabled' }}
+                    sx={{ my: 0, pr: 8 }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
       </Grid>
 
+      {/* General Classes Card */}
       <Grid item xs={12} md={6} lg={4}>
-        <Typography variant="h6">General Classes</Typography>
-        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Code" required value={newClass.code}
-              onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth size="small" label="Name" required value={newClass.name}
-              onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Button fullWidth variant="outlined" onClick={addGeneralClass}>Add</Button>
-          </Grid>
-        </Grid>
-        <List dense>
-          {(generalClasses || []).map((c, index) => (
-            <ListItem key={c.id} draggable onDragStart={() => handleDragStart('generalClasses', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('generalClasses', index)} secondaryAction={
-              <IconButton edge="end" aria-label="delete" onClick={async () => {
-                try {
-                  await apiService.deleteGeneralClass(c.id);
-                  const res = await apiService.getGeneralClasses();
-                  setGeneralClasses(res?.items || []);
-                  setToast({ open: true, message: 'General class deleted.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
-                }
-              }}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                <DragIndicatorIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={c.name} />
-              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={c.status === 'active'} onChange={async (e) => {
-                try {
-                  const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
-                  setGeneralClasses(updated?.items || []);
-                  setToast({ open: true, message: 'General class updated.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
-                }
-              }} />} label={c.status === 'active' ? 'Active' : 'Disabled'} />
-            </ListItem>
-          ))}
-        </List>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                General Classes
+              </Typography>
+              <Chip size="small" label={`${generalClasses?.length || 0} classes`} sx={{ height: 22, fontSize: '0.75rem' }} />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+              Classification categories for tax assessment computation.
+            </Typography>
+
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
+              <Grid container spacing={1}>
+                <Grid item xs={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Code"
+                    placeholder="RES"
+                    value={newClass.code}
+                    onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+                  />
+                </Grid>
+                <Grid item xs={8}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Class Name"
+                    placeholder="Residential"
+                    value={newClass.name}
+                    onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Button fullWidth variant="contained" size="small" onClick={addGeneralClass} sx={{ textTransform: 'none', py: 0.75 }}>
+                    + Add General Class
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
+              {(generalClasses || []).map((c, index) => (
+                <ListItem
+                  key={c.id}
+                  draggable
+                  onDragStart={() => handleDragStart('generalClasses', index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop('generalClasses', index)}
+                  secondaryAction={
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Switch
+                        size="small"
+                        checked={c.status === 'active'}
+                        onChange={async (e) => {
+                          try {
+                            const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
+                            setGeneralClasses(updated?.items || []);
+                            setToast({ open: true, message: 'General class updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label="delete"
+                        onClick={async () => {
+                          try {
+                            await apiService.deleteGeneralClass(c.id);
+                            const res = await apiService.getGeneralClasses();
+                            setGeneralClasses(res?.items || []);
+                            setToast({ open: true, message: 'General class deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
+                          }
+                        }}
+                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    mb: 1,
+                    px: 1,
+                    py: 0.75,
+                    bgcolor: 'background.paper',
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
+                    <DragIndicatorIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={c.code}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            bgcolor: 'action.hover',
+                            borderRadius: 0.75
+                          }}
+                        />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {c.name}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={c.status === 'active' ? 'Active' : 'Disabled'}
+                    secondaryTypographyProps={{ variant: 'caption', color: c.status === 'active' ? 'text.secondary' : 'text.disabled' }}
+                    sx={{ my: 0, pr: 8 }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
       </Grid>
 
-      <Grid item xs={12} md={6} lg={4}>
-        <Typography variant="h6">Barangays</Typography>
-        <Grid container spacing={2} alignItems="flex-start" sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth size="small" label="Barangay Code" required value={newLocation.code}
-              onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth size="small" label="Barangay Name" required value={newLocation.name}
-              onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth size="small" label="Barangay PIN" value={newLocation.pin}
-              onChange={(e) => setNewLocation({ ...newLocation, pin: e.target.value.toUpperCase() })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Button fullWidth variant="outlined" onClick={addLocation}>Add</Button>
-          </Grid>
-        </Grid>
-        <List dense>
-          {(locations || []).map((l, index) => (
-            <ListItem key={l.id} draggable onDragStart={() => handleDragStart('locations', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('locations', index)} secondaryAction={
-              <IconButton edge="end" aria-label="delete" onClick={async () => {
-                try {
-                  await apiService.deleteLocation(l.id);
-                  const res = await apiService.getLocations();
-                  setLocations(res?.items || []);
-                  setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
-                }
-              }}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                <DragIndicatorIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }} primary={l.name} secondary={`Code: ${l.code} | PIN: ${l.pin || 'N/A'}`} />
-              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={l.status === 'active'} onChange={async (e) => {
-                try {
-                  const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
-                  setLocations(updated?.items || []);
-                  setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
-                }
-              }} />} label={l.status === 'active' ? 'Active' : 'Disabled'} />
-            </ListItem>
-          ))}
-        </List>
+      {/* Barangays Card */}
+      <Grid item xs={12} md={12} lg={4}>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Barangays
+              </Typography>
+              <Chip size="small" label={`${locations?.length || 0} barangays`} sx={{ height: 22, fontSize: '0.75rem' }} />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+              Barangay administrative units and PIN mapping.
+            </Typography>
+
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
+              <Grid container spacing={1}>
+                <Grid item xs={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Code"
+                    placeholder="001"
+                    value={newLocation.code}
+                    onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+                  />
+                </Grid>
+                <Grid item xs={8}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Barangay Name"
+                    placeholder="Poblacion"
+                    value={newLocation.name}
+                    onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Barangay PIN"
+                    placeholder="0001"
+                    value={newLocation.pin}
+                    onChange={(e) => setNewLocation({ ...newLocation, pin: e.target.value.toUpperCase() })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Button fullWidth variant="contained" size="small" onClick={addLocation} sx={{ textTransform: 'none', py: 0.75 }}>
+                    + Add Barangay
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
+              {(locations || []).map((l, index) => (
+                <ListItem
+                  key={l.id}
+                  draggable
+                  onDragStart={() => handleDragStart('locations', index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop('locations', index)}
+                  secondaryAction={
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Switch
+                        size="small"
+                        checked={l.status === 'active'}
+                        onChange={async (e) => {
+                          try {
+                            const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                            setLocations(updated?.items || []);
+                            setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label="delete"
+                        onClick={async () => {
+                          try {
+                            await apiService.deleteLocation(l.id);
+                            const res = await apiService.getLocations();
+                            setLocations(res?.items || []);
+                            setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
+                          } catch (err) {
+                            setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
+                          }
+                        }}
+                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    mb: 1,
+                    px: 1,
+                    py: 0.75,
+                    bgcolor: 'background.paper',
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
+                    <DragIndicatorIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={l.code}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            bgcolor: 'action.hover',
+                            borderRadius: 0.75
+                          }}
+                        />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {l.name}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={
+                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                        <span>PIN: <strong>{l.pin || '—'}</strong></span>
+                        <span>•</span>
+                        <span>{l.status === 'active' ? 'Active' : 'Disabled'}</span>
+                      </Box>
+                    }
+                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                    sx={{ my: 0, pr: 8 }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
       </Grid>
     </Grid>
   );
 
   const renderRevisionSettings = () => (
-    <Grid container spacing={2}>
-      <Grid item xs={12} md={8} lg={6}>
-        <Typography variant="h6" sx={{ mb: 2 }}>Revision Entries</Typography>
-
-        {/* Compact Add Form */}
-        <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1, display: 'block' }}>
-            💡 Leave "To Year" blank for ongoing revisions. Previous "present" revisions will auto-update when adding new ones.
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Add New Revision Card */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+            General Revision Schedules
           </Typography>
-          <Grid container spacing={1} alignItems="flex-start">
+          <Alert severity="info" variant="outlined" sx={{ mb: 2.5, borderRadius: 1.5, py: 0.5 }}>
+            Leave "To Year" blank for ongoing/current revisions. Previous active revisions will automatically adjust their ending year when a new ongoing schedule is added.
+          </Alert>
+
+          <Grid container spacing={2} alignItems="flex-end">
             <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 size="small"
-                label="Revision Year"
+                label="Revision Label / Year"
                 required
                 value={newRevisionEntry.revision_year}
                 onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, revision_year: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
                 placeholder="e.g., 2024 Revision"
-                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
-                inputProps={{ style: { fontSize: '0.75rem' } }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={3}>
               <TextField
                 fullWidth
                 size="small"
-                label="From Year"
+                label="Effective From Year"
                 type="number"
                 required
                 value={newRevisionEntry.from_year}
                 onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, from_year: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
                 placeholder="2024"
-                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
-                inputProps={{ style: { fontSize: '0.75rem' }, min: 1900, max: 2100 }}
+                inputProps={{ min: 1900, max: 2100 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={3}>
               <TextField
                 fullWidth
                 size="small"
-                label="To Year"
+                label="Effective To Year (Optional)"
                 value={newRevisionEntry.to_year}
                 onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
-                placeholder="Leave blank for present"
-                helperText="Optional"
-                InputLabelProps={{ style: { fontSize: '0.75rem' } }}
-                inputProps={{ style: { fontSize: '0.75rem' } }}
+                placeholder="Leave blank for ongoing"
               />
             </Grid>
+            <Grid item xs={12} sm={2}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={addRevisionEntry}
+                sx={{ textTransform: 'none', height: 40 }}
+              >
+                + Add Revision
+              </Button>
+            </Grid>
           </Grid>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-            <Button variant="outlined" size="small" onClick={addRevisionEntry}
-              sx={{
-                height: 40,
-                minHeight: 40,
-                px: 2,
-              }}>
-              Add
-            </Button>
-          </Box>
-        </Paper>
-        <List dense>
-          {(revisionEntries || []).map((entry, index) => (
-            <ListItem key={entry.id} draggable onDragStart={() => handleDragStart('revisionEntries', index)} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDrop('revisionEntries', index)} secondaryAction={
-              <IconButton edge="end" aria-label="delete" onClick={async () => {
-                try {
-                  await apiService.deleteRevisionEntry(entry.id);
-                  const res = await apiService.getRevisionEntries();
-                  setRevisionEntries(res?.items || []);
-                  setToast({ open: true, message: 'Revision entry deleted.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to delete revision entry.', severity: 'error' });
-                }
-              }}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemIcon sx={{ minWidth: 32, cursor: 'grab', color: 'text.secondary' }}>
-                <DragIndicatorIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primaryTypographyProps={{ sx: { wordBreak: 'break-word' } }}
-                primary={`${entry.revision_year} (${entry.from_year} - ${entry.to_year === 'present' ? 'Present' : entry.to_year})`}
-              />
-              <FormControlLabel sx={{ ml: 2 }} control={<Switch size="small" checked={entry.status === 'active'} onChange={async (e) => {
-                try {
-                  const updated = await apiService.saveRevisionEntry({
-                    id: entry.id,
-                    revision_year: entry.revision_year,
-                    from_year: entry.from_year,
-                    to_year: entry.to_year,
-                    status: e.target.checked ? 'active' : 'disabled',
-                    sort_order: entry.sort_order || 0
-                  });
-                  setRevisionEntries(updated?.items || []);
-                  setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
-                } catch (err) {
-                  setToast({ open: true, message: 'Failed to update revision entry.', severity: 'error' });
-                }
-              }} />} label={entry.status === 'active' ? 'Active' : 'Disabled'} />
-            </ListItem>
-          ))}
-        </List>
-      </Grid>
-    </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Revision Schedules Table */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 0 }}>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ width: 48 }} />
+                  <TableCell sx={{ fontWeight: 600 }}>Revision</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Effectivity Period</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(!revisionEntries || revisionEntries.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      No general revision entries configured yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  revisionEntries.map((entry, index) => {
+                    const isPresent = entry.to_year === 'present' || !entry.to_year;
+                    return (
+                      <TableRow
+                        key={entry.id}
+                        hover
+                        draggable
+                        onDragStart={() => handleDragStart('revisionEntries', index)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleDrop('revisionEntries', index)}
+                      >
+                        <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 48 }} title="Drag to reorder">
+                          <DragIndicatorIcon fontSize="small" />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {entry.revision_year}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {entry.from_year} → {isPresent ? 'Present' : entry.to_year}
+                            </Typography>
+                            {isPresent && (
+                              <Chip size="small" color="primary" variant="outlined" label="Current" sx={{ height: 20, fontSize: '0.7rem' }} />
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <FormControlLabel
+                            sx={{ m: 0 }}
+                            control={
+                              <Switch
+                                size="small"
+                                checked={entry.status === 'active'}
+                                onChange={async (e) => {
+                                  try {
+                                    const updated = await apiService.saveRevisionEntry({
+                                      id: entry.id,
+                                      revision_year: entry.revision_year,
+                                      from_year: entry.from_year,
+                                      to_year: entry.to_year,
+                                      status: e.target.checked ? 'active' : 'disabled',
+                                      sort_order: entry.sort_order || 0
+                                    });
+                                    setRevisionEntries(updated?.items || []);
+                                    setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
+                                  } catch (err) {
+                                    setToast({ open: true, message: 'Failed to update revision entry.', severity: 'error' });
+                                  }
+                                }}
+                              />
+                            }
+                            label={entry.status === 'active' ? 'Active' : 'Disabled'}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            aria-label="delete"
+                            onClick={async () => {
+                              try {
+                                await apiService.deleteRevisionEntry(entry.id);
+                                const res = await apiService.getRevisionEntries();
+                                setRevisionEntries(res?.items || []);
+                                setToast({ open: true, message: 'Revision entry deleted.', severity: 'success' });
+                              } catch (err) {
+                                setToast({ open: true, message: 'Failed to delete revision entry.', severity: 'error' });
+                              }
+                            }}
+                            sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+    </Box>
   );
 
   const renderRequestPaymentInfos = () => (
-    <Grid container spacing={2}>
-      <Grid item xs={12} md={6} lg={5}>
-        <Typography variant="h6" sx={{ mb: 2 }}>Request Payment Infos</Typography>
-        <TextField
-          fullWidth
-          size="small"
-          label="Default Place Issued"
-          value={form.request_place_issued_default || ''}
-          onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
-          helperText="This will be used as the default value for 'Place Issued' in the Request Form."
-          sx={{ mb: 2 }}
-        />
-        <Divider sx={{ mb: 2 }} />
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>Purposes & Amounts</Typography>
-        <Grid container spacing={1} alignItems="flex-start">
-          <Grid item xs={12} sm={7}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Purpose"
-              value={newRequestPurpose.purpose}
-              onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
-            />
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Default Place Issued Card */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+            Default Issuance Place
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Specifies the default municipality location printed on issued request receipts and formal certifications.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Default Place Issued"
+                value={form.request_place_issued_default || ''}
+                onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
+                placeholder="e.g. KITAOTAO, BUKIDNON"
+                helperText="Auto-populated in Request Form certificates"
+              />
+            </Grid>
           </Grid>
-          <Grid item xs={12} sm={5}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Amount"
-              type="number"
-              value={newRequestPurpose.amount}
-              onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, amount: e.target.value }))}
-              inputProps={{ min: 0, step: 0.01 }}
-              onBlur={() => {
-                const n = Number(newRequestPurpose.amount);
-                if (!isNaN(n) && n >= 0) {
-                  setNewRequestPurpose(prev => ({ ...prev, amount: n.toFixed(2) }));
-                }
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Button fullWidth variant="outlined" onClick={addRequestPurpose}>Add</Button>
-          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Purposes & Fee Schedules (2-Column: Add on left, Table on right) */}
+      <Grid container spacing={3}>
+        {/* Left Column: Add New Purpose Form */}
+        <Grid item xs={12} md={4} lg={3.5}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                Add Request Purpose
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Configure standard certification purposes and official fees.
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Purpose Description"
+                  placeholder="CERTIFICATION_FEE"
+                  value={newRequestPurpose.purpose}
+                  onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
+                  helperText="Spaces converted to underscores"
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Amount (PHP)"
+                  type="number"
+                  placeholder="50.00"
+                  value={newRequestPurpose.amount}
+                  onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, amount: e.target.value }))}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  onBlur={() => {
+                    const n = Number(newRequestPurpose.amount);
+                    if (!isNaN(n) && n >= 0) {
+                      setNewRequestPurpose(prev => ({ ...prev, amount: n.toFixed(2) }));
+                    }
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
+                />
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={addRequestPurpose}
+                  sx={{ textTransform: 'none', py: 1 }}
+                >
+                  + Add Purpose & Fee
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Right Column: Purpose Fee Table */}
+        <Grid item xs={12} md={8} lg={8.5}>
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 0 }}>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ width: 44 }} />
+                      <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 140 }} align="right">Amount</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 130 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(!requestPurposes || requestPurposes.length === 0) ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          No request purposes configured yet.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      requestPurposes.map((p, index) => {
+                        const isEditing = editingRequestPurposeId === p.id;
+                        return (
+                          <TableRow
+                            key={p.id}
+                            hover
+                            draggable={!isEditing}
+                            onDragStart={() => handleDragStart('requestPurposes', index)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => handleDrop('requestPurposes', index)}
+                            sx={{ '& td': { verticalAlign: 'middle' } }}
+                          >
+                            <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
+                              <DragIndicatorIcon fontSize="small" />
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  value={editRequestPurposeDraft.purpose}
+                                  onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditRequestPurpose(p);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditRequestPurpose();
+                                    }
+                                  }}
+                                  fullWidth
+                                />
+                              ) : (
+                                p.purpose
+                              )}
+                            </TableCell>
+                            <TableCell align="right">
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={editRequestPurposeDraft.amount}
+                                  onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, amount: e.target.value }))}
+                                  inputProps={{ min: 0, step: 0.01 }}
+                                  onBlur={() => {
+                                    const n = Number(editRequestPurposeDraft.amount);
+                                    if (!isNaN(n) && n >= 0) {
+                                      setEditRequestPurposeDraft(prev => ({ ...prev, amount: n.toFixed(2) }));
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditRequestPurpose(p);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditRequestPurpose();
+                                    }
+                                  }}
+                                  sx={{ width: 120 }}
+                                />
+                              ) : (
+                                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                                  ₱{(() => {
+                                    const n = Number(p.amount);
+                                    return isNaN(n) ? String(p.amount ?? '') : n.toFixed(2);
+                                  })()}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <FormControlLabel
+                                sx={{ m: 0 }}
+                                control={
+                                  <Switch
+                                    size="small"
+                                    checked={p.status === 'active'}
+                                    disabled={isEditing}
+                                    onChange={async (e) => {
+                                      try {
+                                        const res = await apiService.saveRequestPurpose({
+                                          id: p.id,
+                                          purpose: p.purpose,
+                                          amount: Number(p.amount) || 0,
+                                          status: e.target.checked ? 'active' : 'disabled',
+                                          sort_order: p.sort_order || 0
+                                        });
+                                        setRequestPurposes(res?.items || []);
+                                        setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
+                                      }
+                                    }}
+                                  />
+                                }
+                                label={p.status === 'active' ? 'Active' : 'Disabled'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {!isEditing ? (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton size="small" aria-label="edit" onClick={() => beginEditRequestPurpose(p)}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="delete"
+                                    onClick={() => confirmDeleteRequestPurpose(p)}
+                                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton size="small" color="primary" aria-label="save" onClick={() => saveEditRequestPurpose(p)}>
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton size="small" aria-label="cancel" onClick={cancelEditRequestPurpose}>
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
-      <Grid item xs={12} md={6} lg={7}>
-        <Typography variant="h6" sx={{ mb: 2, opacity: 0 }}>.</Typography>
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ width: 40 }} />
-                <TableCell>Purpose</TableCell>
-                <TableCell sx={{ width: 160 }}>Amount</TableCell>
-                <TableCell sx={{ width: 170 }}>Status</TableCell>
-                <TableCell sx={{ width: 120 }} align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(requestPurposes || []).map((p, index) => {
-                const isEditing = editingRequestPurposeId === p.id;
-                return (
-                  <TableRow
-                    key={p.id}
-                    hover
-                    draggable={!isEditing}
-                    onDragStart={() => handleDragStart('requestPurposes', index)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop('requestPurposes', index)}
-                    sx={{ '& td': { verticalAlign: 'middle' } }}
-                  >
-                    <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary' }} title={isEditing ? '' : 'Drag to reorder'}>
-                      <DragIndicatorIcon fontSize="small" />
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                      {isEditing ? (
-                        <TextField
-                          size="small"
-                          value={editRequestPurposeDraft.purpose}
-                          onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              saveEditRequestPurpose(p);
-                            } else if (e.key === 'Escape') {
-                              e.preventDefault();
-                              cancelEditRequestPurpose();
-                            }
-                          }}
-                          fullWidth
-                        />
-                      ) : (
-                        p.purpose
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={editRequestPurposeDraft.amount}
-                          onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, amount: e.target.value }))}
-                          inputProps={{ min: 0, step: 0.01 }}
-                          onBlur={() => {
-                            const n = Number(editRequestPurposeDraft.amount);
-                            if (!isNaN(n) && n >= 0) {
-                              setEditRequestPurposeDraft(prev => ({ ...prev, amount: n.toFixed(2) }));
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              saveEditRequestPurpose(p);
-                            } else if (e.key === 'Escape') {
-                              e.preventDefault();
-                              cancelEditRequestPurpose();
-                            }
-                          }}
-                          sx={{ width: 140 }}
-                        />
-                      ) : (
-                        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                          {(() => {
-                            const n = Number(p.amount);
-                            return isNaN(n) ? String(p.amount ?? '') : n.toFixed(2);
-                          })()}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <FormControlLabel
-                        sx={{ m: 0 }}
-                        control={
-                          <Switch
-                            size="small"
-                            checked={p.status === 'active'}
-                            disabled={isEditing}
-                            onChange={async (e) => {
-                              try {
-                                const res = await apiService.saveRequestPurpose({
-                                  id: p.id,
-                                  purpose: p.purpose,
-                                  amount: Number(p.amount) || 0,
-                                  status: e.target.checked ? 'active' : 'disabled',
-                                  sort_order: p.sort_order || 0
-                                });
-                                setRequestPurposes(res?.items || []);
-                                setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
-                              } catch (err) {
-                                setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
-                              }
-                            }}
-                          />
-                        }
-                        label={p.status === 'active' ? 'Active' : 'Disabled'}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      {!isEditing ? (
-                        <>
-                          <IconButton aria-label="edit" onClick={() => beginEditRequestPurpose(p)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton aria-label="delete" onClick={async () => {
-                            confirmDeleteRequestPurpose(p);
-                          }}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </>
-                      ) : (
-                        <>
-                          <IconButton aria-label="save" onClick={() => saveEditRequestPurpose(p)}>
-                            <CheckIcon />
-                          </IconButton>
-                          <IconButton aria-label="cancel" onClick={cancelEditRequestPurpose}>
-                            <CloseIcon />
-                          </IconButton>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Grid>
-      <Grid item xs={12} textAlign="right">
-        <Button variant="contained" onClick={handleSave}>Save</Button>
-      </Grid>
-    </Grid>
+    </Box>
   );
 
+  const settingsNavItems = [
+    { label: 'General Settings', tab: 0, description: 'Branding, office info & signatories', icon: <TuneIcon fontSize="small" /> },
+    { label: 'Data Management', tab: 1, description: 'Property types, classes & barangays', icon: <StorageIcon fontSize="small" /> },
+    { label: 'Revision Settings', tab: 2, description: 'General assessment revisions', icon: <EventRepeatIcon fontSize="small" /> },
+    { label: 'Request Payment Info', tab: 3, description: 'Purposes, standard fees & issuance', icon: <ReceiptLongIcon fontSize="small" /> },
+    { label: 'API Keys', tab: 4, description: 'External integration credentials', icon: <VpnKeyIcon fontSize="small" /> },
+    ...(canManage ? [
+      { label: 'Remote Sync', tab: 5, description: 'Cloud synchronization configuration', icon: <CloudSyncIcon fontSize="small" /> },
+      { label: 'ETRACS Data Sync', tab: 6, description: 'ETRACS municipal database pull', icon: <SyncAltIcon fontSize="small" /> },
+      { label: 'ETRACS Bldg Revisions', tab: 7, description: 'Building revision schedule mappings', icon: <DomainIcon fontSize="small" /> }
+    ] : [])
+  ];
+
   return (
-    <Box component={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-         sx={{ 
-           display: 'flex', 
-           flexDirection: 'column', 
-           height: 'calc(100vh - 64px - 3rem)', 
-           overflow: 'hidden' 
-         }}>
+    <Box
+      component={motion.div}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 'calc(100vh - 90px)',
+        pb: isFormDirty ? 9 : 3
+      }}
+    >
+      {/* Dialogs */}
       <Dialog
         open={deleteApiKeyDialog.open}
         onClose={closeDeleteApiKeyDialog}
@@ -2406,6 +2943,7 @@ const Settings = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         open={revealSecretDialog.open}
         onClose={closeRevealSecretDialog}
@@ -2467,6 +3005,7 @@ const Settings = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         key={newKeyDialog.dialogKey || 'new-api-key-closed'}
         open={newKeyDialog.open}
@@ -2541,6 +3080,7 @@ const Settings = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         open={deletePurposeDialog.open}
         onClose={closeDeleteRequestPurpose}
@@ -2584,6 +3124,8 @@ const Settings = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Feedback Toast */}
       <Snackbar
         open={toast.open}
         autoHideDuration={toast.severity === 'error' ? 7000 : toast.severity === 'warning' ? 6000 : 3500}
@@ -2608,20 +3150,72 @@ const Settings = () => {
         </Alert>
       </Snackbar>
 
-      <Card sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-          <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs" variant="scrollable" scrollButtons="auto">
-            <Tab label="General Settings" />
-            <Tab label="Data Management" />
-            <Tab label="Revision Settings" />
-            <Tab label="Request Payment Info" />
-            <Tab label="API Keys" />
-            {canManage && <Tab label="Remote Sync" />}
-            {canManage && <Tab label="ETRACS Data Sync" />}
-            {canManage && <Tab label="ETRACS Bldg Revision Settings" />}
-          </Tabs>
-        </Box>
-        <CardContent sx={{ overflow: 'auto', flexGrow: 1 }}>
+      {/* Top Header */}
+      <Box sx={{ mb: 2.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.25 }}>
+          Settings
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Configure the application, office information and system behavior.
+        </Typography>
+      </Box>
+
+      {/* Two-Column Shell */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2.5, flexGrow: 1, alignItems: 'flex-start' }}>
+        {/* Left Navigation Rail */}
+        <Paper
+          variant="outlined"
+          sx={{
+            width: { xs: '100%', md: 240 },
+            flexShrink: 0,
+            borderRadius: 2,
+            overflow: 'hidden'
+          }}
+        >
+          <List disablePadding sx={{ p: 0.75 }}>
+            {settingsNavItems.map((item) => {
+              const isSelected = activeTab === item.tab;
+              return (
+                <ListItem
+                  button
+                  key={item.tab}
+                  onClick={() => setActiveTab(item.tab)}
+                  sx={{
+                    borderRadius: 1.5,
+                    mb: 0.5,
+                    px: 1.25,
+                    py: 0.85,
+                    bgcolor: isSelected ? 'action.selected' : 'transparent',
+                    color: isSelected ? 'primary.main' : 'inherit',
+                    '&:hover': {
+                      bgcolor: isSelected ? 'action.selected' : 'action.hover'
+                    }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32, color: isSelected ? 'primary.main' : 'text.secondary' }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    secondary={item.description}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: isSelected ? 700 : 500,
+                      color: isSelected ? 'primary.main' : 'text.primary'
+                    }}
+                    secondaryTypographyProps={{
+                      variant: 'caption',
+                      sx: { display: 'block', mt: 0.25, fontSize: '0.7rem' }
+                    }}
+                  />
+                </ListItem>
+              );
+            })}
+          </List>
+        </Paper>
+
+        {/* Right Content Panel */}
+        <Box sx={{ flexGrow: 1, width: { xs: '100%', md: 0 }, minWidth: 0 }}>
           {activeTab === 0 && renderGeneralSettings()}
           {activeTab === 1 && renderDataManagement()}
           {activeTab === 2 && renderRevisionSettings()}
@@ -2630,8 +3224,55 @@ const Settings = () => {
           {activeTab === 5 && canManage && renderSyncSettings()}
           {activeTab === 6 && canManage && renderEtracsSyncSettings()}
           {activeTab === 7 && canManage && <EtracsBuildingRevisionSettings />}
-        </CardContent>
-      </Card>
+        </Box>
+      </Box>
+
+      {/* Sticky Bottom Save Bar for Form Changes */}
+      {isFormDirty && (
+        <Paper
+          elevation={6}
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1200,
+            px: 2.5,
+            py: 1.25,
+            borderRadius: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+            maxWidth: '90vw'
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+            Unsaved changes
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleCancelSettings}
+              sx={{ textTransform: 'none' }}
+            >
+              Discard
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleSave}
+              sx={{ textTransform: 'none' }}
+            >
+              Save Changes
+            </Button>
+          </Box>
+        </Paper>
+      )}
     </Box>
   );
 };
