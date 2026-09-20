@@ -1124,9 +1124,9 @@ const Settings = () => {
       </Paper>
 
       {/* API Keys Table */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
         <CardContent sx={{ p: 0 }}>
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
             <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -1470,8 +1470,8 @@ const Settings = () => {
         <Grid container spacing={2.5}>
           {/* Generate Token Column */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
+              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
                   Generate New Token
                 </Typography>
@@ -1495,7 +1495,7 @@ const Settings = () => {
                     <ContentCopyIcon fontSize="small" />
                   </IconButton>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1, mt: 'auto' }}>
+                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
                   <Button variant="outlined" size="small" onClick={handleGenerateToken} disabled={tokenGenerating} startIcon={tokenGenerating ? <CircularProgress size={16} /> : null} sx={{ textTransform: 'none' }}>
                     {tokenGenerating ? 'Generating...' : 'Generate'}
                   </Button>
@@ -1517,8 +1517,8 @@ const Settings = () => {
 
           {/* Paste Token Column */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
+              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
                   Paste Token from Other Server
                 </Typography>
@@ -1946,8 +1946,8 @@ const Settings = () => {
             <Grid container spacing={2.5}>
               {/* Application Logo Card */}
               <Grid item xs={12} md={5}>
-                <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
+                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
                       Application Logo
                     </Typography>
@@ -2004,7 +2004,7 @@ const Settings = () => {
                       onChange={(e) => handleChange('app_logo_url', e.target.value)}
                       placeholder="https://..."
                       helperText="Direct image link"
-                      sx={{ mt: 'auto' }}
+                      sx={{ mt: 1 }}
                     />
                   </CardContent>
                 </Card>
@@ -2012,8 +2012,8 @@ const Settings = () => {
 
               {/* Header Image Card */}
               <Grid item xs={12} md={7}>
-                <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
+                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
                       Header Image Banner
                     </Typography>
@@ -2192,7 +2192,7 @@ const Settings = () => {
           <Grid container spacing={2.5}>
             {/* Left Column: Municipal Assessor */}
             <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
                 <CardContent sx={{ p: 2.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
@@ -2248,7 +2248,7 @@ const Settings = () => {
 
             {/* Right Column: Verifier / Signatory */}
             <Grid item xs={12} md={6}>
-              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
                 <CardContent sx={{ p: 2.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
@@ -2419,9 +2419,9 @@ const Settings = () => {
 
         {/* 1. PROPERTY TYPES TABLE WORKSPACE */}
         {dataSubTab === 'types' && (
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
             <CardContent sx={{ p: 0 }}>
-              <TableContainer>
+              <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -2514,9 +2514,9 @@ const Settings = () => {
 
         {/* 2. GENERAL CLASSES TABLE WORKSPACE */}
         {dataSubTab === 'classes' && (
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
             <CardContent sx={{ p: 0 }}>
-              <TableContainer>
+              <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -2609,9 +2609,9 @@ const Settings = () => {
 
         {/* 3. BARANGAYS TABLE WORKSPACE */}
         {dataSubTab === 'barangays' && (
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
             <CardContent sx={{ p: 0 }}>
-              <TableContainer>
+              <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -2749,9 +2749,9 @@ const Settings = () => {
         </Paper>
 
         {/* Revisions Table */}
-        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
           <CardContent sx={{ p: 0 }}>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -2865,7 +2865,7 @@ const Settings = () => {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
         {/* Issuance Defaults Compact Form Row */}
-        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
           <CardContent sx={{ p: 2.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
               <Box sx={{ flex: 1, minWidth: 240 }}>
@@ -2920,9 +2920,9 @@ const Settings = () => {
         </Paper>
 
         {/* Purposes Fee Table */}
-        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <Card variant="outlined" sx={{ borderRadius: 2, height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
           <CardContent sx={{ p: 0 }}>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto', overflowY: 'visible' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -3145,9 +3145,10 @@ const Settings = () => {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        minHeight: 'calc(100vh - 90px)',
-        pb: isFormDirty ? 9 : 3
+        height: 'calc(100vh - 64px - 3rem)',
+        minHeight: 0,
+        width: '100%',
+        overflow: 'hidden'
       }}
     >
       {/* Dialogs */}
@@ -3589,7 +3590,8 @@ const Settings = () => {
         variant="outlined"
         sx={{
           p: { xs: 2, sm: 2.25 },
-          mb: 2.5,
+          mb: 2,
+          flexShrink: 0,
           borderRadius: 2,
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
@@ -3648,7 +3650,19 @@ const Settings = () => {
       </Paper>
 
       {/* Two-Column Shell */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2.5, flexGrow: 1, alignItems: 'flex-start' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 2.5,
+          alignItems: 'flex-start',
+          width: '100%',
+          minWidth: 0,
+          minHeight: 0,
+          flex: '1 1 auto',
+          overflow: 'hidden'
+        }}
+      >
         {/* Left Navigation Rail */}
         <Paper
           variant="outlined"
@@ -3656,23 +3670,25 @@ const Settings = () => {
             width: { xs: '100%', md: 245 },
             flexShrink: 0,
             borderRadius: 2,
+            height: 'fit-content',
+            maxHeight: '100%',
             overflow: 'hidden'
           }}
         >
-          <List disablePadding sx={{ p: 1 }}>
+          <List disablePadding sx={{ p: 0.5 }}>
             {navCategories.map((cat, catIdx) => (
               <React.Fragment key={cat.category}>
                 <Typography
                   variant="caption"
                   sx={{
                     display: 'block',
-                    px: 1.5,
-                    pt: catIdx === 0 ? 0.5 : 2,
-                    pb: 0.5,
+                    px: 1.25,
+                    pt: catIdx === 0 ? 0.25 : 1.25,
+                    pb: 0.25,
                     fontSize: '0.68rem',
                     fontWeight: 700,
-                    color: 'text.secondary',
-                    letterSpacing: '0.08em'
+                    letterSpacing: '0.06em',
+                    color: 'text.secondary'
                   }}
                 >
                   {cat.category}
@@ -3691,33 +3707,35 @@ const Settings = () => {
                       onClick={() => handleNavClick(item.id, item.sub)}
                       sx={{
                         borderRadius: 1.5,
-                        mb: 0.5,
+                        mb: 0.2,
+                        minHeight: 36,
                         px: 1.25,
-                        py: 0.75,
+                        py: '4px',
                         bgcolor: isSelected ? 'action.selected' : 'transparent',
-                        color: isSelected ? 'primary.main' : 'inherit',
-                        borderLeft: isSelected ? '3px solid' : '3px solid transparent',
-                        borderLeftColor: isSelected ? 'primary.main' : 'transparent',
+                        color: isSelected ? 'primary.main' : 'text.secondary',
+                        transition: 'background-color 120ms ease, color 120ms ease',
                         '&:hover': {
-                          bgcolor: isSelected ? 'action.selected' : 'action.hover'
+                          bgcolor: isSelected ? 'action.selected' : 'action.hover',
+                          color: isSelected ? 'primary.main' : 'text.primary'
                         }
                       }}
                     >
-                      <ListItemIcon sx={{ minWidth: 30, color: isSelected ? 'primary.main' : 'text.secondary' }}>
-                        {item.icon}
+                      <ListItemIcon sx={{ minWidth: 26, color: isSelected ? 'primary.main' : 'text.secondary' }}>
+                        {React.cloneElement(item.icon, { sx: { fontSize: 18 } })}
                       </ListItemIcon>
                       <ListItemText
                         primary={item.label}
                         secondary={item.desc}
                         primaryTypographyProps={{
                           variant: 'body2',
-                          fontWeight: isSelected ? 700 : 500,
+                          fontWeight: isSelected ? 600 : 500,
                           color: isSelected ? 'primary.main' : 'text.primary',
-                          fontSize: '0.82rem'
+                          fontSize: '0.82rem',
+                          lineHeight: 1.2
                         }}
                         secondaryTypographyProps={{
                           variant: 'caption',
-                          sx: { display: 'block', fontSize: '0.68rem', lineHeight: 1.2 }
+                          sx: { display: 'block', fontSize: '0.68rem', lineHeight: 1.15, mt: 0.1, color: 'text.secondary' }
                         }}
                       />
                     </ListItem>
@@ -3729,7 +3747,17 @@ const Settings = () => {
         </Paper>
 
         {/* Right Content Panel */}
-        <Box sx={{ flexGrow: 1, width: { xs: '100%', md: 0 }, minWidth: 0 }}>
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            width: { xs: '100%', md: 0 },
+            height: '100%',
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
           {activeTab === 0 && renderGeneralSettings()}
           {activeTab === 1 && renderDataManagement()}
           {activeTab === 2 && renderRevisionSettings()}

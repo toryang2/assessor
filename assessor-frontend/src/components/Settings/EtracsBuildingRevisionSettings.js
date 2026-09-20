@@ -68,18 +68,18 @@ const EtracsBuildingRevisionSettings = () => {
       </Box>
 
       {activeTab === 0 && (
-        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400 }}>
-          <Table size="small" stickyHeader>
+        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, overflowX: 'auto', overflowY: 'visible' }}>
+          <Table size="small">
             <TableHead>
-              <TableRow>
-                <TableCell>Code</TableCell>
-                <TableCell>Title</TableCell>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 600 }}>Code</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Title</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {types.map((type) => (
-                <TableRow key={type.objid}>
-                  <TableCell>{type.code}</TableCell>
+                <TableRow key={type.objid} hover>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{type.code}</TableCell>
                   <TableCell>{type.name}</TableCell>
                 </TableRow>
               ))}
@@ -89,21 +89,21 @@ const EtracsBuildingRevisionSettings = () => {
       )}
 
       {activeTab === 1 && (
-        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400 }}>
-          <Table size="small" stickyHeader>
+        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, overflowX: 'auto', overflowY: 'visible' }}>
+          <Table size="small">
             <TableHead>
-              <TableRow>
-                <TableCell>Bldg Code</TableCell>
-                <TableCell>Kind of Building</TableCell>
-                <TableCell align="right">Base Value</TableCell>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 600 }}>Bldg Code</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Kind of Building</TableCell>
+                <TableCell sx={{ fontWeight: 600 }} align="right">Base Value</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {unitCosts.map((cost) => (
-                <TableRow key={cost.objid}>
-                  <TableCell>{cost.kind_code}</TableCell>
+                <TableRow key={cost.objid} hover>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{cost.kind_code}</TableCell>
                   <TableCell>{cost.kind_name}</TableCell>
-                  <TableCell align="right">{Number(cost.basevalue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{Number(cost.basevalue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -112,18 +112,18 @@ const EtracsBuildingRevisionSettings = () => {
       )}
 
       {activeTab === 2 && (
-        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400 }}>
-          <Table size="small" stickyHeader>
+        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, overflowX: 'auto', overflowY: 'visible' }}>
+          <Table size="small">
             <TableHead>
-              <TableRow>
-                <TableCell>Code</TableCell>
-                <TableCell>Name</TableCell>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 600 }}>Code</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {classifications.map((cls) => (
-                <TableRow key={cls.objid}>
-                  <TableCell>{cls.code}</TableCell>
+                <TableRow key={cls.objid} hover>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{cls.code}</TableCell>
                   <TableCell>{cls.name}</TableCell>
                 </TableRow>
               ))}
