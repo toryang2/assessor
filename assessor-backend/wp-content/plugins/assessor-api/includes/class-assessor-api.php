@@ -294,25 +294,30 @@ class Assessor_API {
 
         // Settings routes
         error_log('🔍 Assessor API: Registering settings routes');
+        register_rest_route('assessor/v1', '/bootstrap-settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_bootstrap_settings'),
+            'permission_callback' => '__return_true'
+        ));
         register_rest_route('assessor/v1', '/settings', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_settings'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_settings'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/logo', array(
             'methods' => 'POST',
             'callback' => array($this, 'upload_logo'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/header-photo', array(
             'methods' => 'POST',
             'callback' => array($this, 'upload_header_photo'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         // Property types
         register_rest_route('assessor/v1', '/settings/property-types', array(
@@ -323,12 +328,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/property-types', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_property_type'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/property-types/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_property_type'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         // General classes
         register_rest_route('assessor/v1', '/settings/general-classes', array(
@@ -339,12 +344,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/general-classes', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_general_class'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/general-classes/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_general_class'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         // Locations
         register_rest_route('assessor/v1', '/settings/locations', array(
@@ -355,12 +360,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/locations', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_location'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/locations/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_location'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         
         // Revision entries routes
@@ -372,12 +377,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/revision-entries', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_revision_entry'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/revision-entries/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_revision_entry'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
 
         // Memoranda Templates routes
@@ -389,12 +394,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/memoranda-templates', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_memoranda_template'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/memoranda-templates/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_memoranda_template'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
 
         // Request purposes routes (Purpose + Amount Paid)
@@ -406,12 +411,12 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/settings/request-purposes', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_request_purpose'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/settings/request-purposes/delete', array(
             'methods' => 'POST',
             'callback' => array($this, 'delete_request_purpose'),
-            'permission_callback' => array($this, 'check_auth')
+            'permission_callback' => array($this, 'check_manager')
         ));
         error_log('🔍 Assessor API: Settings routes registered');
         
@@ -428,50 +433,38 @@ class Assessor_API {
             'callback' => array($this, 'get_users'),
             'permission_callback' => array($this, 'check_manager')
         ));
-        // Create user (public as requested)
+        // Create user
         register_rest_route('assessor/v1', '/users', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_user'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_manager')
         ));
-        // Update user (public as requested)
+        // Update user
         register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'update_user'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_manager')
         ));
-        // Delete user (public as requested)
+        // Delete user
         register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'delete_user'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_manager')
         ));
         register_rest_route('assessor/v1', '/users/(?P<id>[\w-]+)/avatar', array(
             'methods' => 'POST',
             'callback' => array($this, 'handle_upload_avatar'),
             'permission_callback' => array($this, 'check_auth')
         ));
-        
-        // Test route (no authentication required)
-        register_rest_route('assessor/v1', '/test', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'test_endpoint'),
-            'permission_callback' => '__return_true'
-        ));
+
         
         // Database setup route (no authentication required)
         register_rest_route('assessor/v1', '/setup-database', array(
             'methods' => 'GET',
             'callback' => array($this, 'setup_database'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_manager')
         ));
-        
-        // JWT config test endpoint
-        register_rest_route('assessor/v1', '/jwt-config', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'jwt_config_test'),
-            'permission_callback' => '__return_true'
-        ));
+
         
         // Requests routes
         register_rest_route('assessor/v1', '/requests', array(
@@ -1224,6 +1217,20 @@ class Assessor_API {
     public function export_data($request) {
         $export = new Assessor_Export();
         return $export->export_data($request);
+    }
+
+    public function get_bootstrap_settings($request) {
+        $settings = new Assessor_Settings();
+        $data = $settings->get_settings();
+
+        return array(
+            'app_logo_url'           => isset($data['app_logo_url']) ? $data['app_logo_url'] : '',
+            'header_photo_url'       => isset($data['header_photo_url']) ? $data['header_photo_url'] : '',
+            'header_province'        => isset($data['header_province']) ? $data['header_province'] : '',
+            'header_municipality'    => isset($data['header_municipality']) ? $data['header_municipality'] : '',
+            'header_office'          => isset($data['header_office']) ? $data['header_office'] : '',
+            'enable_etracs_features' => !empty($data['enable_etracs_features']) ? 1 : 0
+        );
     }
 
     public function get_settings($request) {

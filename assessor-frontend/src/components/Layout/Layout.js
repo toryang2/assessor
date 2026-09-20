@@ -262,7 +262,7 @@ const Layout = ({ children }) => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const data = await apiService.getSettings();
+        const data = await apiService.getBootstrapSettings();
         setSettings(data);
         try {
           localStorage.setItem('assessor_settings', JSON.stringify(data));

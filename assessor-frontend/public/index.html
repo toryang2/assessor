@@ -46,7 +46,7 @@
         if (base.indexOf('%REACT_APP_') === 0 || !base) {
           base = window.location.origin + '/wp-json/assessor/v1';
         }
-        var settingsUrl = (base.replace(/\/$/, '')) + '/settings';
+        var settingsUrl = (base.replace(/\/$/, '')) + '/bootstrap-settings';
         console.log("Fetching settings for title from:", settingsUrl);
         fetch(settingsUrl, { credentials: 'include' }).then(function (r) {
           if (!r.ok) console.error("Settings fetch failed with status:", r.status);

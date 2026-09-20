@@ -79,6 +79,7 @@ export const endpoints = {
   dashboard: '/dashboard',
 
   // Settings
+  bootstrapSettings: '/bootstrap-settings',
   settings: '/settings',
   settingsLogo: '/settings/logo',
   settingsHeaderPhoto: '/settings/header-photo',
@@ -287,6 +288,14 @@ export const apiService = {
   },
 
   // Settings
+  getBootstrapSettings: async () => {
+    try {
+      const response = await api.get(endpoints.bootstrapSettings);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
   getSettings: async () => {
     try {
       const response = await api.get(endpoints.settings);

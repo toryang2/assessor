@@ -1,5 +1,57 @@
 [
   {
+    "version": "1.1.17",
+    "title": "Security & Multi-Deployment Update",
+    "date": "2026-09-20",
+    "sections": [
+      {
+        "category": "🔐 Security Improvements",
+        "items": [
+          "Hardened authentication and protected sensitive API endpoints.",
+          "Removed the shared JWT fallback secret.",
+          "JWT authentication now fails closed when a deployment has no configured signing key.",
+          "Removed sensitive authentication/debug information from application logs.",
+          "Protected system settings and administrative operations with proper authorization."
+        ]
+      },
+      {
+        "category": "🏢 Multi-Deployment Support",
+        "items": [
+          "Added **Assessor Security Setup** for new WordPress installations.",
+          "Automatically generates a unique cryptographic JWT signing key per deployment.",
+          "Added a unique installation ID for each deployment.",
+          "Added **Reinitialize as New Deployment** for cloned WordPress installations.",
+          "Reinitialization generates a new installation identity and JWT key without affecting assessor records.",
+          "Existing JWT sessions are automatically invalidated when a deployment is reinitialized."
+        ]
+      },
+      {
+        "category": "⚙️ Login & Application Improvements",
+        "items": [
+          "Added a safe public `bootstrap-settings` endpoint for pre-login branding and application initialization.",
+          "Prevented unauthenticated `/settings` requests during login and application startup.",
+          "Preserved protected full settings access for authorized users.",
+          "Improved compatibility across different user roles during application initialization."
+        ]
+      },
+      {
+        "category": "🛡️ Deployment Safety",
+        "items": [
+          "JWT secrets are stored in `wp-config.php` rather than the database.",
+          "Added a secure manual configuration fallback for environments where `wp-config.php` cannot be written automatically.",
+          "Deployment-specific secrets are never exposed through the React frontend or REST API."
+        ]
+      }
+    ],
+    "features": [
+      "Hardened authentication and protected administrative settings endpoints with strict role authorization.",
+      "Enforced deployment-specific cryptographic JWT signing keys, eliminating shared fallback secrets.",
+      "Added Multi-Deployment Security Setup and seamless Reinitialization support for cloned installations.",
+      "Introduced a safe public bootstrap-settings endpoint to resolve pre-login 401 errors while preserving branding.",
+      "Secured environment configuration by storing deployment keys in wp-config.php rather than database options."
+    ]
+  },
+  {
     "version": "1.1.16",
     "date": "2026-09-04",
     "features": [

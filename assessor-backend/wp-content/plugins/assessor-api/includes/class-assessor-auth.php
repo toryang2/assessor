@@ -9,15 +9,11 @@ class Assessor_Auth {
     private $algorithm = 'HS256';
     
     public function __construct() {
-        // Use JWT secret from wp-config.php if available, otherwise fallback to default
-        if (defined('JWT_AUTH_SECRET_KEY')) {
+        if (defined('JWT_AUTH_SECRET_KEY') && JWT_AUTH_SECRET_KEY !== '') {
             $this->secret_key = JWT_AUTH_SECRET_KEY;
-            error_log('🔍 Assessor Auth: Using JWT secret from wp-config.php');
         } else {
-            $this->secret_key = 'assessor_secret_key_2024';
-            error_log('⚠️ Assessor Auth: JWT_AUTH_SECRET_KEY not defined, using fallback secret');
+            $this->secret_key = null;
         }
-        error_log('🔍 Assessor Auth: Secret key length: ' . strlen($this->secret_key));
     }
     
     public function login($request) {
@@ -25,9 +21,6 @@ class Assessor_Auth {
         
         // Debug: Log the request data
         error_log('🔍 Assessor Auth: Login request received');
-        error_log('🔍 Assessor Auth: Request params: ' . print_r($request->get_params(), true));
-        error_log('🔍 Assessor Auth: Request body: ' . print_r($request->get_body(), true));
-        error_log('🔍 Assessor Auth: Request JSON: ' . print_r($request->get_json_params(), true));
         
         // Try multiple ways to get the parameters
         $params = $request->get_params();
@@ -41,8 +34,6 @@ class Assessor_Auth {
         if (empty($data) && !empty($body)) {
             $data = json_decode($body, true);
         }
-        
-        error_log('🔍 Assessor Auth: Final data array: ' . print_r($data, true));
         
         $username = isset($data['username']) ? sanitize_text_field($data['username']) : '';
         $password = isset($data['password']) ? $data['password'] : '';
@@ -72,8 +63,24 @@ class Assessor_Auth {
             $user->id
         ));
 
+        // Verify that JWT secret configuration is available before issuing token
+        if (!$this->has_valid_secret()) {
+            return new WP_Error(
+                'authentication_unavailable',
+                'Authentication service is not configured.',
+                array('status' => 503)
+            );
+        }
+
         // Generate JWT token
         $token = $this->generate_token($user);
+        if (!$token) {
+            return new WP_Error(
+                'authentication_unavailable',
+                'Authentication service is not configured.',
+                array('status' => 503)
+            );
+        }
         
         // Log audit trail
         $audit = new Assessor_Audit();
@@ -147,38 +154,17 @@ class Assessor_Auth {
     }
     
     public function verify_token($request) {
-        // Simple test to see if this method is called
-        error_log('🔍 Assessor Auth: verify_token method called!');
-        
-        // Debug: Log the request headers
-        error_log('🔍 Assessor Auth: verify_token called');
-        error_log('🔍 Assessor Auth: Request headers: ' . print_r($request->get_headers(), true));
-        
         $token = $this->get_token_from_request($request);
         
-        error_log('🔍 Assessor Auth: Extracted token: ' . ($token ? 'YES' : 'NO'));
-        if ($token) {
-            error_log('🔍 Assessor Auth: Token preview: ' . substr($token, 0, 20) . '...');
-        }
-        
         if (!$token) {
-            error_log('❌ Assessor Auth: No token found in request');
             return false;
         }
         
         try {
             $payload = $this->verify_token_signature($token);
-            error_log('🔍 Assessor Auth: Token verification result: ' . ($payload ? 'SUCCESS' : 'FAILED'));
-            
-            if ($payload) {
-                error_log('🔍 Assessor Auth: Payload user_id: ' . $payload->user_id);
-                error_log('🔍 Assessor Auth: Payload username: ' . $payload->username);
-                error_log('🔍 Assessor Auth: Payload role: ' . $payload->role);
-            }
             
             return $payload !== false;
         } catch (Exception $e) {
-            error_log('❌ Assessor Auth: Token verification exception: ' . $e->getMessage());
             return false;
         }
     }
@@ -588,7 +574,15 @@ class Assessor_Auth {
         return array('success' => true, 'avatar_url' => $url);
     }
     
+    private function has_valid_secret() {
+        return is_string($this->secret_key) && $this->secret_key !== '';
+    }
+    
     private function generate_token($user) {
+        if (!$this->has_valid_secret()) {
+            return false;
+        }
+
         $header = json_encode(array('typ' => 'JWT', 'alg' => $this->algorithm));
         $payload = json_encode(array(
             'user_id' => $user->id,
@@ -609,6 +603,10 @@ class Assessor_Auth {
     }
     
     private function verify_token_signature($token) {
+        if (!$this->has_valid_secret()) {
+            return false;
+        }
+
         error_log('🔍 Assessor Auth: verify_token_signature called with token: ' . substr($token, 0, 20) . '...');
         
         $parts = explode('.', $token);

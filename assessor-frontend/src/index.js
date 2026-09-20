@@ -28,7 +28,7 @@ console.log('ReactDOM version:', ReactDOM.version);
     if (window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) {
       setIcons(window.__ASSESSOR_SETTINGS__.app_logo_url);
     } else {
-      apiService.getSettings().then((data) => {
+      apiService.getBootstrapSettings().then((data) => {
         if (data && data.app_logo_url) setIcons(data.app_logo_url);
       }).catch(() => {});
     }
