@@ -11,6 +11,13 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import TuneIcon from '@mui/icons-material/Tune';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ImageIcon from '@mui/icons-material/Image';
+import BusinessIcon from '@mui/icons-material/Business';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
+import SecurityIcon from '@mui/icons-material/Security';
+import AddIcon from '@mui/icons-material/Add';
+import SearchIcon from '@mui/icons-material/Search';
 import StorageIcon from '@mui/icons-material/Storage';
 import EventRepeatIcon from '@mui/icons-material/EventRepeat';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -256,6 +263,11 @@ const Settings = () => {
   const [pendingHeaderPhotoPreview, setPendingHeaderPhotoPreview] = useState('');
   const [dragging, setDragging] = useState({ key: null, from: -1 });
   const [activeTab, setActiveTab] = useState(0);
+  const [generalSubTab, setGeneralSubTab] = useState('overview'); // 'overview' | 'branding' | 'office' | 'signatories' | 'security'
+  const [dataSubTab, setDataSubTab] = useState('types'); // 'types' | 'classes' | 'barangays'
+  const [etracsSubTab, setEtracsSubTab] = useState('connection'); // 'connection' | 'sync'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [addDialogOpen, setAddDialogOpen] = useState(null); // 'type' | 'class' | 'location' | 'revision' | 'purpose' | 'apiKey' | null
   const [initialLoad, setInitialLoad] = useState(true);
   const [publicApiKeys, setPublicApiKeys] = useState([]);
   const [newPublicApiKeyName, setNewPublicApiKeyName] = useState('');
@@ -1089,56 +1101,37 @@ const Settings = () => {
   };
 
   const renderPublicApiKeys = () => (
-    <Grid container spacing={2}>
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>
-          Public API Keys
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Each integration gets an API key and API secret (letters and numbers only). Secrets are stored as a secure hash; use the eye icon and your account password to reveal a secret in the table.
-        </Typography>
-      </Grid>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {/* Header Bar with Action */}
+      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', bgcolor: 'background.default' }}>
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            API Access Credentials
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Credentials authorized for external applications and integrations.
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => setAddDialogOpen('apiKey')}
+          sx={{ textTransform: 'none', px: 2, height: 40, whiteSpace: 'nowrap' }}
+        >
+          + Create API Key
+        </Button>
+      </Paper>
 
-      <Grid item xs={12}>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 2 }}>
-            <Grid item xs={12} md={8}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Key name"
-                value={newPublicApiKeyName}
-                onChange={(e) => setNewPublicApiKeyName(e.target.value)}
-                placeholder="e.g. Main Website Production"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    createPublicApiKey();
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Button
-                fullWidth
-                variant="contained"
-                disabled={publicApiBusy}
-                onClick={createPublicApiKey}
-              >
-                Create API Key
-              </Button>
-            </Grid>
-          </Grid>
-
+      {/* API Keys Table */}
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 0 }}>
           <TableContainer>
-            <Table
-              size="small"
-              sx={{ tableLayout: 'fixed', width: '100%' }}
-            >
+            <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ width: '18%' }}>Key name</TableCell>
-                  <TableCell sx={{ width: '12%' }}>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ width: '20%' }}>Key name</TableCell>
+                  <TableCell sx={{ width: '14%' }}>
                     <TableSortLabel
                       active
                       direction={apiKeyDateSort}
@@ -1147,10 +1140,10 @@ const Settings = () => {
                       Date Created
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell sx={{ width: '22%' }}>API key</TableCell>
-                  <TableCell sx={{ width: '30%' }}>API secret</TableCell>
+                  <TableCell sx={{ width: '24%' }}>API key</TableCell>
+                  <TableCell sx={{ width: '28%' }}>API secret</TableCell>
                   <TableCell sx={{ width: '8%' }} align="center">Status</TableCell>
-                  <TableCell sx={{ width: '10%' }} align="right" />
+                  <TableCell sx={{ width: '6%' }} align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1325,7 +1318,7 @@ const Settings = () => {
                 {(!publicApiKeys || publicApiKeys.length === 0) && (
                   <TableRow>
                     <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      No API keys yet. Create one to allow external property search.
+                      No API keys yet. Click "+ Create API Key" to add external integrations.
                     </TableCell>
                   </TableRow>
                 )}
@@ -1344,23 +1337,21 @@ const Settings = () => {
               Delete
             </MenuItem>
           </Menu>
-        </Paper>
-      </Grid>
+        </CardContent>
+      </Card>
 
-      <Grid item xs={12}>
-        <Alert severity="info" variant="outlined">
-          <Typography variant="subtitle2" gutterBottom>
-            API usage
-          </Typography>
-          <Typography variant="body2" component="div">
-            <Box component="code" sx={{ display: 'block', mb: 0.5 }}>
-              GET /wp-json/assessor/v1/public/properties
-            </Box>
-            Send <Box component="code" display="inline">X-API-Key</Box> and <Box component="code" display="inline">X-API-Secret</Box> headers (or <Box component="code" display="inline">api_key</Box> and <Box component="code" display="inline">api_secret</Box> query parameters).
-          </Typography>
-        </Alert>
-      </Grid>
-    </Grid>
+      <Alert severity="info" variant="outlined" sx={{ borderRadius: 1.5 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          API usage
+        </Typography>
+        <Typography variant="body2" component="div">
+          <Box component="code" sx={{ display: 'block', mb: 0.5 }}>
+            GET /wp-json/assessor/v1/public/properties
+          </Box>
+          Send <Box component="code" display="inline">X-API-Key</Box> and <Box component="code" display="inline">X-API-Secret</Box> headers (or <Box component="code" display="inline">api_key</Box> and <Box component="code" display="inline">api_secret</Box> query parameters).
+        </Typography>
+      </Alert>
+    </Box>
   );
 
   const loadSyncConfig = async () => {
@@ -1410,168 +1401,189 @@ const Settings = () => {
       : `// Local wp-config.php\ndefine('ASSESSOR_IS_LOCAL_BUILD', true);\ndefine('ASSESSOR_LIVE_SITE_URL', 'https://your-live-domain.com');\ndefine('ASSESSOR_SYNC_TOKEN', 'YOUR_TOKEN_HERE');\n\n// Live wp-config.php\ndefine('ASSESSOR_SYNC_TOKEN', 'YOUR_TOKEN_HERE');`;
 
     return (
-      <Grid container spacing={3}>
-        {/* Status Panel */}
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>Sync Status</Typography>
-          {syncConfigLoading ? (
-            <CircularProgress size={24} />
-          ) : syncConfig ? (
-            <Paper variant="outlined" sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* 1. SYNC STATUS DASHBOARD PANEL */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: '0.05em' }}>
+                SYNC STATUS DASHBOARD
+              </Typography>
+              <Button size="small" variant="outlined" onClick={loadSyncConfig} disabled={syncConfigLoading} sx={{ textTransform: 'none' }}>
+                {syncConfigLoading ? 'Checking...' : 'Refresh Status'}
+              </Button>
+            </Box>
+
+            {syncConfigLoading ? (
+              <Box sx={{ py: 3, display: 'flex', justifyContent: 'center' }}><CircularProgress size={28} /></Box>
+            ) : syncConfig ? (
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="caption" color="text.secondary">Mode</Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Box component="span" sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 2, fontSize: '0.8rem', fontWeight: 600, bgcolor: syncConfig.is_local_build ? 'primary.light' : 'grey.300', color: syncConfig.is_local_build ? 'primary.contrastText' : 'text.secondary' }}>
-                      {syncConfig.is_local_build ? 'Local Build' : 'Live Server'}
-                    </Box>
+                  <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">Server Mode</Typography>
+                    <Chip
+                      label={syncConfig.is_local_build ? 'Local Build' : 'Live Server'}
+                      size="small"
+                      color={syncConfig.is_local_build ? 'primary' : 'default'}
+                      sx={{ mt: 0.5, fontWeight: 700, height: 24 }}
+                    />
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="caption" color="text.secondary">Sync Token</Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Box component="span" sx={{ display: 'inline-block', px: 1.5, py: 0.5, borderRadius: 2, fontSize: '0.8rem', fontWeight: 600, bgcolor: syncConfig.has_token ? 'success.light' : 'error.light', color: syncConfig.has_token ? 'success.contrastText' : 'error.contrastText' }}>
-                      {syncConfig.has_token ? '✓ Configured' : '✗ Not Set'}
-                    </Box>
+                  <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">Sync Token</Typography>
+                    <Chip
+                      label={syncConfig.has_token ? '✓ Configured' : '✗ Not Set'}
+                      size="small"
+                      color={syncConfig.has_token ? 'success' : 'error'}
+                      sx={{ mt: 0.5, fontWeight: 700, height: 24 }}
+                    />
                   </Box>
                 </Grid>
-                {syncConfig.live_url && (
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography variant="caption" color="text.secondary">Live URL</Typography>
-                    <Typography variant="body2" sx={{ mt: 0.5, wordBreak: 'break-all', fontSize: '0.8rem' }}>{syncConfig.live_url}</Typography>
-                  </Grid>
-                )}
                 <Grid item xs={12} sm={6} md={3}>
-                  <Typography variant="caption" color="text.secondary">Last Push / Pull</Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-                    {syncConfig.last_push ? `↑ ${syncConfig.last_push}` : '↑ Never'}<br />
-                    {syncConfig.last_pull ? `↓ ${syncConfig.last_pull}` : '↓ Never'}
-                  </Typography>
+                  <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">Live Site URL</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600, wordBreak: 'break-all' }}>
+                      {syncConfig.live_url || '—'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" display="block">Last Sync Time</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.8rem', fontWeight: 600 }}>
+                      {syncConfig.last_push ? ('↑ ' + syncConfig.last_push) : '↑ Never'}<br />
+                      {syncConfig.last_pull ? ('↓ ' + syncConfig.last_pull) : '↓ Never'}
+                    </Typography>
+                  </Box>
                 </Grid>
               </Grid>
-            </Paper>
-          ) : (
-            <Alert severity="warning">
-              Could not load sync config. Error: {syncConfigError || 'Unknown API error'}.
-              Please check the browser console or server logs.
-            </Alert>
-          )}
-          <Button size="small" variant="text" onClick={loadSyncConfig} disabled={syncConfigLoading} sx={{ mt: 1 }}>
-            Refresh Status
-          </Button>
+            ) : (
+              <Alert severity="warning">
+                Could not load sync config. Error: {syncConfigError || 'Unknown API error'}.
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. TOKEN MANAGEMENT WORKSPACE (Side by side generate and paste) */}
+        <Grid container spacing={2.5}>
+          {/* Generate Token Column */}
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  Generate New Token
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+                  Creates a 64-character secure token. Save to this server then copy to the other server.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={generatedToken}
+                    placeholder="Click Generate..."
+                    InputProps={{ readOnly: true, sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
+                  />
+                  <IconButton
+                    size="small"
+                    disabled={!generatedToken}
+                    title="Copy token"
+                    onClick={() => { navigator.clipboard.writeText(generatedToken); setToast({ open: true, message: 'Token copied!', severity: 'success' }); }}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, mt: 'auto' }}>
+                  <Button variant="outlined" size="small" onClick={handleGenerateToken} disabled={tokenGenerating} startIcon={tokenGenerating ? <CircularProgress size={16} /> : null} sx={{ textTransform: 'none' }}>
+                    {tokenGenerating ? 'Generating...' : 'Generate'}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    color="success"
+                    disabled={!generatedToken || tokenSaving}
+                    onClick={() => handleSaveToken(generatedToken)}
+                    startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {tokenSaving ? 'Saving...' : 'Save to This Server'}
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Paste Token Column */}
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+              <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  Paste Token from Other Server
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+                  If generated on the other server, paste it here to match credentials.
+                </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={pastedToken}
+                    onChange={(e) => setPastedToken(e.target.value.trim())}
+                    placeholder="Paste 64-char token here..."
+                    InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
+                  />
+                </Box>
+                <Box sx={{ mt: 'auto' }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    color="success"
+                    disabled={!pastedToken || pastedToken.length < 32 || tokenSaving}
+                    onClick={() => handleSaveToken(pastedToken)}
+                    startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {tokenSaving ? 'Saving...' : 'Save to This Server'}
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
 
-        <Grid item xs={12}><Divider /></Grid>
+        {syncSettingsMsg.text && (
+          <Alert severity={syncSettingsMsg.type || 'info'} onClose={() => setSyncSettingsMsg({ type: '', text: '' })}>
+            {syncSettingsMsg.text}
+          </Alert>
+        )}
 
-        {/* Token Generator */}
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>Sync Token Management</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Both servers must share the same token. <strong>Generate it on one server, then paste and save it on the other.</strong>
-          </Typography>
-
-          {/* Generate section */}
-          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>Generate a New Token</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Creates a 64-character cryptographically secure hex token. It will <strong>not</strong> be saved automatically — click "Save to This Server" below.
+        {/* Manual Config Snippet */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+              Manual wp-config.php Snippet
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                value={generatedToken}
-                placeholder="Click Generate to create a token..."
-                InputProps={{ readOnly: true, sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
-                sx={{ flex: 1, minWidth: 260 }}
-              />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              Add these lines to each server's wp-config.php if direct file writing is restricted by permissions.
+            </Typography>
+            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default', position: 'relative' }}>
+              <Box component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', m: 0 }}>
+                {configSnippet}
+              </Box>
               <IconButton
                 size="small"
-                disabled={!generatedToken}
-                title="Copy token"
-                onClick={() => { navigator.clipboard.writeText(generatedToken); setToast({ open: true, message: 'Token copied!', severity: 'success' }); }}
+                sx={{ position: 'absolute', top: 8, right: 8 }}
+                title="Copy snippet"
+                onClick={() => { navigator.clipboard.writeText(configSnippet); setToast({ open: true, message: 'Snippet copied!', severity: 'success' }); }}
               >
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-              <Button variant="outlined" size="small" onClick={handleGenerateToken} disabled={tokenGenerating} startIcon={tokenGenerating ? <CircularProgress size={16} /> : null}>
-                {tokenGenerating ? 'Generating...' : 'Generate New Token'}
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                color="success"
-                disabled={!generatedToken || tokenSaving}
-                onClick={() => handleSaveToken(generatedToken)}
-                startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
-              >
-                {tokenSaving ? 'Saving...' : 'Save to This Server'}
-              </Button>
-            </Box>
-          </Paper>
-
-          {/* Paste section */}
-          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>Paste Token from Another Server</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              If the token was generated on another server, paste it here and save it to this server's wp-config.php.
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <TextField
-                size="small"
-                value={pastedToken}
-                onChange={(e) => setPastedToken(e.target.value.trim())}
-                placeholder="Paste token here..."
-                InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.75rem' } }}
-                sx={{ flex: 1, minWidth: 260 }}
-              />
-              <Button
-                variant="contained"
-                size="small"
-                color="success"
-                disabled={!pastedToken || pastedToken.length < 32 || tokenSaving}
-                onClick={() => handleSaveToken(pastedToken)}
-                startIcon={tokenSaving ? <CircularProgress size={16} color="inherit" /> : null}
-              >
-                {tokenSaving ? 'Saving...' : 'Save to This Server'}
-              </Button>
-            </Box>
-          </Paper>
-
-          {/* Status messages */}
-          {syncSettingsMsg.text && (
-            <Alert severity={syncSettingsMsg.type || 'info'} sx={{ mt: 1 }} onClose={() => setSyncSettingsMsg({ type: '', text: '' })}>
-              {syncSettingsMsg.text}
-            </Alert>
-          )}
-        </Grid>
-
-        <Grid item xs={12}><Divider /></Grid>
-
-        {/* Manual Instructions */}
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>Manual wp-config.php Snippet</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            If the automatic save doesn't work (e.g., file permissions), add these lines manually to each server's wp-config.php:
-          </Typography>
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', position: 'relative' }}>
-            <Box component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', m: 0, color: 'text.primary' }}>
-              {configSnippet}
-            </Box>
-            <IconButton
-              size="small"
-              sx={{ position: 'absolute', top: 8, right: 8 }}
-              title="Copy snippet"
-              onClick={() => { navigator.clipboard.writeText(configSnippet); setToast({ open: true, message: 'Snippet copied!', severity: 'success' }); }}
-            >
-              <ContentCopyIcon fontSize="small" />
-            </IconButton>
-          </Paper>
-          <Alert severity="info" sx={{ mt: 2 }}>
-            After saving the token, changes take effect immediately on most servers. If it doesn't work right away, wait 1-2 minutes for your server's PHP cache (OPcache) to refresh, or restart your local server if using XAMPP/WAMP.
-          </Alert>
-        </Grid>
-      </Grid>
+            </Paper>
+          </CardContent>
+        </Card>
+      </Box>
     );
   };
 
@@ -1594,94 +1606,140 @@ const Settings = () => {
 
   const renderEtracsSyncSettings = () => {
     return (
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>ETRACS Database Connection</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Configure the connection to the external ETRACS MySQL database to import entities, real properties, RPUs, and FAAS records.
-          </Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* Sub-navigation Pills for ETRACS */}
+        <Paper variant="outlined" sx={{ p: 0.75, borderRadius: 2, display: 'flex', gap: 1, bgcolor: 'background.default' }}>
+          {[
+            { id: 'connection', label: 'Database Connection' },
+            { id: 'sync', label: 'Data Synchronization' }
+          ].map(tab => {
+            const isSel = etracsSubTab === tab.id;
+            return (
+              <Button
+                key={tab.id}
+                size="small"
+                variant={isSel ? 'contained' : 'text'}
+                color={isSel ? 'primary' : 'inherit'}
+                onClick={() => setEtracsSubTab(tab.id)}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 1.5,
+                  px: 2,
+                  py: 0.6,
+                  fontWeight: isSel ? 700 : 500,
+                  bgcolor: isSel ? 'primary.main' : 'transparent',
+                  color: isSel ? 'primary.contrastText' : 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isSel ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              >
+                {tab.label}
+              </Button>
+            );
+          })}
+        </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={8}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Database Host"
-                  value={form.assessor_etracs_db_host || ''}
-                  onChange={(e) => handleChange('assessor_etracs_db_host', e.target.value)}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Port"
-                  value={form.assessor_etracs_db_port || ''}
-                  onChange={(e) => handleChange('assessor_etracs_db_port', e.target.value)}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Database User"
-                  value={form.assessor_etracs_db_user || ''}
-                  onChange={(e) => handleChange('assessor_etracs_db_user', e.target.value)}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Database Password"
-                  type="password"
-                  value={form.assessor_etracs_db_password || ''}
-                  onChange={(e) => handleChange('assessor_etracs_db_password', e.target.value)}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Database Name"
-                  value={form.assessor_etracs_db_name || ''}
-                  onChange={(e) => handleChange('assessor_etracs_db_name', e.target.value)}
-                />
-              </Grid>
-            </Grid>
-            <Box sx={{ mt: 2, textAlign: 'right' }}>
-              <Button variant="contained" onClick={handleSave}>Save Connection Settings</Button>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12}><Divider /></Grid>
-
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>Data Synchronization</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Pull the latest real property and entity data from ETRACS. This operation may take some time depending on the database size.
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleEtracsPull}
-            disabled={etracsPulling}
-            startIcon={etracsPulling ? <CircularProgress size={16} color="inherit" /> : null}
-          >
-            {etracsPulling ? 'Pulling Data...' : 'Pull Latest Data'}
-          </Button>
-
-          {(etracsPulling || syncProgress === 'Complete') && (
-            <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.900', color: 'success.main', fontFamily: 'monospace' }}>
-              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                $ {syncProgress}
+        {/* 1. CONNECTION WORKSPACE */}
+        {etracsSubTab === 'connection' && (
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                ETRACS Database Connection
               </Typography>
-            </Paper>
-          )}
-        </Grid>
-      </Grid>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Configure connection to the external ETRACS MySQL municipal database to import entities, properties, and FAAS.
+              </Typography>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={8}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Database Host"
+                    value={form.assessor_etracs_db_host || ''}
+                    onChange={(e) => handleChange('assessor_etracs_db_host', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Port"
+                    value={form.assessor_etracs_db_port || ''}
+                    onChange={(e) => handleChange('assessor_etracs_db_port', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Database User"
+                    value={form.assessor_etracs_db_user || ''}
+                    onChange={(e) => handleChange('assessor_etracs_db_user', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Database Password"
+                    type="password"
+                    value={form.assessor_etracs_db_password || ''}
+                    onChange={(e) => handleChange('assessor_etracs_db_password', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Database Name"
+                    value={form.assessor_etracs_db_name || ''}
+                    onChange={(e) => handleChange('assessor_etracs_db_name', e.target.value)}
+                  />
+                </Grid>
+              </Grid>
+              <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="contained" onClick={handleSave} sx={{ textTransform: 'none', px: 2.5 }}>
+                  Save Connection Settings
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 2. DATA SYNC WORKSPACE */}
+        {etracsSubTab === 'sync' && (
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Data Synchronization Pipeline
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
+                Pull the latest real property and entity records from the municipal ETRACS database.
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleEtracsPull}
+                disabled={etracsPulling}
+                startIcon={etracsPulling ? <CircularProgress size={16} color="inherit" /> : null}
+                sx={{ textTransform: 'none', px: 3, py: 1 }}
+              >
+                {etracsPulling ? 'Pulling Data...' : 'Pull Latest Data from ETRACS'}
+              </Button>
+
+              {(etracsPulling || syncProgress === 'Complete') && (
+                <Paper variant="outlined" sx={{ p: 2, mt: 2.5, bgcolor: 'grey.900', color: 'success.main', fontFamily: 'monospace', borderRadius: 1.5 }}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                    {'$ ' + syncProgress}
+                  </Typography>
+                </Paper>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </Box>
     );
   };
 
@@ -1699,1038 +1757,668 @@ const Settings = () => {
     setForm(originalForm);
   };
 
-  const renderGeneralSettings = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* 1. Appearance & Branding */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
-            Appearance & Branding
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Manage the application logo and document header banner displayed across official certificates and exports.
-          </Typography>
+  const renderGeneralSettings = () => {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* Sub-navigation Pills for General */}
+        <Paper variant="outlined" sx={{ p: 0.75, borderRadius: 2, display: 'flex', gap: 1, flexWrap: 'wrap', bgcolor: 'background.default' }}>
+          {[
+            { id: 'overview', label: 'Overview', icon: <DashboardIcon fontSize="small" /> },
+            { id: 'branding', label: 'Branding', icon: <ImageIcon fontSize="small" /> },
+            { id: 'office', label: 'Office & Print', icon: <BusinessIcon fontSize="small" /> },
+            { id: 'signatories', label: 'Signatories', icon: <HowToRegIcon fontSize="small" /> },
+            { id: 'security', label: 'Security', icon: <SecurityIcon fontSize="small" /> }
+          ].map(sub => {
+            const isSubSelected = generalSubTab === sub.id;
+            return (
+              <Button
+                key={sub.id}
+                size="small"
+                variant={isSubSelected ? 'contained' : 'text'}
+                color={isSubSelected ? 'primary' : 'inherit'}
+                startIcon={sub.icon}
+                onClick={() => setGeneralSubTab(sub.id)}
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 1.5,
+                  px: 1.75,
+                  py: 0.6,
+                  fontWeight: isSubSelected ? 700 : 500,
+                  bgcolor: isSubSelected ? 'primary.main' : 'transparent',
+                  color: isSubSelected ? 'primary.contrastText' : 'text.secondary',
+                  '&:hover': {
+                    bgcolor: isSubSelected ? 'primary.dark' : 'action.hover'
+                  }
+                }}
+              >
+                {sub.label}
+              </Button>
+            );
+          })}
+        </Paper>
 
-          <Grid container spacing={2.5}>
-            {/* Logo Section */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
-                  Application Logo
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+        {/* 1. OVERVIEW SUB-WORKSPACE */}
+        {generalSubTab === 'overview' && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* Quick Municipal Profile Header */}
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                   <Paper
                     variant="outlined"
                     sx={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: 1.5,
+                      width: 90,
+                      height: 90,
+                      borderRadius: 2,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       bgcolor: 'background.default',
-                      flexShrink: 0,
                       overflow: 'hidden',
-                      p: 0.5
+                      p: 0.5,
+                      flexShrink: 0
                     }}
                   >
                     {pendingLogoPreview ? (
-                      <img src={pendingLogoPreview} alt="Logo Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                      <img src={pendingLogoPreview} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                     ) : form.app_logo_url ? (
                       <img src={form.app_logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                     ) : (
-                      <Typography variant="caption" color="text.secondary" align="center">No logo</Typography>
+                      <Typography variant="caption" color="text.secondary">No Logo</Typography>
                     )}
                   </Paper>
-                  <Box sx={{ flex: 1 }}>
-                    <Button variant="outlined" size="small" component="label" sx={{ mb: 0.75, textTransform: 'none' }}>
-                      Choose Image…
-                      <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
-                    </Button>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Square PNG/JPG up to 2MB.
+                  <Box sx={{ flex: 1, minWidth: 240 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {(form.header_municipality || 'MUNICIPALITY') + ', ' + (form.header_province || 'PROVINCE')}
+                      </Typography>
+                      <Chip label={'PIN: ' + (form.lgu_pin || '059-10')} size="small" variant="outlined" sx={{ fontWeight: 600, height: 22 }} />
+                      <Chip label={'Prefix: ' + (form.municipality_prefix || 'KIT')} size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      {form.header_office || 'OFFICE OF THE MUNICIPAL ASSESSOR'}
                     </Typography>
-                    {pendingLogoFile && (
-                      <Chip
-                        size="small"
-                        color="warning"
-                        label={`Pending save: ${pendingLogoFile.name}`}
-                        sx={{ mt: 0.75, fontSize: '0.75rem', height: 22 }}
-                      />
-                    )}
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      Default Place Issued: <strong>{form.request_place_issued_default || 'Not set'}</strong> • Session Timeout: <strong>{(form.afk_timeout || 30) + ' mins'}</strong>
+                    </Typography>
                   </Box>
+                  <Button variant="outlined" size="small" onClick={() => setGeneralSubTab('branding')} sx={{ textTransform: 'none' }}>
+                    Edit Profile & Branding
+                  </Button>
                 </Box>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Logo Image URL"
-                  value={form.app_logo_url || ''}
-                  onChange={(e) => handleChange('app_logo_url', e.target.value)}
-                  placeholder="https://..."
-                  helperText="Direct image URL link"
-                  sx={{ mt: 'auto' }}
-                />
-              </Box>
-            </Grid>
+              </CardContent>
+            </Card>
 
-            {/* Header Photo Section */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
-                  Header Photo
-                </Typography>
-                <Box sx={{ mb: 2 }}>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      width: '100%',
-                      height: 52,
-                      borderRadius: 1.5,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: 'background.default',
-                      overflow: 'hidden',
-                      p: 0.5
-                    }}
-                  >
-                    {pendingHeaderPhotoPreview ? (
-                      <img src={pendingHeaderPhotoPreview} alt="Header Banner Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : form.header_photo_url ? (
-                      <img src={form.header_photo_url} alt="Header Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">No header banner uploaded</Typography>
-                    )}
-                  </Paper>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                    <Button variant="outlined" size="small" component="label" sx={{ textTransform: 'none' }}>
-                      Choose Banner…
-                      <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
-                    </Button>
-                    {pendingHeaderPhotoFile && (
-                      <Chip
-                        size="small"
-                        color="warning"
-                        label={`Pending save: ${pendingHeaderPhotoFile.name}`}
-                        sx={{ fontSize: '0.75rem', height: 22 }}
-                      />
-                    )}
+            {/* Quick Workspace Cards Grid */}
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper
+                  variant="outlined"
+                  onClick={() => setGeneralSubTab('branding')}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                    <ImageIcon color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Branding & Seals</Typography>
                   </Box>
-                </Box>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Header Banner URL"
-                  value={form.header_photo_url || ''}
-                  onChange={(e) => handleChange('header_photo_url', e.target.value)}
-                  placeholder="https://..."
-                  helperText="Recommended wide ratio (~8:1)"
-                  sx={{ mt: 'auto' }}
-                />
-              </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Official municipal crest, document header banner, and jurisdiction codes.
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper
+                  variant="outlined"
+                  onClick={() => setGeneralSubTab('office')}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                    <BusinessIcon color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Office & Print</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Header jurisdiction titles, default issuance place, and print layouts.
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper
+                  variant="outlined"
+                  onClick={() => setGeneralSubTab('signatories')}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                    <HowToRegIcon color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Signatories</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Municipal Assessor license & credentials, and Verifier signatory.
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper
+                  variant="outlined"
+                  onClick={() => setGeneralSubTab('security')}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                    <SecurityIcon color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Security & AFK</Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Inactivity timeout protection and ETRACS feature integration.
+                  </Typography>
+                </Paper>
+              </Grid>
             </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* 2. Office & Jurisdiction Information */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
-            Office & Jurisdiction Information
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Official local government unit identifiers and municipality jurisdictional settings.
-          </Typography>
-
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Province"
-                value={(form.header_province || '').toUpperCase()}
-                onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
-                placeholder="BUKIDNON"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Municipality"
-                value={(form.header_municipality || '').toUpperCase()}
-                onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
-                placeholder="KITAOTAO"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Office Department Header"
-                value={(form.header_office || '').toUpperCase()}
-                onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
-                placeholder="OFFICE OF THE MUNICIPAL ASSESSOR"
-                helperText="Appears on formal municipal tax declaration forms and certificates"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                size="small"
-                label="LGU Base PIN"
-                value={form.lgu_pin || ''}
-                onChange={(e) => handleChange('lgu_pin', e.target.value)}
-                helperText="Base Property Identification Number prefix"
-                placeholder="059-10"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                size="small"
-                label="User ID Prefix"
-                value={form.municipality_prefix ? form.municipality_prefix.toUpperCase() : ''}
-                onChange={(e) => handleChange('municipality_prefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3))}
-                helperText="Max 3 alphanumeric characters (e.g. KIT)"
-                placeholder="KIT"
-              />
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* 3. Print Signatories & Authority */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
-            Print Signatories & Authority
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Default verifiers and municipal assessors endorsing official certificates and assessment rolls.
-          </Typography>
-
-          <Grid container spacing={2.5}>
-            {/* Municipal Assessor Sub-section */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mb: 1.5 }}>
-                  Municipal Assessor
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Municipal Assessor Name"
-                      value={(form.municipal_assessor_name || '').toUpperCase()}
-                      onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
-                      placeholder="FULL NAME"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Official Title / Designation"
-                      value={(form.municipal_assessor_title || '').toUpperCase()}
-                      onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
-                      placeholder="MUNICIPAL ASSESSOR / ACTING MUNICIPAL ASSESSOR"
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="License Number"
-                      value={(form.municipal_assessor_license || '').toUpperCase()}
-                      onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
-                      placeholder="PRC LICENSE NO."
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Suffix (Degrees)"
-                      value={(form.municipal_assessor_suffix || '').toUpperCase()}
-                      onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
-                      placeholder="MMREM, REA, REB, LPT"
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-
-            {/* Verifier / Signatory Sub-section */}
-            <Grid item xs={12} md={6}>
-              <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mb: 1.5 }}>
-                  Verifier / Signatory
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Verifier Signatory Name"
-                      value={(form.verifier_signatory_name || '').toUpperCase()}
-                      onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
-                      placeholder="FULL NAME"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Verifier Signatory Title"
-                      value={(form.verifier_signatory_title || '').toUpperCase()}
-                      onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
-                      placeholder="ASSESSMENT CLERK / LAOO"
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* 4. Session & Security Controls */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
-            Session & Security Controls
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Automatically sign users out after a period of inactivity.
-          </Typography>
-
-          <Box sx={{ maxWidth: 360 }}>
-            <TextField
-              fullWidth
-              label="Automatic Logout"
-              type="number"
-              value={form.afk_timeout ?? 30}
-              onChange={(e) => handleAfkTimeoutChange(e.target.value)}
-              helperText={`Automatically logs out inactive users after ${form.afk_timeout || 30} minutes (5–480 min).`}
-              inputProps={{ min: 5, max: 480 }}
-              size="small"
-              error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
-            />
           </Box>
-        </CardContent>
-      </Card>
+        )}
 
-      {/* 5. Advanced Features */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.25 }}>
-            Advanced Features
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Configure extended integration features and legacy database services.
-          </Typography>
-
-          <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                ETRACS Integration
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Enable ETRACS-related properties, taxpayers, and navigation features.
-              </Typography>
-            </Box>
-            <Switch
-              checked={Number(form.enable_etracs_features) === 1}
-              onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
-              color="primary"
-            />
-          </Box>
-        </CardContent>
-      </Card>
-    </Box>
-  );
-
-  const renderDataManagement = () => (
-    <Grid container spacing={3}>
-      {/* Property Types Card */}
-      <Grid item xs={12} md={6} lg={4}>
-        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Property Types
-              </Typography>
-              <Chip size="small" label={`${propertyTypes?.length || 0} types`} sx={{ height: 22, fontSize: '0.75rem' }} />
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
-              Drag items to reorder priority in dropdowns.
-            </Typography>
-
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
-              <Grid container spacing={1}>
-                <Grid item xs={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Code"
-                    placeholder="LAND"
-                    value={newType.code}
-                    onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-                  />
-                </Grid>
-                <Grid item xs={8}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Type Name"
-                    placeholder="Land"
-                    value={newType.name}
-                    onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); } }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button fullWidth variant="contained" size="small" onClick={addPropertyType} sx={{ textTransform: 'none', py: 0.75 }}>
-                    + Add Property Type
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
-
-            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
-              {(propertyTypes || []).map((t, index) => (
-                <ListItem
-                  key={t.id}
-                  draggable
-                  onDragStart={() => handleDragStart('propertyTypes', index)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop('propertyTypes', index)}
-                  secondaryAction={
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Switch
-                        size="small"
-                        checked={t.status === 'active'}
-                        onChange={async (e) => {
-                          try {
-                            const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
-                            setPropertyTypes(updated?.items || []);
-                            setToast({ open: true, message: 'Property type updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
-                          }
+        {/* 2. BRANDING SUB-WORKSPACE */}
+        {generalSubTab === 'branding' && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* Top Row: Side-by-Side Images (Application Logo on Left, Header Image on Right) */}
+            <Grid container spacing={2.5}>
+              {/* Application Logo Card */}
+              <Grid item xs={12} md={5}>
+                <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      Application Logo
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+                      Official municipal crest / seal for official certificates and banners.
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          width: 88,
+                          height: 88,
+                          borderRadius: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'background.default',
+                          flexShrink: 0,
+                          overflow: 'hidden',
+                          p: 0.5
                         }}
-                      />
-                      <IconButton
-                        size="small"
-                        edge="end"
-                        aria-label="delete"
-                        onClick={async () => {
-                          try {
-                            await apiService.deletePropertyType(t.id);
-                            const res = await apiService.getPropertyTypes();
-                            setPropertyTypes(res?.items || []);
-                            setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
-                          }
-                        }}
-                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
                       >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    px: 1,
-                    py: 0.75,
-                    bgcolor: 'background.paper',
-                    '&:hover': { bgcolor: 'action.hover' }
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
-                    <DragIndicatorIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          label={t.code}
-                          size="small"
-                          sx={{
-                            height: 20,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            bgcolor: 'action.hover',
-                            borderRadius: 0.75
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {t.name}
+                        {pendingLogoPreview ? (
+                          <img src={pendingLogoPreview} alt="Logo Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        ) : form.app_logo_url ? (
+                          <img src={form.app_logo_url} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">No Logo</Typography>
+                        )}
+                      </Paper>
+                      <Box sx={{ flex: 1 }}>
+                        <Button variant="contained" size="small" component="label" sx={{ mb: 0.75, textTransform: 'none' }}>
+                          Change Logo…
+                          <input type="file" accept="image/*" hidden onChange={handleLogoUpload} />
+                        </Button>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          PNG/JPG up to 2MB.
                         </Typography>
-                      </Box>
-                    }
-                    secondary={t.status === 'active' ? 'Active' : 'Disabled'}
-                    secondaryTypographyProps={{ variant: 'caption', color: t.status === 'active' ? 'text.secondary' : 'text.disabled' }}
-                    sx={{ my: 0, pr: 8 }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* General Classes Card */}
-      <Grid item xs={12} md={6} lg={4}>
-        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                General Classes
-              </Typography>
-              <Chip size="small" label={`${generalClasses?.length || 0} classes`} sx={{ height: 22, fontSize: '0.75rem' }} />
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
-              Classification categories for tax assessment computation.
-            </Typography>
-
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
-              <Grid container spacing={1}>
-                <Grid item xs={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Code"
-                    placeholder="RES"
-                    value={newClass.code}
-                    onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-                  />
-                </Grid>
-                <Grid item xs={8}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Class Name"
-                    placeholder="Residential"
-                    value={newClass.name}
-                    onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); } }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button fullWidth variant="contained" size="small" onClick={addGeneralClass} sx={{ textTransform: 'none', py: 0.75 }}>
-                    + Add General Class
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
-
-            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
-              {(generalClasses || []).map((c, index) => (
-                <ListItem
-                  key={c.id}
-                  draggable
-                  onDragStart={() => handleDragStart('generalClasses', index)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop('generalClasses', index)}
-                  secondaryAction={
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Switch
-                        size="small"
-                        checked={c.status === 'active'}
-                        onChange={async (e) => {
-                          try {
-                            const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
-                            setGeneralClasses(updated?.items || []);
-                            setToast({ open: true, message: 'General class updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
-                          }
-                        }}
-                      />
-                      <IconButton
-                        size="small"
-                        edge="end"
-                        aria-label="delete"
-                        onClick={async () => {
-                          try {
-                            await apiService.deleteGeneralClass(c.id);
-                            const res = await apiService.getGeneralClasses();
-                            setGeneralClasses(res?.items || []);
-                            setToast({ open: true, message: 'General class deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
-                          }
-                        }}
-                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    px: 1,
-                    py: 0.75,
-                    bgcolor: 'background.paper',
-                    '&:hover': { bgcolor: 'action.hover' }
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
-                    <DragIndicatorIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          label={c.code}
-                          size="small"
-                          sx={{
-                            height: 20,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            bgcolor: 'action.hover',
-                            borderRadius: 0.75
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {c.name}
-                        </Typography>
-                      </Box>
-                    }
-                    secondary={c.status === 'active' ? 'Active' : 'Disabled'}
-                    secondaryTypographyProps={{ variant: 'caption', color: c.status === 'active' ? 'text.secondary' : 'text.disabled' }}
-                    sx={{ my: 0, pr: 8 }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Barangays Card */}
-      <Grid item xs={12} md={12} lg={4}>
-        <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Barangays
-              </Typography>
-              <Chip size="small" label={`${locations?.length || 0} barangays`} sx={{ height: 22, fontSize: '0.75rem' }} />
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
-              Barangay administrative units and PIN mapping.
-            </Typography>
-
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: 'background.default' }}>
-              <Grid container spacing={1}>
-                <Grid item xs={4}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Code"
-                    placeholder="001"
-                    value={newLocation.code}
-                    onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-                  />
-                </Grid>
-                <Grid item xs={8}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Barangay Name"
-                    placeholder="Poblacion"
-                    value={newLocation.name}
-                    onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Barangay PIN"
-                    placeholder="0001"
-                    value={newLocation.pin}
-                    onChange={(e) => setNewLocation({ ...newLocation, pin: e.target.value.toUpperCase() })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); } }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button fullWidth variant="contained" size="small" onClick={addLocation} sx={{ textTransform: 'none', py: 0.75 }}>
-                    + Add Barangay
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
-
-            <List dense sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 380, p: 0 }}>
-              {(locations || []).map((l, index) => (
-                <ListItem
-                  key={l.id}
-                  draggable
-                  onDragStart={() => handleDragStart('locations', index)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop('locations', index)}
-                  secondaryAction={
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Switch
-                        size="small"
-                        checked={l.status === 'active'}
-                        onChange={async (e) => {
-                          try {
-                            const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
-                            setLocations(updated?.items || []);
-                            setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
-                          }
-                        }}
-                      />
-                      <IconButton
-                        size="small"
-                        edge="end"
-                        aria-label="delete"
-                        onClick={async () => {
-                          try {
-                            await apiService.deleteLocation(l.id);
-                            const res = await apiService.getLocations();
-                            setLocations(res?.items || []);
-                            setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
-                          } catch (err) {
-                            setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
-                          }
-                        }}
-                        sx={{ ml: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  }
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    px: 1,
-                    py: 0.75,
-                    bgcolor: 'background.paper',
-                    '&:hover': { bgcolor: 'action.hover' }
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 26, cursor: 'grab', color: 'text.secondary' }}>
-                    <DragIndicatorIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          label={l.code}
-                          size="small"
-                          sx={{
-                            height: 20,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            fontFamily: 'monospace',
-                            bgcolor: 'action.hover',
-                            borderRadius: 0.75
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {l.name}
-                        </Typography>
-                      </Box>
-                    }
-                    secondary={
-                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                        <span>PIN: <strong>{l.pin || '—'}</strong></span>
-                        <span>•</span>
-                        <span>{l.status === 'active' ? 'Active' : 'Disabled'}</span>
-                      </Box>
-                    }
-                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-                    sx={{ my: 0, pr: 8 }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
-
-  const renderRevisionSettings = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Add New Revision Card */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
-            General Revision Schedules
-          </Typography>
-          <Alert severity="info" variant="outlined" sx={{ mb: 2.5, borderRadius: 1.5, py: 0.5 }}>
-            Leave "To Year" blank for ongoing/current revisions. Previous active revisions will automatically adjust their ending year when a new ongoing schedule is added.
-          </Alert>
-
-          <Grid container spacing={2} alignItems="flex-end">
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Revision Label / Year"
-                required
-                value={newRevisionEntry.revision_year}
-                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, revision_year: e.target.value })}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
-                placeholder="e.g., 2024 Revision"
-              />
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Effective From Year"
-                type="number"
-                required
-                value={newRevisionEntry.from_year}
-                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, from_year: e.target.value })}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
-                placeholder="2024"
-                inputProps={{ min: 1900, max: 2100 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={3}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Effective To Year (Optional)"
-                value={newRevisionEntry.to_year}
-                onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); } }}
-                placeholder="Leave blank for ongoing"
-              />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={addRevisionEntry}
-                sx={{ textTransform: 'none', height: 40 }}
-              >
-                + Add Revision
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Revision Schedules Table */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 0 }}>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ width: 48 }} />
-                  <TableCell sx={{ fontWeight: 600 }}>Revision</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Effectivity Period</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(!revisionEntries || revisionEntries.length === 0) ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      No general revision entries configured yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  revisionEntries.map((entry, index) => {
-                    const isPresent = entry.to_year === 'present' || !entry.to_year;
-                    return (
-                      <TableRow
-                        key={entry.id}
-                        hover
-                        draggable
-                        onDragStart={() => handleDragStart('revisionEntries', index)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleDrop('revisionEntries', index)}
-                      >
-                        <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 48 }} title="Drag to reorder">
-                          <DragIndicatorIcon fontSize="small" />
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>
-                          {entry.revision_year}
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {entry.from_year} → {isPresent ? 'Present' : entry.to_year}
-                            </Typography>
-                            {isPresent && (
-                              <Chip size="small" color="primary" variant="outlined" label="Current" sx={{ height: 20, fontSize: '0.7rem' }} />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <FormControlLabel
-                            sx={{ m: 0 }}
-                            control={
-                              <Switch
-                                size="small"
-                                checked={entry.status === 'active'}
-                                onChange={async (e) => {
-                                  try {
-                                    const updated = await apiService.saveRevisionEntry({
-                                      id: entry.id,
-                                      revision_year: entry.revision_year,
-                                      from_year: entry.from_year,
-                                      to_year: entry.to_year,
-                                      status: e.target.checked ? 'active' : 'disabled',
-                                      sort_order: entry.sort_order || 0
-                                    });
-                                    setRevisionEntries(updated?.items || []);
-                                    setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
-                                  } catch (err) {
-                                    setToast({ open: true, message: 'Failed to update revision entry.', severity: 'error' });
-                                  }
-                                }}
-                              />
-                            }
-                            label={entry.status === 'active' ? 'Active' : 'Disabled'}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <IconButton
+                        {pendingLogoFile && (
+                          <Chip
                             size="small"
-                            aria-label="delete"
-                            onClick={async () => {
-                              try {
-                                await apiService.deleteRevisionEntry(entry.id);
-                                const res = await apiService.getRevisionEntries();
-                                setRevisionEntries(res?.items || []);
-                                setToast({ open: true, message: 'Revision entry deleted.', severity: 'success' });
-                              } catch (err) {
-                                setToast({ open: true, message: 'Failed to delete revision entry.', severity: 'error' });
-                              }
-                            }}
-                            sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-    </Box>
-  );
+                            color="warning"
+                            label={'Pending save: ' + pendingLogoFile.name}
+                            sx={{ mt: 0.75, fontSize: '0.72rem', height: 22 }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Logo Image URL"
+                      value={form.app_logo_url || ''}
+                      onChange={(e) => handleChange('app_logo_url', e.target.value)}
+                      placeholder="https://..."
+                      helperText="Direct image link"
+                      sx={{ mt: 'auto' }}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
 
-  const renderRequestPaymentInfos = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Default Place Issued Card */}
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
-            Default Issuance Place
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Specifies the default municipality location printed on issued request receipts and formal certifications.
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Default Place Issued"
-                value={form.request_place_issued_default || ''}
-                onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
-                placeholder="e.g. KITAOTAO, BUKIDNON"
-                helperText="Auto-populated in Request Form certificates"
-              />
+              {/* Header Image Card */}
+              <Grid item xs={12} md={7}>
+                <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+                  <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      Header Image Banner
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+                      Banner displayed at the top of printable certifications (~8:1 wide ratio).
+                    </Typography>
+                    <Box sx={{ mb: 2 }}>
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          width: '100%',
+                          height: 56,
+                          borderRadius: 1.5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'background.default',
+                          overflow: 'hidden',
+                          p: 0.5
+                        }}
+                      >
+                        {pendingHeaderPhotoPreview ? (
+                          <img src={pendingHeaderPhotoPreview} alt="Header Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : form.header_photo_url ? (
+                          <img src={form.header_photo_url} alt="Header Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">No header banner uploaded</Typography>
+                        )}
+                      </Paper>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1, gap: 1 }}>
+                        <Button variant="contained" size="small" component="label" sx={{ textTransform: 'none' }}>
+                          Change Header Image…
+                          <input type="file" accept="image/*" hidden onChange={handleHeaderPhotoUpload} />
+                        </Button>
+                        {pendingHeaderPhotoFile && (
+                          <Chip
+                            size="small"
+                            color="warning"
+                            label={'Pending save: ' + pendingHeaderPhotoFile.name}
+                            sx={{ fontSize: '0.72rem', height: 22 }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Header Banner URL"
+                      value={form.header_photo_url || ''}
+                      onChange={(e) => handleChange('header_photo_url', e.target.value)}
+                      placeholder="https://..."
+                      helperText="Direct image link"
+                      sx={{ mt: 'auto' }}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
 
-      {/* Purposes & Fee Schedules (2-Column: Add on left, Table on right) */}
-      <Grid container spacing={3}>
-        {/* Left Column: Add New Purpose Form */}
-        <Grid item xs={12} md={4} lg={3.5}>
-          <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+            {/* Bottom Row: Application Identity Fields */}
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
+              <CardContent sx={{ p: 2.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  Application Identity
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Municipality"
+                      value={(form.header_municipality || '').toUpperCase()}
+                      onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                      placeholder="KITAOTAO"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Province"
+                      value={(form.header_province || '').toUpperCase()}
+                      onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
+                      placeholder="BUKIDNON"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Municipality Prefix"
+                      value={form.municipality_prefix ? form.municipality_prefix.toUpperCase() : ''}
+                      onChange={(e) => handleChange('municipality_prefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3))}
+                      helperText="Max 3 alphanumeric characters (e.g. KIT)"
+                      placeholder="KIT"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="LGU Base PIN"
+                      value={form.lgu_pin || ''}
+                      onChange={(e) => handleChange('lgu_pin', e.target.value)}
+                      helperText="Base Property Identification Number (e.g. 059-10)"
+                      placeholder="059-10"
+                    />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* 3. OFFICE & PRINT SUB-WORKSPACE */}
+        {generalSubTab === 'office' && (
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
-                Add Request Purpose
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Office & Print Information
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Configure standard certification purposes and official fees.
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Official municipal jurisdiction identifiers and header text printed on assessment certificates.
               </Typography>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Purpose Description"
-                  placeholder="CERTIFICATION_FEE"
-                  value={newRequestPurpose.purpose}
-                  onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
-                  helperText="Spaces converted to underscores"
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Amount (PHP)"
-                  type="number"
-                  placeholder="50.00"
-                  value={newRequestPurpose.amount}
-                  onChange={(e) => setNewRequestPurpose(prev => ({ ...prev, amount: e.target.value }))}
-                  inputProps={{ min: 0, step: 0.01 }}
-                  onBlur={() => {
-                    const n = Number(newRequestPurpose.amount);
-                    if (!isNaN(n) && n >= 0) {
-                      setNewRequestPurpose(prev => ({ ...prev, amount: n.toFixed(2) }));
-                    }
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); } }}
-                />
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={addRequestPurpose}
-                  sx={{ textTransform: 'none', py: 1 }}
-                >
-                  + Add Purpose & Fee
-                </Button>
-              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Province"
+                    value={(form.header_province || '').toUpperCase()}
+                    onChange={(e) => handleChange('header_province', e.target.value.toUpperCase())}
+                    placeholder="BUKIDNON"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Municipality"
+                    value={(form.header_municipality || '').toUpperCase()}
+                    onChange={(e) => handleChange('header_municipality', e.target.value.toUpperCase())}
+                    placeholder="KITAOTAO"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Office Department Header"
+                    value={(form.header_office || '').toUpperCase()}
+                    onChange={(e) => handleChange('header_office', e.target.value.toUpperCase())}
+                    placeholder="OFFICE OF THE MUNICIPAL ASSESSOR"
+                    helperText="Department header on official forms"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Default Place Issued"
+                    value={form.request_place_issued_default || ''}
+                    onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
+                    placeholder="KITAOTAO, BUKIDNON"
+                    helperText="Default location on certification receipts"
+                  />
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
-        </Grid>
+        )}
 
-        {/* Right Column: Purpose Fee Table */}
-        <Grid item xs={12} md={8} lg={8.5}>
+        {/* 4. SIGNATORIES SUB-WORKSPACE (Side-by-side 2 columns) */}
+        {generalSubTab === 'signatories' && (
+          <Grid container spacing={2.5}>
+            {/* Left Column: Municipal Assessor */}
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      Municipal Assessor
+                    </Typography>
+                    <Chip size="small" label="Primary Signatory" color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Full Name"
+                        value={(form.municipal_assessor_name || '').toUpperCase()}
+                        onChange={(e) => handleChange('municipal_assessor_name', e.target.value.toUpperCase())}
+                        placeholder="FULL NAME"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Official Title / Designation"
+                        value={(form.municipal_assessor_title || '').toUpperCase()}
+                        onChange={(e) => handleChange('municipal_assessor_title', e.target.value.toUpperCase())}
+                        placeholder="MUNICIPAL ASSESSOR"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="License Number"
+                        value={(form.municipal_assessor_license || '').toUpperCase()}
+                        onChange={(e) => handleChange('municipal_assessor_license', e.target.value.toUpperCase())}
+                        placeholder="PRC LICENSE NO."
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Suffix (Degrees)"
+                        value={(form.municipal_assessor_suffix || '').toUpperCase()}
+                        onChange={(e) => handleChange('municipal_assessor_suffix', e.target.value.toUpperCase())}
+                        placeholder="MMREM, REA, REB, LPT"
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Right Column: Verifier / Signatory */}
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                      Verifier / Signatory
+                    </Typography>
+                    <Chip size="small" label="Verification Officer" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Full Name"
+                        value={(form.verifier_signatory_name || '').toUpperCase()}
+                        onChange={(e) => handleChange('verifier_signatory_name', e.target.value.toUpperCase())}
+                        placeholder="FULL NAME"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Official Title / Position"
+                        value={(form.verifier_signatory_title || '').toUpperCase()}
+                        onChange={(e) => handleChange('verifier_signatory_title', e.target.value.toUpperCase())}
+                        placeholder="ASSESSMENT CLERK / LAOO"
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+
+        {/* 5. SECURITY & AFK SUB-WORKSPACE */}
+        {generalSubTab === 'security' && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
+              <CardContent sx={{ p: 2.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  Security & Session Settings
+                </Typography>
+                {/* Horizontal Settings Row for Automatic Logout */}
+                <Box sx={{ p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ flex: 1, minWidth: 200 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Automatic logout
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Users are automatically signed out after a period of workstation inactivity (5–480 minutes).
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TextField
+                      type="number"
+                      size="small"
+                      value={form.afk_timeout ?? 30}
+                      onChange={(e) => handleAfkTimeoutChange(e.target.value)}
+                      inputProps={{ min: 5, max: 480, style: { textAlign: 'center', width: 60 } }}
+                      error={form.afk_timeout !== '' && (form.afk_timeout < 5 || form.afk_timeout > 480)}
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      minutes
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Horizontal Settings Row for ETRACS Integration Feature Toggle */}
+                <Box sx={{ mt: 2, p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ flex: 1, minWidth: 200 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      ETRACS Integration Features
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Enable ETRACS-related properties, taxpayers, and navigation features across the system.
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={Number(form.enable_etracs_features) === 1}
+                    onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
+                    color="primary"
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  const renderDataManagement = () => {
+    const filteredPropertyTypes = (propertyTypes || []).filter(t =>
+      !searchTerm || (t.code && t.code.toLowerCase().includes(searchTerm.toLowerCase())) || (t.name && t.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    const filteredGeneralClasses = (generalClasses || []).filter(c =>
+      !searchTerm || (c.code && c.code.toLowerCase().includes(searchTerm.toLowerCase())) || (c.name && c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    const filteredLocations = (locations || []).filter(l =>
+      !searchTerm || (l.code && l.code.toLowerCase().includes(searchTerm.toLowerCase())) || (l.name && l.name.toLowerCase().includes(searchTerm.toLowerCase())) || (l.pin && l.pin.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* Sub-navigation Pills + Search + Add Button Header */}
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', bgcolor: 'background.default' }}>
+          {/* Segmented Selector */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {[
+              { id: 'types', label: 'Property Types', count: propertyTypes?.length || 0 },
+              { id: 'classes', label: 'General Classes', count: generalClasses?.length || 0 },
+              { id: 'barangays', label: 'Barangays', count: locations?.length || 0 }
+            ].map(tab => {
+              const isSel = dataSubTab === tab.id;
+              return (
+                <Button
+                  key={tab.id}
+                  size="small"
+                  variant={isSel ? 'contained' : 'text'}
+                  color={isSel ? 'primary' : 'inherit'}
+                  onClick={() => { setDataSubTab(tab.id); setSearchTerm(''); }}
+                  sx={{
+                    textTransform: 'none',
+                    borderRadius: 1.5,
+                    px: 1.75,
+                    py: 0.6,
+                    fontWeight: isSel ? 700 : 500,
+                    bgcolor: isSel ? 'primary.main' : 'transparent',
+                    color: isSel ? 'primary.contrastText' : 'text.secondary',
+                    '&:hover': {
+                      bgcolor: isSel ? 'primary.dark' : 'action.hover'
+                    }
+                  }}
+                >
+                  {tab.label} ({tab.count})
+                </Button>
+              );
+            })}
+          </Box>
+
+          {/* Search Bar & Action Button */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: { xs: 1, sm: 'none' }, minWidth: 260 }}>
+            <TextField
+              size="small"
+              placeholder={'Search ' + dataSubTab + '...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ flex: 1, bgcolor: 'background.paper', borderRadius: 1 }}
+            />
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                if (dataSubTab === 'types') setAddDialogOpen('type');
+                else if (dataSubTab === 'classes') setAddDialogOpen('class');
+                else if (dataSubTab === 'barangays') setAddDialogOpen('location');
+              }}
+              sx={{ textTransform: 'none', whiteSpace: 'nowrap', px: 2, height: 40 }}
+            >
+              {dataSubTab === 'types' && '+ Add Type'}
+              {dataSubTab === 'classes' && '+ Add Class'}
+              {dataSubTab === 'barangays' && '+ Add Barangay'}
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* 1. PROPERTY TYPES TABLE WORKSPACE */}
+        {dataSubTab === 'types' && (
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ p: 0 }}>
               <TableContainer>
@@ -2738,171 +2426,716 @@ const Settings = () => {
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
                       <TableCell sx={{ width: 44 }} />
-                      <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: 140 }} align="right">Amount</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: 130 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 140 }}>Code</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Property Type Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(!requestPurposes || requestPurposes.length === 0) ? (
+                    {filteredPropertyTypes.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                          No request purposes configured yet.
+                          {searchTerm ? 'No property types match your search.' : 'No property types configured yet.'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      requestPurposes.map((p, index) => {
-                        const isEditing = editingRequestPurposeId === p.id;
-                        return (
-                          <TableRow
-                            key={p.id}
-                            hover
-                            draggable={!isEditing}
-                            onDragStart={() => handleDragStart('requestPurposes', index)}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={() => handleDrop('requestPurposes', index)}
-                            sx={{ '& td': { verticalAlign: 'middle' } }}
-                          >
-                            <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
-                              <DragIndicatorIcon fontSize="small" />
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                              {isEditing ? (
-                                <TextField
+                      filteredPropertyTypes.map((t, index) => (
+                        <TableRow
+                          key={t.id}
+                          hover
+                          draggable
+                          onDragStart={() => handleDragStart('propertyTypes', index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop('propertyTypes', index)}
+                        >
+                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
+                            <DragIndicatorIcon fontSize="small" />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={t.code}
+                              size="small"
+                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {t.name}
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={
+                                <Switch
                                   size="small"
-                                  value={editRequestPurposeDraft.purpose}
-                                  onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      saveEditRequestPurpose(p);
-                                    } else if (e.key === 'Escape') {
-                                      e.preventDefault();
-                                      cancelEditRequestPurpose();
+                                  checked={t.status === 'active'}
+                                  onChange={async (e) => {
+                                    try {
+                                      const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
+                                      setPropertyTypes(updated?.items || []);
+                                      setToast({ open: true, message: 'Property type updated.', severity: 'success' });
+                                    } catch (err) {
+                                      setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
                                     }
                                   }}
-                                  fullWidth
                                 />
-                              ) : (
-                                p.purpose
-                              )}
-                            </TableCell>
-                            <TableCell align="right">
-                              {isEditing ? (
-                                <TextField
-                                  size="small"
-                                  type="number"
-                                  value={editRequestPurposeDraft.amount}
-                                  onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, amount: e.target.value }))}
-                                  inputProps={{ min: 0, step: 0.01 }}
-                                  onBlur={() => {
-                                    const n = Number(editRequestPurposeDraft.amount);
-                                    if (!isNaN(n) && n >= 0) {
-                                      setEditRequestPurposeDraft(prev => ({ ...prev, amount: n.toFixed(2) }));
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      saveEditRequestPurpose(p);
-                                    } else if (e.key === 'Escape') {
-                                      e.preventDefault();
-                                      cancelEditRequestPurpose();
-                                    }
-                                  }}
-                                  sx={{ width: 120 }}
-                                />
-                              ) : (
-                                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                                  ₱{(() => {
-                                    const n = Number(p.amount);
-                                    return isNaN(n) ? String(p.amount ?? '') : n.toFixed(2);
-                                  })()}
-                                </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <FormControlLabel
-                                sx={{ m: 0 }}
-                                control={
-                                  <Switch
-                                    size="small"
-                                    checked={p.status === 'active'}
-                                    disabled={isEditing}
-                                    onChange={async (e) => {
-                                      try {
-                                        const res = await apiService.saveRequestPurpose({
-                                          id: p.id,
-                                          purpose: p.purpose,
-                                          amount: Number(p.amount) || 0,
-                                          status: e.target.checked ? 'active' : 'disabled',
-                                          sort_order: p.sort_order || 0
-                                        });
-                                        setRequestPurposes(res?.items || []);
-                                        setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
-                                      } catch (err) {
-                                        setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
-                                      }
-                                    }}
-                                  />
+                              }
+                              label={t.status === 'active' ? 'Active' : 'Disabled'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              aria-label="delete"
+                              onClick={async () => {
+                                try {
+                                  await apiService.deletePropertyType(t.id);
+                                  const res = await apiService.getPropertyTypes();
+                                  setPropertyTypes(res?.items || []);
+                                  setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
+                                } catch (err) {
+                                  setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
                                 }
-                                label={p.status === 'active' ? 'Active' : 'Disabled'}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              {!isEditing ? (
-                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                  <IconButton size="small" aria-label="edit" onClick={() => beginEditRequestPurpose(p)}>
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                  <IconButton
-                                    size="small"
-                                    aria-label="delete"
-                                    onClick={() => confirmDeleteRequestPurpose(p)}
-                                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              ) : (
-                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                  <IconButton size="small" color="primary" aria-label="save" onClick={() => saveEditRequestPurpose(p)}>
-                                    <CheckIcon fontSize="small" />
-                                  </IconButton>
-                                  <IconButton size="small" aria-label="cancel" onClick={cancelEditRequestPurpose}>
-                                    <CloseIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                              }}
+                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
-    </Box>
-  );
+        )}
 
-  const settingsNavItems = [
-    { label: 'General Settings', tab: 0, description: 'Branding, office info & signatories', icon: <TuneIcon fontSize="small" /> },
-    { label: 'Data Management', tab: 1, description: 'Property types, classes & barangays', icon: <StorageIcon fontSize="small" /> },
-    { label: 'Revision Settings', tab: 2, description: 'General assessment revisions', icon: <EventRepeatIcon fontSize="small" /> },
-    { label: 'Request Payment Info', tab: 3, description: 'Purposes, standard fees & issuance', icon: <ReceiptLongIcon fontSize="small" /> },
-    { label: 'API Keys', tab: 4, description: 'External integration credentials', icon: <VpnKeyIcon fontSize="small" /> },
+        {/* 2. GENERAL CLASSES TABLE WORKSPACE */}
+        {dataSubTab === 'classes' && (
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 0 }}>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ width: 44 }} />
+                      <TableCell sx={{ fontWeight: 600, width: 140 }}>Code</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Classification Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredGeneralClasses.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          {searchTerm ? 'No general classes match your search.' : 'No general classes configured yet.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredGeneralClasses.map((c, index) => (
+                        <TableRow
+                          key={c.id}
+                          hover
+                          draggable
+                          onDragStart={() => handleDragStart('generalClasses', index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop('generalClasses', index)}
+                        >
+                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
+                            <DragIndicatorIcon fontSize="small" />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={c.code}
+                              size="small"
+                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {c.name}
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={c.status === 'active'}
+                                  onChange={async (e) => {
+                                    try {
+                                      const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
+                                      setGeneralClasses(updated?.items || []);
+                                      setToast({ open: true, message: 'General class updated.', severity: 'success' });
+                                    } catch (err) {
+                                      setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                                    }
+                                  }}
+                                />
+                              }
+                              label={c.status === 'active' ? 'Active' : 'Disabled'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              aria-label="delete"
+                              onClick={async () => {
+                                try {
+                                  await apiService.deleteGeneralClass(c.id);
+                                  const res = await apiService.getGeneralClasses();
+                                  setGeneralClasses(res?.items || []);
+                                  setToast({ open: true, message: 'General class deleted.', severity: 'success' });
+                                } catch (err) {
+                                  setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
+                                }
+                              }}
+                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 3. BARANGAYS TABLE WORKSPACE */}
+        {dataSubTab === 'barangays' && (
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 0 }}>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ width: 44 }} />
+                      <TableCell sx={{ fontWeight: 600, width: 120 }}>Code</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Barangay Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 160 }}>Base PIN</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredLocations.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          {searchTerm ? 'No barangays match your search.' : 'No barangays configured yet.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredLocations.map((l, index) => (
+                        <TableRow
+                          key={l.id}
+                          hover
+                          draggable
+                          onDragStart={() => handleDragStart('locations', index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop('locations', index)}
+                        >
+                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
+                            <DragIndicatorIcon fontSize="small" />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={l.code}
+                              size="small"
+                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {l.name}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                              {l.pin || '—'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={l.status === 'active'}
+                                  onChange={async (e) => {
+                                    try {
+                                      const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                                      setLocations(updated?.items || []);
+                                      setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
+                                    } catch (err) {
+                                      setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
+                                    }
+                                  }}
+                                />
+                              }
+                              label={l.status === 'active' ? 'Active' : 'Disabled'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              aria-label="delete"
+                              onClick={async () => {
+                                try {
+                                  await apiService.deleteLocation(l.id);
+                                  const res = await apiService.getLocations();
+                                  setLocations(res?.items || []);
+                                  setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
+                                } catch (err) {
+                                  setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
+                                }
+                              }}
+                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        )}
+      </Box>
+    );
+  };
+
+  const renderRevisionSettings = () => {
+    const filteredRevisions = (revisionEntries || []).filter(entry =>
+      !searchTerm || (entry.revision_year && entry.revision_year.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* Header Bar with Action */} 
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', bgcolor: 'background.default' }}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Revision Settings
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Manage revision schedules, effectivity periods, and active assessment baselines.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <TextField
+              size="small"
+              placeholder="Search revisions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ bgcolor: 'background.paper', borderRadius: 1, minWidth: 200 }}
+            />
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setAddDialogOpen('revision')}
+              sx={{ textTransform: 'none', px: 2, height: 40, whiteSpace: 'nowrap' }}
+            >
+              + Add Revision
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Revisions Table */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 0 }}>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ width: 44 }} />
+                    <TableCell sx={{ fontWeight: 600 }}>Revision</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Effectivity Period</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 140 }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredRevisions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        {searchTerm ? 'No revisions match your search.' : 'No general revision entries configured yet.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredRevisions.map((entry, index) => {
+                      const isPresent = entry.to_year === 'present' || !entry.to_year;
+                      return (
+                        <TableRow
+                          key={entry.id}
+                          hover
+                          draggable
+                          onDragStart={() => handleDragStart('revisionEntries', index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop('revisionEntries', index)}
+                        >
+                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
+                            <DragIndicatorIcon fontSize="small" />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {entry.revision_year}
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {entry.from_year + ' → ' + (isPresent ? 'Present' : entry.to_year)}
+                              </Typography>
+                              {isPresent && (
+                                <Chip size="small" color="primary" variant="outlined" label="Current" sx={{ height: 20, fontSize: '0.7rem' }} />
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={entry.status === 'active'}
+                                  onChange={async (e) => {
+                                    try {
+                                      const updated = await apiService.saveRevisionEntry({
+                                        id: entry.id,
+                                        revision_year: entry.revision_year,
+                                        from_year: entry.from_year,
+                                        to_year: entry.to_year,
+                                        status: e.target.checked ? 'active' : 'disabled',
+                                        sort_order: entry.sort_order || 0
+                                      });
+                                      setRevisionEntries(updated?.items || []);
+                                      setToast({ open: true, message: 'Revision entry updated.', severity: 'success' });
+                                    } catch (err) {
+                                      setToast({ open: true, message: 'Failed to update revision entry.', severity: 'error' });
+                                    }
+                                  }}
+                                />
+                              }
+                              label={entry.status === 'active' ? 'Active' : 'Disabled'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              aria-label="delete"
+                              onClick={async () => {
+                                try {
+                                  await apiService.deleteRevisionEntry(entry.id);
+                                  const res = await apiService.getRevisionEntries();
+                                  setRevisionEntries(res?.items || []);
+                                  setToast({ open: true, message: 'Revision entry deleted.', severity: 'success' });
+                                } catch (err) {
+                                  setToast({ open: true, message: 'Failed to delete revision entry.', severity: 'error' });
+                                }
+                              }}
+                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  };
+
+  const renderRequestPaymentInfos = () => {
+    const filteredPurposes = (requestPurposes || []).filter(p =>
+      !searchTerm || (p.purpose && p.purpose.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        {/* Issuance Defaults Compact Form Row */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: 1, minWidth: 240 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Default Issuance Place
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Default location populated on printed certification receipts and formal documents.
+                </Typography>
+              </Box>
+              <Box sx={{ minWidth: 280, flex: 1 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="e.g. KITAOTAO, BUKIDNON"
+                  value={form.request_place_issued_default || ''}
+                  onChange={(e) => handleChange('request_place_issued_default', e.target.value)}
+                />
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Table Header Bar with Search + Add Fee Button */}
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', bgcolor: 'background.default' }}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Request Fees & Certification Purposes
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Official standard fees charged for municipal certifications and assessments.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <TextField
+              size="small"
+              placeholder="Search purposes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ bgcolor: 'background.paper', borderRadius: 1, minWidth: 200 }}
+            />
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setAddDialogOpen('purpose')}
+              sx={{ textTransform: 'none', px: 2, height: 40, whiteSpace: 'nowrap' }}
+            >
+              + Add Fee
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Purposes Fee Table */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 0 }}>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ width: 44 }} />
+                    <TableCell sx={{ fontWeight: 600 }}>Request Purpose</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 140 }} align="right">Standard Fee</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 130 }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 600, width: 90 }} align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredPurposes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        {searchTerm ? 'No purposes match your search.' : 'No request purposes configured yet.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredPurposes.map((p, index) => {
+                      const isEditing = editingRequestPurposeId === p.id;
+                      return (
+                        <TableRow
+                          key={p.id}
+                          hover
+                          draggable={!isEditing}
+                          onDragStart={() => handleDragStart('requestPurposes', index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop('requestPurposes', index)}
+                          sx={{ '& td': { verticalAlign: 'middle' } }}
+                        >
+                          <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
+                            <DragIndicatorIcon fontSize="small" />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                            {isEditing ? (
+                              <TextField
+                                size="small"
+                                value={editRequestPurposeDraft.purpose}
+                                onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, purpose: e.target.value.replace(/\s+/g, '_') }))}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    saveEditRequestPurpose(p);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cancelEditRequestPurpose();
+                                  }
+                                }}
+                                fullWidth
+                              />
+                            ) : (
+                              p.purpose
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            {isEditing ? (
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={editRequestPurposeDraft.amount}
+                                onChange={(e) => setEditRequestPurposeDraft(prev => ({ ...prev, amount: e.target.value }))}
+                                inputProps={{ min: 0, step: 0.01 }}
+                                onBlur={() => {
+                                  const n = Number(editRequestPurposeDraft.amount);
+                                  if (!isNaN(n) && n >= 0) {
+                                    setEditRequestPurposeDraft(prev => ({ ...prev, amount: n.toFixed(2) }));
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    saveEditRequestPurpose(p);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cancelEditRequestPurpose();
+                                  }
+                                }}
+                                sx={{ width: 120 }}
+                              />
+                            ) : (
+                              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'success.main' }}>
+                                {'₱' + (() => {
+                                  const n = Number(p.amount);
+                                  return isNaN(n) ? String(p.amount ?? '') : n.toFixed(2);
+                                })()}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={p.status === 'active'}
+                                  disabled={isEditing}
+                                  onChange={async (e) => {
+                                    try {
+                                      const res = await apiService.saveRequestPurpose({
+                                        id: p.id,
+                                        purpose: p.purpose,
+                                        amount: Number(p.amount) || 0,
+                                        status: e.target.checked ? 'active' : 'disabled',
+                                        sort_order: p.sort_order || 0
+                                      });
+                                      setRequestPurposes(res?.items || []);
+                                      setToast({ open: true, message: 'Request purpose updated.', severity: 'success' });
+                                    } catch (err) {
+                                      setToast({ open: true, message: err?.message || 'Failed to update request purpose.', severity: 'error' });
+                                    }
+                                  }}
+                                />
+                              }
+                              label={p.status === 'active' ? 'Active' : 'Disabled'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {!isEditing ? (
+                              <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <IconButton size="small" aria-label="edit" onClick={() => beginEditRequestPurpose(p)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  aria-label="delete"
+                                  onClick={() => confirmDeleteRequestPurpose(p)}
+                                  sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <IconButton size="small" color="primary" aria-label="save" onClick={() => saveEditRequestPurpose(p)}>
+                                  <CheckIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton size="small" aria-label="cancel" onClick={cancelEditRequestPurpose}>
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  };
+
+  const navCategories = [
+    {
+      category: 'GENERAL',
+      items: [
+        { id: 0, sub: 'overview', label: 'Overview', desc: 'System summary & profile', icon: <DashboardIcon fontSize="small" /> },
+        { id: 0, sub: 'branding', label: 'Branding', desc: 'Logo, header banner & seal', icon: <ImageIcon fontSize="small" /> },
+        { id: 0, sub: 'office', label: 'Office & Print', desc: 'Municipality, province & office', icon: <BusinessIcon fontSize="small" /> },
+        { id: 0, sub: 'signatories', label: 'Signatories', desc: 'Municipal Assessor & Verifier', icon: <HowToRegIcon fontSize="small" /> },
+        { id: 0, sub: 'security', label: 'Security', desc: 'Auto-logout & session limits', icon: <SecurityIcon fontSize="small" /> },
+      ]
+    },
+    {
+      category: 'DATA',
+      items: [
+        { id: 1, sub: 'types', label: 'Property Types', desc: 'Land, building, machinery', icon: <StorageIcon fontSize="small" /> },
+        { id: 1, sub: 'classes', label: 'General Classes', desc: 'Residential, commercial, agri', icon: <StorageIcon fontSize="small" /> },
+        { id: 1, sub: 'barangays', label: 'Barangays', desc: 'Administrative units & PINs', icon: <StorageIcon fontSize="small" /> },
+      ]
+    },
+    {
+      category: 'REVISION',
+      items: [
+        { id: 2, sub: 'revisions', label: 'Revision Schedules', desc: 'General assessment revisions', icon: <EventRepeatIcon fontSize="small" /> }
+      ]
+    },
+    {
+      category: 'REQUESTS',
+      items: [
+        { id: 3, sub: 'payment', label: 'Payment & Fees', desc: 'Purposes, fees & issuance', icon: <ReceiptLongIcon fontSize="small" /> }
+      ]
+    },
+    {
+      category: 'ACCESS',
+      items: [
+        { id: 4, sub: 'apiKeys', label: 'API Keys', desc: 'External credentials', icon: <VpnKeyIcon fontSize="small" /> }
+      ]
+    },
     ...(canManage ? [
-      { label: 'Remote Sync', tab: 5, description: 'Cloud synchronization configuration', icon: <CloudSyncIcon fontSize="small" /> },
-      { label: 'ETRACS Data Sync', tab: 6, description: 'ETRACS municipal database pull', icon: <SyncAltIcon fontSize="small" /> },
-      { label: 'ETRACS Bldg Revisions', tab: 7, description: 'Building revision schedule mappings', icon: <DomainIcon fontSize="small" /> }
+      {
+        category: 'SYNCHRONIZATION',
+        items: [
+          { id: 5, sub: 'remote', label: 'Remote Sync', desc: 'Cloud server sync token', icon: <CloudSyncIcon fontSize="small" /> },
+          { id: 6, sub: 'connection', label: 'ETRACS Connection', desc: 'ETRACS DB connection', icon: <SyncAltIcon fontSize="small" /> },
+          { id: 6, sub: 'sync', label: 'ETRACS Data Sync', desc: 'Import properties & entities', icon: <SyncAltIcon fontSize="small" /> },
+          { id: 7, sub: 'building', label: 'Building Revisions', desc: 'Building schedule mapping', icon: <DomainIcon fontSize="small" /> }
+        ]
+      }
     ] : [])
   ];
+
+  const handleNavClick = (tabId, subId) => {
+    setActiveTab(tabId);
+    setSearchTerm('');
+    if (tabId === 0) setGeneralSubTab(subId);
+    if (tabId === 1) setDataSubTab(subId);
+    if (tabId === 6) setEtracsSubTab(subId);
+  };
 
   return (
     <Box
@@ -2917,6 +3150,207 @@ const Settings = () => {
         pb: isFormDirty ? 9 : 3
       }}
     >
+      {/* Dialogs */}
+      {/* Add Property Type Dialog */}
+      <Dialog open={addDialogOpen === 'type'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Add Property Type</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Type Code"
+              placeholder="e.g. LAND"
+              value={newType.code}
+              onChange={(e) => setNewType({ ...newType, code: e.target.value.toUpperCase() })}
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Type Name"
+              placeholder="e.g. Land"
+              value={newType.name}
+              onChange={(e) => setNewType({ ...newType, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPropertyType(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await addPropertyType(); setAddDialogOpen(null); }} variant="contained" sx={{ textTransform: 'none' }}>+ Add Type</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add General Class Dialog */}
+      <Dialog open={addDialogOpen === 'class'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Add General Class</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Class Code"
+              placeholder="e.g. RES"
+              value={newClass.code}
+              onChange={(e) => setNewClass({ ...newClass, code: e.target.value.toUpperCase() })}
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Class Name"
+              placeholder="e.g. Residential"
+              value={newClass.name}
+              onChange={(e) => setNewClass({ ...newClass, name: e.target.value.toUpperCase() })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGeneralClass(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await addGeneralClass(); setAddDialogOpen(null); }} variant="contained" sx={{ textTransform: 'none' }}>+ Add Class</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Barangay Dialog */}
+      <Dialog open={addDialogOpen === 'location'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Add Barangay</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Barangay Code"
+              placeholder="e.g. 001"
+              value={newLocation.code}
+              onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value.toUpperCase() })}
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Barangay Name"
+              placeholder="e.g. Poblacion"
+              value={newLocation.name}
+              onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value.toUpperCase() })}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Base PIN Prefix"
+              placeholder="e.g. 059-10-001"
+              value={newLocation.pin}
+              onChange={(e) => setNewLocation({ ...newLocation, pin: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLocation(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await addLocation(); setAddDialogOpen(null); }} variant="contained" sx={{ textTransform: 'none' }}>+ Add Barangay</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Revision Dialog */}
+      <Dialog open={addDialogOpen === 'revision'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Add Revision Schedule</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Revision Label / Year"
+              placeholder="e.g. 2024 Revision"
+              value={newRevisionEntry.revision_year}
+              onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, revision_year: e.target.value })}
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Effective From Year"
+              type="number"
+              placeholder="2024"
+              value={newRevisionEntry.from_year}
+              onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, from_year: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Effective To Year (Optional)"
+              placeholder="Leave blank for ongoing / present"
+              value={newRevisionEntry.to_year}
+              onChange={(e) => setNewRevisionEntry({ ...newRevisionEntry, to_year: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRevisionEntry(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await addRevisionEntry(); setAddDialogOpen(null); }} variant="contained" sx={{ textTransform: 'none' }}>+ Add Revision</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Purpose & Fee Dialog */}
+      <Dialog open={addDialogOpen === 'purpose'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Add Request Purpose & Fee</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Purpose Name"
+              placeholder="e.g. CERTIFIED_TRUE_COPY"
+              value={newRequestPurpose.purpose}
+              onChange={(e) => setNewRequestPurpose({ ...newRequestPurpose, purpose: e.target.value.replace(/\s+/g, '_') })}
+              helperText="Spaces automatically replaced with underscores"
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Standard Fee Amount (PHP)"
+              type="number"
+              placeholder="50.00"
+              value={newRequestPurpose.amount}
+              onChange={(e) => setNewRequestPurpose({ ...newRequestPurpose, amount: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRequestPurpose(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await addRequestPurpose(); setAddDialogOpen(null); }} variant="contained" sx={{ textTransform: 'none' }}>+ Add Fee</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create API Key Dialog */}
+      <Dialog open={addDialogOpen === 'apiKey'} onClose={() => setAddDialogOpen(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Create API Key</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Provide an application name for this integration credential.
+            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              label="Application / Key Name"
+              placeholder="e.g. Main Website Portal"
+              value={newPublicApiKeyName}
+              onChange={(e) => setNewPublicApiKeyName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createPublicApiKey(); setAddDialogOpen(null); } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAddDialogOpen(null)} variant="outlined" sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={async () => { await createPublicApiKey(); setAddDialogOpen(null); }} variant="contained" disabled={publicApiBusy} sx={{ textTransform: 'none' }}>Create Key</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Dialogs */}
       <Dialog
         open={deleteApiKeyDialog.open}
@@ -3150,15 +3584,68 @@ const Settings = () => {
         </Alert>
       </Snackbar>
 
-      {/* Top Header */}
-      <Box sx={{ mb: 2.5 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.25 }}>
-          Settings
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Configure the application, office information and system behavior.
-        </Typography>
-      </Box>
+      {/* Top Header Shell with Save / Discard buttons */}
+      <Paper
+        variant="outlined"
+        sx={{
+          p: { xs: 2, sm: 2.25 },
+          mb: 2.5,
+          borderRadius: 2,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+          bgcolor: 'background.paper'
+        }}
+      >
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.25 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', letterSpacing: '-0.01em' }}>
+              {activeTab === 0 && (generalSubTab === 'overview' ? 'General Overview' : generalSubTab === 'branding' ? 'Branding & Seals' : generalSubTab === 'office' ? 'Office & Print Information' : generalSubTab === 'signatories' ? 'Signatories & Credentials' : 'Security & AFK Timeout')}
+              {activeTab === 1 && (dataSubTab === 'types' ? 'Property Types' : dataSubTab === 'classes' ? 'General Classes' : 'Barangays')}
+              {activeTab === 2 && 'Revision Settings'}
+              {activeTab === 3 && 'Payment & Request Fees'}
+              {activeTab === 4 && 'API Access Credentials'}
+              {activeTab === 5 && 'Remote Server Sync'}
+              {activeTab === 6 && (etracsSubTab === 'connection' ? 'ETRACS Database Connection' : 'ETRACS Data Synchronization')}
+              {activeTab === 7 && 'Building Revision Schedules'}
+            </Typography>
+            {isFormDirty && (
+              <Chip
+                size="small"
+                color="warning"
+                label="Unsaved Changes"
+                sx={{ fontWeight: 700, fontSize: '0.72rem', height: 22 }}
+              />
+            )}
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Manage your assessor system configuration, records, and municipal authority parameters.
+          </Typography>
+        </Box>
+
+        {isFormDirty && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleCancelSettings}
+              sx={{ textTransform: 'none', px: 2, fontWeight: 600 }}
+            >
+              Discard
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleSave}
+              sx={{ textTransform: 'none', px: 2.5, fontWeight: 600 }}
+            >
+              Save Changes
+            </Button>
+          </Box>
+        )}
+      </Paper>
 
       {/* Two-Column Shell */}
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2.5, flexGrow: 1, alignItems: 'flex-start' }}>
@@ -3166,51 +3653,78 @@ const Settings = () => {
         <Paper
           variant="outlined"
           sx={{
-            width: { xs: '100%', md: 240 },
+            width: { xs: '100%', md: 245 },
             flexShrink: 0,
             borderRadius: 2,
             overflow: 'hidden'
           }}
         >
-          <List disablePadding sx={{ p: 0.75 }}>
-            {settingsNavItems.map((item) => {
-              const isSelected = activeTab === item.tab;
-              return (
-                <ListItem
-                  button
-                  key={item.tab}
-                  onClick={() => setActiveTab(item.tab)}
+          <List disablePadding sx={{ p: 1 }}>
+            {navCategories.map((cat, catIdx) => (
+              <React.Fragment key={cat.category}>
+                <Typography
+                  variant="caption"
                   sx={{
-                    borderRadius: 1.5,
-                    mb: 0.5,
-                    px: 1.25,
-                    py: 0.85,
-                    bgcolor: isSelected ? 'action.selected' : 'transparent',
-                    color: isSelected ? 'primary.main' : 'inherit',
-                    '&:hover': {
-                      bgcolor: isSelected ? 'action.selected' : 'action.hover'
-                    }
+                    display: 'block',
+                    px: 1.5,
+                    pt: catIdx === 0 ? 0.5 : 2,
+                    pb: 0.5,
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: 'text.secondary',
+                    letterSpacing: '0.08em'
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 32, color: isSelected ? 'primary.main' : 'text.secondary' }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={item.label}
-                    secondary={item.description}
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      fontWeight: isSelected ? 700 : 500,
-                      color: isSelected ? 'primary.main' : 'text.primary'
-                    }}
-                    secondaryTypographyProps={{
-                      variant: 'caption',
-                      sx: { display: 'block', mt: 0.25, fontSize: '0.7rem' }
-                    }}
-                  />
-                </ListItem>
-              );
-            })}
+                  {cat.category}
+                </Typography>
+                {cat.items.map((item) => {
+                  let isSelected = false;
+                  if (item.id === 0) isSelected = activeTab === 0 && generalSubTab === item.sub;
+                  else if (item.id === 1) isSelected = activeTab === 1 && dataSubTab === item.sub;
+                  else if (item.id === 6) isSelected = activeTab === 6 && etracsSubTab === item.sub;
+                  else isSelected = activeTab === item.id;
+
+                  return (
+                    <ListItem
+                      button
+                      key={item.category + '-' + item.label}
+                      onClick={() => handleNavClick(item.id, item.sub)}
+                      sx={{
+                        borderRadius: 1.5,
+                        mb: 0.5,
+                        px: 1.25,
+                        py: 0.75,
+                        bgcolor: isSelected ? 'action.selected' : 'transparent',
+                        color: isSelected ? 'primary.main' : 'inherit',
+                        borderLeft: isSelected ? '3px solid' : '3px solid transparent',
+                        borderLeftColor: isSelected ? 'primary.main' : 'transparent',
+                        '&:hover': {
+                          bgcolor: isSelected ? 'action.selected' : 'action.hover'
+                        }
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 30, color: isSelected ? 'primary.main' : 'text.secondary' }}>
+                        {item.icon}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={item.label}
+                        secondary={item.desc}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          fontWeight: isSelected ? 700 : 500,
+                          color: isSelected ? 'primary.main' : 'text.primary',
+                          fontSize: '0.82rem'
+                        }}
+                        secondaryTypographyProps={{
+                          variant: 'caption',
+                          sx: { display: 'block', fontSize: '0.68rem', lineHeight: 1.2 }
+                        }}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </React.Fragment>
+            ))}
           </List>
         </Paper>
 
