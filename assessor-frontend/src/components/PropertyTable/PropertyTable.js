@@ -60,7 +60,7 @@ import { useReactToPrint } from 'react-to-print';
 import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
-import HistoryPrintDocument from '../HistoryPrintDocument/HistoryPrintDocument';
+import HistoryPrintDocument, { HISTORY_PRINT_PAGE_STYLE } from '../HistoryPrintDocument/HistoryPrintDocument';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -920,19 +920,40 @@ const PropertyTable = () => {
         if (!root) return;
         const spacer = root.querySelector('.print-bottom-spacer');
         if (!spacer) return;
+        const signature = root.querySelector('.print-signature');
+
         // Reset spacer first
         spacer.style.height = '0px';
+
         // Convert mm to px (assuming 96 DPI)
         const pxPerMm = 96 / 25.4;
         const a4HeightPx = 297 * pxPerMm;
         const topMarginPx = 12 * pxPerMm;
         const bottomMarginPx = 0 * pxPerMm; // 16 Default Change to 1 if super low
         const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
-        // Current total height (with signature present)
+
+        const signatureHeight = signature
+          ? signature.getBoundingClientRect().height
+          : 0;
+
         const totalHeight = root.scrollHeight;
-        const remainder = totalHeight % usablePageHeightPx;
-        const spacerHeight = remainder === 0 ? 0 : (usablePageHeightPx - remainder);
-        spacer.style.height = `${Math.max(0, Math.floor(spacerHeight))}px`;
+        const contentHeight = Math.max(0, totalHeight - signatureHeight);
+
+        const remainder = contentHeight % usablePageHeightPx;
+
+        if (remainder === 0) {
+          spacer.style.height = '0px';
+          return;
+        }
+
+        const availableSpace = usablePageHeightPx - remainder;
+
+        if (signatureHeight <= availableSpace) {
+          const spacerHeight = availableSpace - signatureHeight;
+          spacer.style.height = `${Math.max(0, Math.floor(spacerHeight))}px`;
+        } else {
+          spacer.style.height = '0px';
+        }
       } catch (_) { }
     },
     onAfterPrint: () => {
@@ -941,64 +962,7 @@ const PropertyTable = () => {
       const spacer = root.querySelector('.print-bottom-spacer');
       if (spacer) spacer.style.height = '0px';
     },
-    pageStyle: `
-      @page { size: A4 portrait; margin: 12mm 8mm 16mm 8mm; 
-          @bottom-right {
-            content: counter(page) "/" counter(pages);
-            font-family: 'Arial', sans-serif;
-            font-size: 10px;
-            color: #666;
-          }
-      }
-      @media print {
-        /* Use document fonts for header */
-        .print-header h3, .print-header h4 { font-family: 'Times New Roman', Times, serif !important; }
-        .print-header .header-title { font-family: Tahoma, Verdana, sans-serif !important; }
-        /* Keep rest to app font for readability */
-        html, body, #root, * { font-family: 'Inter','Roboto','Helvetica','Arial',sans-serif; }
-        @page :first {
-          margin-top: 5mm;
-        }
-        @page {
-          margin-top: 5mm;
-          padding-top: 5mm;
-        }
-        html, body { width: 212mm; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        *,
-        :root,
-        body,
-        div, span, p, strong, em,
-        table, thead, tbody, tfoot, tr, th, td,
-        h1, h2, h3, h4, h5, h6 {
-          color: #000 !important;
-        }
-        .history-table td { vertical-align: top !important; text-align: left !important; }
-        .history-table td:last-child { text-align: left !important; }
-        .history-table th { vertical-align: center !important; }
-        /* Force word breaking for long strings without spaces */
-        .history-table td:first-child { word-break: break-all; overflow-wrap: anywhere; }
-        .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; }
-        /* Ensure Title Number column breaks long text properly */
-        .history-table td:nth-child(5) { word-break: break-all; overflow-wrap: anywhere; hyphens: none; }
-        /* Ensure info header cells wrap properly for long addresses */
-        .info td { white-space: normal !important; word-break: break-word !important; overflow-wrap: anywhere !important; }
-        .print-page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: right; font-size: 10px; padding: 2mm 8mm; }
-        .print-page-footer .pageNumber::after { content: counter(page) " of " counter(pages); }
-        /* Layout helpers to keep the signature at the bottom of the last page when space allows */
-        .print-root { display: flex; flex-direction: column; min-height: calc(297mm - 12mm - 16mm); }
-        .print-bottom-spacer { flex: 1 1 auto; }
-        .print-signature { page-break-inside: avoid; }
-      }
-      thead { display: table-header-group; }
-      tfoot { display: table-footer-group; }
-      tfoot td { border: 0; border-top: 1px solid #ddd; }
-      table { page-break-inside: auto; }
-      tr { page-break-inside: auto; break-inside: auto; }
-      td { page-break-inside: auto; }
-      /* Preserve memoranda line breaks while still allowing wrapping/splitting */
-      td:last-child { white-space: pre-wrap; text-align: left; }
-    `
+    pageStyle: HISTORY_PRINT_PAGE_STYLE
   });
 
   const getStatusColor = (status) => {

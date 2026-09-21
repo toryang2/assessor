@@ -1,45 +1,18 @@
 /* Print Styles for HistoryPrintDocument */
 @media print {
-  /* Use document fonts for header */
-  .print-header h3,
-  .print-header h4 {
-    font-family: 'Times New Roman', Times, serif !important;
-  }
-  .print-header .header-title,
-  .print-header div[style*="font-family: 'Tahoma"] {
-    font-family: Tahoma, Verdana, sans-serif !important;
-  }
-
-  /* Keep rest to app font for readability */
-  html, body, #root, * {
-    font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-  }
-
-  @page :first {
-    margin-top: 5mm;
-  }
-
-  @page {
-    margin-top: 5mm;
-    padding-top: 5mm;
-  }
-
   html, body {
     width: 212mm;
   }
 
-  body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  .print-root,
+  .print-root * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  *,
-  :root,
-  body,
-  div, span, p, strong, em,
-  table, thead, tbody, tfoot, tr, th, td,
-  h1, h2, h3, h4, h5, h6 {
-    color: #000 !important;
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .history-table td {
@@ -99,6 +72,8 @@
     display: flex;
     flex-direction: column;
     min-height: calc(297mm - 12mm - 16mm);
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .print-bottom-spacer {
@@ -107,7 +82,292 @@
 
   .print-signature {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
+}
+
+/* Document Typography Hierarchy */
+.print-root {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.print-header {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.print-header .header-title {
+  font-family: Tahoma, Verdana, sans-serif;
+}
+
+.info,
+.history-table {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.print-signature {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.print-signatories {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.print-receipt-docket {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Screen and Print Certification Section Styles (Aistudio translation) */
+.print-certification-section {
+  width: 100%;
+  margin-top: 4mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Given Statement matching Aistudio indent-8 text-sm leading-relaxed text-justify mb-12 */
+.print-given-statement {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: justify;
+  text-indent: 10mm;
+  margin-top: 2mm;
+  margin-bottom: 8mm;
+  color: #0f172a;
+}
+
+.print-given-statement strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* 3 Official Signatories matching Aistudio grid-cols-3 gap-6 mb-10 */
+.print-signatories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6mm;
+  margin-bottom: 8mm;
+  font-family: Arial, Helvetica, sans-serif;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.print-signatory {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.print-signatory-label {
+  display: flex;
+  align-items: flex-start;
+  min-height: 9mm;
+  margin-bottom: 8mm;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #475569;
+  font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.print-signatory-line {
+  border-bottom: 1px solid #0f172a;
+  padding-bottom: 1mm;
+}
+
+.print-signatory-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.print-signatory-title {
+  font-size: 9.5px;
+  color: #475569;
+  margin-top: 1mm;
+  margin-bottom: 0;
+  line-height: 1.2;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.print-signatory-license {
+  font-size: 9px;
+  color: #64748b;
+  margin-top: 0.5mm;
+  margin-bottom: 0;
+  line-height: 1.2;
+}
+
+/* Official Receipt Particulars / Local Government Audit Trail Box */
+/* Aistudio: border-2 border-slate-800 rounded-lg p-3.5 bg-slate-50/50 font-sans text-xs */
+.print-receipt-docket {
+  border: 2px solid #1e293b !important;
+  border-radius: 6px;
+  padding: 3mm 4mm;
+  background-color: rgba(248, 250, 252, 0.5) !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5px;
+  margin-top: 2mm;
+  margin-bottom: 2mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.print-receipt-docket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 1.5mm;
+  margin-bottom: 2.5mm;
+}
+
+.print-receipt-docket-title {
+  display: flex;
+  align-items: center;
+  gap: 1.5mm;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #1e293b;
+}
+
+.print-receipt-icon {
+  width: 14px;
+  height: 14px;
+  color: #1e40af !important;
+  stroke: #1e40af !important;
+  fill: none !important;
+  flex-shrink: 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.print-root .print-receipt-icon {
+  width: 14px;
+  height: 14px;
+  color: #1e40af !important;
+  stroke: #1e40af !important;
+  fill: none !important;
+}
+
+.print-root .print-icon-blue {
+  color: #1e40af !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+.print-receipt-form-no {
+  font-size: 9px;
+  font-family: Consolas, 'Courier New', monospace;
+  color: #64748b;
+}
+
+/* 3-column receipt grid matching Aistudio grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 */
+.print-receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 4mm;
+  row-gap: 2mm;
+  font-size: 10px;
+}
+
+.print-receipt-col-span-2 {
+  grid-column: span 2;
+}
+
+.print-receipt-field-label {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.5mm;
+}
+
+.print-receipt-val-blue,
+.print-receipt-number {
+  font-family: Consolas, 'Courier New', monospace;
+  font-weight: 700;
+  color: #1e3a8a !important;
+  font-size: 11px;
+}
+
+.print-root .print-receipt-val-blue,
+.print-root .print-receipt-number {
+  color: #1e3a8a !important;
+}
+
+.print-receipt-val-amount {
+  font-family: Consolas, 'Courier New', monospace;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 11px;
+}
+
+.print-receipt-val-bold {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 10px;
+}
+
+.print-receipt-val-medium {
+  font-weight: 500;
+  color: #1e293b;
+  font-size: 10px;
+}
+
+.print-receipt-purpose-row {
+  grid-column: span 3;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 1.5mm;
+  margin-top: 1mm;
+}
+
+.print-receipt-val-purpose {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 10.5px;
+}
+
+/* Bottom audit row matching Aistudio mt-2.5 pt-2 border-t border-slate-200 flex justify-between text-[9px] text-slate-500 font-mono */
+.print-receipt-footer {
+  margin-top: 2.5mm;
+  padding-top: 2mm;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 8.5px;
+  color: #64748b;
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.print-receipt-seal {
+  font-weight: 700;
+  color: #334155;
+  text-align: center;
+}
+
+/* Bottom security notice matching Aistudio text-[9px] font-sans text-center text-slate-400 mt-4 tracking-wider uppercase */
+.print-security-notice {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8.5px;
+  text-align: center;
+  color: #94a3b8;
+  margin-top: 3mm;
+  margin-bottom: 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 thead {

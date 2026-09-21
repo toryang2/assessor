@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import { Typography } from '@mui/material';
-import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
+import { Receipt } from 'lucide-react';
+import { formatAppDate } from '../../utils/dateTime';
 import './HistoryPrintDocument.css';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -52,14 +53,54 @@ const normalizeDeclarantString = (name) => {
   return `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  return formatAppDateTime(dateString);
-};
-
 const formatDateOnly = (dateString) => {
   if (!dateString) return '';
   return formatAppDate(dateString, { month: '2-digit', day: '2-digit', year: 'numeric' });
+};
+
+// Format date nicely for receipt docket
+const formatDate = (dateString) => {
+  if (!dateString) return '—';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-PH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+};
+
+// Format day for "Given this X day of Y, Z"
+const getDayWithSuffix = (dateString) => {
+  try {
+    const date = dateString ? new Date(dateString) : new Date();
+    const validDate = isNaN(date.getTime()) ? new Date() : date;
+    const day = validDate.getDate();
+    const month = validDate.toLocaleDateString('en-PH', { month: 'long' });
+    const year = validDate.getFullYear();
+
+    const suffix = (d) => {
+      if (d > 3 && d < 21) return 'th';
+      switch (d % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+
+    return {
+      dayWithSuffix: `${day}${suffix(day)}`,
+      month,
+      year,
+    };
+  } catch {
+    return { dayWithSuffix: '21st', month: 'September', year: 2026 };
+  }
 };
 
 const toFormalCase = (text) => {
@@ -95,7 +136,41 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
   const headerTitle = 'RECORD VERIFICATION DATA FORM';
 
-  // Verifier signatory resolution:
+  // Purpose of Certification resolution:
+  const purpose = (requestData && requestData.purpose)
+    || (printHistory && printHistory[0] && printHistory[0].purpose)
+    || 'Certification of Assessor\'s Record';
+
+  // Receipt and Audit data resolution:
+  const rawDateIssued = requestData?.date_issued || requestData?.date_requested || (printHistory && printHistory[0] && printHistory[0].created_at) || '';
+  const { dayWithSuffix, month, year } = getDayWithSuffix(rawDateIssued);
+  const formattedDateIssued = rawDateIssued
+    ? (isRequest ? formatDateOnly(rawDateIssued) : formatDate(rawDateIssued))
+    : '—';
+
+  const amountPaidNum = requestData?.amount_paid !== undefined && requestData?.amount_paid !== null && requestData?.amount_paid !== ''
+    ? Number(requestData.amount_paid)
+    : 0;
+  const amountPaidFormatted = amountPaidNum.toFixed(2);
+  const currencySymbol = (settings && settings.currency_symbol) || '₱';
+
+  const receiptNumber = requestData?.receipt_number || '';
+  const placeIssued = requestData?.place_issued || (settings && settings.request_place_issued_default) || 'Kitaotao, Bukidnon';
+  const referenceId = requestData?.id
+    ? String(requestData.id)
+    : (printHistory && printHistory[0] && (printHistory[0].id || printHistory[0].property_id))
+      ? String(printHistory[0].id || printHistory[0].property_id)
+      : 'CERT-HIST';
+
+  // Signatory 1: Prepared by resolution
+  const preparedByName = (requestData && requestData.prepared_by)
+    || (printHistory && printHistory[0] && printHistory[0].updated_by_name)
+    || '';
+  const preparedByTitle = (requestData && requestData.prepared_by_title)
+    || (settings && settings.prepared_by_title)
+    || 'Assessment Records Staff';
+
+  // Signatory 2: Verifier signatory resolution:
   // If requestData provides an override, use it (request mode); otherwise fallback to printHistory[0] or settings
   const verifierSignatoryFullName = (isRequest && requestData?.verifier_signatory_name)
     || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name)
@@ -105,9 +180,13 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   const verifierSignatoryTitle = (isRequest && requestData?.verifier_signatory_title)
     || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_title)
     || (settings && settings.verifier_signatory_title)
-    || 'VERIFIER';
+    || 'Local Assessment Operations Officer II / Appraiser';
 
-  // Municipal assessor signatory resolution:
+  // Signatory 3: Municipal assessor signatory resolution:
+  const approvalLabel = (requestData && requestData.approval_label)
+    || (settings && settings.approval_label)
+    || 'Certified correct as to available record/s:';
+
   const assessorName = (isRequest && requestData?.municipal_assessor_name)
     || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name)
     || (settings && settings.municipal_assessor_name)
@@ -348,109 +427,154 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
       {/* Spacer to push signature to the bottom of the last page when possible */}
       <div className="print-bottom-spacer" />
 
-      {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
-      <div className="print-signature" style={{ fontFamily: 'Arial, sans serif', width: '100%', marginTop: '0mm', marginBottom: '0mm', paddingTop: '0mm', paddingBottom: '0mm', paddingRight: '10mm', paddingLeft: '10mm' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      {/* Certification, Signatories & Receipt Docket section (Aistudio translation) */}
+      <div className="print-signature print-certification-section" style={{ width: '100%', paddingLeft: '8mm', paddingRight: '8mm' }}>
 
-          <div style={{ textAlign: 'left', width: '100mm' }}>
-            {/* Spacer */}
-            <div style={{ height: '37mm' }} />
+        {/* Given Statement */}
+        {/* <p className="print-given-statement">
+          Given this <strong>{dayWithSuffix}</strong> day of <strong>{month}</strong>, <strong>{year}</strong> at the Office of the Municipal Assessor, <strong>{placeIssued || 'Kitaotao, Bukidnon'}</strong>.
+        </p> */}
 
-            {/* Encoded Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 4 }}>
-              {/* Labels */}
-              <div style={{ width: '25mm', fontSize: 12, fontWeight: 400 }}>
-                <div>{'Encoded by:'}</div>
-                <div>{'Date and Time:'}</div>
-              </div>
-
-              {/* Values */}
-              <div style={{ fontSize: 12, fontWeight: 400 }}>
-                <div>{(printHistory && printHistory[0] && printHistory[0].updated_by_name) || ''}</div>
-                <div>{(printHistory && printHistory[0] && formatDate(printHistory[0].updated_at)) || ''}</div>
-              </div>
+        {/* 3 Official Signatories (Aistudio grid layout) */}
+        <div className="print-signatories">
+          {/* Signatory 1: Prepared by */}
+          <div className="print-signatory">
+            <span className="print-signatory-label">Prepared by:</span>
+            <div className="print-signatory-line">
+              <p className="print-signatory-name">
+                {preparedByName || '\u00A0'}
+              </p>
             </div>
-
-            {/* Receipt Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginTop: 4 }}>
-              {/* Labels */}
-              <div style={{ width: '19mm', fontSize: 10, fontWeight: 400 }}>
-                <div style={{ paddingTop: 50 }}>
-                  {'Amount Paid: '}
-                </div>
-                <div>{'Receipt No.: '}</div>
-                <div>{'Date Issued: '}</div>
-                <div>{'Place Issued: '}</div>
-                <div>{'Prepared by: '}</div>
-              </div>
-
-              {/* Data Values */}
-              <div style={{ fontSize: 10, fontWeight: 400 }}>
-                <div style={{ paddingTop: 50 }}>{requestData?.amount_paid ? `₱${requestData.amount_paid.toLocaleString()}` : '₱'}</div>
-                <div>{requestData?.receipt_number || ''}</div>
-                <div>{requestData?.date_issued ? (isRequest ? formatDateOnly(requestData.date_issued) : formatAppDate(requestData.date_issued)) : ''}</div>
-                <div>{requestData?.place_issued || ''}</div>
-                <div>
-                  {isRequest
-                    ? (requestData?.prepared_by ? `${requestData.prepared_by} ${requestData.updated_at ? formatDate(requestData.updated_at) : ''}` : '')
-                    : (requestData?.prepared_by || '')}
-                </div>
-              </div>
-            </div>
+            <p className="print-signatory-title">
+              {preparedByTitle}
+            </p>
           </div>
 
-          <div style={{ textAlign: 'center', width: '80mm' }}>
-            <div style={{ height: '37mm' }} />
-            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
-              <div>{'Verified and checked by:'}</div>
+          {/* Signatory 2: Verified and checked by: */}
+          <div className="print-signatory">
+            <span className="print-signatory-label">Verified and checked by:</span>
+            <div className="print-signatory-line">
+              <p className="print-signatory-name">
+                {(() => {
+                  if (!verifierSignatoryFullName) return '\u00A0';
+                  const parts = verifierSignatoryFullName.split(',');
+                  const mainName = parts[0]?.trim() || '';
+                  const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : '';
+                  return (
+                    <span>
+                      {mainName}
+                      {suffix ? <span style={{ fontSize: '9.5px', fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
+                    </span>
+                  );
+                })()}
+              </p>
             </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
-              {(() => {
-                if (!verifierSignatoryFullName) return '';
-
-                // Split by comma to separate main name from suffix
-                const parts = verifierSignatoryFullName.split(',');
-                const mainName = parts[0]?.trim() || '';
-                const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : '';
-
-                return (
-                  <span>
-                    {mainName}
-                    {suffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 11, marginBottom: 30 }}>
+            <p className="print-signatory-title">
               {verifierSignatoryTitle}
+            </p>
+          </div>
+
+          {/* Signatory 3: Approved by or Certified correct */}
+          <div className="print-signatory">
+            <span className="print-signatory-label">{approvalLabel}</span>
+            <div className="print-signatory-line">
+              <p className="print-signatory-name">
+                {(() => {
+                  const base = assessorName || '';
+                  if (!base) return '\u00A0';
+                  return (
+                    <span>
+                      {base}
+                      {assessorSuffix ? <span style={{ fontSize: '9.5px', fontWeight: 400 }}>{`, ${assessorSuffix}`}</span> : null}
+                    </span>
+                  );
+                })()}
+              </p>
             </div>
-            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
-              <div>{'Certified correct as to available record/s:'}</div>
-            </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
-              {(() => {
-                const base = (assessorName || '');
-                return (
-                  <span>
-                    {base}
-                    {assessorSuffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${assessorSuffix}`}</span> : null}
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 11, paddingTop: 0 }}>
+            <p className="print-signatory-title">
               {assessorTitle}
-            </div>
-            <div style={{ fontSize: 10 }}>
-              {assessorLicense ? `License No.: ${assessorLicense}` : ''}
-            </div>
+            </p>
+            {assessorLicense && (
+              <p className="print-signatory-license">
+                {`License No.: ${assessorLicense}`}
+              </p>
+            )}
           </div>
         </div>
+
+        {/* Official Receipt Particulars / Local Government Audit Trail Box */}
+        <div className="print-receipt-docket">
+          <div className="print-receipt-docket-header">
+            <div className="print-receipt-docket-title">
+              <Receipt className="print-receipt-icon" />
+              <span>OFFICIAL RECEIPT PARTICULARS</span>
+            </div>
+            {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
+          </div>
+
+          <div className="print-receipt-grid">
+            <div>
+              <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
+              <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
+            </div>
+
+            <div>
+              <span className="print-receipt-field-label">Amount Paid:</span>
+              <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
+            </div>
+
+            <div>
+              <span className="print-receipt-field-label">Date Issued:</span>
+              <span className="print-receipt-val-bold">{formattedDateIssued}</span>
+            </div>
+
+            <div className="print-receipt-col-span-2">
+              <span className="print-receipt-field-label">Place Issued:</span>
+              <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
+            </div>
+
+            <div>
+              <span className="print-receipt-field-label">Prepared By:</span>
+              <span className="print-receipt-val-bold">{preparedByName || 'Assessment Records Staff'}</span>
+            </div>
+
+            <div className="print-receipt-purpose-row">
+              <span className="print-receipt-field-label">Purpose:</span>
+              <span className="print-receipt-val-purpose">{purpose}</span>
+            </div>
+          </div>
+
+          <div className="print-receipt-footer">
+            <span>Doc. Stamp Tax: PAID & AFFIXED</span>
+            <span className="print-receipt-seal">★ VALID ONLY WITH OFFICIAL RAISED DRY SEAL ★</span>
+            <span>Ref ID: {referenceId}</span>
+          </div>
+        </div>
+
+        {/* Bottom security notice */}
+        <p className="print-security-notice">
+          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this certificate.
+        </p>
+
       </div>
     </div>
   );
 });
 
 HistoryPrintDocument.displayName = 'HistoryPrintDocument';
+
+export const HISTORY_PRINT_PAGE_STYLE = `
+  @page {
+    size: A4 portrait;
+    margin: 12mm 8mm 16mm 8mm;
+
+    @bottom-right {
+      content: counter(page) "/" counter(pages);
+      font-family: Arial, sans-serif;
+      font-size: 10px;
+      color: #666;
+    }
+  }
+`;
 
 export default HistoryPrintDocument;
