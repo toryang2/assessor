@@ -251,6 +251,11 @@ class Assessor_Sync_Report {
             'message'    => $message,
             'status'     => $overall_status,
             'phases'     => $this->phases,
+
+            // Canonical counter structure used by the Sync Center UI.
+            'counters'   => $this->counters,
+
+            // Keep these legacy/top-level fields for backward compatibility.
             'properties' => $this->counters['properties'],
             'requests'   => $this->counters['requests'],
         ), $extra_summary);

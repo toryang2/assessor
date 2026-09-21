@@ -180,6 +180,55 @@ const getActionChipProps = (action) => {
   }
 };
 
+// Normalizes sync run report counters for both current (summary.counters) and legacy (summary.properties / summary.requests) structures.
+const getReportCounters = (report) => {
+  const summary = report?.summary;
+
+  if (!summary) {
+    return {
+      properties: {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+        total: 0,
+      },
+      requests: {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+        deleted: 0,
+        total: 0,
+      },
+    };
+  }
+
+  // Current/canonical format.
+  if (summary.counters) {
+    return summary.counters;
+  }
+
+  // Backward compatibility for reports created before the fix.
+  return {
+    properties: summary.properties || {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      total: 0,
+    },
+    requests: summary.requests || {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      deleted: 0,
+      total: 0,
+    },
+  };
+};
+
 // ─── Phase Item Row ───────────────────────────────────────────────
 const PhaseItem = ({ label, status, details }) => {
   const getIcon = () => {
@@ -639,10 +688,7 @@ const LiveServerDashboard = ({ syncConfig, onOpenBrowser }) => {
     fetchLiveMonitorData();
   }, []);
 
-  const counters = latestReport?.summary?.counters || {
-    properties: { created: 0, updated: 0, skipped: 0, failed: 0, total: 0 },
-    requests: { created: 0, updated: 0, skipped: 0, failed: 0, deleted: 0, total: 0 },
-  };
+  const counters = getReportCounters(latestReport);
 
   // Determine age notice if older than 3 hours
   const hoursSinceLastSync = useMemo(() => {
@@ -848,7 +894,7 @@ const LiveServerDashboard = ({ syncConfig, onOpenBrowser }) => {
                 </TableRow>
               ) : (
                 reportHistory.map((run, idx) => {
-                  const rCounters = run.summary?.counters || {};
+                  const rCounters = getReportCounters(run);
                   const pTot = (rCounters.properties?.created || 0) + (rCounters.properties?.updated || 0);
                   const qTot = (rCounters.requests?.created || 0) + (rCounters.requests?.updated || 0);
                   return (
@@ -1111,10 +1157,7 @@ const SyncModal = ({ open, onClose }) => {
   const chipProps = getStatusChipProps();
 
   // Parse counters from activeReport summary
-  const summaryCounters = activeReport?.summary?.counters || {
-    properties: { created: 0, updated: 0, skipped: 0, failed: 0, total: 0 },
-    requests: { created: 0, updated: 0, skipped: 0, failed: 0, deleted: 0, total: 0 },
-  };
+  const summaryCounters = getReportCounters(activeReport);
 
   const summaryPhases = activeReport?.summary?.phases || {};
 
