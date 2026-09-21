@@ -285,6 +285,9 @@ class Assessor_Sync {
             return;
         }
 
+        // Ensure one-time cursor migration to MySQL database timestamp domain
+        self::ensure_cursor_migration();
+
         // Before sync, check if there is any pending report from a previous run that needs mirroring
         self::check_pending_report_mirror();
 
@@ -403,6 +406,9 @@ class Assessor_Sync {
             self::set_meta('pull_offset', 0);
             self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
             self::set_meta('pull_requests_offset', 0);
+        } else {
+            // Ensure one-time cursor migration to MySQL database timestamp domain
+            self::ensure_cursor_migration();
         }
 
         if ($report) {
@@ -2374,6 +2380,26 @@ class Assessor_Sync {
             $key,
             $value
         ));
+    }
+
+    /**
+     * One-time cursor migration after Asia/Manila standardization.
+     * Resets last_pull_at and last_pull_requests_at to '2000-01-01 00:00:00'
+     * so incremental pull catches any missed changes using the database session timestamp domain.
+     */
+    public static function ensure_cursor_migration() {
+        if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
+            return;
+        }
+        $migrated = self::get_meta('sync_timezone_cursor_migrated');
+        if (!$migrated) {
+            self::set_meta('last_pull_at', '2000-01-01 00:00:00');
+            self::set_meta('pull_offset', 0);
+            self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
+            self::set_meta('pull_requests_offset', 0);
+            self::set_meta('sync_timezone_cursor_migrated', '1');
+            error_log('Assessor Sync: Migrated sync cursors to database timestamp domain (one-time reset).');
+        }
     }
 
     // -------------------------------------------------------------------------

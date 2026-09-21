@@ -52,9 +52,11 @@ class Assessor_Sync_Receiver {
      * Local builds use this to test connectivity before attempting push/pull.
      */
     public function health($request) {
+        global $wpdb;
+        $db_server_ts = $wpdb->get_var("SELECT NOW()");
         return array(
             'status'    => 'ok',
-            'server_ts' => Assessor_Timezone::now_mysql(),
+            'server_ts' => $db_server_ts ? $db_server_ts : Assessor_Timezone::now_mysql(),
         );
     }
 
@@ -387,6 +389,16 @@ class Assessor_Sync_Receiver {
         $type = isset($params['type']) ? sanitize_text_field($params['type']) : 'properties';
 
         global $wpdb;
+        $db_server_ts = $wpdb->get_var("SELECT NOW()");
+        if (empty($db_server_ts)) {
+            $db_server_ts = Assessor_Timezone::now_mysql();
+        }
+
+        error_log(
+            'Assessor Sync Pull Cursor: since=' . $since .
+            ' db_now=' . $db_server_ts .
+            ' type=' . $type
+        );
 
         if ($type === 'users') {
             $table_users = $wpdb->prefix . 'assessor_users';
@@ -399,11 +411,13 @@ class Assessor_Sync_Receiver {
                 ARRAY_A
             );
             
+            error_log('Assessor Sync Pull: returned=' . count($records ?: array()));
+
             return array(
                 'records'   => $records ?: array(),
                 'count'     => count($records ?: array()),
                 'since'     => $since,
-                'server_ts' => current_time('mysql'),
+                'server_ts' => $db_server_ts,
             );
         }
 
@@ -429,13 +443,15 @@ class Assessor_Sync_Receiver {
                 }
             }
 
+            error_log('Assessor Sync Pull: returned=' . count($safe_records));
+
             update_option('assessor_last_local_pull_requests', Assessor_Timezone::now_mysql());
 
             return array(
                 'records'   => $safe_records,
                 'count'     => count($safe_records),
                 'since'     => $since,
-                'server_ts' => Assessor_Timezone::now_mysql(),
+                'server_ts' => $db_server_ts,
             );
         }
 
@@ -494,13 +510,15 @@ class Assessor_Sync_Receiver {
             $safe_records[] = $safe;
         }
 
+        error_log('Assessor Sync Pull: returned=' . count($safe_records));
+
         update_option('assessor_last_local_pull', Assessor_Timezone::now_mysql());
 
         return array(
             'records'   => $safe_records,
             'count'     => count($safe_records),
             'since'     => $since,
-            'server_ts' => Assessor_Timezone::now_mysql(),
+            'server_ts' => $db_server_ts,
         );
     }
 

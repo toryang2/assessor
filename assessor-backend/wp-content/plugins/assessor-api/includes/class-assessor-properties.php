@@ -630,8 +630,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'revision_id' => $resolved_revision_id,
                 'created_by' => $user_id,
                 'updated_by' => $user_id,
-                'created_at' => isset($params['created_at']) ? $params['created_at'] : date('Y-m-d H:i:s'),
-                'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
+                'created_at' => isset($params['created_at'])
+                    ? $params['created_at']
+                    : Assessor_Timezone::now_mysql(),
+                'updated_at' => isset($params['updated_at'])
+                    ? $params['updated_at']
+                    : Assessor_Timezone::now_mysql()
             )
         );
         
@@ -880,7 +884,9 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         $update_data = array(
             'updated_by' => $user_id,
-            'updated_at' => isset($params['updated_at']) ? $params['updated_at'] : date('Y-m-d H:i:s')
+            'updated_at' => isset($params['updated_at'])
+                ? $params['updated_at']
+                : Assessor_Timezone::now_mysql()
         );
         
         $allowed_fields = array(
