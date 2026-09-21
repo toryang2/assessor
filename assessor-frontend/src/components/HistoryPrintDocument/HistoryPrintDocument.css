@@ -67,17 +67,9 @@
     content: counter(page) " of " counter(pages);
   }
 
-  /* Layout helpers to keep the signature at the bottom of the last page when space allows */
   .print-root {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(297mm - 12mm - 16mm);
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-
-  .print-bottom-spacer {
-    flex: 1 1 auto;
   }
 
   .print-signature {

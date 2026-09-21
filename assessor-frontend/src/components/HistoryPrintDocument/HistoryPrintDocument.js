@@ -424,9 +424,6 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         </tfoot>
       </table>
 
-      {/* Spacer to push signature to the bottom of the last page when possible */}
-      <div className="print-bottom-spacer" />
-
       {/* Certification, Signatories & Receipt Docket section (Aistudio translation) */}
       <div className="print-signature print-certification-section" style={{ width: '100%', paddingLeft: '8mm', paddingRight: '8mm' }}>
 
@@ -502,54 +499,51 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
           </div>
         </div>
 
-        {/* Official Receipt Particulars / Local Government Audit Trail Box */}
-        <div className="print-receipt-docket">
-          <div className="print-receipt-docket-header">
-            <div className="print-receipt-docket-title">
-              <Receipt className="print-receipt-icon" />
-              <span>OFFICIAL RECEIPT PARTICULARS</span>
+        {/* Official Receipt Particulars / Local Government Audit Trail Box (Request Only) */}
+        {isRequest && (
+          <div className="print-receipt-docket">
+            <div className="print-receipt-docket-header">
+              <div className="print-receipt-docket-title">
+                <Receipt className="print-receipt-icon" />
+                <span>OFFICIAL RECEIPT PARTICULARS</span>
+              </div>
+              {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
             </div>
-            {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
+
+            <div className="print-receipt-grid">
+              <div>
+                <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
+                <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
+              </div>
+
+              <div>
+                <span className="print-receipt-field-label">Amount Paid:</span>
+                <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
+              </div>
+
+              <div>
+                <span className="print-receipt-field-label">Date Issued:</span>
+                <span className="print-receipt-val-bold">{formattedDateIssued}</span>
+              </div>
+
+              <div className="print-receipt-col-span-2">
+                <span className="print-receipt-field-label">Place Issued:</span>
+                <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
+              </div>
+
+              <div className="print-receipt-purpose-row">
+                <span className="print-receipt-field-label">Purpose:</span>
+                <span className="print-receipt-val-purpose">{purpose}</span>
+              </div>
+            </div>
+
+            <div className="print-receipt-footer">
+              <span>Doc. Stamp Tax: PAID & AFFIXED</span>
+              <span className="print-receipt-seal">★ VALID ONLY WITH OFFICIAL RAISED DRY SEAL ★</span>
+              <span>Ref ID: {referenceId}</span>
+            </div>
           </div>
-
-          <div className="print-receipt-grid">
-            <div>
-              <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
-              <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
-            </div>
-
-            <div>
-              <span className="print-receipt-field-label">Amount Paid:</span>
-              <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
-            </div>
-
-            <div>
-              <span className="print-receipt-field-label">Date Issued:</span>
-              <span className="print-receipt-val-bold">{formattedDateIssued}</span>
-            </div>
-
-            <div className="print-receipt-col-span-2">
-              <span className="print-receipt-field-label">Place Issued:</span>
-              <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
-            </div>
-
-            <div>
-              <span className="print-receipt-field-label">Prepared By:</span>
-              <span className="print-receipt-val-bold">{preparedByName || 'Assessment Records Staff'}</span>
-            </div>
-
-            <div className="print-receipt-purpose-row">
-              <span className="print-receipt-field-label">Purpose:</span>
-              <span className="print-receipt-val-purpose">{purpose}</span>
-            </div>
-          </div>
-
-          <div className="print-receipt-footer">
-            <span>Doc. Stamp Tax: PAID & AFFIXED</span>
-            <span className="print-receipt-seal">★ VALID ONLY WITH OFFICIAL RAISED DRY SEAL ★</span>
-            <span>Ref ID: {referenceId}</span>
-          </div>
-        </div>
+        )}
 
         {/* Bottom security notice */}
         <p className="print-security-notice">

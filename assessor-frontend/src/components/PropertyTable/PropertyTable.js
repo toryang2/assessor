@@ -914,54 +914,6 @@ const PropertyTable = () => {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     removeAfterPrint: true,
-    onBeforeGetContent: () => {
-      try {
-        const root = printRef.current;
-        if (!root) return;
-        const spacer = root.querySelector('.print-bottom-spacer');
-        if (!spacer) return;
-        const signature = root.querySelector('.print-signature');
-
-        // Reset spacer first
-        spacer.style.height = '0px';
-
-        // Convert mm to px (assuming 96 DPI)
-        const pxPerMm = 96 / 25.4;
-        const a4HeightPx = 297 * pxPerMm;
-        const topMarginPx = 12 * pxPerMm;
-        const bottomMarginPx = 0 * pxPerMm; // 16 Default Change to 1 if super low
-        const usablePageHeightPx = a4HeightPx - topMarginPx - bottomMarginPx;
-
-        const signatureHeight = signature
-          ? signature.getBoundingClientRect().height
-          : 0;
-
-        const totalHeight = root.scrollHeight;
-        const contentHeight = Math.max(0, totalHeight - signatureHeight);
-
-        const remainder = contentHeight % usablePageHeightPx;
-
-        if (remainder === 0) {
-          spacer.style.height = '0px';
-          return;
-        }
-
-        const availableSpace = usablePageHeightPx - remainder;
-
-        if (signatureHeight <= availableSpace) {
-          const spacerHeight = availableSpace - signatureHeight;
-          spacer.style.height = `${Math.max(0, Math.floor(spacerHeight))}px`;
-        } else {
-          spacer.style.height = '0px';
-        }
-      } catch (_) { }
-    },
-    onAfterPrint: () => {
-      const root = printRef.current;
-      if (!root) return;
-      const spacer = root.querySelector('.print-bottom-spacer');
-      if (spacer) spacer.style.height = '0px';
-    },
     pageStyle: HISTORY_PRINT_PAGE_STYLE
   });
 
