@@ -120,6 +120,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     place_issued: '',
     prepared_by: '',
     purpose: '',
+    purpose_details: '',
     client_name: '',
     client_address: '',
     contact_number: '',
@@ -186,6 +187,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         place_issued: '',
         prepared_by: user?.full_name || user?.username || '',
         purpose: '',
+        purpose_details: '',
         client_name: '',
         client_address: '',
         contact_number: '',
@@ -438,6 +440,11 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errorFields.add('purpose');
     }
 
+    if (!formData.purpose_details?.trim()) {
+      missingFields.push('Purpose Details');
+      errorFields.add('purpose_details');
+    }
+
     if (!formData.client_name?.trim()) {
       missingFields.push('Client Name');
       errorFields.add('client_name');
@@ -483,6 +490,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         place_issued: formData.place_issued,
         prepared_by: formData.prepared_by,
         purpose: formData.purpose,
+        purpose_details: formData.purpose_details,
         date_issued: formData.date_issued,
         property_id: selectedProperty?.id,
         amount_paid: finalAmountPaid,
@@ -621,6 +629,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       place_issued: '',
       prepared_by: '',
       purpose: '',
+      purpose_details: '',
       client_name: '',
       client_address: '',
       contact_number: '',
@@ -1088,6 +1097,21 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             pointerEvents: 'none',
                             '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }
                           }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={4}
+                          label="Purpose Details *"
+                          value={formData.purpose_details}
+                          onChange={handleChange('purpose_details')}
+                          error={validationErrors.has('purpose_details')}
+                          helperText={validationErrors.has('purpose_details') ? 'Purpose Details is required.' : 'Enter the specific purpose or statement for this request. This text will appear on the printed document.'}
+                          placeholder="e.g. PROCESS RIGHT-OF-WAY ACQUISITION AND REFERENCE CONCERNING AFFECTED LOTS NECESSARY FOR VERIFICATION PURPOSES"
+                          size={isSmallScreen ? 'small' : 'medium'}
+                          margin={isSmallScreen ? 'dense' : 'normal'}
                         />
                       </Grid>
                     </Grid>

@@ -17,6 +17,12 @@ class Assessor_Requests {
     public function create_table() {
         $charset_collate = $this->db->get_charset_collate();
         
+        // Migration: Add purpose_details column to requests table if missing
+        $column_purpose_details = $this->db->get_var($this->db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'purpose_details'", $this->table_name));
+        if (!$column_purpose_details) {
+            $this->db->query("ALTER TABLE {$this->table_name} ADD COLUMN purpose_details text NULL AFTER purpose");
+        }
+
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
             id varchar(36) NOT NULL,
             property_id varchar(36) DEFAULT NULL,
@@ -28,6 +34,7 @@ class Assessor_Requests {
             prepared_by varchar(255) NOT NULL,
             payment_type varchar(50) NOT NULL,
             purpose varchar(100) NOT NULL,
+            purpose_details text NULL,
             client_name varchar(255) NOT NULL,
             client_address text,
             contact_number varchar(50),
@@ -85,6 +92,7 @@ class Assessor_Requests {
             'place_issued' => '',
             'prepared_by' => '',
             'purpose' => '',
+            'purpose_details' => '',
             'client_name' => '',
             'client_address' => '',
             'contact_number' => '',
@@ -141,6 +149,10 @@ class Assessor_Requests {
         
         $request_id = Assessor_UUID::v7();
 
+        $purpose_details = isset($data['purpose_details']) && $data['purpose_details'] !== null && $data['purpose_details'] !== ''
+            ? sanitize_textarea_field($data['purpose_details'])
+            : null;
+
         $insert_data = array(
             'id' => $request_id,
             'property_id' => $data['property_id'],
@@ -151,6 +163,7 @@ class Assessor_Requests {
             'prepared_by' => sanitize_text_field($data['prepared_by']),
             'payment_type' => !empty($data['payment_type']) ? sanitize_text_field($data['payment_type']) : 'cash',
             'purpose' => sanitize_text_field($data['purpose']),
+            'purpose_details' => $purpose_details,
             'client_name' => sanitize_text_field($data['client_name']),
             'client_address' => sanitize_textarea_field($data['client_address']),
             'contact_number' => sanitize_text_field($data['contact_number']),
@@ -179,6 +192,7 @@ class Assessor_Requests {
             '%s', // prepared_by
             '%s', // payment_type
             '%s', // purpose
+            '%s', // purpose_details
             '%s', // client_name
             '%s', // client_address
             '%s', // contact_number
@@ -497,6 +511,7 @@ class Assessor_Requests {
             'prepared_by' => '%s',
             'payment_type' => '%s',
             'purpose' => '%s',
+            'purpose_details' => '%s',
             'client_name' => '%s',
             'client_address' => '%s',
             'contact_number' => '%s',
@@ -512,7 +527,14 @@ class Assessor_Requests {
         
         foreach ($fields as $field => $format) {
             if (array_key_exists($field, $data)) {
-                $update_data[$field] = $data[$field] === '' ? null : $data[$field];
+                $val = $data[$field];
+                if ($val === '' || $val === null) {
+                    $update_data[$field] = null;
+                } else if ($field === 'purpose_details') {
+                    $update_data[$field] = sanitize_textarea_field($val);
+                } else {
+                    $update_data[$field] = $val;
+                }
                 $update_format[] = $format;
             }
         }

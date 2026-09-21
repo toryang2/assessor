@@ -712,7 +712,7 @@ class Assessor_Sync_Receiver {
         $allowed = array(
             'id', 'property_id', 'amount_paid', 'receipt_number',
             'is_official_request', 'date_issued', 'place_issued',
-            'prepared_by', 'payment_type', 'purpose', 'client_name',
+            'prepared_by', 'payment_type', 'purpose', 'purpose_details', 'client_name',
             'client_address', 'contact_number', 'email', 'remarks',
             'created_at', 'updated_at', 'created_by', 'updated_by',
             'deleted_at',
@@ -737,7 +737,7 @@ class Assessor_Sync_Receiver {
         $allowed = array(
             'id', 'property_id', 'amount_paid', 'receipt_number',
             'is_official_request', 'date_issued', 'place_issued',
-            'prepared_by', 'payment_type', 'purpose', 'client_name',
+            'prepared_by', 'payment_type', 'purpose', 'purpose_details', 'client_name',
             'client_address', 'contact_number', 'email', 'remarks',
             'created_at', 'updated_at', 'created_by', 'updated_by',
             'deleted_at',

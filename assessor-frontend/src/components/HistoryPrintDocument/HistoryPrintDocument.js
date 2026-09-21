@@ -137,9 +137,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   const headerTitle = 'RECORD VERIFICATION DATA FORM';
 
   // Purpose of Certification resolution:
-  const purpose = (requestData && requestData.purpose)
-    || (printHistory && printHistory[0] && printHistory[0].purpose)
-    || 'Certification of Assessor\'s Record';
+  // For requests, Purpose must display the specific user-entered purpose_details only (no fallback to short purpose category).
+  const purpose = isRequest
+    ? (requestData?.purpose_details ? String(requestData.purpose_details).trim() : '—')
+    : ((printHistory && printHistory[0] && printHistory[0].purpose) || 'Certification of Assessor\'s Record');
 
   // Receipt and Audit data resolution:
   const rawDateIssued = requestData?.date_issued || requestData?.date_requested || (printHistory && printHistory[0] && printHistory[0].created_at) || '';

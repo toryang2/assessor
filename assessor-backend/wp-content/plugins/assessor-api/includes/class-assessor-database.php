@@ -278,6 +278,11 @@ class Assessor_Database {
         
         // Requests table
         $table_requests = $wpdb->prefix . 'assessor_requests';
+        // Migration: Add purpose_details column to requests table
+        $column_purpose_details = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'purpose_details'", $table_requests));
+        if (!$column_purpose_details) {
+            $wpdb->query("ALTER TABLE $table_requests ADD COLUMN purpose_details text NULL AFTER purpose");
+        }
         $sql_requests = "CREATE TABLE $table_requests (
             id varchar(36) NOT NULL,
             property_id varchar(36) DEFAULT NULL,
@@ -289,6 +294,7 @@ class Assessor_Database {
             prepared_by varchar(255) NOT NULL,
             payment_type varchar(50) NOT NULL,
             purpose varchar(100) NOT NULL,
+            purpose_details text NULL,
             client_name varchar(255) NOT NULL,
             client_address text,
             contact_number varchar(50),
