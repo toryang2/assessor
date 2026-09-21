@@ -1,0 +1,143 @@
+/* Print Styles for HistoryPrintDocument */
+@media print {
+  /* Use document fonts for header */
+  .print-header h3,
+  .print-header h4 {
+    font-family: 'Times New Roman', Times, serif !important;
+  }
+  .print-header .header-title,
+  .print-header div[style*="font-family: 'Tahoma"] {
+    font-family: Tahoma, Verdana, sans-serif !important;
+  }
+
+  /* Keep rest to app font for readability */
+  html, body, #root, * {
+    font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  }
+
+  @page :first {
+    margin-top: 5mm;
+  }
+
+  @page {
+    margin-top: 5mm;
+    padding-top: 5mm;
+  }
+
+  html, body {
+    width: 212mm;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  *,
+  :root,
+  body,
+  div, span, p, strong, em,
+  table, thead, tbody, tfoot, tr, th, td,
+  h1, h2, h3, h4, h5, h6 {
+    color: #000 !important;
+  }
+
+  .history-table td {
+    vertical-align: top !important;
+    text-align: left !important;
+  }
+
+  .history-table td:last-child {
+    text-align: left !important;
+  }
+
+  .history-table th {
+    vertical-align: middle !important;
+  }
+
+  /* Force word breaking for long strings without spaces */
+  .history-table td:first-child {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .history-table td:nth-child(5) {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* Ensure Title Number column breaks long text properly */
+  .history-table td:nth-child(6) {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    hyphens: none;
+  }
+
+  /* Ensure info header cells wrap properly for long addresses */
+  .info td {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .print-page-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: right;
+    font-size: 10px;
+    padding: 2mm 8mm;
+  }
+
+  .print-page-footer .pageNumber::after {
+    content: counter(page) " of " counter(pages);
+  }
+
+  /* Layout helpers to keep the signature at the bottom of the last page when space allows */
+  .print-root {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(297mm - 12mm - 16mm);
+  }
+
+  .print-bottom-spacer {
+    flex: 1 1 auto;
+  }
+
+  .print-signature {
+    page-break-inside: avoid;
+  }
+}
+
+thead {
+  display: table-header-group;
+}
+
+tfoot {
+  display: table-footer-group;
+}
+
+tfoot td {
+  border: 0;
+  border-top: 1px solid #ddd;
+}
+
+table {
+  page-break-inside: auto;
+}
+
+tr {
+  page-break-inside: auto;
+  break-inside: auto;
+}
+
+td {
+  page-break-inside: auto;
+}
+
+/* Preserve memoranda line breaks while still allowing wrapping/splitting */
+td:last-child {
+  white-space: pre-wrap;
+  text-align: left;
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -48,27 +48,8 @@ import { useReactToPrint } from 'react-to-print';
 import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
-import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
-
-// Helper function to sanitize declarant names by removing leading/trailing commas
-const sanitizeDeclarant = (name) => {
-  if (!name) return '';
-  const s = String(name).trim();
-  if (!s) return '';
-  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-  if (out === ',') out = '';
-  return out;
-};
-
-// Helper function to sanitize business names by removing leading/trailing commas
-const sanitizeBusinessName = (name) => {
-  if (!name) return '';
-  const s = String(name).trim();
-  if (!s) return '';
-  let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
-  if (out === ',') out = '';
-  return out;
-};
+import { formatAppDate } from '../../utils/dateTime';
+import HistoryPrintDocument from '../HistoryPrintDocument/HistoryPrintDocument';
 
 // Format declarant from discrete fields; add dot only for single-character middle
 const formatDeclarantFromParts = (last, first, middle) => {
@@ -78,58 +59,6 @@ const formatDeclarantFromParts = (last, first, middle) => {
   const mi = raw.replace(/\./g, '');
   const middleFormatted = mi ? (mi.length === 1 ? ` ${mi}.` : ` ${mi}`) : '';
   return `${last || ''}${hasNames && first ? ', ' : ''}${first || ''}${middleFormatted}`.trim();
-};
-
-// Adjust a combined declarant name string ("LAST, FIRST MI" or "LAST, FIRST MI.")
-// Apply rule: if middle token length === 1 -> ensure trailing dot; if length > 1 -> no dot
-const normalizeDeclarantString = (name) => {
-  const s = sanitizeDeclarant(name);
-  if (!s) return s;
-
-  // Split by comma to separate last name from first/middle
-  const parts = s.split(',');
-  if (parts.length < 2) return s;
-
-  const last = parts[0].trim();
-  const rest = parts.slice(1).join(',').trim();
-  if (!rest) return `${last}`;
-
-  // Handle cases where we have "LAST, ET. AL., FIRST MI" format
-  // We want to preserve the "ET. AL." part and format the first name and middle initial
-  const restParts = rest.split(/\s+/);
-
-  // Find the actual first name and middle initial
-  // Look for the last meaningful word (middle initial) and the word before it (first name)
-  const meaningfulParts = restParts.filter(part => part.length > 0);
-
-  if (meaningfulParts.length === 0) return `${last}`;
-  if (meaningfulParts.length === 1) return `${last}, ${rest}`;
-
-  // Take the last two meaningful parts as first name and middle initial
-  const first = meaningfulParts[meaningfulParts.length - 2];
-  const middleRaw = meaningfulParts[meaningfulParts.length - 1];
-
-  // Format middle initial
-  const middleNoDots = middleRaw.replace(/\./g, '');
-  const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
-
-  // Reconstruct with all parts preserved
-  const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
-  const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
-
-  return result;
-};
-
-// Format date function - accessible to both components
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  return formatAppDateTime(dateString);
-};
-
-// Format date only
-const formatDateOnly = (dateString) => {
-  if (!dateString) return '';
-  return formatAppDate(dateString, { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
 // Format date function - table cells
@@ -154,297 +83,6 @@ const useDebounce = (value, delay) => {
 
   return debouncedValue;
 };
-
-const PrintableHistory = forwardRef(({ settings, printHistory, requestData }, ref) => {
-  const toFormalCase = (text) => {
-    if (!text) return '';
-    const small = new Set(['of', 'and', 'the', 'for', 'in', 'on', 'at', 'a', 'an']);
-    const words = String(text).toLowerCase().split(/\s+/);
-    return words.map((w, i) => {
-      if (!w) return w;
-      if (i > 0 && small.has(w)) return w;
-      return w.charAt(0).toUpperCase() + w.slice(1);
-    }).join(' ');
-  };
-  const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
-  const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
-  const headerPh = 'Republic of the Philippines';
-  const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
-  const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
-  const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
-  const headerMunicipality = `MUNICIPALITY OF ${baseMunicipality}`;
-  const headerOffice = (settings && settings.header_office) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_office) || 'OFFICE OF THE MUNICIPAL ASSESSOR';
-  const headerTitle = 'RECORD VERIFICATION DATA FORM';
-
-  return (
-    <div ref={ref} className="print-root" style={{ width: '210mm' }}>
-      <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
-        {appLogoUrl ? (
-          <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '5mm auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-        ) : null}
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-        <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600 }}>{headerOffice}</h3>
-        <div style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
-      </div>
-
-      <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%', tableLayout: 'fixed' }} className="info">
-        <colgroup>
-          <col style={{ width: '50%' }} />
-          <col style={{ width: '50%' }} />
-        </colgroup>
-        <tbody>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ADDRESS:</strong>{' '}
-              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                {(printHistory && printHistory[0] && printHistory[0].address) || ''}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ADMINISTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-        <colgroup>
-          <col style={{ width: '17%', }} />
-          <col style={{ width: '14%' }} />
-          <col style={{ width: '9%' }} />
-          <col style={{ width: '9%' }} />
-          <col style={{ width: '10%' }} />
-          <col style={{ width: '9%' }} />
-          <col style={{ width: '11%' }} />
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '29%' }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
-            <th style={{ border: '1px solid #ddd', padding: 1, fontSize: 9, backgroundColor: '#cccccc' }}>Effectivity</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(printHistory || []).map((item, index) => (
-            <tr key={index}>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-                <div>{item.tax_declaration_number || ''}</div>
-                {item.pin && (
-                  <div style={{
-                    fontSize: 8,
-                    marginTop: 2
-                  }}>
-                    {'PIN: ' + item.pin}
-                  </div>
-                )}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                const d = normalizeDeclarantString(item.declarant_name);
-                const b = item.business_name
-                  ? String(item.business_name).replace(/,\s*/g, ' ')
-                  : '';
-                if (!d && !b) return '';
-                return (
-                  <>
-                    <div style={{ fontSize: 10, fontWeight: 600 }}>{d}</div>
-                    <div style={{ fontSize: 9 }}>{b}</div>
-                  </>
-                )
-              })()}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{(() => {
-                const haRaw = item.area_hectare;
-                const sqmRaw = item.area_sqm;
-                const oldHaRaw = item.area_hectare_old;
-                const numHa = Number(haRaw);
-                const numSqm = Number(sqmRaw);
-                const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                const hasOldHa = oldHaRaw && oldHaRaw !== '';
-                if (!hasHa && !hasSqm && !hasOldHa) return '';
-                let currentArea = '';
-                if (hasHa) {
-                  const unit = numHa <= 1 ? 'ha' : 'has';
-                  currentArea = `${numHa.toFixed(4)} ${unit}`;
-                } else if (hasSqm) {
-                  currentArea = `${numSqm.toFixed(2)} sqm`;
-                }
-                if (hasOldHa && currentArea) {
-                  return `${currentArea} (Old: ${oldHaRaw})`;
-                } else if (hasOldHa) {
-                  return oldHaRaw;
-                } else {
-                  return currentArea || '';
-                }
-              })()}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>{item.title_number || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>₱{(item.assessed_value !== undefined && item.assessed_value !== null)
-                ? Number(item.assessed_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : '0.00'}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
-              <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
-                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan="8" style={{ height: 0, lineHeight: 0, padding: 0, borderTop: '1px solid #ddd' }} />
-          </tr>
-        </tfoot>
-      </table>
-
-      {/* Spacer to push signature to the bottom of the last page when possible */}
-      <div className="print-bottom-spacer" />
-
-      {/* Signature block (print-only). Will naturally render on the last page and sit low. */}
-      <div className="print-signature" style={{ fontFamily: 'Arial, sans serif', width: '100%', marginTop: '0mm', marginBottom: '0mm', paddingTop: '0mm', paddingBottom: '0mm', paddingRight: '10mm', paddingLeft: '10mm' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-
-          <div style={{ textAlign: 'left', width: '100mm' }}>
-            {/* Spacer */}
-            <div style={{ height: '37mm' }} />
-
-            {/* Encoded Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: 4 }}>
-              {/* Labels */}
-              <div style={{ width: '25mm', fontSize: 12, fontWeight: 400 }}>
-                <div>{'Encoded by:'}</div>
-                <div>{'Date and Time:'}</div>
-              </div>
-
-              {/* Values */}
-              <div style={{ fontSize: 12, fontWeight: 400 }}>
-                <div>{printHistory && printHistory[0] && printHistory[0].updated_by_name || ''}</div>
-                <div>{printHistory && printHistory[0] && formatDate(printHistory[0].updated_at) || ''}</div>
-              </div>
-            </div>
-
-            {/* Receipt Info (side by side) */}
-            <div style={{ display: 'flex', flexDirection: 'row', marginTop: 4 }}>
-              {/* Labels */}
-              <div style={{ width: '19mm', fontSize: 10, fontWeight: 400 }}>
-                <div style={{ paddingTop: 50 }}>
-                  {'Amount Paid: '}
-                </div>
-                <div>{'Receipt No.: '}</div>
-                <div>{'Date Issued: '}</div>
-                <div>{'Place Issued: '}</div>
-                <div>{'Prepared by: '}</div>
-              </div>
-
-              {/* Data Values */}
-              <div style={{ fontSize: 10, fontWeight: 400 }}>
-                <div style={{ paddingTop: 50 }}>{requestData?.amount_paid ? `₱${requestData.amount_paid.toLocaleString()}` : '₱'}</div>
-                <div>{requestData?.receipt_number || ''}</div>
-                <div>{requestData?.date_issued ? formatDateOnly(requestData.date_issued) : ''}</div>
-                <div>{requestData?.place_issued || ''}</div>
-                <div>{requestData?.prepared_by ? `${requestData.prepared_by} ${requestData.updated_at ? formatDate(requestData.updated_at) : ''}` : ''}</div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', width: '80mm' }}>
-            <div style={{ height: '37mm' }} />
-            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
-              <div>{'Verified and checked by:'}</div>
-            </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
-              {(() => {
-                const fullName = requestData?.verifier_signatory_name || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) || (settings && settings.verifier_signatory_name) || '';
-                if (!fullName) return '';
-
-                // Split by comma to separate main name from suffix
-                const parts = fullName.split(',');
-                const mainName = parts[0]?.trim() || '';
-                const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : '';
-
-                return (
-                  <span>
-                    {mainName}
-                    {suffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 11, marginBottom: 30 }}>
-              {requestData?.verifier_signatory_title || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) || (settings && settings.verifier_signatory_title) || 'VERIFIER'}
-            </div>
-            <div style={{ paddingBottom: 4, fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
-              <div>{'Certified correct as to available record/s:'}</div>
-            </div>
-            <div style={{ borderBottom: '1px solid #000', paddingTop: 28, fontSize: 14, fontWeight: 600 }}>
-              {(() => {
-                const name = requestData?.municipal_assessor_name || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) || (settings && settings.municipal_assessor_name) || '';
-                const suffix = requestData?.municipal_assessor_suffix || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) || (settings && settings.municipal_assessor_suffix) || '';
-                const base = (name || '');
-                return (
-                  <span>
-                    {base}
-                    {suffix ? <span style={{ fontSize: 13, fontWeight: 400 }}>{`, ${suffix}`}</span> : null}
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 11, paddingTop: 0 }}>
-              {requestData?.municipal_assessor_title || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_title) || (settings && settings.municipal_assessor_title) || 'MUNICIPAL ASSESSOR'}
-            </div>
-            <div style={{ fontSize: 10 }}>
-              {(() => {
-                const lic = requestData?.municipal_assessor_license || (printHistory && printHistory[0] && printHistory[0].municipal_assessor_license) || (settings && settings.municipal_assessor_license) || '';
-                return lic ? `License No.: ${lic}` : '';
-              })()}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 // Purpose options for filter
 const purposeOptions = [
@@ -1261,7 +899,7 @@ const RequestsTable = () => {
             </Box>
           ) : (
             <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>
-              <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
+              <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" />
             </Box>
           )}
         </DialogContent>
@@ -1280,7 +918,7 @@ const RequestsTable = () => {
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <PrintableHistory ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} />
+        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" />
         <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
 
