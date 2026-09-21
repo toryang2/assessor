@@ -1452,7 +1452,7 @@ const Settings = () => {
                   <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="caption" color="text.secondary" display="block">Last Sync Time</Typography>
                     <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.8rem', fontWeight: 600 }}>
-                      {syncConfig.last_push ? ('↑ ' + syncConfig.last_push) : '↑ Never'}<br />
+                      {syncConfig.last_push ? ('↑ ' + syncConfig.last_push) : '↑ Never'}
                       {syncConfig.last_pull ? ('↓ ' + syncConfig.last_pull) : '↓ Never'}
                     </Typography>
                   </Box>
@@ -2718,7 +2718,7 @@ const Settings = () => {
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        {/* Header Bar with Action */} 
+        {/* Header Bar with Action */}
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', bgcolor: 'background.default' }}>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -3667,12 +3667,14 @@ const Settings = () => {
         <Paper
           variant="outlined"
           sx={{
+            position: 'static',
             width: { xs: '100%', md: 245 },
             flexShrink: 0,
             borderRadius: 2,
-            height: 'fit-content',
+            height: '100%',
             maxHeight: '100%',
-            overflow: 'hidden'
+            overflowY: 'auto',
+            overflowX: 'hidden'
           }}
         >
           <List disablePadding sx={{ p: 0.5 }}>
