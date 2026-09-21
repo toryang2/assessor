@@ -590,6 +590,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
         // Generate UUID v7 for new property
         $property_id = Assessor_UUID::v7();
+        $now = Assessor_Timezone::now_mysql();
 
         $result = $wpdb->insert(
             $table_properties,
@@ -630,12 +631,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'revision_id' => $resolved_revision_id,
                 'created_by' => $user_id,
                 'updated_by' => $user_id,
-                'created_at' => isset($params['created_at'])
-                    ? $params['created_at']
-                    : Assessor_Timezone::now_mysql(),
-                'updated_at' => isset($params['updated_at'])
-                    ? $params['updated_at']
-                    : Assessor_Timezone::now_mysql()
+                'created_at' => $now,
+                'updated_at' => $now
             )
         );
         
@@ -884,9 +881,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         
         $update_data = array(
             'updated_by' => $user_id,
-            'updated_at' => isset($params['updated_at'])
-                ? $params['updated_at']
-                : Assessor_Timezone::now_mysql()
+            'updated_at' => Assessor_Timezone::now_mysql()
         );
         
         $allowed_fields = array(
@@ -1009,6 +1004,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         if ($result === false) {
             return new WP_Error('update_failed', 'Failed to update property', array('status' => 500));
         }
+
+        error_log(
+            'Assessor Property Update: ' .
+            'id=' . $id .
+            ' updated_at=' . $update_data['updated_at']
+        );
         
         // Remove prefix from license after successful update to restore original value
         if (isset($params['municipal_assessor_license'])) {
@@ -1191,14 +1192,31 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
 
+        $new_state = strtoupper(trim($state));
+
+        // Only proceed if state actually changed
+        $current_state = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %s LIMIT 1",
+                $id
+            )
+        );
+
+        if ($current_state === $new_state) {
+            return ['success' => true, 'state' => $new_state];
+        }
+
+        $now = Assessor_Timezone::now_mysql();
         $table_property_states = $wpdb->prefix . 'assessor_property_states';
+        $table_properties = $wpdb->prefix . 'assessor_properties';
+
         $result = $wpdb->replace(
             $table_property_states,
             [
                 'property_id' => $id,
-                'state'       => strtoupper($state),
+                'state'       => $new_state,
                 'updated_by'  => $user_id,
-                'updated_at'  => Assessor_Timezone::now_mysql()
+                'updated_at'  => $now
             ],
             ['%s', '%s', '%s', '%s']
         );
@@ -1206,6 +1224,19 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to update property state', ['status' => 500]);
         }
+
+        // Bump parent property updated_at so incremental sync sees it
+        $wpdb->update(
+            $table_properties,
+            array(
+                'updated_at' => $now
+            ),
+            array(
+                'id' => $id
+            ),
+            array('%s'),
+            array('%s')
+        );
         
         // Sync previous TDs states
         $previous_tax_declaration_number = $wpdb->get_var($wpdb->prepare(
@@ -1230,7 +1261,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                                     'property_id' => $prev_prop_id,
                                     'state' => 'CANCELLED',
                                     'updated_by' => $user_id,
-                                    'updated_at' => Assessor_Timezone::now_mysql()
+                                    'updated_at' => $now
                                 ],
                                 ['%s', '%s', '%s', '%s']
                             );

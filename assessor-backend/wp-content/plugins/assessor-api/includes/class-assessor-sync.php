@@ -396,6 +396,8 @@ class Assessor_Sync {
         // Ensure the sync finishes in the background even if the frontend/proxy times out the request
         ignore_user_abort(true);
 
+        self::ensure_cursor_migration();
+
         $report = class_exists('Assessor_Sync_Report') 
             ? Assessor_Sync_Report::start_run($force_full ? 'full' : 'incremental')
             : null;
@@ -406,9 +408,6 @@ class Assessor_Sync {
             self::set_meta('pull_offset', 0);
             self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
             self::set_meta('pull_requests_offset', 0);
-        } else {
-            // Ensure one-time cursor migration to MySQL database timestamp domain
-            self::ensure_cursor_migration();
         }
 
         if ($report) {
@@ -1493,6 +1492,13 @@ class Assessor_Sync {
         // Fetch the saved offset so we can resume exactly where we left off if Apache kills us
         $offset = (int) self::get_meta('pull_offset');
 
+        error_log(
+            'Assessor Sync Pull START: ' .
+            'since=' . $since .
+            ' offset=' . $offset .
+            ' force_full=' . ($force_full ? '1' : '0')
+        );
+
         // Tell property-save hooks not to re-enqueue these writes
         self::$syncing = true;
 
@@ -1519,11 +1525,26 @@ class Assessor_Sync {
 
             $records = isset($body['records']) ? $body['records'] : array();
 
+            error_log(
+                'Assessor Sync Pull PAGE: ' .
+                'since=' . $since .
+                ' offset=' . $offset .
+                ' returned=' . count($records) .
+                ' server_ts=' . ($body['server_ts'] ?? '')
+            );
+
             if (empty($records)) {
                 break; // No more records on this page — done.
             }
 
             foreach ($records as $remote) {
+                error_log(
+                    'Assessor Sync Pull RECORD: ' .
+                    'id=' . ($remote['id'] ?? '') .
+                    ' tdn=' . ($remote['tax_declaration_number'] ?? '') .
+                    ' updated_at=' . ($remote['updated_at'] ?? '')
+                );
+
                 $result = self::apply_remote_record($remote, $force_full, $report);
                 if ($result === 'synced') {
                     $pulled++;
@@ -1593,27 +1614,89 @@ class Assessor_Sync {
         if (!empty($prop_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, declarant_middle_initial, business_name, location, pin, assessed_value, assessed_value_old, revision_id, status, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    "SELECT
+                        id,
+                        tax_declaration_number,
+                        declarant_last_name,
+                        declarant_first_name,
+                        declarant_middle_initial,
+                        business,
+                        location,
+                        pin,
+                        assessed_value,
+                        assessed_value_old,
+                        revision_id,
+                        status,
+                        updated_at
+                     FROM $table
+                     WHERE id = %s
+                     LIMIT 1",
                     $prop_id
                 ),
                 ARRAY_A
             );
+
+            if ($wpdb->last_error) {
+                error_log(
+                    'Assessor Sync UUID Lookup SQL ERROR: ' .
+                    $wpdb->last_error .
+                    ' id=' . $prop_id .
+                    ' tdn=' . $tax_num
+                );
+            }
         }
 
         // Secondary fallback: match by (tax_declaration_number, revision_id) if UUID didn't match
         if (!$local && !empty($tax_num) && !empty($revision_id)) {
             $local = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, tax_declaration_number, declarant_last_name, declarant_first_name, declarant_middle_initial, business_name, location, pin, assessed_value, assessed_value_old, revision_id, status, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
+                    "SELECT
+                        id,
+                        tax_declaration_number,
+                        declarant_last_name,
+                        declarant_first_name,
+                        declarant_middle_initial,
+                        business,
+                        location,
+                        pin,
+                        assessed_value,
+                        assessed_value_old,
+                        revision_id,
+                        status,
+                        updated_at
+                     FROM $table
+                     WHERE tax_declaration_number = %s
+                       AND revision_id = %s
+                     LIMIT 1",
                     $tax_num,
                     $revision_id
                 ),
                 ARRAY_A
             );
+
+            if ($wpdb->last_error) {
+                error_log(
+                    'Assessor Sync TDN+Revision Lookup SQL ERROR: ' .
+                    $wpdb->last_error .
+                    ' id=' . $prop_id .
+                    ' tdn=' . $tax_num .
+                    ' revision_id=' . $revision_id
+                );
+            }
         }
 
         $remote_ts = isset($remote['updated_at']) ? strtotime($remote['updated_at']) : 0;
         $local_ts  = $local ? strtotime($local['updated_at']) : 0;
+
+        error_log(
+            'Assessor Sync Compare: ' .
+            'tdn=' . $tax_num .
+            ' remote_updated_at=' . ($remote['updated_at'] ?? '') .
+            ' local_updated_at=' . ($local['updated_at'] ?? '') .
+            ' remote_ts=' . $remote_ts .
+            ' local_ts=' . $local_ts .
+            ' force_full=' . ($force_full ? '1' : '0')
+        );
 
         // Skip if local is same age or newer (unless forcing a full resync)
         if (!$force_full && $local && $local_ts >= $remote_ts) {
@@ -1623,7 +1706,7 @@ class Assessor_Sync {
                     'declarant_last_name'      => $local['declarant_last_name'] ?? ($remote['declarant_last_name'] ?? ''),
                     'declarant_first_name'     => $local['declarant_first_name'] ?? ($remote['declarant_first_name'] ?? ''),
                     'declarant_middle_initial' => $local['declarant_middle_initial'] ?? ($remote['declarant_middle_initial'] ?? ''),
-                    'business_name'            => $local['business_name'] ?? ($remote['business_name'] ?? ''),
+                    'business_name'            => $local['business'] ?? ($remote['business_name'] ?? ($remote['business'] ?? '')),
                     'location'                 => $local['location'] ?? ($remote['location'] ?? ''),
                     'pin'                      => $local['pin'] ?? ($remote['pin'] ?? ''),
                     'assessed_value'           => $local['assessed_value'] ?? ($remote['assessed_value'] ?? null),
@@ -1671,7 +1754,7 @@ class Assessor_Sync {
                         'declarant_last_name'      => $safe['declarant_last_name'] ?? ($local['declarant_last_name'] ?? ''),
                         'declarant_first_name'     => $safe['declarant_first_name'] ?? ($local['declarant_first_name'] ?? ''),
                         'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? ($local['declarant_middle_initial'] ?? ''),
-                        'business_name'            => $safe['business_name'] ?? ($local['business_name'] ?? ''),
+                        'business_name'            => $safe['business'] ?? ($safe['business_name'] ?? ($local['business'] ?? '')),
                         'location'                 => $safe['location'] ?? ($local['location'] ?? ''),
                         'pin'                      => $safe['pin'] ?? ($local['pin'] ?? ''),
                         'assessed_value'           => $safe['assessed_value'] ?? ($local['assessed_value'] ?? null),
@@ -1692,26 +1775,77 @@ class Assessor_Sync {
             if (empty($safe['updated_by'])) {
                 $safe['updated_by'] = null;
             }
-            $result = $wpdb->insert($table, $safe);
-            if ($result === false) {
-                $err = 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
-                if ($report) {
-                    $report->record_item('property', $safe['id'], 'live_to_local', 'failed', array(
-                        'tax_declaration_number'   => $tax_num,
-                        'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
-                        'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
-                        'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
-                        'business_name'            => $safe['business_name'] ?? '',
-                        'location'                 => $safe['location'] ?? '',
-                        'pin'                      => $safe['pin'] ?? '',
-                        'assessed_value'           => $safe['assessed_value'] ?? null,
-                        'assessed_value_old'       => null,
-                        'error'                    => $wpdb->last_error,
-                    ));
+
+            // Defensive check: verify if the UUID already exists to prevent duplicate primary key failures
+            $existing_by_id = !empty($safe['id'])
+                ? $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT id FROM $table WHERE id = %s LIMIT 1",
+                        $safe['id']
+                    )
+                )
+                : null;
+
+            if ($existing_by_id) {
+                $action = 'updated';
+                $wpdb->update(
+                    $table,
+                    $safe,
+                    array('id' => $existing_by_id),
+                    null,
+                    array('%s')
+                );
+
+                if ($wpdb->last_error) {
+                    $err = 'error updating existing UUID ' . $tax_num . ': ' . $wpdb->last_error;
+
+                    if ($report) {
+                        $report->record_item(
+                            'property',
+                            $existing_by_id,
+                            'live_to_local',
+                            'failed',
+                            array(
+                                'tax_declaration_number'   => $tax_num,
+                                'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
+                                'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
+                                'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
+                                'business_name'            => $safe['business'] ?? ($safe['business_name'] ?? ''),
+                                'location'                 => $safe['location'] ?? '',
+                                'pin'                      => $safe['pin'] ?? '',
+                                'assessed_value'           => $safe['assessed_value'] ?? null,
+                                'assessed_value_old'       => null,
+                                'error'                    => $wpdb->last_error,
+                            )
+                        );
+                    }
+
+                    return $err;
                 }
-                return $err;
+
+                $local_property_id = $existing_by_id;
+            } else {
+                $result = $wpdb->insert($table, $safe);
+                if ($result === false) {
+                    $err = 'error inserting ' . $tax_num . ': ' . $wpdb->last_error;
+                    if ($report) {
+                        $report->record_item('property', $safe['id'], 'live_to_local', 'failed', array(
+                            'tax_declaration_number'   => $tax_num,
+                            'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
+                            'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
+                            'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
+                            'business_name'            => $safe['business'] ?? ($safe['business_name'] ?? ''),
+                            'location'                 => $safe['location'] ?? '',
+                            'pin'                      => $safe['pin'] ?? '',
+                            'assessed_value'           => $safe['assessed_value'] ?? null,
+                            'assessed_value_old'       => null,
+                            'error'                    => $wpdb->last_error,
+                        ));
+                    }
+                    return $err;
+                }
+                $local_property_id = $safe['id'];
             }
-            $local_property_id = $safe['id'];
         }
 
         // Sync documents if present
@@ -1758,7 +1892,7 @@ class Assessor_Sync {
                 'declarant_last_name'      => $safe['declarant_last_name'] ?? '',
                 'declarant_first_name'     => $safe['declarant_first_name'] ?? '',
                 'declarant_middle_initial' => $safe['declarant_middle_initial'] ?? '',
-                'business_name'            => $safe['business_name'] ?? '',
+                'business_name'            => $safe['business'] ?? ($safe['business_name'] ?? ''),
                 'location'                 => $safe['location'] ?? '',
                 'pin'                      => $safe['pin'] ?? '',
                 'revision_id'              => $safe['revision_id'] ?? '',
@@ -1800,6 +1934,13 @@ class Assessor_Sync {
                 $safe[$col] = $record[$col];
             }
         }
+
+        if (!array_key_exists('business', $safe) && array_key_exists('business_name', $safe)) {
+            $safe['business'] = $safe['business_name'];
+        }
+
+        unset($safe['business_name']);
+
         return $safe;
     }
 
@@ -2391,15 +2532,30 @@ class Assessor_Sync {
         if (!defined('ASSESSOR_IS_LOCAL_BUILD') || !ASSESSOR_IS_LOCAL_BUILD) {
             return;
         }
+
         $migrated = self::get_meta('sync_timezone_cursor_migrated');
-        if (!$migrated) {
-            self::set_meta('last_pull_at', '2000-01-01 00:00:00');
-            self::set_meta('pull_offset', 0);
-            self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
-            self::set_meta('pull_requests_offset', 0);
-            self::set_meta('sync_timezone_cursor_migrated', '1');
-            error_log('Assessor Sync: Migrated sync cursors to database timestamp domain (one-time reset).');
+
+        if ($migrated === '1') {
+            return;
         }
+
+        error_log('Assessor Sync: FIRST timezone cursor migration detected.');
+
+        // Reset property pull cursor.
+        self::set_meta('last_pull_at', '2000-01-01 00:00:00');
+        self::set_meta('pull_offset', 0);
+
+        // Reset request pull cursor.
+        self::set_meta('last_pull_requests_at', '2000-01-01 00:00:00');
+        self::set_meta('pull_requests_offset', 0);
+
+        // Mark migration complete ONLY after all resets succeed.
+        self::set_meta('sync_timezone_cursor_migrated', '1');
+
+        error_log(
+            'Assessor Sync: Timezone cursor migration completed. ' .
+            'Property/request incremental cursors reset.'
+        );
     }
 
     // -------------------------------------------------------------------------
