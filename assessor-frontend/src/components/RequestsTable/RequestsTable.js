@@ -208,8 +208,9 @@ const RequestsTable = () => {
 
   const getPrintFontUrl = (filename) => {
     const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+    const relativePath = `${publicUrl || '.'}/fonts/${filename}`;
 
-    return `${window.location.origin}${publicUrl}/fonts/${filename}`;
+    return new URL(relativePath, document.baseURI).toString();
   };
 
   const handlePrint = useReactToPrint({

@@ -32,6 +32,8 @@
     "prestart": "npm run download:fonts",
     "prebuild": "npm run download:fonts",
     "postinstall": "npm run download:fonts",
+    "prebuild:prod": "npm run download:fonts",
+    "prebuild:local": "npm run download:fonts",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "build:prod": "env-cmd -f .env.production react-scripts build",

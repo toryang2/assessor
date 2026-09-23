@@ -234,6 +234,8 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
     || (settings && settings.municipal_assessor_license)
     || '';
 
+
+
   const paperClass = `paper-${paperSize || 'a4'}`;
 
   return (
@@ -728,7 +730,16 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       padding: 0 !important;
       margin: 0 !important;
       background: #ffffff !important;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+      font-family:
+        "Plus Jakarta Sans",
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
     }
 
     .print-header-form-title {
@@ -799,6 +810,42 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       word-break: break-word !important;
       overflow-wrap: break-word !important;
       overflow: hidden !important;
+    }
+
+    .history-table {
+      border-collapse: collapse !important;
+      border-spacing: 0 !important;
+      border: 2px solid #0f172a !important;
+    }
+
+    .history-table th,
+    .history-table td {
+      box-sizing: border-box !important;
+      border-width: 1px !important;
+      border-style: solid !important;
+      border-color: #0f172a !important;
+    }
+
+    .history-table-header-row th {
+      border-width: 1px !important;
+      border-style: solid !important;
+      border-color: #0f172a !important;
+    }
+
+    .history-table-header-row {
+      border-bottom: 2px solid #0f172a !important;
+    }
+
+    .info-card {
+      border: 2px solid #0f172a !important;
+    }
+
+    .info-row {
+      border-bottom: 1px solid #0f172a !important;
+    }
+
+    .info-cell.border-right {
+      border-right: 1px solid #0f172a !important;
     }
 
     .print-signature,
