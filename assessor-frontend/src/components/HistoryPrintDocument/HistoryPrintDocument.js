@@ -238,14 +238,30 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   const rootDimensions = (() => {
     switch (paperSize) {
       case 'letter':
-        return { width: '215.9mm', maxWidth: '215.9mm' };
       case 'legal':
-        return { width: '215.9mm', maxWidth: '215.9mm' };
+        return {
+          width: '215.9mm',
+          maxWidth: '215.9mm',
+          '--print-page-width': '215.9mm',
+          '--print-content-width': '199.9mm'
+        };
+
       case 'auto':
-        return { width: '100%', maxWidth: '850px' };
+        return {
+          width: '100%',
+          maxWidth: '850px',
+          '--print-page-width': '850px',
+          '--print-content-width': '100%'
+        };
+
       case 'a4':
       default:
-        return { width: '210mm', maxWidth: '210mm' };
+        return {
+          width: '210mm',
+          maxWidth: '210mm',
+          '--print-page-width': '210mm',
+          '--print-content-width': '194mm'
+        };
     }
   })();
 
@@ -377,23 +393,23 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
+          <col style={{ width: '13%' }} />
           <col style={{ width: '15%' }} />
-          <col style={{ width: '15%' }} />
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '10%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
+          <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '18%' }} />
+          <col style={{ width: '16%' }} />
         </colgroup>
         <thead>
           <tr className="history-table-header-row">
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'left' }}>
               <span className="th-line">Tax Declaration</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'left' }}>
               <span className="th-line">Declarant</span>
             </th>
             <th style={{ textAlign: 'center' }}>
@@ -404,21 +420,21 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
               <span className="th-line">Survey</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'right' }}>
               <span className="th-line">Area</span>
             </th>
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'left' }}>
               <span className="th-line">Title</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'right' }}>
               <span className="th-line">Assessed</span>
               <span className="th-line">Value</span>
             </th>
             <th style={{ textAlign: 'center' }}>
               <span className="th-line">Effectivity</span>
             </th>
-            <th style={{ textAlign: 'center' }}>
+            <th style={{ textAlign: 'left' }}>
               <span className="th-line">Memoranda</span>
             </th>
           </tr>
@@ -562,11 +578,6 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
             );
           })}
         </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan="8" style={{ height: 0, lineHeight: 0, padding: 0, borderTop: '1px solid #ddd' }} />
-          </tr>
-        </tfoot>
       </table>
 
       {/* Certification, Signatories & Receipt Docket section (Aistudio translation) */}

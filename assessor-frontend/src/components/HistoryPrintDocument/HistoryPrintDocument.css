@@ -3,7 +3,6 @@
 
   html,
   body {
-    width: 212mm;
     background: #ffffff !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -42,10 +41,6 @@
     text-align: left !important;
   }
 
-  .history-table th {
-    vertical-align: middle !important;
-  }
-
   /* Force word breaking for long strings without spaces */
   .history-table td:first-child {
     word-break: break-all;
@@ -81,19 +76,38 @@
 .print-root {
   position: relative;
   box-sizing: border-box;
+  width: var(--print-page-width);
+  max-width: var(--print-page-width);
   background-color: #ffffff;
   font-family: Georgia, 'Times New Roman', Times, serif;
-  /* color: #0f172a; */
   border: 1px solid #cbd5e1;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  padding: 24px;
+
+  /*
+   * These are intentionally identical to the horizontal @page margins:
+   * 8mm left + 8mm right.
+   */
+  padding: 8mm;
   margin: 0 auto;
 }
 
 @media (min-width: 640px) {
   .print-root {
-    padding: 36px;
+    padding: 8mm;
   }
+}
+
+.print-root > .print-header,
+.print-root > .print-title-section,
+.print-root > .info-property-box,
+.print-root > .print-chain-header,
+.print-root > .history-table,
+.print-root > .print-certification-section,
+.print-root > .print-receipt-docket,
+.print-root > .print-security-notice {
+  width: 100%;
+  max-width: var(--print-content-width);
+  box-sizing: border-box;
 }
 
 /* Watermark: circular border ~450px x 450px, border ~16px, very low opacity ~0.02 */
@@ -389,6 +403,13 @@
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.history-table,
+.history-table *,
+.history-table th,
+.history-table td {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
 .history-table {
   width: 100%;
   border-collapse: collapse;
@@ -396,6 +417,12 @@
   border: 2px solid #0f172a;
   page-break-inside: auto;
   break-inside: auto;
+}
+
+.history-table th,
+.history-table td {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .history-table tbody tr {
@@ -417,20 +444,19 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  vertical-align: middle;
+  vertical-align: bottom !important;
   color: #0f172a;
-}
-
-@media print {
-  .history-table-header-row th {
-    font-size: 7px;
-  }
+  box-sizing: border-box;
 }
 
 .history-table-header-row th .th-line {
   display: block;
   line-height: 1.05;
   white-space: nowrap;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: inherit !important;
+  margin: 0;
+  padding: 0;
 }
 
 .history-table tbody td {
