@@ -25,7 +25,7 @@
   }
 
   .history-table th {
-    vertical-align: middle !important;
+    vertical-align: bottom !important;
   }
 
   /* Force word breaking for long strings without spaces */
@@ -84,16 +84,139 @@
 }
 
 .print-header {
+  position: relative;
+  text-align: center;
   font-family: 'Times New Roman', Times, serif;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 3mm;
+  margin-bottom: 4mm;
+  width: 100%;
 }
 
-.print-header .header-title {
-  font-family: Tahoma, Verdana, sans-serif;
+.print-header-logo {
+  height: 16mm;
+  max-height: 64px;
+  display: block;
+  margin: 0 auto 2mm auto;
+}
+
+.print-header-control-no {
+  position: absolute;
+  top: 0;
+  right: 0;
+  text-align: right;
+  line-height: 1.15;
+}
+
+.print-header-control-label {
+  display: block;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.print-header-control-val {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.print-header-ph {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.print-header-province {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.print-header-municipality {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.print-header-office {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.print-header-form-title {
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-decoration: underline;
+  letter-spacing: 0.5px;
+  margin-top: 2.5mm;
+  color: #0f172a;
 }
 
 .info,
 .history-table {
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.history-table-header-row {
+  background-color: #f1f5f9;
+  border-top: 2px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+}
+
+.history-table-header-row th {
+  border: 1px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+  padding: 2mm 1mm;
+  font-size: 7.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.05;
+  vertical-align: bottom;
+  color: #0f172a;
+}
+
+.history-table-header-row th .th-line {
+  display: block;
+  white-space: nowrap;
+}
+
+.info-property-box {
+  border: 2px solid #1e293b !important;
+  border-collapse: collapse !important;
+  margin: 3mm auto 3.5mm auto !important;
+  background-color: #ffffff;
+}
+
+.info-property-box td {
+  border: 1px solid #cbd5e1 !important;
+  line-height: 1.35;
+}
+
+.info-tdn-val {
+  color: #1e3a8a !important;
 }
 
 .print-signature {
@@ -153,7 +276,7 @@
 .print-signatory-label {
   display: flex;
   align-items: flex-start;
-  min-height: 9mm;
+  min-height: 10mm;
   margin-bottom: 8mm;
   font-size: 11px;
   line-height: 1.2;
@@ -199,6 +322,8 @@
 /* Official Receipt Particulars / Local Government Audit Trail Box */
 /* Aistudio: border-2 border-slate-800 rounded-lg p-3.5 bg-slate-50/50 font-sans text-xs */
 .print-receipt-docket {
+  width: 100%;
+  box-sizing: border-box;
   border: 2px solid #1e293b !important;
   border-radius: 6px;
   padding: 3mm 4mm;

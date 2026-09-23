@@ -2,6 +2,38 @@
 
 class Assessor_Properties {
     
+    private function normalize_effectivity_year($value, $exempt = false) {
+        if ($exempt) {
+            return null;
+        }
+
+        if ($value === null) {
+            return null;
+        }
+
+        $raw = trim((string) $value);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        if (strcasecmp($raw, 'EXEMPT') === 0) {
+            return null;
+        }
+
+        if (!preg_match('/^\d{4}$/', $raw)) {
+            return null;
+        }
+
+        $year = intval($raw);
+
+        if ($year < 1800 || $year > 2100) {
+            return null;
+        }
+
+        return (string) $year;
+    }
+
     public function get_properties($request) {
         global $wpdb;
         
@@ -546,20 +578,42 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $user_id = $this->get_user_id_from_request($request);
         
         // Validate required fields
-        $required_fields = array('tax_declaration_number', 'location', 'kind_of_property', 'effectivity_date');
+        $required_fields = array('tax_declaration_number', 'location', 'kind_of_property');
         foreach ($required_fields as $field) {
             if (empty($params[$field])) {
                 return new WP_Error('missing_field', "Field '$field' is required", array('status' => 400));
             }
         }
 
-        // Validate effectivity_date and resolve authoritative revision UUID
-        $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
-        $resolved_revision_id = $this->resolve_revision_by_effectivity_date($params['effectivity_date'], $client_rev);
-        if (is_wp_error($resolved_revision_id)) {
-            return $resolved_revision_id;
+        $effectivity_exempt = !empty($params['effectivity_exempt']);
+        $effectivity_year = $this->normalize_effectivity_year(
+            $params['effectivity_date'] ?? null,
+            $effectivity_exempt
+        );
+
+        if (
+            !$effectivity_exempt &&
+            isset($params['effectivity_date']) &&
+            $params['effectivity_date'] !== '' &&
+            $effectivity_year === null
+        ) {
+            return new WP_Error(
+                'invalid_effectivity_date',
+                'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100.',
+                array('status' => 400)
+            );
         }
-        
+
+        if (!$effectivity_exempt && $effectivity_year !== null) {
+            $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
+            $resolved_revision_id = $this->resolve_revision_by_effectivity_date($effectivity_year, $client_rev);
+            if (is_wp_error($resolved_revision_id)) {
+                return $resolved_revision_id;
+            }
+        } else {
+            $resolved_revision_id = null;
+        }
+
         // Check if tax declaration number already exists in this revision
         if ($this->is_tdn_duplicate_in_revision($params['tax_declaration_number'], $resolved_revision_id)) {
             return new WP_Error(
@@ -612,7 +666,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'title_number' => sanitize_text_field($params['title_number']),
                 'assessed_value' => floatval($params['assessed_value']),
                 'assessed_value_old' => sanitize_text_field($params['assessed_value_old']),
-                'effectivity_date' => $params['effectivity_date'],
+                'effectivity_date' => $effectivity_year,
+                'effectivity_exempt' => $effectivity_exempt ? 1 : 0,
                 'pin' => sanitize_text_field($params['pin']),
                 'address' => sanitize_textarea_field($params['address']),
                 'assessment_date' => $params['assessment_date'],
@@ -685,6 +740,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'assessed_value' => $created->assessed_value,
                 'assessed_value_old' => isset($created->assessed_value_old) ? $created->assessed_value_old : '',
                 'effectivity_date' => $created->effectivity_date,
+                'effectivity_exempt' => isset($created->effectivity_exempt) ? (int) $created->effectivity_exempt : 0,
                 'pin' => $created->pin,
                 'address' => $created->address,
                 'assessment_date' => $created->assessment_date,
@@ -788,6 +844,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'assessed_value',
             'assessed_value_old',
             'effectivity_date',
+            'effectivity_exempt',
             'pin',
             'address',
             'assessment_date',
@@ -819,6 +876,30 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
             $new_raw = $params[$param_key];
             $old_raw = isset($current_property->$field) ? $current_property->$field : null;
+
+            // Audit comparison for effectivity_exempt flag (0 or 1)
+            if ($field === 'effectivity_exempt') {
+                $old_exempt = !empty($old_raw) ? 1 : 0;
+                $new_exempt = !empty($new_raw) ? 1 : 0;
+                if ($old_exempt !== $new_exempt) {
+                    $old_values[$field] = $old_exempt;
+                    $new_values[$field] = $new_exempt;
+                }
+                continue;
+            }
+
+            // Audit comparison for effectivity_date
+            if ($field === 'effectivity_date') {
+                $is_eff_exempt = !empty($params['effectivity_exempt']);
+                $old_eff = ($old_raw === null || $old_raw === '') ? null : (string)$old_raw;
+                $new_eff = $this->normalize_effectivity_year($new_raw, $is_eff_exempt);
+
+                if ($old_eff !== $new_eff) {
+                    $old_values[$field] = $old_eff;
+                    $new_values[$field] = $new_eff;
+                }
+                continue;
+            }
 
             // Normalize values by field type to avoid logging formatting-only changes
             $is_numeric_4 = ($field === 'area_hectare' || $field === 'area_sqm');
@@ -923,10 +1004,10 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     } else {
                         $update_data[$field] = $license_value;
                     }
-                } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'))) {
+                } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'), true)) {
                     $update_data[$field] = floatval($params[$field]);
-                } else if ($field === 'revision_id') {
-                    // Handled authoritatively via effectivity_date logic below
+                } else if ($field === 'revision_id' || $field === 'effectivity_date' || $field === 'effectivity_exempt') {
+                    // Handled authoritatively via effectivity logic below
                     continue;
                 } else {
                     $update_data[$field] = sanitize_text_field($params[$field]);
@@ -934,40 +1015,44 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
 
-        // Authoritative revision assignment on UPDATE:
-        // 1. If effectivity_date changes, recalculate revision UUID
-        // 2. If effectivity_date does not change, preserve revision UUID
-        // 3. If client provides revision_id, accept only after validating against resolved revision
-        $old_effectivity = isset($current_property->effectivity_date) ? trim((string)$current_property->effectivity_date) : '';
-        $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
+        // Handle effectivity_date, effectivity_exempt, and revision_id together
+        $has_effectivity_date = array_key_exists('effectivity_date', $params);
+        $has_effectivity_exempt = array_key_exists('effectivity_exempt', $params);
 
-        if (array_key_exists('effectivity_date', $params)) {
-            $new_effectivity = trim((string)$params['effectivity_date']);
-            if ($new_effectivity !== $old_effectivity) {
-                // Effectivity date changed: recalculate revision UUID authoritatively
-                $resolved_rev_id = $this->resolve_revision_by_effectivity_date($new_effectivity, $client_rev);
+        if ($has_effectivity_date || $has_effectivity_exempt) {
+            $incoming_effectivity_exempt = !empty($params['effectivity_exempt']);
+            $incoming_effectivity_year = $this->normalize_effectivity_year(
+                $params['effectivity_date'] ?? null,
+                $incoming_effectivity_exempt
+            );
+
+            if ($incoming_effectivity_exempt) {
+                // A. EXEMPT
+                $update_data['effectivity_date'] = null;
+                $update_data['effectivity_exempt'] = 1;
+                $update_data['revision_id'] = null;
+            } else if ($has_effectivity_date && ($params['effectivity_date'] === '' || $params['effectivity_date'] === null)) {
+                // B. BLANK
+                $update_data['effectivity_date'] = null;
+                $update_data['effectivity_exempt'] = 0;
+                $update_data['revision_id'] = null;
+            } else if ($incoming_effectivity_year !== null) {
+                // C. NORMAL YEAR
+                $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
+                $resolved_rev_id = $this->resolve_revision_by_effectivity_date($incoming_effectivity_year, $client_rev);
                 if (is_wp_error($resolved_rev_id)) {
                     return $resolved_rev_id;
                 }
+                $update_data['effectivity_date'] = $incoming_effectivity_year;
+                $update_data['effectivity_exempt'] = 0;
                 $update_data['revision_id'] = $resolved_rev_id;
-            } else {
-                // Effectivity date did not change: preserve existing revision UUID
-                // If the property previously had no revision_id (e.g. legacy/NULL) and has a valid date, calculate it
-                if (empty($current_property->revision_id) && $new_effectivity !== '') {
-                    $resolved_rev_id = $this->resolve_revision_by_effectivity_date($new_effectivity, $client_rev);
-                    if (!is_wp_error($resolved_rev_id)) {
-                        $update_data['revision_id'] = $resolved_rev_id;
-                    }
-                } elseif (!empty($client_rev) && !empty($current_property->revision_id)) {
-                    // If client explicitly passed a revision_id while date didn't change, validate match
-                    if (strcasecmp(trim($client_rev), $current_property->revision_id) !== 0) {
-                        return new WP_Error(
-                            'revision_mismatch',
-                            sprintf("Client-supplied revision does not match current property revision for unchanged effectivity date '%s'.", $old_effectivity),
-                            array('status' => 400)
-                        );
-                    }
-                }
+            } else if ($has_effectivity_date && $params['effectivity_date'] !== '') {
+                // Invalid non-empty year supplied
+                return new WP_Error(
+                    'invalid_effectivity_date',
+                    'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100.',
+                    array('status' => 400)
+                );
             }
         } elseif (!empty($client_rev)) {
             // effectivity_date was not passed, but client passed revision_id: validate against current property revision
@@ -1363,7 +1448,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                         p.id, p.tax_declaration_number, p.previous_tax_declaration_number, 
                         p.declarant_last_name, p.declarant_first_name, p.declarant_middle_initial,
                         p.business,
-                        p.location, p.lot_number, p.unique_lot_number_identified, p.survey_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date,
+                        p.location, p.lot_number, p.unique_lot_number_identified, p.survey_number, p.area_hectare, p.area_hectare_old, p.area_sqm, p.title_number, p.effectivity_date, p.effectivity_exempt,
                         p.assessed_value, p.assessed_value_old, p.kind_of_property, p.memoranda, p.supporting_documents, p.supporting_documents_old, p.pin, p.address, p.assessment_date, p.gen_class, p.created_at, p.updated_at,
                         p.verifier_signatory_name, p.verifier_signatory_title,
                         p.municipal_assessor_name, p.municipal_assessor_suffix, p.municipal_assessor_title, p.municipal_assessor_license,
@@ -1415,6 +1500,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
                     'title_number' => $property->title_number,
                     'effectivity_date' => $property->effectivity_date,
+                    'effectivity_exempt' => isset($property->effectivity_exempt) ? (int) $property->effectivity_exempt : 0,
                     'assessed_value' => $property->assessed_value,
                     'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
                     'kind_of_property' => $property->kind_of_property,
@@ -1606,6 +1692,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 'assessed_value' => $property_data->assessed_value,
                 'assessed_value_old' => isset($property_data->assessed_value_old) ? $property_data->assessed_value_old : '',
                 'effectivity_date' => $property_data->effectivity_date,
+                'effectivity_exempt' => isset($property_data->effectivity_exempt) ? (int) $property_data->effectivity_exempt : 0,
                 'pin' => $property_data->pin,
                 'address' => $property_data->address,
                 'assessment_date' => $property_data->assessment_date,

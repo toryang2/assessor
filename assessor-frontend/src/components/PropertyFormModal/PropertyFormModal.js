@@ -72,6 +72,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     assessed_value: '',
     assessed_value_old: '',
     effectivity_date: '',
+    effectivity_exempt: false,
     pin: '',
     address: '',
     assessment_date: '',
@@ -259,8 +260,32 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return '';
   };
 
+  const normalizeEffectivityYearForForm = (value) => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    const raw = String(value).trim();
+
+    if (raw === '') {
+      return '';
+    }
+
+    if (/^exempt$/i.test(raw)) {
+      return '';
+    }
+
+    return /^\d{4}$/.test(raw) ? raw : '';
+  };
+
   useEffect(() => {
     if (property) {
+      const effectivityIsExempt =
+        Boolean(property.effectivity_exempt) ||
+        /^exempt$/i.test(
+          String(property.effectivity_date ?? '').trim()
+        );
+
       setFormData({
         tax_declaration_number: property.tax_declaration_number || '',
         previous_tax_declaration_number: property.previous_tax_declaration_number || '',
@@ -340,7 +365,10 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         title_number: property.title_number || '',
         assessed_value: property.assessed_value || '',
         assessed_value_old: property.assessed_value_old || '',
-        effectivity_date: extractEffectivityYear(property.effectivity_date),
+        effectivity_date: effectivityIsExempt
+          ? ''
+          : normalizeEffectivityYearForForm(property.effectivity_date),
+        effectivity_exempt: effectivityIsExempt,
         pin: property.pin || '',
         address: property.address || '',
         assessment_date: formatAssessmentDateForForm(property.assessment_date),
@@ -370,6 +398,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         assessed_value: '',
         assessed_value_old: '',
         effectivity_date: '',
+        effectivity_exempt: false,
         pin: '',
         address: '',
         assessment_date: '',
@@ -599,6 +628,56 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return isNaN(num) ? '' : num;
   };
 
+  const effectivityIsExempt = Boolean(formData.effectivity_exempt);
+
+  const effectivityIsBlank =
+    !effectivityIsExempt &&
+    (
+      formData.effectivity_date === '' ||
+      formData.effectivity_date === null ||
+      formData.effectivity_date === undefined
+    );
+
+  const validateEffectivityYear = (value) => {
+    const raw = String(value || '').trim();
+
+    if (raw === '') {
+      return true;
+    }
+
+    if (!/^\d{4}$/.test(raw)) {
+      return false;
+    }
+
+    const year = Number(raw);
+
+    return year >= 1800 && year <= 2100;
+  };
+
+  const normalizeEffectivityForSubmit = (value, exempt) => {
+    if (exempt) {
+      return null;
+    }
+
+    const raw = String(value ?? '').trim();
+
+    if (raw === '') {
+      return null;
+    }
+
+    if (!/^\d{4}$/.test(raw)) {
+      return null;
+    }
+
+    const year = Number(raw);
+
+    if (year < 1800 || year > 2100) {
+      return null;
+    }
+
+    return raw;
+  };
+
   // Helper function to uppercase field values on submit
   const uppercaseFieldValue = (field, value) => {
     const uppercaseFields = new Set([
@@ -679,6 +758,19 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errors.push('Selected general class is not valid');
     }
 
+    if (!formData.effectivity_exempt) {
+      const effectivity = String(formData.effectivity_date || '').trim();
+
+      if (
+        effectivity !== '' &&
+        !validateEffectivityYear(effectivity)
+      ) {
+        errors.push(
+          'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100'
+        );
+      }
+    }
+
     return errors;
   };
 
@@ -741,7 +833,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         title_number: uppercaseFieldValue('title_number', formData.title_number),
         assessed_value: formData.assessed_value === '' ? '' : Number(formData.assessed_value),
         assessed_value_old: formData.assessed_value_old,
-        effectivity_date: formData.effectivity_date,
+        effectivity_date: normalizeEffectivityForSubmit(
+          formData.effectivity_date,
+          formData.effectivity_exempt
+        ),
+        effectivity_exempt: Boolean(formData.effectivity_exempt),
         pin: uppercaseFieldValue('pin', formData.pin),
         address: uppercaseFieldValue('address', formData.address),
         assessment_date: cleanAssessmentDate(formData.assessment_date),
@@ -1339,14 +1435,60 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                   </Grid>
 
                   <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Effectivity Year"
-                      value={formData.effectivity_date}
-                      onChange={(e) => handleInputChange('effectivity_date', e.target.value)}
-                      type="number"
-                      inputProps={{ min: 1800, max: 2100 }}
-                      placeholder="YYYY"
-                    />
+                    <Box>
+                      <TextField
+                        label="Effectivity Year"
+                        value={formData.effectivity_date}
+                        onChange={(e) => {
+                          const value = String(e.target.value || '');
+                          if (/^\d{0,4}$/.test(value)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: value,
+                              effectivity_exempt: false
+                            }));
+                          }
+                        }}
+                        type="text"
+                        inputMode="numeric"
+                        inputProps={{
+                          inputMode: 'numeric',
+                          pattern: '[0-9]*',
+                          maxLength: 4
+                        }}
+                        placeholder="YYYY"
+                        disabled={effectivityIsExempt}
+                        fullWidth
+                      />
+                      <Box display="flex" gap={0.75} mt={0.5}>
+                        <Button
+                          size="small"
+                          variant={effectivityIsExempt ? 'contained' : 'outlined'}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: '',
+                              effectivity_exempt: true
+                            }));
+                          }}
+                        >
+                          EXEMPT
+                        </Button>
+                        <Button
+                          size="small"
+                          variant={effectivityIsBlank ? 'contained' : 'outlined'}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: '',
+                              effectivity_exempt: false
+                            }));
+                          }}
+                        >
+                          BLANK
+                        </Button>
+                      </Box>
+                    </Box>
                   </Grid>
 
                   <Grid item xs={12} md={3}>

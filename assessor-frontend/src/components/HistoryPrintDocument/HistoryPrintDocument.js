@@ -58,6 +58,26 @@ const formatDateOnly = (dateString) => {
   return formatAppDate(dateString, { month: '2-digit', day: '2-digit', year: 'numeric' });
 };
 
+
+// Helper function to format effectivity year for print/history tables according to whole-year / EXEMPT rules
+const formatPrintEffectivity = (item) => {
+  if (!item) return '—';
+  const isExempt =
+    Boolean(item.effectivity_exempt) ||
+    /^exempt$/i.test(String(item.effectivity_date ?? '').trim());
+
+  if (isExempt) {
+    return 'EXEMPT';
+  }
+
+  const raw = String(item.effectivity_date ?? '').trim();
+  if (raw === '') {
+    return '—';
+  }
+
+  return raw;
+};
+
 // Format date nicely for receipt docket
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -122,8 +142,9 @@ const toFormalCase = (text) => {
  * - printHistory: Array of tax declaration history records
  * - requestData: Object containing request/receipt/signatory data (if printed from request)
  * - documentType: 'property' | 'request' (optional, automatically inferred if requestData is present)
+ * - paperSize: 'a4' | 'letter' | 'legal' | 'auto' (default: 'a4')
  */
-const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, documentType }, ref) => {
+const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, documentType, paperSize = 'a4' }, ref) => {
   const isRequest = documentType === 'request' || (documentType === undefined && Boolean(requestData && (requestData.id || requestData.receipt_number || requestData.purpose)));
 
   const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
@@ -208,66 +229,100 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
     || (settings && settings.municipal_assessor_license)
     || '';
 
+  // Calculate paper container dimensions based on paperSize prop
+  const rootDimensions = (() => {
+    switch (paperSize) {
+      case 'letter':
+        return { width: '215.9mm', maxWidth: '215.9mm' };
+      case 'legal':
+        return { width: '215.9mm', maxWidth: '215.9mm' };
+      case 'auto':
+        return { width: '100%', maxWidth: '850px' };
+      case 'a4':
+      default:
+        return { width: '210mm', maxWidth: '210mm' };
+    }
+  })();
+
   return (
-    <div ref={ref} className="print-root" style={{ width: '210mm' }}>
-      <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
+    <div ref={ref} className="print-root" style={rootDimensions}>
+      <div className="print-header">
+        <div className="print-header-control-no">
+          <span className="print-header-control-label">CONTROL NO.</span>
+          <span className="print-header-control-val">{referenceId}</span>
+        </div>
         {appLogoUrl ? (
-          <img src={appLogoUrl} alt="Logo" style={{ height: 64, display: 'block', margin: '5mm auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src={appLogoUrl} alt="Logo" className="print-header-logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : null}
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerPh}</h4>
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerProvince}</h4>
-        <h4 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-        <h3 style={{ fontSize: 16, margin: '-7px 0', fontWeight: 600 }}>{headerOffice}</h3>
-        <div className="header-title" style={{ fontSize: 14, marginTop: 8, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif' }}>{headerTitle}</div>
+        <div className="print-header-ph">{headerPh}</div>
+        <div className="print-header-province">{headerProvince}</div>
+        <div className="print-header-municipality">{headerMunicipality}</div>
+        <div className="print-header-office">{headerOffice}</div>
+        <div className="header-title print-header-form-title">{headerTitle}</div>
       </div>
 
-      <table style={{ border: '1px solid #000', borderCollapse: 'separate', borderSpacing: 0, margin: '12px auto', width: '100%', tableLayout: 'fixed' }} className="info">
+      <table className="info info-property-box" style={{ width: '100%', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: '50%' }} />
           <col style={{ width: '50%' }} />
         </colgroup>
         <tbody>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <strong>TAX DECLARATION NUMBER:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>TAX DECLARATION NUMBER:</span>{' '}
+              <span className="info-tdn-val" style={{ fontFamily: 'Consolas, Courier New, monospace', fontWeight: 700, color: '#1e3a8a' }}>
+                {(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}
+              </span>
             </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <strong>PIN:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].pin) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>PIN:</span>{' '}
+              <span style={{ fontFamily: 'Consolas, Courier New, monospace', fontWeight: 600, color: '#1e293b' }}>
+                {(printHistory && printHistory[0] && printHistory[0].pin) || ''}
+              </span>
             </td>
           </tr>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>OWNER:</strong> <span>{normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>OWNER:</span>{' '}
+              <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                {normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}
+              </span>
             </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ADDRESS:</strong>{' '}
-              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>ADDRESS:</span>{' '}
+              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', color: '#1e293b' }}>
                 {(printHistory && printHistory[0] && printHistory[0].address) || ''}
               </span>
             </td>
           </tr>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ADMINISTRATOR/BUSINESS NAME:</strong> <span>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>ADMINISTRATOR/BUSINESS NAME:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
             </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>ASSESSMENT DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>LOCATION:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
-            </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>KIND OF PROPERTY:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>ASSESSMENT DATE:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
             </td>
           </tr>
           <tr>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>EFFECTIVITY DATE:</strong> <span>{(printHistory && printHistory[0] && printHistory[0].effectivity_date) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>LOCATION:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
             </td>
-            <td style={{ border: 'none', padding: '2px 8px', fontSize: 12, verticalAlign: 'top' }}>
-              <strong>GEN. CLASS:</strong> <span>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>KIND OF PROPERTY:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>EFFECTIVITY DATE:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && formatPrintEffectivity(printHistory[0])) || '—'}</span>
+            </td>
+            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
+              <span style={{ fontWeight: 700, color: '#334155' }}>GEN. CLASS:</span>{' '}
+              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
             </td>
           </tr>
         </tbody>
@@ -275,27 +330,50 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '17%' }} />
-          <col style={{ width: '14%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '8%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '9%' }} />
           <col style={{ width: '11%' }} />
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '29%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '16%' }} />
         </colgroup>
         <thead>
-          <tr>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Tax Declaration Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Declarant</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Lot Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Survey Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Area</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Title Number</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Assessed Value</th>
-            <th style={{ border: '1px solid #ddd', padding: 1, fontSize: 9, backgroundColor: '#cccccc' }}>Effectivity</th>
-            <th style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, backgroundColor: '#cccccc' }}>Memoranda</th>
+          <tr className="history-table-header-row">
+            <th style={{ textAlign: 'left' }}>
+              <span className="th-line">Tax Dec.</span>
+              <span className="th-line">Number</span>
+            </th>
+            <th style={{ textAlign: 'left' }}>
+              <span className="th-line">Declarant</span>
+            </th>
+            <th style={{ textAlign: 'center' }}>
+              <span className="th-line">Lot</span>
+              <span className="th-line">Number</span>
+            </th>
+            <th style={{ textAlign: 'center' }}>
+              <span className="th-line">Survey</span>
+              <span className="th-line">Number</span>
+            </th>
+            <th style={{ textAlign: 'right' }}>
+              <span className="th-line">Area</span>
+            </th>
+            <th style={{ textAlign: 'left' }}>
+              <span className="th-line">Title</span>
+              <span className="th-line">Number</span>
+            </th>
+            <th style={{ textAlign: 'right' }}>
+              <span className="th-line">Assessed</span>
+              <span className="th-line">Value</span>
+            </th>
+            <th style={{ textAlign: 'center' }}>
+              <span className="th-line">Effectivity</span>
+            </th>
+            <th style={{ textAlign: 'left' }}>
+              <span className="th-line">Memoranda</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -410,7 +488,9 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     }
                   })()}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.effectivity_date || ''}</td>
+                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                  {formatPrintEffectivity(item)}
+                </td>
                 <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
                   <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
                 </td>
@@ -426,7 +506,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
       </table>
 
       {/* Certification, Signatories & Receipt Docket section (Aistudio translation) */}
-      <div className="print-signature print-certification-section" style={{ width: '100%', paddingLeft: '8mm', paddingRight: '8mm' }}>
+      <div className="print-signature print-certification-section" style={{ width: '100%' }}>
 
         {/* Given Statement */}
         {/* <p className="print-given-statement">
@@ -548,7 +628,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
         {/* Bottom security notice */}
         <p className="print-security-notice">
-          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this certificate.
+          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this document.
         </p>
 
       </div>
@@ -558,18 +638,41 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
 HistoryPrintDocument.displayName = 'HistoryPrintDocument';
 
-export const HISTORY_PRINT_PAGE_STYLE = `
-  @page {
-    size: A4 portrait;
-    margin: 12mm 8mm 16mm 8mm;
-
-    @bottom-right {
-      content: counter(page) "/" counter(pages);
-      font-family: Arial, sans-serif;
-      font-size: 10px;
-      color: #666;
-    }
+/**
+ * Generates dynamic @page print CSS based on paperSize preference.
+ * Supported paper sizes:
+ * - 'a4' (default): A4 portrait (210mm x 297mm)
+ * - 'letter': Letter portrait (8.5in x 11in)
+ * - 'legal': Legal portrait (8.5in x 14in)
+ * - 'auto': auto fit portrait
+ */
+export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
+  let sizeDecl = 'A4 portrait';
+  if (paperSize === 'letter') {
+    sizeDecl = 'letter portrait';
+  } else if (paperSize === 'legal') {
+    sizeDecl = 'legal portrait';
+  } else if (paperSize === 'auto') {
+    sizeDecl = 'auto';
   }
-`;
+
+  return `
+    @page {
+      size: ${sizeDecl};
+      margin: 12mm 8mm 16mm 8mm;
+
+      @bottom-right {
+        content: counter(page) "/" counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 10px;
+        color: #666;
+      }
+    }
+  `;
+};
+
+// Backwards-compatible default style (A4)
+export const HISTORY_PRINT_PAGE_STYLE = getHistoryPrintPageStyle('a4');
 
 export default HistoryPrintDocument;
+

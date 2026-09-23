@@ -108,6 +108,26 @@ const normalizeDeclarantString = (name) => {
   return result;
 };
 
+
+// Helper function to format effectivity according to whole-year / EXEMPT rules
+const formatEffectivityDisplay = (item) => {
+  if (!item) return '—';
+  const isExempt =
+    Boolean(item.effectivity_exempt) ||
+    /^exempt$/i.test(String(item.effectivity_date ?? '').trim());
+
+  if (isExempt) {
+    return 'EXEMPT';
+  }
+
+  const raw = String(item.effectivity_date ?? '').trim();
+  if (raw === '') {
+    return '—';
+  }
+
+  return raw;
+};
+
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   const isSmallScreen = (() => {
     try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080); } catch (_) { return false; }
@@ -1319,7 +1339,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                               }
                             })()}
                           </TableCell>
-                          <TableCell>{item.effectivity_date || '—'}</TableCell>
+                          <TableCell>{formatEffectivityDisplay(item)}</TableCell>
                           <TableCell sx={{ maxWidth: 280 }}>
                             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                               {item.memoranda || '—'}

@@ -60,7 +60,7 @@ import { useReactToPrint } from 'react-to-print';
 import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
-import HistoryPrintDocument, { HISTORY_PRINT_PAGE_STYLE } from '../HistoryPrintDocument/HistoryPrintDocument';
+import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -80,6 +80,26 @@ const sanitizeBusinessName = (name) => {
   let out = s.replace(/\s*,\s*/g, ', ').replace(/^,\s*|\s*,\s*$/g, '').trim();
   if (out === ',') out = '';
   return out;
+};
+
+
+// Helper function to format effectivity according to whole-year / EXEMPT rules
+const formatEffectivityDisplay = (item) => {
+  if (!item) return '—';
+  const isExempt =
+    Boolean(item.effectivity_exempt) ||
+    /^exempt$/i.test(String(item.effectivity_date ?? '').trim());
+
+  if (isExempt) {
+    return 'EXEMPT';
+  }
+
+  const raw = String(item.effectivity_date ?? '').trim();
+  if (raw === '') {
+    return '—';
+  }
+
+  return raw;
 };
 
 
@@ -427,6 +447,21 @@ const PropertyTable = () => {
   const [printLoading, setPrintLoading] = useState(false);
   const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
   const [printRequestData, setPrintRequestData] = useState(null);
+  const [paperSize, setPaperSize] = useState(() => {
+    try {
+      return localStorage.getItem('assessor_print_paper_size') || 'a4';
+    } catch (_) {
+      return 'a4';
+    }
+  });
+
+  const handlePaperSizeChange = (newSize) => {
+    if (!newSize) return;
+    setPaperSize(newSize);
+    try {
+      localStorage.setItem('assessor_print_paper_size', newSize);
+    } catch (_) {}
+  };
   const [imageModal, setImageModal] = useState(false);
   const [propertyImages, setPropertyImages] = useState([]);
   const [maximizedImage, setMaximizedImage] = useState({ open: false, src: '', alt: '' });
@@ -914,7 +949,7 @@ const PropertyTable = () => {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     removeAfterPrint: true,
-    pageStyle: HISTORY_PRINT_PAGE_STYLE
+    pageStyle: getHistoryPrintPageStyle(paperSize)
   });
 
   const getStatusColor = (status) => {
@@ -1536,7 +1571,7 @@ const PropertyTable = () => {
                   </TableCell>
                   <TableCell>{property.kind_of_property_name || property.kind_of_property || '—'}</TableCell>
                   <TableCell>{property.gen_class_name || property.gen_class || '—'}</TableCell>
-                  <TableCell>{property.effectivity_date || '-'}</TableCell>
+                  <TableCell>{formatEffectivityDisplay(property)}</TableCell>
 
                   <TableCell sx={{ minWidth: 200, maxWidth: 640, verticalAlign: 'top', whiteSpace: 'normal' }}>
                     {property.memoranda ? (
@@ -1780,7 +1815,7 @@ const PropertyTable = () => {
                     <TableCell><strong>KIND OF PROPERTY:</strong> {taxHistory[0]?.kind_of_property_name || taxHistory[0]?.kind_of_property}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell><strong>EFFECTIVITY:</strong> {taxHistory[0]?.effectivity_date}</TableCell>
+                    <TableCell><strong>EFFECTIVITY:</strong> {formatEffectivityDisplay(taxHistory[0])}</TableCell>
                     <TableCell><strong>GEN. CLASS:</strong> {taxHistory[0]?.gen_class_name || taxHistory[0]?.gen_class}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -1910,7 +1945,7 @@ const PropertyTable = () => {
                             }
                           })()}
                         </TableCell>
-                        <TableCell>{item.effectivity_date || '—'}</TableCell>
+                        <TableCell>{formatEffectivityDisplay(item)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -1987,7 +2022,7 @@ const PropertyTable = () => {
                         <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property_name || printHistory[0].kind_of_property}</TableCell>
                       </TableRow>
                       <TableRow sx={{ '& td': { paddingBottom: '12px' } }}>
-                        <TableCell><strong>EFFECTIVITY:</strong> {printHistory[0].effectivity_date}</TableCell>
+                        <TableCell><strong>EFFECTIVITY:</strong> {formatEffectivityDisplay(printHistory[0])}</TableCell>
                         <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class_name || printHistory[0].gen_class}</TableCell>
                       </TableRow>
                     </TableBody>
@@ -2134,7 +2169,7 @@ const PropertyTable = () => {
                                 }
                               })()}
                             </TableCell>
-                            <TableCell>{item.effectivity_date || '—'}</TableCell>
+                            <TableCell>{formatEffectivityDisplay(item)}</TableCell>
                             <TableCell sx={{ maxWidth: 280 }}>
                               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                                 {item.memoranda || '—'}
@@ -2242,11 +2277,46 @@ const PropertyTable = () => {
             <Typography>No history found for this tax declaration number.</Typography>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPrintModal(false)}>Close</Button>
-          <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained" disabled={isViewer || !printHistory.length || !printRef.current}>
-            Print
-          </Button>
+        <DialogActions sx={{ px: 3, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: '1px solid #cbd5e1', borderRadius: '6px', p: '2px', backgroundColor: '#f8fafc' }}>
+            {[
+              { id: 'auto', label: 'Auto Fit' },
+              { id: 'letter', label: 'Letter' },
+              { id: 'a4', label: 'A4' },
+              { id: 'legal', label: 'Legal' }
+            ].map((item) => (
+              <Button
+                key={item.id}
+                size="small"
+                onClick={() => handlePaperSizeChange(item.id)}
+                variant={paperSize === item.id ? 'contained' : 'text'}
+                sx={{
+                  minWidth: 'auto',
+                  px: 1.25,
+                  py: 0.25,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  borderRadius: '4px',
+                  boxShadow: paperSize === item.id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  color: paperSize === item.id ? '#1e40af' : '#64748b',
+                  backgroundColor: paperSize === item.id ? '#ffffff' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: paperSize === item.id ? '#ffffff' : '#e2e8f0',
+                    boxShadow: paperSize === item.id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                  }
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={() => setPrintModal(false)}>Close</Button>
+            <Button onClick={handlePrint} startIcon={<PrintIcon />} variant="contained" disabled={isViewer || !printHistory.length || !printRef.current}>
+              Print
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
       {/* Property Images Modal */}
@@ -2402,7 +2472,7 @@ const PropertyTable = () => {
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="property" />
+        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="property" paperSize={paperSize} />
         <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
     </Box>

@@ -823,6 +823,8 @@ class Assessor_Sync {
                             $display['pin']                     = $rdata['pin'] ?? '';
                             $display['assessed_value']          = $rdata['assessed_value'] ?? null;
                             $display['assessed_value_old']      = $rdata['assessed_value_old'] ?? null;
+                            $display['effectivity_date']        = $rdata['effectivity_date'] ?? null;
+                            $display['effectivity_exempt']      = $rdata['effectivity_exempt'] ?? 0;
                         } else {
                             $display['receipt_number'] = $rdata['receipt_number'] ?? '';
                             $display['client_name']    = $rdata['client_name'] ?? '';
@@ -894,6 +896,8 @@ class Assessor_Sync {
                         $display['pin']                     = $rdata['pin'] ?? '';
                         $display['assessed_value']          = $rdata['assessed_value'] ?? null;
                         $display['assessed_value_old']      = $rdata['assessed_value_old'] ?? null;
+                        $display['effectivity_date']        = $rdata['effectivity_date'] ?? null;
+                        $display['effectivity_exempt']      = $rdata['effectivity_exempt'] ?? 0;
                     } else {
                         $display['receipt_number'] = $rdata['receipt_number'] ?? '';
                         $display['client_name']    = $rdata['client_name'] ?? '';
@@ -1898,6 +1902,8 @@ class Assessor_Sync {
                 'revision_id'              => $safe['revision_id'] ?? '',
                 'assessed_value'           => $safe['assessed_value'] ?? null,
                 'assessed_value_old'       => $old_assessed_value,
+                'effectivity_date'         => $safe['effectivity_date'] ?? null,
+                'effectivity_exempt'       => $safe['effectivity_exempt'] ?? ($local['effectivity_exempt'] ?? 0),
                 'status'                   => $safe['status'] ?? 'active',
                 'status_old'               => $old_status,
             ));
@@ -1917,7 +1923,7 @@ class Assessor_Sync {
             'business', 'business_name', 'location', 'lot_number',
             'unique_lot_number_identified', 'survey_number',
             'area_hectare', 'area_hectare_old', 'area_sqm', 'title_number',
-            'assessed_value', 'assessed_value_old', 'effectivity_date', 'pin', 'address',
+            'assessed_value', 'assessed_value_old', 'effectivity_date', 'effectivity_exempt', 'pin', 'address',
             'assessment_date', 'kind_of_property', 'gen_class',
             'memoranda', 'supporting_documents', 'supporting_documents_old', 'status',
             'change_reason',

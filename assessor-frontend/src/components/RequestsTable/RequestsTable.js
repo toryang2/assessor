@@ -49,7 +49,7 @@ import RequestFormModal from '../RequestFormModal/RequestFormModal';
 import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDate } from '../../utils/dateTime';
-import HistoryPrintDocument, { HISTORY_PRINT_PAGE_STYLE } from '../HistoryPrintDocument/HistoryPrintDocument';
+import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
 
 // Format declarant from discrete fields; add dot only for single-character middle
 const formatDeclarantFromParts = (last, first, middle) => {
@@ -186,12 +186,29 @@ const RequestsTable = () => {
     return filteredRequests.slice(start, end);
   }, [filteredRequests, page, rowsPerPage]);
 
+  // Paper size state with localStorage persistence
+  const [paperSize, setPaperSize] = useState(() => {
+    try {
+      return localStorage.getItem('assessor_print_paper_size') || 'a4';
+    } catch (_) {
+      return 'a4';
+    }
+  });
+
+  const handlePaperSizeChange = (newSize) => {
+    if (!newSize) return;
+    setPaperSize(newSize);
+    try {
+      localStorage.setItem('assessor_print_paper_size', newSize);
+    } catch (_) {}
+  };
+
   // Print ref
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     removeAfterPrint: true,
-    pageStyle: HISTORY_PRINT_PAGE_STYLE
+    pageStyle: getHistoryPrintPageStyle(paperSize)
   });
 
   // Fetch requests
@@ -819,22 +836,57 @@ const RequestsTable = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPrintModal(false)}>Close</Button>
-          <Button
-            onClick={handlePrint}
-            variant="contained"
-            startIcon={<PrintIcon />}
-            disabled={isViewer}
-          >
-            Print
-          </Button>
+        <DialogActions sx={{ px: 3, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: '1px solid #cbd5e1', borderRadius: '6px', p: '2px', backgroundColor: '#f8fafc' }}>
+            {[
+              { id: 'auto', label: 'Auto Fit' },
+              { id: 'letter', label: 'Letter' },
+              { id: 'a4', label: 'A4' },
+              { id: 'legal', label: 'Legal' }
+            ].map((item) => (
+              <Button
+                key={item.id}
+                size="small"
+                onClick={() => handlePaperSizeChange(item.id)}
+                variant={paperSize === item.id ? 'contained' : 'text'}
+                sx={{
+                  minWidth: 'auto',
+                  px: 1.25,
+                  py: 0.25,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  borderRadius: '4px',
+                  boxShadow: paperSize === item.id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  color: paperSize === item.id ? '#1e40af' : '#64748b',
+                  backgroundColor: paperSize === item.id ? '#ffffff' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: paperSize === item.id ? '#ffffff' : '#e2e8f0',
+                    boxShadow: paperSize === item.id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                  }
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={() => setPrintModal(false)}>Close</Button>
+            <Button
+              onClick={handlePrint}
+              variant="contained"
+              startIcon={<PrintIcon />}
+              disabled={isViewer}
+            >
+              Print
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" />
+        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" paperSize={paperSize} />
         <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
 
