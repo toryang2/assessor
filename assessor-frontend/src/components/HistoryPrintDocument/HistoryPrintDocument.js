@@ -234,39 +234,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
     || (settings && settings.municipal_assessor_license)
     || '';
 
-  // Calculate paper container dimensions based on paperSize prop
-  const rootDimensions = (() => {
-    switch (paperSize) {
-      case 'letter':
-      case 'legal':
-        return {
-          width: '215.9mm',
-          maxWidth: '215.9mm',
-          '--print-page-width': '215.9mm',
-          '--print-content-width': '199.9mm'
-        };
-
-      case 'auto':
-        return {
-          width: '100%',
-          maxWidth: '850px',
-          '--print-page-width': '850px',
-          '--print-content-width': '100%'
-        };
-
-      case 'a4':
-      default:
-        return {
-          width: '210mm',
-          maxWidth: '210mm',
-          '--print-page-width': '210mm',
-          '--print-content-width': '194mm'
-        };
-    }
-  })();
+  const paperClass = `paper-${paperSize || 'a4'}`;
 
   return (
-    <div ref={ref} className="print-root" style={rootDimensions}>
+    <div ref={ref} className={`print-root document-page ${paperClass}`}>
       {/* Subtle watermark circle */}
       {/* <div className="print-watermark" aria-hidden="true">
         <div className="print-watermark-inner">
@@ -287,104 +258,113 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         <div className="print-header-municipality">{headerMunicipality}</div>
         <div className="print-header-office">{headerOffice}</div>
         <div className="print-header-sub">
-          {`Municipal Government Center, ${baseMunicipality}, ${toFormalCase(baseProvince)} • Real Property Assessment & Tax Mapping Division`}
+          {`Municipal Assessor's Office, ${toFormalCase(baseMunicipality)}, ${toFormalCase(baseProvince)} • Assessor's Archiving System`}
         </div>
       </div>
 
       <div className="print-title-section">
         <div className="header-title print-header-form-title">{headerTitle}</div>
-        {(isRequest && requestData?.purpose) || requestData?.purpose_category || requestData?.document_type ? (
+        {/* {(isRequest && requestData?.purpose) || requestData?.purpose_category || requestData?.document_type ? (
           <div className="print-header-cert-type">
             {`(${String(requestData?.purpose || requestData?.purpose_category || requestData?.document_type).toUpperCase()})`}
           </div>
-        ) : null}
+        ) : null} */}
       </div>
 
       {/* Property Information Box - 5 Rows */}
-      <table className="info info-property-box" style={{ width: '100%', tableLayout: 'fixed' }}>
-        <colgroup>
-          <col style={{ width: '50%' }} />
-          <col style={{ width: '50%' }} />
-        </colgroup>
-        <tbody>
-          <tr>
-            <td className="info-cell">
-              <span className="info-label">Tax Declaration Number:</span>{' '}
-              <span className="info-val-tdn">
-                {(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}
-              </span>
-            </td>
-            <td className="info-cell">
-              <span className="info-label">PIN:</span>{' '}
-              <span className="info-val-pin">
-                {(printHistory && printHistory[0] && printHistory[0].pin) || ''}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td className="info-cell">
-              <span className="info-label">OWNER:</span>{' '}
-              <span className="info-val-owner">
-                {normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}
-              </span>
-            </td>
-            <td className="info-cell">
-              <span className="info-label">ADDRESS:</span>{' '}
-              <span className="info-val-address">
-                {(printHistory && printHistory[0] && printHistory[0].address) || ''}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td className="info-cell">
-              <span className="info-label">ADMINISTRATOR/BUSINESS NAME:</span>{' '}
-              <span className="info-val-admin">
-                {sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}
-              </span>
-            </td>
-            <td className="info-cell">
-              <span className="info-label">ASSESSMENT DATE:</span>{' '}
-              <span className="info-val-assessment">
-                {(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td className="info-cell">
-              <span className="info-label">LOCATION:</span>{' '}
-              <span className="info-val-location">
-                {(printHistory && printHistory[0] && printHistory[0].location) || ''}
-              </span>
-            </td>
-            <td className="info-cell">
-              <span className="info-label">KIND OF PROPERTY:</span>{' '}
-              <span className="info-val-kind">
-                {(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td className="info-cell">
-              <span className="info-label">EFFECTIVITY DATE:</span>{' '}
-              <span className="info-val-effectivity">
-                {(printHistory && printHistory[0] && formatPrintEffectivity(printHistory[0])) || '—'}
-              </span>
-            </td>
-            <td className="info-cell">
-              <span className="info-label">GEN. CLASS:</span>{' '}
-              <span className="info-val-genclass">
-                {(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      {/* Property Information Box - 5 Rows */}
+      <div className="info-card">
+        <div className="info-row">
+          <div className="info-cell border-right">
+            <span className="label">Tax Declaration Number:</span>
+            <span className="value font-mono highlight">
+              {(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}
+            </span>
+          </div>
+
+          <div className="info-cell">
+            <span className="label">PIN:</span>
+            <span className="value font-mono">
+              {(printHistory && printHistory[0] && printHistory[0].pin) || ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="info-row">
+          <div className="info-cell border-right">
+            <span className="label">OWNER:</span>
+            <span className="value">
+              {normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}
+            </span>
+          </div>
+
+          <div className="info-cell">
+            <span className="label">ADDRESS:</span>
+            <span className="value address">
+              {(printHistory && printHistory[0] && printHistory[0].address) || ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="info-row">
+          <div className="info-cell border-right">
+            <span className="label">ADMINISTRATOR/BUSINESS NAME:</span>
+            <span className="value admin">
+              {sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}
+            </span>
+          </div>
+
+          <div className="info-cell">
+            <span className="label">ASSESSMENT DATE:</span>
+            <span className="value assessment">
+              {(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="info-row">
+          <div className="info-cell border-right">
+            <span className="label">LOCATION:</span>
+            <span className="value location">
+              {(printHistory && printHistory[0] && printHistory[0].location) || ''}
+            </span>
+          </div>
+
+          <div className="info-cell">
+            <span className="label">KIND OF PROPERTY:</span>
+            <span className="value kind">
+              {(printHistory && printHistory[0] &&
+                (printHistory[0].kind_of_property_name ||
+                  printHistory[0].kind_of_property)) || ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="info-row">
+          <div className="info-cell border-right">
+            <span className="label">EFFECTIVITY DATE:</span>
+            <span className="value effectivity">
+              {(printHistory && printHistory[0] &&
+                formatPrintEffectivity(printHistory[0])) || '—'}
+            </span>
+          </div>
+
+          <div className="info-cell">
+            <span className="label">GEN. CLASS:</span>
+            <span className="value genclass">
+              {(printHistory && printHistory[0] &&
+                (printHistory[0].gen_class_name ||
+                  printHistory[0].gen_class)) || ''}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Continuous Chain Section Header */}
-      <div className="print-chain-header">
+      <div className="print-chain-header section-head">
         <div className="print-chain-header-left">
           <Layers className="print-chain-icon" />
-          <span>Continuous Chain of Tax Declarations (Until Last Superseded)</span>
+          <span>History</span>
         </div>
         <div className="print-chain-header-right">
           {`${printHistory?.length || 0} Recorded Revision(s)`}
@@ -405,11 +385,11 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         </colgroup>
         <thead>
           <tr className="history-table-header-row">
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Tax Declaration</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Declarant</span>
             </th>
             <th style={{ textAlign: 'center' }}>
@@ -420,21 +400,21 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
               <span className="th-line">Survey</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'right' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Area</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Title</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'right' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Assessed</span>
               <span className="th-line">Value</span>
             </th>
             <th style={{ textAlign: 'center' }}>
               <span className="th-line">Effectivity</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Memoranda</span>
             </th>
           </tr>
@@ -451,68 +431,55 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
             const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
             const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
 
+            const d = normalizeDeclarantString(item.declarant_name);
+            const b = item.business_name
+              ? String(item.business_name).replace(/,\s*/g, ' ')
+              : '';
+
+            const isActiveRow = index === 0;
+
             return (
-              <tr key={index}>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-                  <div style={{
-                    color: isConsolidated ? '#ed6c02' : 'inherit',
-                    fontWeight: 600
-                  }}>
+              <tr key={index} className={isActiveRow ? 'active-row' : undefined}>
+                <td style={{ padding: 4, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                  <div
+                    className="history-td-number"
+                    style={{
+                      color: isConsolidated ? '#ed6c02' : undefined,
+                    }}
+                  >
                     {item.tax_declaration_number || ''}
                   </div>
                   {item.pin && (
-                    <div style={{
-                      fontSize: 8,
-                      color: isConsolidated ? '#ed6c02' : 'inherit',
+                    <div className="history-pin" style={{
+                      color: isConsolidated ? '#ed6c02' : undefined,
                       marginTop: 2
                     }}>
                       {'PIN: ' + item.pin}
                     </div>
                   )}
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
-                  {(() => {
-                    const d = normalizeDeclarantString(item.declarant_name);
-                    const b = item.business_name
-                      ? String(item.business_name).replace(/,\s*/g, ' ')
-                      : '';
-
-                    if (!d && !b) return '';
-
-                    return (
-                      <>
-                        {d && (
-                          <span
-                            style={{
-                              fontWeight: 'bold',
-                              fontSize: 10,
-                              display: 'block',
-                              lineHeight: 1.2,
-                            }}
-                          >
-                            {d}
-                          </span>
-                        )}
-
-                        {b && (
-                          <span
-                            style={{
-                              fontSize: 8,
-                              display: 'block',
-                              lineHeight: 1.1,
-                              color: '#666',
-                            }}
-                          >
-                            {b}
-                          </span>
-                        )}
-                      </>
-                    );
-                  })()}
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
+                  {d && (
+                    <div className="history-declarant">
+                      {d}
+                    </div>
+                  )}
+                  {b && (
+                    <div className="history-business">
+                      {b}
+                    </div>
+                  )}
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
+                  <div className="history-lot-number">{item.lot_number || ''}
+                  </div>
+                </td>
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
+                  <div className="history-survey">
+                    {item.survey_number || '—'}
+                  </div>
+                </td>
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
                   {(() => {
                     const haRaw = item.area_hectare;
                     const sqmRaw = item.area_sqm;
@@ -526,53 +493,67 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     if (!hasHa && !hasSqm && !hasOldHa) return '';
 
                     let currentArea = '';
+                    let unitStr = '';
                     if (hasHa) {
                       const unit = numHa <= 1 ? 'ha' : 'has';
-                      currentArea = `${numHa.toFixed(4)} ${unit}`;
+                      currentArea = `${numHa.toFixed(4)}`;
+                      unitStr = unit;
                     } else if (hasSqm) {
-                      currentArea = `${numSqm.toFixed(2)} sqm`;
+                      currentArea = `${numSqm.toFixed(2)}`;
+                      unitStr = 'sqm';
                     }
 
-                    if (hasOldHa && currentArea) {
-                      return `${currentArea} (Old: ${oldHaRaw})`;
-                    } else if (hasOldHa) {
-                      return oldHaRaw;
-                    } else {
-                      return currentArea || '';
-                    }
+                    return (
+                      <>
+                        <div className="history-area">
+                          {currentArea ? `${currentArea} ${unitStr}` : (oldHaRaw || '')}
+                        </div>
+                        {hasOldHa && currentArea && (
+                          <div className="history-area-unit">
+                            {`(Old: ${oldHaRaw})`}
+                          </div>
+                        )}
+                      </>
+                    );
                   })()}
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>
-                  {item.title_number || ''}
+                <td style={{ padding: 4, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>
+                  <div className="history-title">
+                    {item.title_number || ''}
+                  </div>
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
                   {(() => {
                     const currentValue = item.assessed_value;
                     const oldValue = item.assessed_value_old;
                     const hasCurrent = currentValue !== undefined && currentValue !== null;
                     const hasOld = oldValue && oldValue !== '';
 
-                    if (!hasCurrent && !hasOld) return '₱0.00';
+                    if (!hasCurrent && !hasOld) {
+                      return <div className="history-assessed-value">₱0.00</div>;
+                    }
 
                     let displayValue = '';
                     if (hasCurrent) {
                       displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                     }
 
-                    if (hasOld && displayValue) {
-                      return `${displayValue} ${oldValue}`;
-                    } else if (hasOld) {
-                      return oldValue;
-                    } else {
-                      return displayValue || '₱0.00';
-                    }
+                    return (
+                      <div className="history-assessed-value">
+                        {hasOld && displayValue ? `${displayValue} ${oldValue}` : (displayValue || oldValue || '₱0.00')}
+                      </div>
+                    );
                   })()}
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
-                  {formatPrintEffectivity(item)}
+                <td style={{ padding: 4, verticalAlign: 'top' }}>
+                  <div className="history-effectivity">
+                    {formatPrintEffectivity(item)}
+                  </div>
                 </td>
-                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
-                  <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
+                <td style={{ padding: 4, verticalAlign: 'top', textAlign: 'left' }}>
+                  <div className="history-memoranda memoranda-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {item.memoranda || ''}
+                  </div>
                 </td>
               </tr>
             );
@@ -589,7 +570,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         </p> */}
 
         {/* 3 Official Signatories (Aistudio grid layout) */}
-        <div className="print-signatories">
+        <div className="print-signatories signatories-grid">
           {/* Signatory 1: Prepared by */}
           <div className="print-signatory">
             <span className="print-signatory-label">Prepared by:</span>
@@ -657,7 +638,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
         {/* Official Receipt Particulars / Local Government Audit Trail Box (Request Only) */}
         {isRequest && (
-          <div className="print-receipt-docket">
+          <div className="print-receipt-docket receipt-box">
             <div className="print-receipt-docket-header">
               <div className="print-receipt-docket-title">
                 <Receipt className="print-receipt-icon" />
@@ -723,26 +704,109 @@ HistoryPrintDocument.displayName = 'HistoryPrintDocument';
  * - 'auto': auto fit portrait
  */
 export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
-  let sizeDecl = 'A4 portrait';
-  if (paperSize === 'letter') {
-    sizeDecl = 'letter portrait';
-  } else if (paperSize === 'legal') {
-    sizeDecl = 'legal portrait';
-  } else if (paperSize === 'auto') {
-    sizeDecl = 'auto';
-  }
-
   return `
     @page {
-      size: ${sizeDecl};
-      margin: 12mm 8mm 16mm 8mm;
+      size: auto;
+      margin: 8mm 6mm;
+    }
 
-      @bottom-right {
-        content: counter(page) "/" counter(pages);
-        font-family: Arial, sans-serif;
-        font-size: 10px;
-        color: #666;
-      }
+    body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .document-page,
+    .print-root {
+      max-width: 100% !important;
+      width: 100% !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: #ffffff !important;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    }
+
+    .print-header-form-title {
+      font-family: "Plus Jakarta Sans",
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif !important;
+      font-size: 20px !important;
+      font-weight: 900 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.15em !important;
+      color: #020617 !important;
+      text-decoration: underline !important;
+      text-decoration-thickness: 2px !important;
+      text-underline-offset: 4px !important;
+    }
+
+    .print-header-control-val,
+    .info-cell .value.font-mono,
+    .info-val-tdn,
+    .info-val-pin,
+    .history-table tbody td:nth-child(1),
+    .history-td-number,
+    .history-pin,
+    .history-table tbody td:nth-child(4),
+    .history-survey,
+    .history-area,
+    .history-table tbody td:nth-child(7),
+    .history-assessed-value,
+    .history-table tbody td:nth-child(8),
+    .history-effectivity,
+    .print-receipt-val-blue,
+    .print-receipt-number,
+    .print-receipt-val-amount,
+    .print-receipt-footer {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    }
+
+    .history-table tbody td:nth-child(9),
+    .history-memoranda,
+    .memoranda-text {
+      font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif !important;
+      font-size: 8px !important;
+      color: #1e293b !important;
+      line-height: 1.25 !important;
+    }
+
+    table {
+      table-layout: fixed !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    th {
+      word-break: keep-all !important;
+      overflow-wrap: normal !important;
+      white-space: normal !important;
+      hyphens: none !important;
+      overflow: hidden !important;
+    }
+
+    td {
+      word-break: break-word !important;
+      overflow-wrap: break-word !important;
+      overflow: hidden !important;
+    }
+
+    .print-signature,
+    .signatories-grid,
+    .print-receipt-docket,
+    .receipt-box {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
   `;
 };

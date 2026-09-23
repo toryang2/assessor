@@ -28,6 +28,10 @@
     "react-scripts": "^5.0.1"
   },
   "scripts": {
+    "download:fonts": "node scripts/download-fonts.cjs",
+    "prestart": "npm run download:fonts",
+    "prebuild": "npm run download:fonts",
+    "postinstall": "npm run download:fonts",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "build:prod": "env-cmd -f .env.production react-scripts build",

@@ -1,166 +1,124 @@
-/* Print Styles for HistoryPrintDocument */
+/* Print Styles for HistoryPrintDocument - Visual Match to Standalone HTML Specification */
+
 @media print {
-
-  html,
   body {
     background: #ffffff !important;
-    padding: 0 !important;
+    color: #000000 !important;
     margin: 0 !important;
-  }
-
-  .print-root,
-  .print-root * {
+    padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
+  .document-page,
   .print-root {
-    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
     border: none !important;
+    box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
     background: #ffffff !important;
   }
 
-  .history-table td {
-    vertical-align: top !important;
-    text-align: left !important;
+  @page {
+    size: auto;
+    margin: 8mm 6mm;
   }
 
-  .history-table td:last-child {
-    text-align: left !important;
+  table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
-  /* Force word breaking for long strings without spaces */
-  .history-table td:first-child {
-    word-break: break-all;
-    overflow-wrap: anywhere;
-  }
-
-  .history-table td:nth-child(5) {
-    word-break: break-all;
-    overflow-wrap: anywhere;
-  }
-
-  /* Ensure Title Number column breaks long text properly */
-  .history-table td:nth-child(6) {
-    word-break: break-all;
-    overflow-wrap: anywhere;
-    hyphens: none;
-  }
-
-  /* Ensure info header cells wrap properly for long addresses */
-  .info td {
+  th {
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
     white-space: normal !important;
-    word-break: break-word !important;
-    overflow-wrap: anywhere !important;
+    hyphens: none !important;
+    overflow: hidden !important;
   }
 
-  .print-signature {
+  td {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    overflow: hidden !important;
+  }
+
+  .print-signature,
+  .signatories-grid,
+  .print-receipt-docket,
+  .receipt-box {
     page-break-inside: avoid;
     break-inside: avoid;
   }
 }
 
-/* Document Typography Hierarchy */
+/* Scoped Reset */
+.print-root,
+.print-root *,
+.print-root *::before,
+.print-root *::after {
+  box-sizing: border-box;
+}
+
+.print-root * {
+  margin: 0;
+  padding: 0;
+}
+
+/* Document Container & Page Geometry (Screen & Modal) */
+.document-page,
 .print-root {
-  position: relative;
-  box-sizing: border-box;
-  width: var(--print-page-width);
-  max-width: var(--print-page-width);
-  background-color: #ffffff;
-  font-family: Georgia, 'Times New Roman', Times, serif;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-
-  /*
-   * These are intentionally identical to the horizontal @page margins:
-   * 8mm left + 8mm right.
-   */
-  padding: 8mm;
-  margin: 0 auto;
-}
-
-@media (min-width: 640px) {
-  .print-root {
-    padding: 8mm;
-  }
-}
-
-.print-root > .print-header,
-.print-root > .print-title-section,
-.print-root > .info-property-box,
-.print-root > .print-chain-header,
-.print-root > .history-table,
-.print-root > .print-certification-section,
-.print-root > .print-receipt-docket,
-.print-root > .print-security-notice {
   width: 100%;
-  max-width: var(--print-content-width);
-  box-sizing: border-box;
-}
-
-/* Watermark: circular border ~450px x 450px, border ~16px, very low opacity ~0.02 */
-.print-watermark {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.02;
-  pointer-events: none;
-  user-select: none;
-  z-index: 0;
-}
-
-.print-watermark-inner {
-  width: 450px;
-  height: 450px;
-  border-radius: 9999px;
-  border: 16px solid #0f172a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 32px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-weight: 900;
-  font-size: 42px;
-  line-height: 1.15;
-  color: #0f172a;
-  box-sizing: border-box;
-}
-
-/* Header container: center aligned, border-bottom 2px solid #0f172a, padding-bottom 12px, mb 16px */
-.print-header {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 40px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #0f172a;
+}
+
+.document-page.paper-letter,
+.print-root.paper-letter {
+  max-width: 8.5in;
+}
+
+.document-page.paper-a4,
+.print-root.paper-a4 {
+  max-width: 8.27in;
+}
+
+.document-page.paper-legal,
+.print-root.paper-legal {
+  max-width: 8.5in;
+}
+
+.document-page.paper-auto,
+.print-root.paper-auto {
+  max-width: 900px;
+}
+
+/* Header */
+.print-header {
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  position: relative;
   border-bottom: 2px solid #0f172a;
   padding-bottom: 12px;
   margin-bottom: 16px;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .print-header-logo {
   height: 64px;
   max-height: 64px;
   display: block;
-  margin: 5mm auto 8px auto;
+  margin: 0 auto 8px auto;
 }
 
-/* Control No: upper right absolute, label ~9px uppercase bold gray, value ~12-14px monospace bold blue */
 .print-header-control-no {
   position: absolute;
   top: 0;
@@ -171,7 +129,7 @@
 
 .print-header-control-label {
   display: block;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
@@ -180,74 +138,76 @@
 }
 
 .print-header-control-val {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
   font-weight: 700;
   color: #1e40af;
 }
 
-/* Header Line 1: Republic of the Philippines ~11px uppercase tracking-widest #475569 fw-600 */
 .print-header-ph {
   font-size: 11px;
-  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  line-height: 1.25;
+  letter-spacing: 0.12em;
   color: #475569;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
-/* Header Line 2: Province of [province] ~11px uppercase tracking-widest #334155 fw-700 */
 .print-header-province {
   font-size: 11px;
-  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  line-height: 1.25;
+  letter-spacing: 0.12em;
   color: #334155;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-/* Header Line 3: Municipality of [municipality] ~12px uppercase tracking-wider #1e293b fw-700 */
 .print-header-municipality {
   font-size: 12px;
-  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  line-height: 1.25;
   color: #1e293b;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-/* Header Line 4: [OFFICE NAME] ~18-20px bold/black uppercase #172554 wide tracking */
 .print-header-office {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  line-height: 1.2;
   color: #172554;
-  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+  line-height: 1.2;
 }
 
-/* Header Line 5: Municipal Government Center, [Municipality], [Province] • Real Property Assessment & Tax Mapping Division ~9.5px */
 .print-header-sub {
   font-size: 9.5px;
   color: #64748b;
-  line-height: 1.25;
   margin-top: 2px;
+  line-height: 1.25;
 }
 
-/* Document Title: RECORD VERIFICATION DATA FORM ~20-24px fw-900 uppercase wide tracking #020617 underline 2px offset 4px */
+/* Document Title */
 .print-title-section {
   text-align: center;
   margin-bottom: 16px;
-  width: 100%;
 }
 
 .print-header-form-title {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 21px;
+  font-family: "Plus Jakarta Sans",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  font-size: 20px;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.15em;
   color: #020617;
   text-decoration: underline;
   text-decoration-thickness: 2px;
@@ -257,7 +217,7 @@
 }
 
 .print-header-cert-type {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -266,129 +226,142 @@
   margin-top: 4px;
 }
 
-/* Property Information Box: 100% width, border: 2px solid #0f172a, no rounded corners, white bg, mb ~20px */
+/* 5-Row Identification Card */
+.info-card,
 .info-property-box {
-  width: 100% !important;
-  border: 2px solid #0f172a !important;
-  border-collapse: collapse !important;
-  border-radius: 0 !important;
-  background-color: #ffffff !important;
-  margin-bottom: 20px !important;
-  font-family: Arial, Helvetica, sans-serif !important;
-  table-layout: fixed !important;
-  box-sizing: border-box !important;
+  width: 100%;
+  border: 2px solid #0f172a;
+  margin-bottom: 18px;
+  background: #ffffff;
+  font-size: 12px;
 }
 
-.info-property-box td.info-cell {
-  border: 1px solid #0f172a !important;
-  padding: 8px 10px !important;
-  vertical-align: middle !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-  line-height: 1.35 !important;
+.info-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #0f172a;
 }
 
+.info-row:last-child,
+.info-row-last {
+  border-bottom: none;
+}
+
+.info-cell {
+  padding: 7px 10px;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.info-cell.border-right {
+  border-right: 1px solid #0f172a;
+}
+
+.info-cell .label,
 .info-label {
   font-size: 9.5px;
-  text-transform: uppercase;
   font-weight: 700;
-  letter-spacing: 0.04em;
   color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  display: block;
 }
 
+.info-cell .value,
+.info-val {
+  font-size: 12px;
+  font-weight: 800;
+  color: #020617;
+  line-height: 1.25;
+  margin-top: 2px;
+  word-break: break-word;
+  display: block;
+}
+
+.info-cell .value.font-mono,
+.info-val-tdn,
+.info-val-pin {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.info-cell .value.highlight,
 .info-val-tdn {
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 13px;
-  font-weight: 900;
   color: #172554;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .info-val-pin {
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: #020617;
 }
 
-.info-val-owner {
-  font-size: 13px;
-  font-weight: 900;
-  text-transform: uppercase;
-  color: #0f172a;
-}
-
+.info-cell .value.address,
 .info-val-address {
-  font-size: 12.5px;
   font-weight: 500;
-  color: #0f172a;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
+.info-cell .value.admin,
 .info-val-admin {
-  font-size: 12.5px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #0f172a;
 }
 
+.info-cell .value.assessment,
 .info-val-assessment {
-  font-size: 12.5px;
   font-weight: 600;
-  color: #0f172a;
 }
 
+.info-cell .value.location,
 .info-val-location {
-  font-size: 12.5px;
   font-weight: 500;
-  color: #0f172a;
 }
 
+.info-cell .value.kind,
 .info-val-kind {
-  font-size: 12.5px;
   font-weight: 600;
-  color: #0f172a;
 }
 
+.info-cell .value.effectivity,
 .info-val-effectivity {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 800;
 }
 
+.info-cell .value.genclass,
 .info-val-genclass {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 800;
 }
 
-/* Continuous Chain Section Header */
+/* Chain Section Header */
+.section-head,
 .print-chain-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  font-family: Arial, Helvetica, sans-serif;
-  width: 100%;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1e293b;
 }
 
 .print-chain-header-left {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #0f172a;
 }
 
 .print-chain-icon {
   width: 14px;
   height: 14px;
-  color: #2563eb !important;
-  stroke: #2563eb !important;
+  color: #2563eb;
+  stroke: #2563eb;
   flex-shrink: 0;
 }
 
@@ -396,148 +369,233 @@
   font-size: 9.5px;
   font-weight: 500;
   color: #64748b;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-.info,
-.history-table {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-.history-table,
-.history-table *,
-.history-table th,
-.history-table td {
-  font-family: Arial, Helvetica, sans-serif !important;
-}
-
-.history-table {
+/* 9-Column Tax Declaration Table */
+table.history-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
   border: 2px solid #0f172a;
-  page-break-inside: auto;
-  break-inside: auto;
-}
-
-.history-table th,
-.history-table td {
-  box-sizing: border-box;
-  min-width: 0;
-}
-
-.history-table tbody tr {
-  page-break-inside: avoid;
-  break-inside: avoid;
+  font-size: 8.5px;
+  line-height: 1.2;
 }
 
 .history-table-header-row {
   background-color: #f1f5f9;
-  border-top: 2px solid #0f172a;
   border-bottom: 2px solid #0f172a;
 }
 
 .history-table-header-row th {
-  border: 1px solid #0f172a;
-  border-bottom: 2px solid #0f172a;
-  padding: 8px 4px;
-  font-size: 8px;
-  font-weight: 700;
+  padding: 6px 4px;
+  border-right: 1px solid #0f172a;
+  vertical-align: middle;
+  overflow: hidden;
+  word-break: keep-all;
+  font-size: 7.5px;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  vertical-align: bottom !important;
   color: #0f172a;
-  box-sizing: border-box;
 }
 
-.history-table-header-row th .th-line {
+.history-table-header-row th:last-child {
+  border-right: none;
+}
+
+.history-table-header-row .th-line {
   display: block;
-  line-height: 1.05;
   white-space: nowrap;
-  font-family: Arial, Helvetica, sans-serif !important;
-  font-size: inherit !important;
-  margin: 0;
-  padding: 0;
 }
 
-.history-table tbody td {
-  padding: 6px;
-  font-size: 8.5px;
-  line-height: 1.25;
+.history-table td {
+  padding: 6px 4px;
+  border-right: 1px solid #0f172a;
+  border-bottom: 1px solid #334155;
   vertical-align: top;
-  border: 1px solid #0f172a;
+  overflow: hidden;
+  min-width: 0;
+  word-break: break-word;
   color: #0f172a;
 }
 
-.print-signature {
-  font-family: Arial, Helvetica, sans-serif;
+.history-table td:last-child {
+  border-right: none;
 }
 
-.print-signatories {
-  font-family: Arial, Helvetica, sans-serif;
+/* Row Styling */
+.history-table tr.active-row {
+  background-color: rgba(255, 255, 255, 0.7);
 }
 
-.print-receipt-docket {
-  font-family: Arial, Helvetica, sans-serif;
+.history-table tr:nth-child(even):not(.active-row) {
+  background-color: rgba(255, 255, 255, 0.7);
 }
 
-/* Screen and Print Certification Section Styles (Aistudio translation) */
+/* History Table Typography Roles */
+.history-table tbody td:nth-child(1),
+.history-td-number,
+.history-pin,
+.history-table tbody td:nth-child(4),
+.history-survey,
+.history-area,
+.history-table tbody td:nth-child(7),
+.history-assessed-value,
+.history-table tbody td:nth-child(8),
+.history-effectivity {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.history-td-number {
+  font-weight: 700;
+  font-size: 8px;
+  line-height: 1.1;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.history-pin {
+  font-weight: 500;
+  font-size: 7px;
+  line-height: 1.1;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.history-table tbody td:nth-child(2),
+.history-declarant,
+.history-business,
+.history-table tbody td:nth-child(3),
+.history-area-unit,
+.history-table tbody td:nth-child(6),
+.history-title,
+.badge-status {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.history-declarant {
+  font-weight: 700;
+  font-size: 8px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.history-lot-number {
+  font-size: 8px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.history-business {
+  font-weight: 400;
+  font-size: 7px;
+  line-height: 1.1;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.history-survey {
+  font-size: 7.5px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.history-area {
+  font-weight: 600;
+  font-size: 8px;
+  line-height: 1.1;
+}
+
+.history-area-unit {
+  font-size: 7px;
+  line-height: 1;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.history-title {
+  font-weight: 500;
+  font-size: 8px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.history-assessed-value {
+  font-weight: 700;
+  font-size: 8px;
+  line-height: 1.1;
+}
+
+.history-effectivity {
+  font-weight: 500;
+  font-size: 7.5px;
+  line-height: 1.1;
+}
+
+.history-table tbody td:nth-child(9),
+.history-memoranda,
+.memoranda-text {
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 8px;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+/* Status Badges */
+.badge-status {
+  display: inline-block;
+  font-size: 6.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+  line-height: 1;
+  margin-top: 3px;
+  border: 1px solid;
+}
+
+/* Signatories Section */
 .print-certification-section {
   width: 100%;
-  margin-top: 4mm;
-  page-break-inside: auto;
-  break-inside: auto;
+  margin-top: 16px;
 }
 
-/* Given Statement matching Aistudio indent-8 text-sm leading-relaxed text-justify mb-12 */
-.print-given-statement {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 11px;
-  line-height: 1.6;
-  text-align: justify;
-  text-indent: 10mm;
-  margin-top: 2mm;
-  margin-bottom: 8mm;
-  color: #0f172a;
-}
-
-.print-given-statement strong {
-  font-weight: 700;
-  color: #0f172a;
-}
-
-/* 3 Official Signatories matching Aistudio grid-cols-3 gap-6 mb-10 */
+.signatories-grid,
 .print-signatories {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6mm;
-  margin-bottom: 8mm;
-  font-family: Arial, Helvetica, sans-serif;
-  page-break-inside: avoid;
-  break-inside: avoid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .print-signatory {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  text-align: center;
 }
 
 .print-signatory-label {
   display: flex;
   align-items: flex-start;
-  min-height: 10mm;
-  margin-bottom: 8mm;
+  justify-content: center;
+  min-height: 28px;
+  margin-bottom: 24px;
   font-size: 11px;
   line-height: 1.2;
   color: #475569;
   font-weight: 600;
   overflow-wrap: break-word;
-  word-break: normal;
 }
 
 .print-signatory-line {
   border-bottom: 1px solid #0f172a;
-  padding-bottom: 1mm;
+  padding-bottom: 2px;
 }
 
 .print-signatory-name {
@@ -547,44 +605,36 @@
   text-transform: uppercase;
   margin: 0;
   word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .print-signatory-title {
   font-size: 9.5px;
   color: #475569;
-  margin-top: 1mm;
+  margin-top: 3px;
   margin-bottom: 0;
   line-height: 1.2;
   word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .print-signatory-license {
   font-size: 9px;
   color: #64748b;
-  margin-top: 0.5mm;
+  margin-top: 2px;
   margin-bottom: 0;
   line-height: 1.2;
 }
 
-/* Official Receipt Particulars / Local Government Audit Trail Box */
-/* Aistudio: border-2 border-slate-800 rounded-lg p-3.5 bg-slate-50/50 font-sans text-xs */
+/* Official Receipt Box */
+.receipt-box,
 .print-receipt-docket {
-  width: 100%;
-  box-sizing: border-box;
-  border: 2px solid #1e293b !important;
-  border-radius: 6px;
-  padding: 3mm 4mm;
-  background-color: rgba(248, 250, 252, 0.5) !important;
-  -webkit-print-color-adjust: exact !important;
-  print-color-adjust: exact !important;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10.5px;
-  margin-top: 2mm;
-  margin-bottom: 2mm;
-  page-break-inside: avoid;
-  break-inside: avoid;
+  border: 1px solid #94a3b8;
+  background: #f8fafc;
+  padding: 10px 12px;
+  font-size: 9px;
+  color: #334155;
+  border-radius: 4px;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .print-receipt-docket-header {
@@ -592,14 +642,14 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #cbd5e1;
-  padding-bottom: 1.5mm;
-  margin-bottom: 2.5mm;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .print-receipt-docket-title {
   display: flex;
   align-items: center;
-  gap: 1.5mm;
+  gap: 6px;
   font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -612,49 +662,21 @@
   color: #1e293b;
 }
 
-.print-receipt-title-sub {
-  font-weight: 600;
-  color: #475569;
-}
-
 .print-receipt-icon {
   width: 14px;
   height: 14px;
-  color: #1e40af !important;
-  stroke: #1e40af !important;
-  fill: none !important;
+  color: #1e40af;
+  stroke: #1e40af;
+  fill: none;
   flex-shrink: 0;
-  -webkit-print-color-adjust: exact !important;
-  print-color-adjust: exact !important;
 }
 
-.print-root .print-receipt-icon {
-  width: 14px;
-  height: 14px;
-  color: #1e40af !important;
-  stroke: #1e40af !important;
-  fill: none !important;
-}
-
-.print-root .print-icon-blue {
-  color: #1e40af !important;
-  stroke: currentColor !important;
-  fill: none !important;
-}
-
-.print-receipt-form-no {
-  font-size: 9px;
-  font-family: Consolas, 'Courier New', monospace;
-  color: #64748b;
-}
-
-/* 3-column receipt grid matching Aistudio grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 */
 .print-receipt-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 4mm;
-  row-gap: 2mm;
-  font-size: 10px;
+  column-gap: 12px;
+  row-gap: 6px;
+  font-size: 9px;
 }
 
 .print-receipt-col-span-2 {
@@ -663,69 +685,63 @@
 
 .print-receipt-field-label {
   display: block;
-  font-size: 9px;
+  font-size: 8.5px;
   text-transform: uppercase;
   font-weight: 600;
   color: #64748b;
-  margin-bottom: 0.5mm;
+  margin-bottom: 1px;
 }
 
 .print-receipt-val-blue,
 .print-receipt-number {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-weight: 700;
-  color: #1e3a8a !important;
-  font-size: 11px;
-}
-
-.print-root .print-receipt-val-blue,
-.print-root .print-receipt-number {
-  color: #1e3a8a !important;
+  color: #1e40af;
+  font-size: 10px;
 }
 
 .print-receipt-val-amount {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-weight: 700;
   color: #0f172a;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .print-receipt-val-bold {
   font-weight: 600;
   color: #1e293b;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .print-receipt-val-medium {
   font-weight: 500;
   color: #1e293b;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .print-receipt-purpose-row {
   grid-column: span 3;
   border-top: 1px dashed #cbd5e1;
-  padding-top: 1.5mm;
-  margin-top: 1mm;
+  padding-top: 6px;
+  margin-top: 4px;
 }
 
 .print-receipt-val-purpose {
   font-weight: 600;
   color: #0f172a;
-  font-size: 10.5px;
+  font-size: 9.5px;
 }
 
-/* Bottom audit row matching Aistudio mt-2.5 pt-2 border-t border-slate-200 flex justify-between text-[9px] text-slate-500 font-mono */
 .print-receipt-footer {
-  margin-top: 2.5mm;
-  padding-top: 2mm;
+  margin-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 8.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 8px;
   color: #64748b;
-  font-family: Consolas, 'Courier New', monospace;
 }
 
 .print-receipt-seal {
@@ -734,46 +750,12 @@
   text-align: center;
 }
 
-/* Bottom security notice matching Aistudio text-[9px] font-sans text-center text-slate-400 mt-4 tracking-wider uppercase */
+/* Security Notice */
 .print-security-notice {
-  font-family: Arial, Helvetica, sans-serif;
   font-size: 8.5px;
   text-align: center;
   color: #94a3b8;
-  margin-top: 3mm;
-  margin-bottom: 0;
+  margin-top: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-}
-
-thead {
-  display: table-header-group;
-}
-
-tfoot {
-  display: table-footer-group;
-}
-
-tfoot td {
-  border: 0;
-  border-top: 1px solid #ddd;
-}
-
-table {
-  page-break-inside: auto;
-}
-
-tr {
-  page-break-inside: auto;
-  break-inside: auto;
-}
-
-td {
-  page-break-inside: auto;
-}
-
-/* Preserve memoranda line breaks while still allowing wrapping/splitting */
-td:last-child {
-  white-space: pre-wrap;
-  text-align: left;
 }

@@ -205,10 +205,39 @@ const RequestsTable = () => {
 
   // Print ref
   const printRef = useRef(null);
+
+  const getPrintFontUrl = (filename) => {
+    const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+
+    return `${window.location.origin}${publicUrl}/fonts/${filename}`;
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     removeAfterPrint: true,
-    pageStyle: getHistoryPrintPageStyle(paperSize)
+
+    fonts: [
+      {
+        family: 'Plus Jakarta Sans',
+        source: getPrintFontUrl('PlusJakartaSans-VariableFont.ttf'),
+        weight: '300 900',
+        style: 'normal',
+      },
+      {
+        family: 'Space Mono',
+        source: getPrintFontUrl('SpaceMono-Regular.ttf'),
+        weight: '400',
+        style: 'normal',
+      },
+      {
+        family: 'Space Mono',
+        source: getPrintFontUrl('SpaceMono-Bold.ttf'),
+        weight: '700',
+        style: 'normal',
+      },
+    ],
+
+    pageStyle: getHistoryPrintPageStyle(paperSize),
   });
 
   // Fetch requests
@@ -811,7 +840,14 @@ const RequestsTable = () => {
             Print Request History
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
+        <DialogContent
+          sx={{
+            p: 2,
+            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center'
+          }}
+        >
           {printLoading ? (
             <Box sx={{
               display: 'flex',
@@ -831,8 +867,23 @@ const RequestsTable = () => {
                </Typography> */}
             </Box>
           ) : (
-            <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>
-              <HistoryPrintDocument settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" paperSize={paperSize} />
+            <Box
+              sx={{
+                width: '100%',
+                maxHeight: '70vh',
+                overflow: 'auto',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-start'
+              }}
+            >
+              <HistoryPrintDocument
+                settings={settings}
+                printHistory={printHistory}
+                requestData={printRequestData}
+                documentType="request"
+                paperSize={paperSize}
+              />
             </Box>
           )}
         </DialogContent>

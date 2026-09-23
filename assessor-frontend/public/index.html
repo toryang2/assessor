@@ -15,6 +15,57 @@
     content="A comprehensive digital archiving and management system for real property records and historical data for Local Government Units." />
   <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+  <link
+    rel="preload"
+    href="%PUBLIC_URL%/fonts/PlusJakartaSans-VariableFont.ttf"
+    as="font"
+    type="font/ttf"
+    crossorigin
+  />
+
+  <link
+    rel="preload"
+    href="%PUBLIC_URL%/fonts/SpaceMono-Regular.ttf"
+    as="font"
+    type="font/ttf"
+    crossorigin
+  />
+
+  <link
+    rel="preload"
+    href="%PUBLIC_URL%/fonts/SpaceMono-Bold.ttf"
+    as="font"
+    type="font/ttf"
+    crossorigin
+  />
+
+  <style>
+    @font-face {
+      font-family: "Plus Jakarta Sans";
+      src: url("%PUBLIC_URL%/fonts/PlusJakartaSans-VariableFont.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 300 900;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Space Mono";
+      src: url("%PUBLIC_URL%/fonts/SpaceMono-Regular.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Space Mono";
+      src: url("%PUBLIC_URL%/fonts/SpaceMono-Bold.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+    }
+  </style>
+
   <title>Assessor Archiving System - Local Government Unit</title>
   <script>
     (function () {
