@@ -137,6 +137,46 @@ if ($test_revision_id) {
 }
 echo "PASSED Test 4\n";
 
+// Test 4b: Update with effectivity_exempt = "0" (must NOT be interpreted as EXEMPT)
+echo "\nTest 4b: Update with effectivity_exempt = \"0\" and effectivity_date = NULL (revision_id = NULL)...\n";
+$update_request = new WP_REST_Request('PUT', "/assessor/v1/properties/{$prop_id}");
+$update_request->set_url_params(array('id' => $prop_id));
+$update_request->set_body_params(array(
+    'effectivity_date'   => '',
+    'effectivity_exempt' => "0",
+));
+$res = $properties_api->update_property($prop_id, $update_request);
+if (is_wp_error($res)) {
+    echo "FAILED Test 4b: " . $res->get_error_message() . "\n";
+    exit(1);
+}
+$row = $wpdb->get_row($wpdb->prepare("SELECT effectivity_date, effectivity_exempt, revision_id FROM $table WHERE id = %s", $prop_id), ARRAY_A);
+echo "Result 4b: date=" . var_export($row['effectivity_date'], true) . ", exempt={$row['effectivity_exempt']}, rev=" . var_export($row['revision_id'], true) . "\n";
+assert($row['effectivity_date'] === null, "Test 4b effectivity_date is null");
+assert((int)$row['effectivity_exempt'] === 0, "Test 4b effectivity_exempt is 0 (string '0' was not treated as true)");
+assert($row['revision_id'] === null, "Test 4b revision_id is null");
+echo "PASSED Test 4b\n";
+
+// Test 4c: Update with effectivity_exempt = "1" (must be interpreted as EXEMPT)
+echo "\nTest 4c: Update with effectivity_exempt = \"1\"...\n";
+$update_request = new WP_REST_Request('PUT', "/assessor/v1/properties/{$prop_id}");
+$update_request->set_url_params(array('id' => $prop_id));
+$update_request->set_body_params(array(
+    'effectivity_date'   => '',
+    'effectivity_exempt' => "1",
+));
+$res = $properties_api->update_property($prop_id, $update_request);
+if (is_wp_error($res)) {
+    echo "FAILED Test 4c: " . $res->get_error_message() . "\n";
+    exit(1);
+}
+$row = $wpdb->get_row($wpdb->prepare("SELECT effectivity_date, effectivity_exempt, revision_id FROM $table WHERE id = %s", $prop_id), ARRAY_A);
+echo "Result 4c: date=" . var_export($row['effectivity_date'], true) . ", exempt={$row['effectivity_exempt']}, rev=" . var_export($row['revision_id'], true) . "\n";
+assert($row['effectivity_date'] === null, "Test 4c effectivity_date is null");
+assert((int)$row['effectivity_exempt'] === 1, "Test 4c effectivity_exempt is 1 (string '1' was treated as exempt)");
+assert($row['revision_id'] === null, "Test 4c revision_id is null");
+echo "PASSED Test 4c\n";
+
 // Test 5: Rejection of invalid years
 echo "\nTest 5: Rejection of invalid years...\n";
 $invalid_years = array('1799', '2101', '202A', '2025.5', '123', '12345');

@@ -40,6 +40,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       return false;
     }
   })();
+const isEffectivityExemptValue = (value) =>
+  value === true ||
+  value === 1 ||
+  value === '1';
+
   // Extract a reliable 4-digit year from various backend formats
   const extractEffectivityYear = (raw) => {
     if (!raw) return '';
@@ -281,7 +286,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   useEffect(() => {
     if (property) {
       const effectivityIsExempt =
-        Boolean(property.effectivity_exempt) ||
+        isEffectivityExemptValue(property.effectivity_exempt) ||
         /^exempt$/i.test(
           String(property.effectivity_date ?? '').trim()
         );
@@ -628,15 +633,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return isNaN(num) ? '' : num;
   };
 
-  const effectivityIsExempt = Boolean(formData.effectivity_exempt);
-
-  const effectivityIsBlank =
-    !effectivityIsExempt &&
-    (
-      formData.effectivity_date === '' ||
-      formData.effectivity_date === null ||
-      formData.effectivity_date === undefined
-    );
+  const effectivityIsExempt = isEffectivityExemptValue(formData.effectivity_exempt);
 
   const validateEffectivityYear = (value) => {
     const raw = String(value || '').trim();
@@ -655,7 +652,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
   };
 
   const normalizeEffectivityForSubmit = (value, exempt) => {
-    if (exempt) {
+    if (isEffectivityExemptValue(exempt)) {
       return null;
     }
 
@@ -758,7 +755,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       errors.push('Selected general class is not valid');
     }
 
-    if (!formData.effectivity_exempt) {
+    if (!isEffectivityExemptValue(formData.effectivity_exempt)) {
       const effectivity = String(formData.effectivity_date || '').trim();
 
       if (
@@ -766,7 +763,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         !validateEffectivityYear(effectivity)
       ) {
         errors.push(
-          'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100'
+          'Effectivity Year must be blank or a valid 4-digit year from 1800 to 2100.'
         );
       }
     }
@@ -837,7 +834,7 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
           formData.effectivity_date,
           formData.effectivity_exempt
         ),
-        effectivity_exempt: Boolean(formData.effectivity_exempt),
+        effectivity_exempt: isEffectivityExemptValue(formData.effectivity_exempt),
         pin: uppercaseFieldValue('pin', formData.pin),
         address: uppercaseFieldValue('address', formData.address),
         assessment_date: cleanAssessmentDate(formData.assessment_date),
@@ -1468,24 +1465,11 @@ const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                             setFormData(prev => ({
                               ...prev,
                               effectivity_date: '',
-                              effectivity_exempt: true
+                              effectivity_exempt: !effectivityIsExempt
                             }));
                           }}
                         >
                           EXEMPT
-                        </Button>
-                        <Button
-                          size="small"
-                          variant={effectivityIsBlank ? 'contained' : 'outlined'}
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              effectivity_date: '',
-                              effectivity_exempt: false
-                            }));
-                          }}
-                        >
-                          BLANK
                         </Button>
                       </Box>
                     </Box>

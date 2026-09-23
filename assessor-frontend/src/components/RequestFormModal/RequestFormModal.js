@@ -109,11 +109,16 @@ const normalizeDeclarantString = (name) => {
 };
 
 
+const isEffectivityExemptValue = (value) =>
+  value === true ||
+  value === 1 ||
+  value === '1';
+
 // Helper function to format effectivity according to whole-year / EXEMPT rules
 const formatEffectivityDisplay = (item) => {
   if (!item) return '—';
   const isExempt =
-    Boolean(item.effectivity_exempt) ||
+    isEffectivityExemptValue(item.effectivity_exempt) ||
     /^exempt$/i.test(String(item.effectivity_date ?? '').trim());
 
   if (isExempt) {

@@ -2,8 +2,12 @@
 
 class Assessor_Properties {
     
+    private function is_effectivity_exempt_value($value) {
+        return ($value === true || $value === 1 || $value === '1');
+    }
+
     private function normalize_effectivity_year($value, $exempt = false) {
-        if ($exempt) {
+        if ($this->is_effectivity_exempt_value($exempt)) {
             return null;
         }
 
@@ -585,7 +589,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
 
-        $effectivity_exempt = !empty($params['effectivity_exempt']);
+        $effectivity_exempt = isset($params['effectivity_exempt']) && $this->is_effectivity_exempt_value($params['effectivity_exempt']);
         $effectivity_year = $this->normalize_effectivity_year(
             $params['effectivity_date'] ?? null,
             $effectivity_exempt
@@ -599,7 +603,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         ) {
             return new WP_Error(
                 'invalid_effectivity_date',
-                'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100.',
+                'Effectivity Year must be blank or a valid 4-digit year from 1800 to 2100.',
                 array('status' => 400)
             );
         }
@@ -879,8 +883,8 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
             // Audit comparison for effectivity_exempt flag (0 or 1)
             if ($field === 'effectivity_exempt') {
-                $old_exempt = !empty($old_raw) ? 1 : 0;
-                $new_exempt = !empty($new_raw) ? 1 : 0;
+                $old_exempt = $this->is_effectivity_exempt_value($old_raw) ? 1 : 0;
+                $new_exempt = $this->is_effectivity_exempt_value($new_raw) ? 1 : 0;
                 if ($old_exempt !== $new_exempt) {
                     $old_values[$field] = $old_exempt;
                     $new_values[$field] = $new_exempt;
@@ -890,7 +894,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
 
             // Audit comparison for effectivity_date
             if ($field === 'effectivity_date') {
-                $is_eff_exempt = !empty($params['effectivity_exempt']);
+                $is_eff_exempt = isset($params['effectivity_exempt']) && $this->is_effectivity_exempt_value($params['effectivity_exempt']);
                 $old_eff = ($old_raw === null || $old_raw === '') ? null : (string)$old_raw;
                 $new_eff = $this->normalize_effectivity_year($new_raw, $is_eff_exempt);
 
@@ -923,37 +927,42 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     }
                 }
 
-                // If both null/empty, no change
-                if ($old_num === null && $new_num === null) {
+                // If both are null/empty, they're equal
+                if (is_null($old_num) && is_null($new_num)) {
                     continue;
                 }
-                
-                // Compare rounded numeric values
-                $old_round = is_null($old_num) ? null : round($old_num, $precision);
-                $new_round = is_null($new_num) ? null : round($new_num, $precision);
-                
-                if ($old_round === $new_round) {
-                    continue; // no effective change
+
+                // If one is null and the other isn't, they're different
+                if (is_null($old_num) !== is_null($new_num)) {
+                    $old_values[$field] = $old_num;
+                    $new_values[$field] = $new_num;
+                    continue;
                 }
-                
-                // Store formatted values for readability
-                $old_values[$field] = is_null($old_round) ? null : number_format($old_round, $precision, '.', '');
-                $new_values[$field] = is_null($new_round) ? null : number_format($new_round, $precision, '.', '');
+
+                // Format both numbers to identical precision strings before comparing
+                $old_formatted = number_format($old_num, $precision, '.', '');
+                $new_formatted = number_format($new_num, $precision, '.', '');
+
+                if ($old_formatted !== $new_formatted) {
+                    $old_values[$field] = $old_formatted;
+                    $new_values[$field] = $new_formatted;
+                }
                 continue;
             }
 
-            // String-like fields: normalize whitespace and case similar to UI
-            $normalize_string = function($v) {
-                if ($v === null) return null;
-                $s = trim((string)$v);
-                // Treat empty strings as null for comparison purposes
-                return $s === '' ? null : $s;
-            };
-            $old_norm = $normalize_string($old_raw);
-            $new_norm = $normalize_string($new_raw);
-            if ($old_norm !== $new_norm) {
-                $old_values[$field] = $old_norm;
-                $new_values[$field] = $new_norm;
+            // String and other fields comparison
+            $old_str = is_null($old_raw) ? '' : trim((string)$old_raw);
+            $new_str = is_null($new_raw) ? '' : trim((string)$new_raw);
+
+            // Normalize line endings for multiline text fields
+            if ($field === 'location' || $field === 'address' || $field === 'memoranda' || $field === 'supporting_documents') {
+                $old_str = str_replace(array("\r\n", "\r"), "\n", $old_str);
+                $new_str = str_replace(array("\r\n", "\r"), "\n", $new_str);
+            }
+
+            if ($old_str !== $new_str) {
+                $old_values[$field] = $old_str;
+                $new_values[$field] = $new_str;
             }
         }
 
@@ -975,29 +984,28 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         );
         
         foreach ($allowed_fields as $field) {
+            $param_key = $field;
             if ($field === 'business') {
-                if (isset($params['business_name'])) {
-                    $update_data['business'] = sanitize_text_field($params['business_name']);
-                }
-                continue;
+                $param_key = 'business_name';
             }
-            if (isset($params[$field])) {
-                if ($field === 'previous_tax_declaration_number') {
-                    $update_data[$field] = $this->normalize_previous_tax_declaration_numbers($params[$field]);
-                } else
-                if ($field === 'area_hectare_old') {
+            if (array_key_exists($param_key, $params)) {
+                if ($field === 'business') {
+                    $update_data['business'] = sanitize_text_field($params['business_name']);
+                } else if ($field === 'previous_tax_declaration_number') {
+                    $update_data[$field] = $this->normalize_previous_tax_declaration_numbers($params[$param_key]);
+                } else if ($field === 'area_hectare_old') {
                     // Allow explicit nulling when cleared on edit
-                    if ($params[$field] === '' || is_null($params[$field])) {
+                    if ($params[$param_key] === '' || is_null($params[$param_key])) {
                         $update_data[$field] = null;
                     } else {
-                        $update_data[$field] = sanitize_text_field($params[$field]);
+                        $update_data[$field] = sanitize_text_field($params[$param_key]);
                     }
                 } else if (in_array($field, array('address', 'memoranda', 'supporting_documents', 'supporting_documents_old'), true)) {
                     // Preserve newlines for textarea-like fields (MySQL TEXT supports \n)
-                    $update_data[$field] = sanitize_textarea_field($params[$field]);
+                    $update_data[$field] = sanitize_textarea_field($params[$param_key]);
                 } else if ($field === 'municipal_assessor_license') {
                     // Handle municipal_assessor_license with prefix to preserve leading zeros
-                    $license_value = sanitize_text_field($params[$field]);
+                    $license_value = sanitize_text_field($params[$param_key]);
                     if (!empty($license_value)) {
                         $update_data[$field] = 'LICENSE_' . $license_value;
                         error_log("🔍 UPDATE: Added prefix = 'LICENSE_$license_value'");
@@ -1005,12 +1013,15 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                         $update_data[$field] = $license_value;
                     }
                 } else if (in_array($field, array('area_hectare', 'area_sqm', 'assessed_value'), true)) {
-                    $update_data[$field] = floatval($params[$field]);
+                    $val = $params[$param_key];
+                    $update_data[$field] = ($val === '' || is_null($val)) ? null : floatval($val);
+                } else if ($field === 'survey_number' && !isset($params['survey_number']) && isset($params['unique_lot_number_identified'])) {
+                    $update_data[$field] = sanitize_text_field($params['unique_lot_number_identified']);
                 } else if ($field === 'revision_id' || $field === 'effectivity_date' || $field === 'effectivity_exempt') {
                     // Handled authoritatively via effectivity logic below
                     continue;
                 } else {
-                    $update_data[$field] = sanitize_text_field($params[$field]);
+                    $update_data[$field] = sanitize_text_field($params[$param_key]);
                 }
             }
         }
@@ -1020,7 +1031,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         $has_effectivity_exempt = array_key_exists('effectivity_exempt', $params);
 
         if ($has_effectivity_date || $has_effectivity_exempt) {
-            $incoming_effectivity_exempt = !empty($params['effectivity_exempt']);
+            $incoming_effectivity_exempt = isset($params['effectivity_exempt']) && $this->is_effectivity_exempt_value($params['effectivity_exempt']);
             $incoming_effectivity_year = $this->normalize_effectivity_year(
                 $params['effectivity_date'] ?? null,
                 $incoming_effectivity_exempt
@@ -1050,7 +1061,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 // Invalid non-empty year supplied
                 return new WP_Error(
                     'invalid_effectivity_date',
-                    'Effectivity Year must be blank, EXEMPT, or a valid 4-digit year from 1800 to 2100.',
+                    'Effectivity Year must be blank or a valid 4-digit year from 1800 to 2100.',
                     array('status' => 400)
                 );
             }

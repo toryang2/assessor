@@ -59,11 +59,16 @@ const formatDateOnly = (dateString) => {
 };
 
 
+const isEffectivityExemptValue = (value) =>
+  value === true ||
+  value === 1 ||
+  value === '1';
+
 // Helper function to format effectivity year for print/history tables according to whole-year / EXEMPT rules
 const formatPrintEffectivity = (item) => {
   if (!item) return '—';
   const isExempt =
-    Boolean(item.effectivity_exempt) ||
+    isEffectivityExemptValue(item.effectivity_exempt) ||
     /^exempt$/i.test(String(item.effectivity_date ?? '').trim());
 
   if (isExempt) {
