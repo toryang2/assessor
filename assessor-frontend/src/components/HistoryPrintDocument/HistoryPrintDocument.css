@@ -79,18 +79,7 @@
   border: 1px solid #cbd5e1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
-
-  font-family:
-    "Plus Jakarta Sans",
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
-
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: #0f172a;
 }
 
@@ -140,6 +129,7 @@
 
 .print-header-control-label {
   display: block;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
@@ -148,16 +138,7 @@
 }
 
 .print-header-control-val {
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
   font-weight: 700;
   color: #1e40af;
@@ -236,6 +217,7 @@
 }
 
 .print-header-cert-type {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -303,16 +285,7 @@
 .info-cell .value.font-mono,
 .info-val-tdn,
 .info-val-pin {
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .info-cell .value.highlight,
@@ -404,19 +377,10 @@
 table.history-table {
   width: 100%;
   border-collapse: collapse;
-  border-spacing: 0;
   table-layout: fixed;
   border: 2px solid #0f172a;
   font-size: 8.5px;
   line-height: 1.2;
-}
-
-.history-table th,
-.history-table td {
-  box-sizing: border-box;
-  border-width: 1px;
-  border-style: solid;
-  border-color: #0f172a;
 }
 
 .history-table-header-row {
@@ -426,6 +390,7 @@ table.history-table {
 
 .history-table-header-row th {
   padding: 6px 4px;
+  border-right: 1px solid #0f172a;
   vertical-align: middle;
   overflow: hidden;
   word-break: keep-all;
@@ -434,9 +399,10 @@ table.history-table {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #0f172a;
-  border-width: 1px;
-  border-style: solid;
-  border-color: #0f172a;
+}
+
+.history-table-header-row th:last-child {
+  border-right: none;
 }
 
 .history-table-header-row .th-line {
@@ -444,17 +410,19 @@ table.history-table {
   white-space: nowrap;
 }
 
-.history-table tbody td {
+.history-table td {
   padding: 6px 4px;
+  border-right: 1px solid #0f172a;
+  border-bottom: 1px solid #334155;
   vertical-align: top;
   overflow: hidden;
   min-width: 0;
   word-break: break-word;
   color: #0f172a;
+}
 
-  border-width: 1px;
-  border-style: solid;
-  border-color: #0f172a;
+.history-table td:last-child {
+  border-right: none;
 }
 
 /* Row Styling */
@@ -477,16 +445,7 @@ table.history-table {
 .history-assessed-value,
 .history-table tbody td:nth-child(8),
 .history-effectivity {
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .history-td-number {
@@ -505,7 +464,16 @@ table.history-table {
   overflow-wrap: anywhere;
 }
 
-
+.history-table tbody td:nth-child(2),
+.history-declarant,
+.history-business,
+.history-table tbody td:nth-child(3),
+.history-area-unit,
+.history-table tbody td:nth-child(6),
+.history-title,
+.badge-status {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
 .history-declarant {
   font-weight: 700;
@@ -726,32 +694,14 @@ table.history-table {
 
 .print-receipt-val-blue,
 .print-receipt-number {
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-weight: 700;
   color: #1e40af;
   font-size: 10px;
 }
 
 .print-receipt-val-amount {
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-weight: 700;
   color: #0f172a;
   font-size: 10px;
@@ -789,16 +739,7 @@ table.history-table {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family:
-    "Space Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 8px;
   color: #64748b;
 }
