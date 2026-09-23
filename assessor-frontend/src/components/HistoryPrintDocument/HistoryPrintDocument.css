@@ -2,6 +2,9 @@
 @media print {
   html, body {
     width: 212mm;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .print-root,
@@ -13,6 +16,16 @@
   body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .print-root {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    background: #ffffff !important;
   }
 
   .history-table td {
@@ -67,11 +80,6 @@
     content: counter(page) " of " counter(pages);
   }
 
-  .print-root {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
   .print-signature {
     page-break-inside: avoid;
     break-inside: avoid;
@@ -80,26 +88,74 @@
 
 /* Document Typography Hierarchy */
 .print-root {
-  font-family: 'Times New Roman', Times, serif;
+  position: relative;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  margin: 0 auto;
 }
 
+@media (min-width: 640px) {
+  .print-root {
+    padding: 36px;
+  }
+}
+
+/* Watermark: circular border ~450px x 450px, border ~16px, very low opacity ~0.02 */
+.print-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.02;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.print-watermark-inner {
+  width: 450px;
+  height: 450px;
+  border-radius: 9999px;
+  border: 16px solid #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  font-size: 42px;
+  line-height: 1.15;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+/* Header container: center aligned, border-bottom 2px solid #0f172a, padding-bottom 12px, mb 16px */
 .print-header {
   position: relative;
   text-align: center;
-  font-family: 'Times New Roman', Times, serif;
+  font-family: Arial, Helvetica, sans-serif;
   border-bottom: 2px solid #0f172a;
-  padding-bottom: 3mm;
-  margin-bottom: 4mm;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .print-header-logo {
-  height: 16mm;
+  height: 64px;
   max-height: 64px;
   display: block;
-  margin: 0 auto 2mm auto;
+  margin: 5mm auto 8px auto;
 }
 
+/* Control No: upper right absolute, label ~9px uppercase bold gray, value ~12-14px monospace bold blue */
 .print-header-control-no {
   position: absolute;
   top: 0;
@@ -111,7 +167,7 @@
 .print-header-control-label {
   display: block;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   color: #64748b;
@@ -120,52 +176,221 @@
 
 .print-header-control-val {
   font-family: Consolas, 'Courier New', monospace;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   color: #1e40af;
 }
 
+/* Header Line 1: Republic of the Philippines ~11px uppercase tracking-widest #475569 fw-600 */
 .print-header-ph {
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
   line-height: 1.25;
-  color: #0f172a;
+  color: #475569;
 }
 
+/* Header Line 2: Province of [province] ~11px uppercase tracking-widest #334155 fw-700 */
 .print-header-province {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
   line-height: 1.25;
-  color: #0f172a;
+  color: #334155;
 }
 
+/* Header Line 3: Municipality of [municipality] ~12px uppercase tracking-wider #1e293b fw-700 */
 .print-header-municipality {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   line-height: 1.25;
-  color: #0f172a;
+  color: #1e293b;
 }
 
+/* Header Line 4: [OFFICE NAME] ~18-20px bold/black uppercase #172554 wide tracking */
 .print-header-office {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  color: #172554;
+  margin-top: 3px;
+}
+
+/* Header Line 5: Municipal Government Center, [Municipality], [Province] • Real Property Assessment & Tax Mapping Division ~9.5px */
+.print-header-sub {
+  font-size: 9.5px;
+  color: #64748b;
   line-height: 1.25;
-  color: #0f172a;
+  margin-top: 2px;
+}
+
+/* Document Title: RECORD VERIFICATION DATA FORM ~20-24px fw-900 uppercase wide tracking #020617 underline 2px offset 4px */
+.print-title-section {
+  text-align: center;
+  margin-bottom: 16px;
+  width: 100%;
 }
 
 .print-header-form-title {
-  font-family: Tahoma, Arial, sans-serif;
-  font-size: 14px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 21px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #020617;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  margin-top: 0;
+  margin-bottom: 2px;
+}
+
+.print-header-cert-type {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  text-decoration: underline;
-  letter-spacing: 0.5px;
-  margin-top: 2.5mm;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Property Information Box: 100% width, border: 2px solid #0f172a, no rounded corners, white bg, mb ~20px */
+.info-property-box {
+  width: 100% !important;
+  border: 2px solid #0f172a !important;
+  border-collapse: collapse !important;
+  border-radius: 0 !important;
+  background-color: #ffffff !important;
+  margin-bottom: 20px !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  table-layout: fixed !important;
+  box-sizing: border-box !important;
+}
+
+.info-property-box td.info-cell {
+  border: 1px solid #0f172a !important;
+  padding: 8px 10px !important;
+  vertical-align: middle !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  line-height: 1.35 !important;
+}
+
+.info-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #334155;
+}
+
+.info-val-tdn {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 900;
+  color: #172554;
+}
+
+.info-val-pin {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
   color: #0f172a;
+}
+
+.info-val-owner {
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.info-val-address {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #0f172a;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.info-val-admin {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.info-val-assessment {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.info-val-location {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.info-val-kind {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.info-val-effectivity {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.info-val-genclass {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Continuous Chain Section Header */
+.print-chain-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-family: Arial, Helvetica, sans-serif;
+  width: 100%;
+}
+
+.print-chain-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+}
+
+.print-chain-icon {
+  width: 14px;
+  height: 14px;
+  color: #2563eb !important;
+  stroke: #2563eb !important;
+  flex-shrink: 0;
+}
+
+.print-chain-header-right {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .info,
@@ -177,6 +402,7 @@
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  border: 2px solid #0f172a;
 }
 
 .history-table-header-row {
@@ -188,35 +414,35 @@
 .history-table-header-row th {
   border: 1px solid #0f172a;
   border-bottom: 2px solid #0f172a;
-  padding: 2mm 1mm;
-  font-size: 7.5px;
+  padding: 8px 4px;
+  font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
   line-height: 1.05;
   vertical-align: bottom;
   color: #0f172a;
 }
 
+@media print {
+  .history-table-header-row th {
+    font-size: 7px;
+  }
+}
+
 .history-table-header-row th .th-line {
   display: block;
+  line-height: 1.05;
   white-space: nowrap;
 }
 
-.info-property-box {
-  border: 2px solid #1e293b !important;
-  border-collapse: collapse !important;
-  margin: 3mm auto 3.5mm auto !important;
-  background-color: #ffffff;
-}
-
-.info-property-box td {
-  border: 1px solid #cbd5e1 !important;
-  line-height: 1.35;
-}
-
-.info-tdn-val {
-  color: #1e3a8a !important;
+.history-table tbody td {
+  padding: 6px;
+  font-size: 8.5px;
+  line-height: 1.25;
+  vertical-align: top;
+  border: 1px solid #0f172a;
+  color: #0f172a;
 }
 
 .print-signature {
@@ -356,6 +582,16 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #1e293b;
+}
+
+.print-receipt-title-main {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.print-receipt-title-sub {
+  font-weight: 600;
+  color: #475569;
 }
 
 .print-receipt-icon {

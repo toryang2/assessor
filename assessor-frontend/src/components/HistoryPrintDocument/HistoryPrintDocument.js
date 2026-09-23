@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { Typography } from '@mui/material';
-import { Receipt } from 'lucide-react';
+import { Receipt, Layers } from 'lucide-react';
 import { formatAppDate } from '../../utils/dateTime';
 import './HistoryPrintDocument.css';
 
@@ -251,6 +251,13 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
   return (
     <div ref={ref} className="print-root" style={rootDimensions}>
+      {/* Subtle watermark circle */}
+      <div className="print-watermark" aria-hidden="true">
+        <div className="print-watermark-inner">
+          OFFICE OF THE MUNICIPAL ASSESSOR
+        </div>
+      </div>
+
       <div className="print-header">
         <div className="print-header-control-no">
           <span className="print-header-control-label">CONTROL NO.</span>
@@ -263,9 +270,21 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         <div className="print-header-province">{headerProvince}</div>
         <div className="print-header-municipality">{headerMunicipality}</div>
         <div className="print-header-office">{headerOffice}</div>
-        <div className="header-title print-header-form-title">{headerTitle}</div>
+        <div className="print-header-sub">
+          {`Municipal Government Center, ${baseMunicipality}, ${toFormalCase(baseProvince)} • Real Property Assessment & Tax Mapping Division`}
+        </div>
       </div>
 
+      <div className="print-title-section">
+        <div className="header-title print-header-form-title">{headerTitle}</div>
+        {(isRequest && requestData?.purpose) || requestData?.purpose_category || requestData?.document_type ? (
+          <div className="print-header-cert-type">
+            {`(${String(requestData?.purpose || requestData?.purpose_category || requestData?.document_type).toUpperCase()})`}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Property Information Box - 5 Rows */}
       <table className="info info-property-box" style={{ width: '100%', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: '50%' }} />
@@ -273,65 +292,88 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
         </colgroup>
         <tbody>
           <tr>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>TAX DECLARATION NUMBER:</span>{' '}
-              <span className="info-tdn-val" style={{ fontFamily: 'Consolas, Courier New, monospace', fontWeight: 700, color: '#1e3a8a' }}>
+            <td className="info-cell">
+              <span className="info-label">Tax Declaration Number:</span>{' '}
+              <span className="info-val-tdn">
                 {(printHistory && printHistory[0] && printHistory[0].tax_declaration_number) || ''}
               </span>
             </td>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>PIN:</span>{' '}
-              <span style={{ fontFamily: 'Consolas, Courier New, monospace', fontWeight: 600, color: '#1e293b' }}>
+            <td className="info-cell">
+              <span className="info-label">PIN:</span>{' '}
+              <span className="info-val-pin">
                 {(printHistory && printHistory[0] && printHistory[0].pin) || ''}
               </span>
             </td>
           </tr>
           <tr>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>OWNER:</span>{' '}
-              <span style={{ fontWeight: 700, color: '#0f172a' }}>
+            <td className="info-cell">
+              <span className="info-label">OWNER:</span>{' '}
+              <span className="info-val-owner">
                 {normalizeDeclarantString(printHistory?.[0]?.declarant_name) || ''}
               </span>
             </td>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>ADDRESS:</span>{' '}
-              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', color: '#1e293b' }}>
+            <td className="info-cell">
+              <span className="info-label">ADDRESS:</span>{' '}
+              <span className="info-val-address">
                 {(printHistory && printHistory[0] && printHistory[0].address) || ''}
               </span>
             </td>
           </tr>
           <tr>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>ADMINISTRATOR/BUSINESS NAME:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}</span>
+            <td className="info-cell">
+              <span className="info-label">ADMINISTRATOR/BUSINESS NAME:</span>{' '}
+              <span className="info-val-admin">
+                {sanitizeBusinessName(printHistory?.[0]?.business_name) || ''}
+              </span>
             </td>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>ASSESSMENT DATE:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>LOCATION:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && printHistory[0].location) || ''}</span>
-            </td>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>KIND OF PROPERTY:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}</span>
+            <td className="info-cell">
+              <span className="info-label">ASSESSMENT DATE:</span>{' '}
+              <span className="info-val-assessment">
+                {(printHistory && printHistory[0] && printHistory[0].assessment_date) || ''}
+              </span>
             </td>
           </tr>
           <tr>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>EFFECTIVITY DATE:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && formatPrintEffectivity(printHistory[0])) || '—'}</span>
+            <td className="info-cell">
+              <span className="info-label">LOCATION:</span>{' '}
+              <span className="info-val-location">
+                {(printHistory && printHistory[0] && printHistory[0].location) || ''}
+              </span>
             </td>
-            <td style={{ padding: '2.5mm 3mm', fontSize: 11, verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 700, color: '#334155' }}>GEN. CLASS:</span>{' '}
-              <span style={{ color: '#1e293b' }}>{(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}</span>
+            <td className="info-cell">
+              <span className="info-label">KIND OF PROPERTY:</span>{' '}
+              <span className="info-val-kind">
+                {(printHistory && printHistory[0] && (printHistory[0].kind_of_property_name || printHistory[0].kind_of_property)) || ''}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td className="info-cell">
+              <span className="info-label">EFFECTIVITY DATE:</span>{' '}
+              <span className="info-val-effectivity">
+                {(printHistory && printHistory[0] && formatPrintEffectivity(printHistory[0])) || '—'}
+              </span>
+            </td>
+            <td className="info-cell">
+              <span className="info-label">GEN. CLASS:</span>{' '}
+              <span className="info-val-genclass">
+                {(printHistory && printHistory[0] && (printHistory[0].gen_class_name || printHistory[0].gen_class)) || ''}
+              </span>
             </td>
           </tr>
         </tbody>
       </table>
+
+      {/* Continuous Chain Section Header */}
+      <div className="print-chain-header">
+        <div className="print-chain-header-left">
+          <Layers className="print-chain-icon" />
+          <span>Continuous Chain of Tax Declarations (Until Last Superseded)</span>
+        </div>
+        <div className="print-chain-header-right">
+          {`${printHistory?.length || 0} Recorded Revision(s)`}
+        </div>
+      </div>
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
@@ -591,7 +633,8 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
             <div className="print-receipt-docket-header">
               <div className="print-receipt-docket-title">
                 <Receipt className="print-receipt-icon" />
-                <span>OFFICIAL RECEIPT PARTICULARS</span>
+                <span className="print-receipt-title-main">OFFICIAL RECEIPT PARTICULARS</span>
+                <span className="print-receipt-title-sub">(LOCAL GOVERNMENT AUDIT TRAIL)</span>
               </div>
               {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
             </div>
@@ -633,7 +676,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
         {/* Bottom security notice */}
         <p className="print-security-notice">
-          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this document.
+          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this certificate.
         </p>
 
       </div>
