@@ -252,11 +252,11 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   return (
     <div ref={ref} className="print-root" style={rootDimensions}>
       {/* Subtle watermark circle */}
-      <div className="print-watermark" aria-hidden="true">
+      {/* <div className="print-watermark" aria-hidden="true">
         <div className="print-watermark-inner">
           OFFICE OF THE MUNICIPAL ASSESSOR
         </div>
-      </div>
+      </div> */}
 
       <div className="print-header">
         <div className="print-header-control-no">
@@ -377,23 +377,23 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '13%' }} />
           <col style={{ width: '15%' }} />
-          <col style={{ width: '8%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '10%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '16%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '18%' }} />
         </colgroup>
         <thead>
           <tr className="history-table-header-row">
-            <th style={{ textAlign: 'left' }}>
-              <span className="th-line">Tax Dec.</span>
+            <th style={{ textAlign: 'center' }}>
+              <span className="th-line">Tax Declaration</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Declarant</span>
             </th>
             <th style={{ textAlign: 'center' }}>
@@ -404,21 +404,21 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
               <span className="th-line">Survey</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'right' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Area</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Title</span>
               <span className="th-line">Number</span>
             </th>
-            <th style={{ textAlign: 'right' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Assessed</span>
               <span className="th-line">Value</span>
             </th>
             <th style={{ textAlign: 'center' }}>
               <span className="th-line">Effectivity</span>
             </th>
-            <th style={{ textAlign: 'left' }}>
+            <th style={{ textAlign: 'center' }}>
               <span className="th-line">Memoranda</span>
             </th>
           </tr>
@@ -437,7 +437,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
             return (
               <tr key={index}>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                   <div style={{
                     color: isConsolidated ? '#ed6c02' : 'inherit',
                     fontWeight: 600
@@ -454,32 +454,49 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     </div>
                   )}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
                   {(() => {
                     const d = normalizeDeclarantString(item.declarant_name);
                     const b = item.business_name
                       ? String(item.business_name).replace(/,\s*/g, ' ')
                       : '';
+
                     if (!d && !b) return '';
+
                     return (
                       <>
                         {d && (
-                          <Typography variant="body2" component="span" sx={{ fontWeight: 'bold', fontSize: 10, display: 'block', lineHeight: 1.2 }}>
+                          <span
+                            style={{
+                              fontWeight: 'bold',
+                              fontSize: 10,
+                              display: 'block',
+                              lineHeight: 1.2,
+                            }}
+                          >
                             {d}
-                          </Typography>
+                          </span>
                         )}
+
                         {b && (
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: 9, lineHeight: 1.1 }}>
+                          <span
+                            style={{
+                              fontSize: 8,
+                              display: 'block',
+                              lineHeight: 1.1,
+                              color: '#666',
+                            }}
+                          >
                             {b}
-                          </Typography>
+                          </span>
                         )}
                       </>
                     );
                   })()}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.lot_number || ''}</td>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>{item.survey_number || ''}</td>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
                   {(() => {
                     const haRaw = item.area_hectare;
                     const sqmRaw = item.area_sqm;
@@ -509,10 +526,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     }
                   })()}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere', hyphens: 'none' }}>
                   {item.title_number || ''}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
                   {(() => {
                     const currentValue = item.assessed_value;
                     const oldValue = item.assessed_value_old;
@@ -535,10 +552,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     }
                   })()}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top' }}>
                   {formatPrintEffectivity(item)}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
+                <td style={{ padding: 4, fontSize: 10, verticalAlign: 'top', textAlign: 'left' }}>
                   <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.memoranda || ''}</div>
                 </td>
               </tr>
@@ -634,7 +651,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
               <div className="print-receipt-docket-title">
                 <Receipt className="print-receipt-icon" />
                 <span className="print-receipt-title-main">OFFICIAL RECEIPT PARTICULARS</span>
-                <span className="print-receipt-title-sub">(LOCAL GOVERNMENT AUDIT TRAIL)</span>
+                {/* <span className="print-receipt-title-sub">(LOCAL GOVERNMENT AUDIT TRAIL)</span> */}
               </div>
               {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
             </div>
@@ -676,7 +693,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
         {/* Bottom security notice */}
         <p className="print-security-notice">
-          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this certificate.
+          This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this document.
         </p>
 
       </div>

@@ -1,6 +1,8 @@
 /* Print Styles for HistoryPrintDocument */
 @media print {
-  html, body {
+
+  html,
+  body {
     width: 212mm;
     background: #ffffff !important;
     padding: 0 !important;
@@ -92,7 +94,7 @@
   box-sizing: border-box;
   background-color: #ffffff;
   font-family: Georgia, 'Times New Roman', Times, serif;
-  color: #0f172a;
+  /* color: #0f172a; */
   border: 1px solid #cbd5e1;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   padding: 24px;
@@ -419,8 +421,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  line-height: 1.05;
-  vertical-align: bottom;
+  vertical-align: middle;
   color: #0f172a;
 }
 
