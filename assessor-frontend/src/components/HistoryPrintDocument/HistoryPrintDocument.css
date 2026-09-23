@@ -43,7 +43,7 @@
   }
 
   .history-table th {
-    vertical-align: bottom !important;
+    vertical-align: middle !important;
   }
 
   /* Force word breaking for long strings without spaces */
