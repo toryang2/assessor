@@ -832,7 +832,7 @@ const RequestsTable = () => {
             </Box>
           ) : (
             <Box sx={{ maxHeight: '70vh', overflow: 'auto', width: '100%' }}>
-              <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" />
+              <HistoryPrintDocument settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" paperSize={paperSize} />
             </Box>
           )}
         </DialogContent>
@@ -887,7 +887,6 @@ const RequestsTable = () => {
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
         <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" paperSize={paperSize} />
-        <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
 
       {/* Request Form Modal */}
