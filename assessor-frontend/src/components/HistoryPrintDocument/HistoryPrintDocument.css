@@ -64,11 +64,9 @@
   }
 
   .history-table tbody td {
-    background-image: linear-gradient(
-      to bottom,
-      transparent calc(100% - 1px),
-      #0f172a calc(100% - 1px)
-    ) !important;
+    background-image: linear-gradient(to bottom,
+        transparent calc(100% - 1px),
+        #0f172a calc(100% - 1px)) !important;
     background-repeat: no-repeat !important;
     background-size: 100% 100% !important;
 
@@ -282,7 +280,7 @@
 .info-card,
 .info-property-box {
   width: 100%;
-  border: 2px solid #0f172a;
+  border: 1px solid #666666ff;
   margin-bottom: 18px;
   background: #ffffff;
   font-size: 12px;
@@ -291,7 +289,7 @@
 .info-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-bottom: 1px solid #0f172a;
+  border-bottom: 1px solid #666666ff;
 }
 
 .info-row:last-child,
@@ -309,7 +307,7 @@
 }
 
 .info-cell.border-right {
-  border-right: 1px solid #0f172a;
+  border-right: 1px solid #666666ff;
 }
 
 .info-cell .label,
@@ -432,7 +430,7 @@ table.history-table,
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
-  border: 2px solid #0f172a;
+  border: 1px solid #666666ff;
   font-size: 8.5px;
   line-height: 1.2;
 }
@@ -459,7 +457,7 @@ table.history-table,
 
 .history-table th,
 .history-table td {
-  border: 1px solid #0f172a;
+  border: 1px solid #666666ff;
 }
 
 .history-table-header-row {
@@ -468,8 +466,8 @@ table.history-table,
 
 .history-table-header-row th {
   padding: 6px 4px;
-  border: 1px solid #0f172a;
-  border-bottom: 2px solid #0f172a;
+  border: 1px solid #666666ff;
+  border-bottom: 1px solid #666666ff;
   vertical-align: middle;
   overflow: hidden;
   word-break: keep-all;
@@ -494,8 +492,8 @@ table.history-table,
   overflow-wrap: break-word;
   color: #0f172a;
 
-  border-right: 1px solid #0f172a;
-  border-bottom: 1px solid #0f172a;
+  border-right: 1px solid #666666ff;
+  border-bottom: 1px solid #666666ff;
 
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;

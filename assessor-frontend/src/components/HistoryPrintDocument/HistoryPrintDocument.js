@@ -382,8 +382,8 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
           <col style={{ width: '14%' }} />
           <col style={{ width: '15%' }} />
           <col style={{ width: '8%' }} />
-          <col style={{ width: '9%' }} />
-          <col style={{ width: '7%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '6%' }} />
           <col style={{ width: '10%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '9%' }} />
@@ -568,6 +568,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
             );
           })}
         </tbody>
+        <tfoot>
+          <tr>
+          </tr>
+        </tfoot>
       </table>
 
       {/* Certification, Signatories & Receipt Docket section (Aistudio translation) */}
@@ -840,7 +844,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table {
       border-collapse: collapse !important;
       border-spacing: 0 !important;
-      border: 2px solid #0f172a !important;
+      border: 1px solid #666666ff !important;
     }
 
     .history-table thead {
@@ -874,7 +878,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table th,
     .history-table td {
       box-sizing: border-box !important;
-      border: 1px solid #0f172a !important;
+      border: 1px solid #666666ff !important;
       overflow: visible !important;
       word-break: break-word !important;
       overflow-wrap: break-word !important;
@@ -884,20 +888,20 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       -webkit-box-decoration-break: clone !important;
       box-decoration-break: clone !important;
       padding: 6px 4px !important;
-      border-right: 1px solid #0f172a !important;
-      border-bottom: 1px solid #0f172a !important;
+      border-right: 1px solid #666666ff !important;
+      border-bottom: 1px solid #666666ff !important;
       overflow: visible !important;
       background-image: linear-gradient(
         to bottom,
         transparent calc(100% - 1px),
-        #0f172a calc(100% - 1px)
+        #666666ff calc(100% - 1px)
       ) !important;
       background-repeat: no-repeat !important;
       background-size: 100% 100% !important;
     }
 
     .history-table-header-row th {
-      border-bottom: 2px solid #0f172a !important;
+      border-bottom: 1px solid #666666ff !important;
     }
 
     .history-memoranda,
@@ -910,15 +914,19 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     }
 
     .info-card {
-      border: 2px solid #0f172a !important;
+      border: 1px solid #666666ff !important;
     }
 
     .info-row {
-      border-bottom: 1px solid #0f172a !important;
+      border-bottom: 1px solid #666666ff !important;
+    }
+    .info-row:last-child,
+    .info-row-last {
+      border-bottom: 0px !important;
     }
 
     .info-cell.border-right {
-      border-right: 1px solid #0f172a !important;
+      border-right: 1px solid #666666ff !important;
     }
 
     .print-signature,
