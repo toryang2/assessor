@@ -43,7 +43,48 @@
   td {
     word-break: break-word !important;
     overflow-wrap: break-word !important;
-    overflow: hidden !important;
+  }
+
+  .history-table th,
+  .history-table td {
+    overflow: visible !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .history-table thead {
+    display: table-header-group;
+  }
+
+  .history-table tbody {
+    display: table-row-group;
+  }
+
+  .history-table tbody tr {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .history-td-number,
+  .history-pin,
+  .history-declarant,
+  .history-business,
+  .history-lot-number,
+  .history-survey,
+  .history-area,
+  .history-area-unit,
+  .history-title,
+  .history-assessed-value,
+  .history-effectivity {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .history-memoranda,
+  .memoranda-text {
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 
   .print-signature,
@@ -374,23 +415,50 @@
 }
 
 /* 9-Column Tax Declaration Table */
-table.history-table {
+table.history-table,
+.history-table {
   width: 100%;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   border: 2px solid #0f172a;
   font-size: 8.5px;
   line-height: 1.2;
 }
 
+.history-table tbody tr {
+  break-inside: auto;
+  page-break-inside: auto;
+}
+
+.history-td-number,
+.history-pin,
+.history-declarant,
+.history-business,
+.history-lot-number,
+.history-survey,
+.history-area,
+.history-area-unit,
+.history-title,
+.history-assessed-value,
+.history-effectivity {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.history-table th,
+.history-table td {
+  border: 1px solid #0f172a;
+}
+
 .history-table-header-row {
   background-color: #f1f5f9;
-  border-bottom: 2px solid #0f172a;
 }
 
 .history-table-header-row th {
   padding: 6px 4px;
-  border-right: 1px solid #0f172a;
+  border: 1px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
   vertical-align: middle;
   overflow: hidden;
   word-break: keep-all;
@@ -401,28 +469,25 @@ table.history-table {
   color: #0f172a;
 }
 
-.history-table-header-row th:last-child {
-  border-right: none;
-}
-
 .history-table-header-row .th-line {
   display: block;
   white-space: nowrap;
 }
 
-.history-table td {
+.history-table tbody td {
   padding: 6px 4px;
-  border-right: 1px solid #0f172a;
-  border-bottom: 1px solid #334155;
   vertical-align: top;
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
   word-break: break-word;
+  overflow-wrap: break-word;
   color: #0f172a;
-}
 
-.history-table td:last-child {
-  border-right: none;
+  border-right: 1px solid #0f172a;
+  border-bottom: 1px solid #0f172a;
+
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* Row Styling */
@@ -543,10 +608,27 @@ table.history-table {
 .history-table tbody td:nth-child(9),
 .history-memoranda,
 .memoranda-text {
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family:
+    ui-serif,
+    Georgia,
+    Cambria,
+    "Times New Roman",
+    Times,
+    serif;
+
   font-size: 8px;
   color: #1e293b;
   line-height: 1.25;
+
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  break-inside: auto;
+  page-break-inside: auto;
+  overflow: visible;
+
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* Status Badges */

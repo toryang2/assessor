@@ -379,15 +379,15 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
 
       <table className="history-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '13%' }} />
+          <col style={{ width: '14%' }} />
           <col style={{ width: '15%' }} />
           <col style={{ width: '8%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '7%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '11%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '16%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '19%' }} />
         </colgroup>
         <thead>
           <tr className="history-table-header-row">
@@ -780,6 +780,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-pin,
     .history-table tbody td:nth-child(4),
     .history-survey,
+    .history-lot-number,
     .history-area,
     .history-table tbody td:nth-child(7),
     .history-assessed-value,
@@ -791,7 +792,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .print-receipt-footer {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
     }
-      
+
     .history-table tbody td:nth-child(2),
     .history-declarant,
     .history-business,
@@ -829,7 +830,6 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     td {
       word-break: break-word !important;
       overflow-wrap: break-word !important;
-      overflow: hidden !important;
     }
 
     .history-table {
@@ -838,22 +838,61 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       border: 2px solid #0f172a !important;
     }
 
+    .history-table thead {
+      display: table-header-group !important;
+    }
+
+    .history-table tbody {
+      display: table-row-group !important;
+    }
+
+    .history-table tbody tr {
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+    }
+
+    .history-td-number,
+    .history-pin,
+    .history-declarant,
+    .history-business,
+    .history-lot-number,
+    .history-survey,
+    .history-area,
+    .history-area-unit,
+    .history-title,
+    .history-assessed-value,
+    .history-effectivity {
+      break-inside: avoid-page !important;
+      page-break-inside: avoid !important;
+    }
+
     .history-table th,
     .history-table td {
       box-sizing: border-box !important;
-      border-width: 1px !important;
-      border-style: solid !important;
-      border-color: #0f172a !important;
+      border: 1px solid #0f172a !important;
+      overflow: visible !important;
+      word-break: break-word !important;
+      overflow-wrap: break-word !important;
+    }
+
+    .history-table tbody td {
+      -webkit-box-decoration-break: clone !important;
+      box-decoration-break: clone !important;
+      padding: 6px 4px !important;
+      border-right: 1px solid #0f172a !important;
+      border-bottom: 1px solid #0f172a !important;
+      overflow: visible !important;
     }
 
     .history-table-header-row th {
-      border-width: 1px !important;
-      border-style: solid !important;
-      border-color: #0f172a !important;
+      border-bottom: 2px solid #0f172a !important;
     }
 
-    .history-table-header-row {
-      border-bottom: 2px solid #0f172a !important;
+    .history-memoranda,
+    .memoranda-text {
+      break-inside: auto !important;
+      page-break-inside: auto !important;
+      overflow: visible !important;
     }
 
     .info-card {
