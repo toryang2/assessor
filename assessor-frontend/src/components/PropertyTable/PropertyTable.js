@@ -2478,7 +2478,6 @@ const PropertyTable = () => {
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
         <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="property" paperSize={paperSize} />
-        <div className="print-page-footer"><span className="pageNumber" /></div>
       </div>
     </Box>
   );

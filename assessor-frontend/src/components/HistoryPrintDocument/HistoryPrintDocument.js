@@ -691,8 +691,8 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
             </div>
 
             <div className="print-receipt-footer">
-              <span>Doc. Stamp Tax: PAID & AFFIXED</span>
-              <span className="print-receipt-seal">★ VALID ONLY WITH OFFICIAL RAISED DRY SEAL ★</span>
+              {/* <span>Doc. Stamp Tax: PAID & AFFIXED</span> */}
+              <span className="print-receipt-seal">VALID ONLY WITH OFFICIAL RAISED DRY SEAL</span>
               <span>Ref ID: {referenceId}</span>
             </div>
           </div>
@@ -723,6 +723,13 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     @page {
       size: auto;
       margin: 8mm 6mm;
+
+      @bottom-right {
+        content: counter(page) "/" counter(pages);
+        font-family: 'Arial', sans-serif;
+        font-size: 10px;
+        color: #ddddddff;
+      }
     }
 
     body {
@@ -844,7 +851,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table {
       border-collapse: collapse !important;
       border-spacing: 0 !important;
-      border: 1px solid #666666ff !important;
+      border: 1px solid #ddddddff !important;
     }
 
     .history-table thead {
@@ -878,7 +885,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table th,
     .history-table td {
       box-sizing: border-box !important;
-      border: 1px solid #666666ff !important;
+      border: 1px solid #ddddddff !important;
       overflow: visible !important;
       word-break: break-word !important;
       overflow-wrap: break-word !important;
@@ -886,13 +893,13 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
 
     .history-table tbody td {
       padding: 6px 4px !important;
-      border-right: 1px solid #666666ff !important;
-      border-bottom: 1px solid #666666ff !important;
+      border-right: 1px solid #ddddddff !important;
+      border-bottom: 1px solid #ddddddff !important;
       overflow: visible !important;
     }
 
     .history-table-header-row th {
-      border-bottom: 1px solid #666666ff !important;
+      border-bottom: 1px solid #ddddddff !important;
     }
 
     .history-memoranda,
@@ -903,11 +910,11 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     }
 
     .info-card {
-      border: 1px solid #666666ff !important;
+      border: 1px solid #ddddddff !important;
     }
 
     .info-row {
-      border-bottom: 1px solid #666666ff !important;
+      border-bottom: 1px solid #ddddddff !important;
     }
     .info-row:last-child,
     .info-row-last {
@@ -915,7 +922,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     }
 
     .info-cell.border-right {
-      border-right: 1px solid #666666ff !important;
+      border-right: 1px solid #ddddddff !important;
     }
 
     .print-signature,

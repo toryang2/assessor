@@ -271,7 +271,7 @@
 .info-card,
 .info-property-box {
   width: 100%;
-  border: 1px solid #666666ff;
+  border: 1px solid #ddddddff;
   margin-bottom: 18px;
   background: #ffffff;
   font-size: 12px;
@@ -280,7 +280,7 @@
 .info-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-bottom: 1px solid #666666ff;
+  border-bottom: 1px solid #ddddddff;
 }
 
 .info-row:last-child,
@@ -298,7 +298,7 @@
 }
 
 .info-cell.border-right {
-  border-right: 1px solid #666666ff;
+  border-right: 1px solid #ddddddff;
 }
 
 .info-cell .label,
@@ -421,7 +421,7 @@ table.history-table,
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
-  border: 1px solid #666666ff;
+  border: 1px solid #ddddddff;
   font-size: 8.5px;
   line-height: 1.2;
 }
@@ -448,7 +448,7 @@ table.history-table,
 
 .history-table th,
 .history-table td {
-  border: 1px solid #666666ff;
+  border: 1px solid #ddddddff;
 }
 
 .history-table-header-row {
@@ -457,8 +457,8 @@ table.history-table,
 
 .history-table-header-row th {
   padding: 6px 4px;
-  border: 1px solid #666666ff;
-  border-bottom: 1px solid #666666ff;
+  border: 1px solid #ddddddff;
+  border-bottom: 1px solid #ddddddff;
   vertical-align: middle;
   overflow: hidden;
   word-break: keep-all;
@@ -483,8 +483,8 @@ table.history-table,
   overflow-wrap: break-word;
   color: #0f172a;
 
-  border-right: 1px solid #666666ff;
-  border-bottom: 1px solid #666666ff;
+  border-right: 1px solid #ddddddff;
+  border-bottom: 1px solid #ddddddff;
 }
 
 /* Row Styling */
