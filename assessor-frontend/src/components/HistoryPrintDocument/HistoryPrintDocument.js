@@ -832,6 +832,11 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       overflow-wrap: break-word !important;
     }
 
+    .history-table th,
+    .history-table td {
+      overflow: visible !important;
+    }
+
     .history-table {
       border-collapse: collapse !important;
       border-spacing: 0 !important;
@@ -882,6 +887,13 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       border-right: 1px solid #0f172a !important;
       border-bottom: 1px solid #0f172a !important;
       overflow: visible !important;
+      background-image: linear-gradient(
+        to bottom,
+        transparent calc(100% - 1px),
+        #0f172a calc(100% - 1px)
+      ) !important;
+      background-repeat: no-repeat !important;
+      background-size: 100% 100% !important;
     }
 
     .history-table-header-row th {
@@ -890,6 +902,8 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
 
     .history-memoranda,
     .memoranda-text {
+      -webkit-box-decoration-break: clone !important;
+      box-decoration-break: clone !important;
       break-inside: auto !important;
       page-break-inside: auto !important;
       overflow: visible !important;

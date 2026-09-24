@@ -48,8 +48,6 @@
   .history-table th,
   .history-table td {
     overflow: visible !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
   }
 
   .history-table thead {
@@ -63,6 +61,19 @@
   .history-table tbody tr {
     break-inside: auto !important;
     page-break-inside: auto !important;
+  }
+
+  .history-table tbody td {
+    background-image: linear-gradient(
+      to bottom,
+      transparent calc(100% - 1px),
+      #0f172a calc(100% - 1px)
+    ) !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% 100% !important;
+
+    -webkit-box-decoration-break: clone !important;
+    box-decoration-break: clone !important;
   }
 
   .history-td-number,
