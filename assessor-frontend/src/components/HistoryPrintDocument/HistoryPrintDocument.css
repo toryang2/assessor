@@ -440,6 +440,7 @@ table.history-table {
 .history-pin,
 .history-table tbody td:nth-child(4),
 .history-survey,
+.history-lot-number,
 .history-area,
 .history-table tbody td:nth-child(7),
 .history-assessed-value,
@@ -499,18 +500,20 @@ table.history-table {
 }
 
 .history-survey {
-  font-size: 7.5px;
+  font-size: 8px;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
 
 .history-area {
+  text-align: right;
   font-weight: 600;
   font-size: 8px;
   line-height: 1.1;
 }
 
 .history-area-unit {
+  text-align: right;
   font-size: 7px;
   line-height: 1;
   color: #64748b;
@@ -525,6 +528,7 @@ table.history-table {
 }
 
 .history-assessed-value {
+  text-align: right;
   font-weight: 700;
   font-size: 8px;
   line-height: 1.1;
@@ -532,7 +536,7 @@ table.history-table {
 
 .history-effectivity {
   font-weight: 500;
-  font-size: 7.5px;
+  font-size: 8px;
   line-height: 1.1;
 }
 

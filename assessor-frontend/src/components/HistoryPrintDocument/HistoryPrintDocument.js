@@ -150,7 +150,7 @@ const toFormalCase = (text) => {
  * - paperSize: 'a4' | 'letter' | 'legal' | 'auto' (default: 'a4')
  */
 const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, documentType, paperSize = 'a4' }, ref) => {
-  const isRequest = documentType === 'request' || (documentType === undefined && Boolean(requestData && (requestData.id || requestData.receipt_number || requestData.purpose)));
+  const isRequest = documentType === 'request' || (documentType === undefined && Boolean(requestData && (requestData.id || requestData.receipt_number || requestData.purpose || requestData.purpose_details || requestData.client_name)));
 
   const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
   const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
@@ -167,6 +167,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
   const purpose = isRequest
     ? (requestData?.purpose_details ? String(requestData.purpose_details).trim() : '—')
     : ((printHistory && printHistory[0] && printHistory[0].purpose) || 'Certification of Assessor\'s Record');
+
+  const clientName = isRequest
+    ? (requestData?.client_name ? String(requestData.client_name).trim() : '—')
+    : '—';
 
   // Receipt and Audit data resolution:
   const rawDateIssued = requestData?.date_issued || requestData?.date_requested || (printHistory && printHistory[0] && printHistory[0].created_at) || '';
@@ -508,10 +512,13 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     return (
                       <>
                         <div className="history-area">
-                          {currentArea ? `${currentArea} ${unitStr}` : (oldHaRaw || '')}
+                          {currentArea ? `${currentArea}` : (oldHaRaw || '')}
+                        </div>
+                        <div className='history-area-unit'>
+                          {currentArea ? `${unitStr}` : ''}
                         </div>
                         {hasOldHa && currentArea && (
-                          <div className="history-area-unit">
+                          <div className="history-area">
                             {`(Old: ${oldHaRaw})`}
                           </div>
                         )}
@@ -672,6 +679,8 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
               </div>
 
               <div className="print-receipt-purpose-row">
+                <span className="print-receipt-field-label">Requested by:</span>
+                <span className="print-receipt-val-purpose">{clientName}</span>
                 <span className="print-receipt-field-label">Purpose:</span>
                 <span className="print-receipt-val-purpose">{purpose}</span>
               </div>
@@ -781,6 +790,17 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .print-receipt-val-amount,
     .print-receipt-footer {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    }
+      
+    .history-table tbody td:nth-child(2),
+    .history-declarant,
+    .history-business,
+    .history-table tbody td:nth-child(3),
+    .history-area-unit,
+    .history-table tbody td:nth-child(6),
+    .history-title,
+    .badge-status {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
 
     .history-table tbody td:nth-child(9),
