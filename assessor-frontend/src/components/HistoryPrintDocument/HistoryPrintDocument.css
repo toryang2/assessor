@@ -63,16 +63,7 @@
     page-break-inside: auto !important;
   }
 
-  .history-table tbody td {
-    background-image: linear-gradient(to bottom,
-        transparent calc(100% - 1px),
-        #0f172a calc(100% - 1px)) !important;
-    background-repeat: no-repeat !important;
-    background-size: 100% 100% !important;
-
-    -webkit-box-decoration-break: clone !important;
-    box-decoration-break: clone !important;
-  }
+  .history-table tbody td {}
 
   .history-td-number,
   .history-pin,
@@ -312,7 +303,7 @@
 
 .info-cell .label,
 .info-label {
-  font-size: 9.5px;
+  font-size: 8px;
   font-weight: 700;
   color: #334155;
   text-transform: uppercase;
@@ -323,7 +314,7 @@
 
 .info-cell .value,
 .info-val {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #020617;
   line-height: 1.25;
@@ -341,7 +332,7 @@
 .info-cell .value.highlight,
 .info-val-tdn {
   color: #172554;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -494,9 +485,6 @@ table.history-table,
 
   border-right: 1px solid #666666ff;
   border-bottom: 1px solid #666666ff;
-
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
 }
 
 /* Row Styling */
@@ -519,6 +507,7 @@ table.history-table,
 .history-table tbody td:nth-child(7),
 .history-assessed-value,
 .history-table tbody td:nth-child(8),
+.history-title,
 .history-effectivity {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
@@ -541,11 +530,12 @@ table.history-table,
 
 .history-table tbody td:nth-child(2),
 .history-declarant,
+.history-memoranda,
+.memoranda-text,
 .history-business,
 .history-table tbody td:nth-child(3),
 .history-area-unit,
 .history-table tbody td:nth-child(6),
-.history-title,
 .badge-status {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -614,9 +604,12 @@ table.history-table,
   line-height: 1.1;
 }
 
-.history-table tbody td:nth-child(9),
-.history-memoranda,
-.memoranda-text {
+.history-table tbody td:nth-child(9)
+
+/*, */
+/* .history-memoranda,
+.memoranda-text*/
+  {
   font-family:
     ui-serif,
     Georgia,
@@ -635,9 +628,6 @@ table.history-table,
   break-inside: auto;
   page-break-inside: auto;
   overflow: visible;
-
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
 }
 
 /* Status Badges */

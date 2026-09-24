@@ -252,10 +252,10 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
       </div> */}
 
       <div className="print-header">
-        <div className="print-header-control-no">
+        {/* <div className="print-header-control-no">
           <span className="print-header-control-label">CONTROL NO.</span>
           <span className="print-header-control-val">{referenceId}</span>
-        </div>
+        </div> */}
         {appLogoUrl ? (
           <img src={appLogoUrl} alt="Logo" className="print-header-logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : null}
@@ -785,6 +785,7 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table tbody td:nth-child(4),
     .history-survey,
     .history-lot-number,
+    .history-title,
     .history-area,
     .history-table tbody td:nth-child(7),
     .history-assessed-value,
@@ -803,14 +804,13 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .history-table tbody td:nth-child(3),
     .history-area-unit,
     .history-table tbody td:nth-child(6),
-    .history-title,
+    .history-memoranda,
+    .memoranda-text,
     .badge-status {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
 
-    .history-table tbody td:nth-child(9),
-    .history-memoranda,
-    .memoranda-text {
+    .history-table tbody td:nth-child(9) {
       font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif !important;
       font-size: 8px !important;
       color: #1e293b !important;
@@ -885,19 +885,10 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     }
 
     .history-table tbody td {
-      -webkit-box-decoration-break: clone !important;
-      box-decoration-break: clone !important;
       padding: 6px 4px !important;
       border-right: 1px solid #666666ff !important;
       border-bottom: 1px solid #666666ff !important;
       overflow: visible !important;
-      background-image: linear-gradient(
-        to bottom,
-        transparent calc(100% - 1px),
-        #666666ff calc(100% - 1px)
-      ) !important;
-      background-repeat: no-repeat !important;
-      background-size: 100% 100% !important;
     }
 
     .history-table-header-row th {
@@ -906,8 +897,6 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
 
     .history-memoranda,
     .memoranda-text {
-      -webkit-box-decoration-break: clone !important;
-      box-decoration-break: clone !important;
       break-inside: auto !important;
       page-break-inside: auto !important;
       overflow: visible !important;
