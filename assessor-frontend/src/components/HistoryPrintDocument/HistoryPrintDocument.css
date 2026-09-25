@@ -788,6 +788,13 @@ table.history-table,
   font-size: 10px;
 }
 
+.print-receipt-val-amount {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 10px;
+}
+
 .print-receipt-val-bold {
   font-weight: 600;
   color: #1e293b;
@@ -817,6 +824,17 @@ table.history-table,
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 8px;
+  color: #64748b;
+}
+
+.print-receipt-footer2 {
+  margin-top: 8px;
+  padding-top: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;

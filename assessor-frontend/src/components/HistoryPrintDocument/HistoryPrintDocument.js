@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { Typography } from '@mui/material';
-import { Receipt, Layers } from 'lucide-react';
+import { Receipt, Layers, AlignJustify } from 'lucide-react';
 import { formatAppDate } from '../../utils/dateTime';
 import './HistoryPrintDocument.css';
 
@@ -199,11 +199,11 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
     || '';
   const preparedByTitle = (requestData && requestData.prepared_by_title)
     || (settings && settings.prepared_by_title)
-    || 'Administrative Aide';
+    || 'ADMINISTRATIVE AIDE';
 
   // Signatory 2: Verifier signatory resolution:
   // If requestData provides an override, use it (request mode); otherwise fallback to printHistory[0] or settings
-  const verifierSignatoryFullName = (isRequest && requestData?.verifier_signatory_name)
+  const verifierSignatoryFullName = (!isRequest && requestData?.verifier_signatory_name)
     || (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name)
     || (settings && settings.verifier_signatory_name)
     || '';
@@ -539,7 +539,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     const hasOld = oldValue && oldValue !== '';
 
                     if (!hasCurrent && !hasOld) {
-                      return <div className="history-assessed-value"><span>₱</span>0.00</div>;
+                      return <div className="history-assessed-value">₱0.00</div>;
                     }
 
                     let displayValue = '';
@@ -649,6 +649,12 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
           </div>
         </div>
 
+        {!isRequest && (
+          <div className="print-receipt-footer2">
+            <span>Date Issued: {formattedDateIssued}</span>
+            <span>Ref ID: {referenceId}</span>
+          </div>
+        )}
         {/* Official Receipt Particulars / Local Government Audit Trail Box (Request Only) */}
         {isRequest && (
           <div className="print-receipt-docket receipt-box">
