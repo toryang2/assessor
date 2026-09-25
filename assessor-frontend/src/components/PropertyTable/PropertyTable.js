@@ -448,6 +448,7 @@ const PropertyTable = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [printModal, setPrintModal] = useState(false);
   const [printHistory, setPrintHistory] = useState([]);
+  const [printPropertyData, setPrintPropertyData] = useState(null);
   const [printDocuments, setPrintDocuments] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
   const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
@@ -864,11 +865,46 @@ const PropertyTable = () => {
     }
   };
 
-  const handleViewPrintableHistory = async (taxDeclarationNumber) => {
+  const handleViewPrintableHistory = async (propertyOrTaxDeclarationNumber) => {
     try {
       setPrintLoading(true);
       setPrintModal(true);
-      const response = await apiService.getTaxDeclarationHistory(taxDeclarationNumber);
+
+      const isPropertyObject =
+        propertyOrTaxDeclarationNumber &&
+        typeof propertyOrTaxDeclarationNumber === 'object';
+
+      let selectedProperty = isPropertyObject
+        ? propertyOrTaxDeclarationNumber
+        : null;
+
+      const taxDeclarationNumber = isPropertyObject
+        ? propertyOrTaxDeclarationNumber.tax_declaration_number
+        : propertyOrTaxDeclarationNumber;
+
+      // When called with only a TDN, such as Dashboard Recent Properties,
+      // try to recover the exact property row from the currently loaded data.
+      if (!selectedProperty && taxDeclarationNumber) {
+        selectedProperty =
+          (safeProperties || []).find(
+            (item) =>
+              String(item?.tax_declaration_number || '') ===
+              String(taxDeclarationNumber)
+          ) ||
+          (allProperties || []).find(
+            (item) =>
+              String(item?.tax_declaration_number || '') ===
+              String(taxDeclarationNumber)
+          ) ||
+          null;
+      }
+
+      setPrintPropertyData(selectedProperty);
+
+      const response = await apiService.getTaxDeclarationHistory(
+        taxDeclarationNumber
+      );
+
       setPrintHistory(response || []);
       // Load documents for the current (latest) property for preview
       try {
@@ -1612,7 +1648,7 @@ const PropertyTable = () => {
                     <Box display="flex" gap={1} alignItems="flex-start">
                       <IconButton
                         size="small"
-                        onClick={() => handleViewPrintableHistory(property.tax_declaration_number)}
+                        onClick={() => handleViewPrintableHistory(property)}
                         color="default"
                         sx={{ p: 0.25 }}
                         title="View History (Print)"
@@ -2477,7 +2513,15 @@ const PropertyTable = () => {
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="property" paperSize={paperSize} />
+        <HistoryPrintDocument
+          ref={printRef}
+          settings={settings}
+          printHistory={printHistory}
+          requestData={printRequestData}
+          printPropertyData={printPropertyData}
+          documentType="property"
+          paperSize={paperSize}
+        />
       </div>
     </Box>
   );
