@@ -127,6 +127,7 @@ const RequestsTable = () => {
   const [printRequestData, setPrintRequestData] = useState(null);
   const [printHistory, setPrintHistory] = useState([]);
   const [printLoading, setPrintLoading] = useState(false);
+  const [printGeneratedAt, setPrintGeneratedAt] = useState(null);
   const [requestFormModal, setRequestFormModal] = useState(false);
 
   // Settings state
@@ -410,6 +411,9 @@ const RequestsTable = () => {
   // Handle print request
   const handlePrintRequest = async (request) => {
     try {
+      const generatedAt = new Date();
+      setPrintGeneratedAt(generatedAt);
+
       setPrintLoading(true);
       setPrintModal(true);
       setPrintRequestData(request);
@@ -884,6 +888,7 @@ const RequestsTable = () => {
                 requestData={printRequestData}
                 documentType="request"
                 paperSize={paperSize}
+                printGeneratedAt={printGeneratedAt}
               />
             </Box>
           )}
@@ -938,7 +943,15 @@ const RequestsTable = () => {
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-        <HistoryPrintDocument ref={printRef} settings={settings} printHistory={printHistory} requestData={printRequestData} documentType="request" paperSize={paperSize} />
+        <HistoryPrintDocument
+          ref={printRef}
+          settings={settings}
+          printHistory={printHistory}
+          requestData={printRequestData}
+          documentType="request"
+          paperSize={paperSize}
+          printGeneratedAt={printGeneratedAt}
+        />
       </div>
 
       {/* Request Form Modal */}

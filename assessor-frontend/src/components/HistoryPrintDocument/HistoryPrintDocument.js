@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { Typography } from '@mui/material';
 import { Receipt, Layers, AlignJustify } from 'lucide-react';
-import { formatAppDate } from '../../utils/dateTime';
+import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
 import './HistoryPrintDocument.css';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -156,7 +156,8 @@ const HistoryPrintDocument = forwardRef(
     requestData,
     printPropertyData,
     documentType,
-    paperSize = 'a4'
+    paperSize = 'a4',
+    printGeneratedAt
   }, ref) => {
     const isRequest = documentType === 'request' || (documentType === undefined && Boolean(requestData && (requestData.id || requestData.receipt_number || requestData.purpose || requestData.purpose_details || requestData.client_name)));
 
@@ -186,9 +187,11 @@ const HistoryPrintDocument = forwardRef(
     const formattedDateIssued = rawDateIssued
       ? (isRequest ? formatDateOnly(rawDateIssued) : formatDate(rawDateIssued))
       : '—';
-    const rawUpdatedAt = requestData?.updated_at || (printHistory && printHistory[0] && printHistory[0].updated_at) || '';
-    const formattedUpdatedAt = rawUpdatedAt
-      ? (isRequest ? formatDateOnly(rawUpdatedAt) : formatDate(rawUpdatedAt))
+    const formattedGeneratedAt = printGeneratedAt
+      ? formatAppDateTime(printGeneratedAt, {
+        month: 'long',
+        second: '2-digit',
+      })
       : '—';
     const amountPaidNum = requestData?.amount_paid !== undefined && requestData?.amount_paid !== null && requestData?.amount_paid !== ''
       ? Number(requestData.amount_paid)
@@ -676,12 +679,12 @@ const HistoryPrintDocument = forwardRef(
             </div>
           </div>
 
-          {!isRequest && (
+          {/* {!isRequest && (
             <div className="print-receipt-footer2">
               <span>System Generated Copy • {formattedUpdatedAt}</span>
               <span>Ref ID: {referenceId}</span>
             </div>
-          )}
+          )} */}
           {/* Official Receipt Particulars / Local Government Audit Trail Box (Request Only) */}
           {isRequest && (
             <div className="print-receipt-docket receipt-box">
@@ -738,13 +741,13 @@ const HistoryPrintDocument = forwardRef(
           <div className="print-receipt-footer">
             <span>
               {isRequest
-                ? `System Generated Official Copy • ${formattedUpdatedAt}`
-                : `System Generated Copy • ${formattedUpdatedAt}`}
+                ? `System Generated Official Copy • ${formattedGeneratedAt}`
+                : `System Generated Copy • ${formattedGeneratedAt}`}
             </span>
             <span>
               {isRequest
                 ? ``
-                : `Reference ID: ${referenceId}`}
+                : `Ref ID: ${referenceId}`}
             </span>
           </div>
         </div>

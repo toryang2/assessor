@@ -457,6 +457,7 @@ const PropertyTable = () => {
   const [printLoading, setPrintLoading] = useState(false);
   const [printDocPreview, setPrintDocPreview] = useState({ open: false, src: '', filename: '', type: '' });
   const [printRequestData, setPrintRequestData] = useState(null);
+  const [printGeneratedAt, setPrintGeneratedAt] = useState(null);
   const [paperSize, setPaperSize] = useState(() => {
     try {
       return localStorage.getItem('assessor_print_paper_size') || 'a4';
@@ -959,6 +960,9 @@ const PropertyTable = () => {
 
   const handleViewPrintableHistory = async (propertyOrTaxDeclarationNumber) => {
     try {
+      const generatedAt = new Date();
+      setPrintGeneratedAt(generatedAt);
+
       setPrintLoading(true);
       setPrintModal(true);
 
@@ -2730,6 +2734,7 @@ const PropertyTable = () => {
           printPropertyData={printPropertyData}
           documentType="property"
           paperSize={paperSize}
+          printGeneratedAt={printGeneratedAt}
         />
       </div>
     </Box>
