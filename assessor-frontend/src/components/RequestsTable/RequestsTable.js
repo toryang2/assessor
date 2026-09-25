@@ -754,7 +754,7 @@ const RequestsTable = () => {
                 <TableCell sx={{ width: '150px' }}>Receipt</TableCell>
                 <TableCell sx={{ width: '235px' }}>Client</TableCell>
                 <TableCell sx={{ width: '275px' }}>Property</TableCell>
-                <TableCell sx={{ width: '330px' }}>Request Details</TableCell>
+                <TableCell sx={{ width: '330px' }}>Purpose</TableCell>
                 <TableCell sx={{ width: '135px' }}>Payment</TableCell>
                 <TableCell sx={{ width: '135px' }}>Issued</TableCell>
                 <TableCell sx={{ width: '160px' }}>Prepared By</TableCell>
@@ -792,7 +792,7 @@ const RequestsTable = () => {
                 const isOfficial = String(request.is_official_request) === '1' || request.is_official_request === 1 || request.is_official_request === true;
                 const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
                 const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
-                const propertyTitle = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
+                const propertyTitle = declarant && business ? `${declarant} | ${business}` : (declarant || business || '');
                 const clientSecondary = [
                   request.client_address,
                   request.contact_number,
@@ -979,7 +979,7 @@ const RequestsTable = () => {
                               cursor: 'help'
                             }}
                           >
-                            Purpose: {String(request.purpose_details)}
+                            {String(request.purpose_details)}
                           </Typography>
                         </Tooltip>
                       ) : (

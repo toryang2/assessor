@@ -285,9 +285,45 @@ class Assessor_Database {
         if (!$column_purpose_details) {
             $wpdb->query("ALTER TABLE $table_requests ADD COLUMN purpose_details text NULL AFTER purpose");
         }
+
+        // Migration: Add batch_id column to requests table
+        $column_batch_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME
+                 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = %s
+                 AND COLUMN_NAME = 'batch_id'",
+                $table_requests
+            )
+        );
+
+        if (!$column_batch_id) {
+            $wpdb->query(
+                "ALTER TABLE $table_requests
+                 ADD COLUMN batch_id varchar(36) DEFAULT NULL AFTER property_id"
+            );
+        }
+
+        // Ensure batch_id index exists
+        $index_batch_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT INDEX_NAME
+                 FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = %s
+                 AND INDEX_NAME = 'batch_id'",
+                $table_requests
+            )
+        );
+        if (!$index_batch_id) {
+            $wpdb->query("ALTER TABLE $table_requests ADD KEY batch_id (batch_id)");
+        }
+
         $sql_requests = "CREATE TABLE $table_requests (
             id varchar(36) NOT NULL,
             property_id varchar(36) DEFAULT NULL,
+            batch_id varchar(36) DEFAULT NULL,
             amount_paid decimal(10,2) NOT NULL,
             receipt_number varchar(100) NOT NULL,
             is_official_request tinyint(1) NOT NULL DEFAULT 0,
@@ -315,6 +351,7 @@ class Assessor_Database {
             municipal_assessor_suffix varchar(255) DEFAULT NULL,
             PRIMARY KEY (id),
             KEY property_id (property_id),
+            KEY batch_id (batch_id),
             KEY receipt_number (receipt_number),
             KEY date_issued (date_issued),
             KEY deleted_at (deleted_at),
