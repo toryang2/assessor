@@ -185,7 +185,7 @@ const HistoryPrintDocument = forwardRef(
     const rawDateIssued = requestData?.date_issued || requestData?.date_requested || (printHistory && printHistory[0] && printHistory[0].created_at) || '';
     const { dayWithSuffix, month, year } = getDayWithSuffix(rawDateIssued);
     const formattedDateIssued = rawDateIssued
-      ? (isRequest ? formatDateOnly(rawDateIssued) : formatDate(rawDateIssued))
+      ? (isRequest ? formatDateOnly(rawDateIssued) : formatAppDateTime(rawDateIssued))
       : '—';
     const formattedGeneratedAt = printGeneratedAt
       ? formatAppDateTime(printGeneratedAt, {
