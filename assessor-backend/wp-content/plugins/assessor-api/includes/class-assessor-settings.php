@@ -59,6 +59,9 @@ class Assessor_Settings {
 		$settings['assessor_etracs_db_name'] = get_option('assessor_etracs_db_name', 'etracs254_kitaotao');
 		$settings['assessor_etracs_last_sync'] = get_option('assessor_etracs_last_sync', null);
 
+		// Experimental Property Dossier setting from wp_options
+		$settings['experimental_property_dossier'] = intval(get_option('assessor_experimental_property_dossier', 0));
+
 		// Rewrite URLs dynamically based on requesting host for local builds
 		if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
 			$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
@@ -114,16 +117,15 @@ class Assessor_Settings {
 				
 			}
 		}
-		if (empty($data)) {
-			return $this->get_settings();
-		}
-		global $wpdb;
-		$table = $wpdb->prefix . 'assessor_settings';
-		$existing_id = $wpdb->get_var("SELECT id FROM $table ORDER BY id DESC LIMIT 1");
-		if ($existing_id) {
-			$wpdb->update($table, $data, array('id' => $existing_id));
-		} else {
-			$wpdb->insert($table, $data);
+		if (!empty($data)) {
+			global $wpdb;
+			$table = $wpdb->prefix . 'assessor_settings';
+			$existing_id = $wpdb->get_var("SELECT id FROM $table ORDER BY id DESC LIMIT 1");
+			if ($existing_id) {
+				$wpdb->update($table, $data, array('id' => $existing_id));
+			} else {
+				$wpdb->insert($table, $data);
+			}
 		}
 		
 		// Save ETRACS sync settings to wp_options
@@ -131,6 +133,14 @@ class Assessor_Settings {
 		foreach ($etracs_keys as $key) {
 			if (isset($params[$key])) {
 				update_option($key, sanitize_text_field($params[$key]));
+			}
+		}
+
+		// Save experimental property dossier toggle to wp_options with strict role enforcement (admin/superadmin only)
+		if (isset($params['experimental_property_dossier'])) {
+			$auth = new Assessor_Auth();
+			if ($auth->verify_admin_or_superadmin($request)) {
+				update_option('assessor_experimental_property_dossier', intval($params['experimental_property_dossier']) === 1 ? 1 : 0);
 			}
 		}
 

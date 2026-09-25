@@ -187,6 +187,23 @@ class Assessor_Auth {
         }
     }
 
+    public function verify_admin_or_superadmin($request) {
+        $token = $this->get_token_from_request($request);
+        if (!$token) {
+            return false;
+        }
+        try {
+            $payload = $this->verify_token_signature($token);
+            if ($payload && isset($payload->role)) {
+                $role = strtolower($payload->role);
+                return in_array($role, array('superadmin', 'admin'), true);
+            }
+            return false;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
     public function verify_manager($request) {
         $token = $this->get_token_from_request($request);
         if (!$token) {

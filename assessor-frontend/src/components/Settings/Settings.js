@@ -229,11 +229,15 @@ const DEFAULTS = {
   assessor_etracs_db_user: 'root',
   assessor_etracs_db_password: '',
   assessor_etracs_db_name: 'etracs254_kitaotao',
-  enable_etracs_features: 0
+  enable_etracs_features: 0,
+  experimental_property_dossier: 0
 };
 
 const Settings = () => {
-  const { canManage, isSuperAdmin, afkTimeout, updateAfkTimeout } = useAuth();
+  const { user, canManage, isSuperAdmin, afkTimeout, updateAfkTimeout } = useAuth();
+  const canManageExperimentalDossier =
+    user?.role === 'admin' ||
+    user?.role === 'superadmin';
   const [form, setForm] = useState({
     ...DEFAULTS,
     afk_timeout: afkTimeout || DEFAULTS.afk_timeout
@@ -424,6 +428,7 @@ const Settings = () => {
           assessor_etracs_db_password: data.assessor_etracs_db_password || '',
           assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
           enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
+          experimental_property_dossier: data.experimental_property_dossier ?? DEFAULTS.experimental_property_dossier,
         };
         setForm(loadedSettings);
         setOriginalForm(loadedSettings);
@@ -489,6 +494,7 @@ const Settings = () => {
         assessor_etracs_db_password: data.assessor_etracs_db_password || '',
         assessor_etracs_db_name: data.assessor_etracs_db_name || DEFAULTS.assessor_etracs_db_name,
         enable_etracs_features: data.enable_etracs_features ?? DEFAULTS.enable_etracs_features,
+        experimental_property_dossier: data.experimental_property_dossier ?? DEFAULTS.experimental_property_dossier,
       };
       setForm(loadedSettings);
       setOriginalForm(loadedSettings);
@@ -611,6 +617,7 @@ const Settings = () => {
         assessor_etracs_db_password: form.assessor_etracs_db_password,
         assessor_etracs_db_name: form.assessor_etracs_db_name,
         enable_etracs_features: form.enable_etracs_features,
+        experimental_property_dossier: form.experimental_property_dossier,
       };
       const saved = await apiService.saveSettings(payload);
       setForm(saved);
@@ -2330,6 +2337,30 @@ const Settings = () => {
                   <Switch
                     checked={Number(form.enable_etracs_features) === 1}
                     onChange={(e) => handleChange('enable_etracs_features', e.target.checked ? 1 : 0)}
+                    color="primary"
+                  />
+                </Box>
+
+                {/* Horizontal Settings Row for Experimental Property Dossier Feature Toggle */}
+                <Box sx={{ mt: 2, p: 2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ flex: 1, minWidth: 200 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Experimental Property Dossier
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Enable the experimental Aistudio-style property dossier in PropertyTable. This is a preview feature and can be changed by Administrators only.
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={Number(form.experimental_property_dossier) === 1}
+                    disabled={!canManageExperimentalDossier}
+                    onChange={(e) =>
+                      canManageExperimentalDossier &&
+                      handleChange(
+                        'experimental_property_dossier',
+                        e.target.checked ? 1 : 0
+                      )
+                    }
                     color="primary"
                   />
                 </Box>

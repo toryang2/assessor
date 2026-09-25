@@ -61,6 +61,7 @@ import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
 import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
+import PropertyDossierModal from './PropertyDossierModal';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -446,6 +447,9 @@ const PropertyTable = () => {
   const [historyModal, setHistoryModal] = useState(false);
   const [taxHistory, setTaxHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [dossierModal, setDossierModal] = useState(false);
+  const [dossierProperty, setDossierProperty] = useState(null);
+  const [dossierTab, setDossierTab] = useState('overview');
   const [printModal, setPrintModal] = useState(false);
   const [printHistory, setPrintHistory] = useState([]);
   const [printPropertyData, setPrintPropertyData] = useState(null);
@@ -639,6 +643,18 @@ const PropertyTable = () => {
     } catch (_) { }
   }, []);
 
+  // Prevent background scrolling while dossier is open
+  useEffect(() => {
+    if (!dossierModal) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [dossierModal]);
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -653,6 +669,19 @@ const PropertyTable = () => {
       }
     };
     loadSettings();
+
+    const handleSettingsUpdated = (event) => {
+      if (event?.detail) {
+        setSettings(event.detail);
+      } else {
+        loadSettings();
+      }
+    };
+
+    window.addEventListener('settingsUpdated', handleSettingsUpdated);
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdated);
+    };
   }, []);
 
 
@@ -863,6 +892,69 @@ const PropertyTable = () => {
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  const experimentalDossierEnabled =
+    Number(settings?.experimental_property_dossier) === 1;
+
+  const handleViewExperimentalDossier = async (propertyOrTaxDeclarationNumber) => {
+    try {
+      const isPropertyObject =
+        propertyOrTaxDeclarationNumber &&
+        typeof propertyOrTaxDeclarationNumber === 'object';
+
+      let selectedProperty = isPropertyObject
+        ? propertyOrTaxDeclarationNumber
+        : null;
+
+      const taxDeclarationNumber = isPropertyObject
+        ? propertyOrTaxDeclarationNumber.tax_declaration_number
+        : propertyOrTaxDeclarationNumber;
+
+      if (!selectedProperty && taxDeclarationNumber) {
+        selectedProperty =
+          (safeProperties || []).find(
+            (item) =>
+              String(item?.tax_declaration_number || '') ===
+              String(taxDeclarationNumber)
+          ) ||
+          (allProperties || []).find(
+            (item) =>
+              String(item?.tax_declaration_number || '') ===
+              String(taxDeclarationNumber)
+          ) ||
+          null;
+      }
+
+      setDossierProperty(selectedProperty);
+      setDossierTab('overview');
+      setDossierModal(true);
+    } catch (err) {
+      console.error('Error opening property dossier:', err);
+    }
+  };
+
+  const handleViewPropertyDossier = (propertyOrTaxDeclarationNumber) => {
+    const isPropertyObject =
+      propertyOrTaxDeclarationNumber &&
+      typeof propertyOrTaxDeclarationNumber === 'object';
+    const taxDeclarationNumber = isPropertyObject
+      ? propertyOrTaxDeclarationNumber.tax_declaration_number
+      : propertyOrTaxDeclarationNumber;
+    handleViewHistory(taxDeclarationNumber);
+  };
+
+  const handleDossierPrint = (property) => {
+    if (!property) return;
+
+    // Close the dossier first.
+    setDossierModal(false);
+
+    // Wait for the dossier overlay to unmount before opening
+    // the existing printable-history modal.
+    setTimeout(() => {
+      handleViewPrintableHistory(property);
+    }, 0);
   };
 
   const handleViewPrintableHistory = async (propertyOrTaxDeclarationNumber) => {
@@ -1648,12 +1740,28 @@ const PropertyTable = () => {
                     <Box display="flex" gap={1} alignItems="flex-start">
                       <IconButton
                         size="small"
+                        onClick={() => {
+                          if (experimentalDossierEnabled) {
+                            handleViewExperimentalDossier(property);
+                          } else {
+                            handleViewPropertyDossier(property);
+                          }
+                        }}
+                        color="default"
+                        sx={{ p: 0.25 }}
+                        title="View Property Dossier"
+                      >
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+
+                      <IconButton
+                        size="small"
                         onClick={() => handleViewPrintableHistory(property)}
                         color="default"
                         sx={{ p: 0.25 }}
-                        title="View History (Print)"
+                        title="Open Printable Tax Declaration History"
                       >
-                        <VisibilityIcon fontSize="small" />
+                        <PrintIcon fontSize="small" />
                       </IconButton>
 
                       {canEdit && (
@@ -2360,6 +2468,22 @@ const PropertyTable = () => {
           </Box>
         </DialogActions>
       </Dialog>
+
+      {/* Property Dossier Modal (Tailwind v4) */}
+      <PropertyDossierModal
+        open={dossierModal}
+        onClose={() => setDossierModal(false)}
+        property={dossierProperty}
+        settings={settings}
+        currentTab={dossierTab}
+        onTabChange={setDossierTab}
+        onOpenPrint={handleDossierPrint}
+        onSelectProperty={handleViewExperimentalDossier}
+        onPreviewImage={({ src, alt }) => setMaximizedImage({ open: true, src, alt })}
+        canEdit={canEdit}
+        isAdmin={isAdmin || isSuperAdmin}
+        allProperties={allProperties}
+      />
       {/* Property Images Modal */}
       <Dialog
         open={imageModal}
