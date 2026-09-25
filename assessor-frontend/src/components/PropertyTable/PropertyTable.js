@@ -470,7 +470,7 @@ const PropertyTable = () => {
     setPaperSize(newSize);
     try {
       localStorage.setItem('assessor_print_paper_size', newSize);
-    } catch (_) {}
+    } catch (_) { }
   };
   const [imageModal, setImageModal] = useState(false);
   const [propertyImages, setPropertyImages] = useState([]);
@@ -1509,7 +1509,9 @@ const PropertyTable = () => {
                       !String(property.previous_tax_declaration_number).includes(';') && (
                         <Typography
                           variant="caption"
-                          display="block"
+                          display="flex"
+                          alignItems="center"
+                          gap={0.5}
                           sx={{
                             mt: 0.25,
                             color: 'text.secondary',
@@ -1517,7 +1519,6 @@ const PropertyTable = () => {
                           }}
                         >
                           <GitBranch
-                            className="w-3 h-3"
                             style={{
                               width: 11,
                               height: 11,
