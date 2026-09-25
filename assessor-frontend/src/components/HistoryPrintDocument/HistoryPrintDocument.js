@@ -199,7 +199,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
     || '';
   const preparedByTitle = (requestData && requestData.prepared_by_title)
     || (settings && settings.prepared_by_title)
-    || 'Assessment Records Staff';
+    || 'Administrative Aide';
 
   // Signatory 2: Verifier signatory resolution:
   // If requestData provides an override, use it (request mode); otherwise fallback to printHistory[0] or settings
@@ -539,7 +539,7 @@ const HistoryPrintDocument = forwardRef(({ settings, printHistory, requestData, 
                     const hasOld = oldValue && oldValue !== '';
 
                     if (!hasCurrent && !hasOld) {
-                      return <div className="history-assessed-value">₱0.00</div>;
+                      return <div className="history-assessed-value"><span>₱</span>0.00</div>;
                     }
 
                     let displayValue = '';
