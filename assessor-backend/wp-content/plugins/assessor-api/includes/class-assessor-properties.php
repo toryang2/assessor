@@ -1537,23 +1537,50 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 );
 
                 // Enqueue all previous declaration numbers (branching if multiple)
-                $prev_raw = (string)$property->previous_tax_declaration_number;
+                $prev_raw = trim((string)$property->previous_tax_declaration_number);
                 if ($prev_raw !== '') {
                     if (strpos($prev_raw, ';') !== false) {
                         $tokens = array_filter(array_map('trim', explode(';', $prev_raw)), function($t){ return $t !== ''; });
                         foreach ($tokens as $t) {
+                            if (strtoupper($t) === 'NEW') {
+                                continue;
+                            }
                             if ($t && !isset($visited[$t])) {
                                 $queue[] = $t;
                             }
                         }
                     } else {
-                        if (!isset($visited[$prev_raw])) {
-                            $queue[] = $prev_raw;
+                        if (strtoupper($prev_raw) !== 'NEW') {
+                            if (!isset($visited[$prev_raw])) {
+                                $queue[] = $prev_raw;
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Determine if one of the real records is the root record whose previous_tax_declaration_number is NEW
+        $root_property = null;
+        foreach ($history as $h_item) {
+            $prev_val = trim((string)($h_item['previous_tax_declaration_number'] ?? ''));
+            if ($prev_val !== '' && strtoupper($prev_val) === 'NEW') {
+                $root_property = $h_item;
+                break;
+            }
+        }
+
+        if ($root_property) {
+            $history[] = array(
+                'id' => null,
+                'tax_declaration_number' => 'NEW',
+                'previous_tax_declaration_number' => '',
+                'property_state' => 'NEW',
+                'location' => $root_property['location'] ?? '',
+                'is_history_origin' => true
+            );
+        }
+
         // Rewrite URLs for local build offline viewing
         if (defined('ASSESSOR_IS_LOCAL_BUILD') && ASSESSOR_IS_LOCAL_BUILD) {
             $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';

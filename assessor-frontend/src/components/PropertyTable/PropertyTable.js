@@ -1985,6 +1985,47 @@ const PropertyTable = () => {
                 </TableHead>
                 <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                   {taxHistory.map((item, index) => {
+                    if (item.is_history_origin) {
+                      return (
+                        <TableRow
+                          key={`origin-${index}`}
+                          sx={{
+                            backgroundColor: '#f0f9ff',
+                            '&:hover': { backgroundColor: '#e0f2fe !important' }
+                          }}
+                        >
+                          <TableCell sx={{ borderLeft: '3px solid #0284c7' }}>
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0369a1', letterSpacing: '0.05em' }}>
+                                NEW
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.25,
+                                  borderRadius: 0.5,
+                                  bgcolor: '#bae6fd',
+                                  color: '#0369a1',
+                                  fontWeight: 600,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
+                                Original Declaration
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>{item.location || '—'}</TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell>—</TableCell>
+                        </TableRow>
+                      );
+                    }
+
                     // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
                     const wasConsolidatedInto = taxHistory.some(otherItem => {
                       if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
@@ -2204,6 +2245,49 @@ const PropertyTable = () => {
                     </TableHead>
                     <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                       {printHistory.map((item, index) => {
+                        if (item.is_history_origin) {
+                          return (
+                            <TableRow
+                              key={`print-origin-${index}`}
+                              sx={{
+                                backgroundColor: '#f0f9ff',
+                                '&:hover': { backgroundColor: '#e0f2fe !important' }
+                              }}
+                            >
+                              <TableCell sx={{ borderLeft: '3px solid #0284c7' }}>
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0369a1', letterSpacing: '0.05em' }}>
+                                    NEW
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      px: 0.75,
+                                      py: 0.25,
+                                      borderRadius: 0.5,
+                                      bgcolor: '#bae6fd',
+                                      color: '#0369a1',
+                                      fontWeight: 600,
+                                      fontSize: '0.65rem'
+                                    }}
+                                  >
+                                    Original Declaration
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>{item.location || '—'}</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                              <TableCell>—</TableCell>
+                            </TableRow>
+                          );
+                        }
+
                         // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
                         const wasConsolidatedInto = printHistory.some(otherItem => {
                           if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {

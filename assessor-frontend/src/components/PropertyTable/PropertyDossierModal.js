@@ -341,27 +341,28 @@ const PropertyDossierModal = ({
 
   // Organize Lineage History: Ancestors (predecessors), Current Selected TD, and Successors
   const { ancestors, successors, hasLineageData } = useMemo(() => {
-    if (!lineageList || lineageList.length === 0) {
+    const realLineage = (lineageList || []).filter(item => !item?.is_history_origin);
+    if (!realLineage || realLineage.length === 0) {
       return { ancestors: [], successors: [], hasLineageData: false };
     }
 
     const currentTdn = String(property?.tax_declaration_number || '').trim();
-    const currentIndex = lineageList.findIndex(item => String(item.tax_declaration_number).trim() === currentTdn);
+    const currentIndex = realLineage.findIndex(item => String(item.tax_declaration_number).trim() === currentTdn);
 
     if (currentIndex === -1) {
       // If current record is not found in history array, treat history elements as ancestors
       return {
-        ancestors: lineageList,
+        ancestors: realLineage,
         successors: [],
-        hasLineageData: lineageList.length > 0
+        hasLineageData: realLineage.length > 0
       };
     }
 
     // In assessor API, tax declaration history is commonly ordered latest-to-oldest:
     // Items with index < currentIndex are successors (newer TDs)
     // Items with index > currentIndex are ancestors (older TDs)
-    const succ = lineageList.slice(0, currentIndex);
-    const anc = lineageList.slice(currentIndex + 1);
+    const succ = realLineage.slice(0, currentIndex);
+    const anc = realLineage.slice(currentIndex + 1);
 
     return {
       ancestors: anc,
