@@ -27,16 +27,13 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Collapse
+  Tooltip
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Add as AddIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
   Print as PrintIcon,
-  Receipt as ReceiptIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
@@ -84,15 +81,6 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Purpose options for filter
-const purposeOptions = [
-  { value: 'record_verification', label: 'Record Verification' },
-  { value: 'tax_declaration', label: 'Tax Declaration' },
-  { value: 'property_assessment', label: 'Property Assessment' },
-  { value: 'certification', label: 'Certification' },
-  { value: 'other', label: 'Other' }
-];
-
 const RequestsTable = () => {
   const tableContainerRef = useRef(null);
   const { isAdmin, isSuperAdmin, isViewer } = useAuth();
@@ -104,10 +92,9 @@ const RequestsTable = () => {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
   const [allRequests, setAllRequests] = useState([]);
-  const [loadingAll, setLoadingAll] = useState(false);
 
   // Safety check - ensure requests is always an array
-  const safeRequests = requests || [];
+  const safeRequests = useMemo(() => requests || [], [requests]);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -116,11 +103,13 @@ const RequestsTable = () => {
   // Filter states
   const [filters, setFilters] = useState({
     purpose: '',
+    requestType: '',
     dateIssued: '',
     preparedBy: ''
   });
   const [filterModal, setFilterModal] = useState(false);
   const [users, setUsers] = useState([]);
+  const [purposeOptions, setPurposeOptions] = useState([]);
 
   // Modal states
   const [printModal, setPrintModal] = useState(false);
@@ -165,6 +154,7 @@ const RequestsTable = () => {
           (request.business && String(request.business).toUpperCase().includes(searchUpper)) ||
           (request.tax_declaration_number && String(request.tax_declaration_number).toUpperCase().includes(searchUpper)) ||
           (request.purpose && String(request.purpose).toUpperCase().includes(searchUpper)) ||
+          (request.purpose_details && String(request.purpose_details).toUpperCase().includes(searchUpper)) ||
           (request.remarks && String(request.remarks).toUpperCase().includes(searchUpper)) ||
           (request.prepared_by && String(request.prepared_by).toUpperCase().includes(searchUpper));
 
@@ -173,6 +163,11 @@ const RequestsTable = () => {
 
       // Apply other filters
       if (filters.purpose && request.purpose !== filters.purpose) return false;
+      if (filters.requestType !== '') {
+        const isOfficial = String(request.is_official_request) === '1' || request.is_official_request === 1 || request.is_official_request === true;
+        if (filters.requestType === '1' && !isOfficial) return false;
+        if (filters.requestType === '0' && isOfficial) return false;
+      }
       if (filters.dateIssued && request.date_issued !== filters.dateIssued) return false;
       if (filters.preparedBy && request.prepared_by !== filters.preparedBy) return false;
 
@@ -182,10 +177,24 @@ const RequestsTable = () => {
 
   // Paged requests for display
   const pagedRequests = useMemo(() => {
+    // Normal browsing uses server-side pagination.
+    // safeRequests already contains exactly the requested API page.
+    if (!debouncedSearchTerm) {
+      return safeRequests;
+    }
+
+    // Search mode loads the full matching dataset,
+    // therefore frontend pagination is required here.
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
     return filteredRequests.slice(start, end);
-  }, [filteredRequests, page, rowsPerPage]);
+  }, [
+    filteredRequests,
+    safeRequests,
+    page,
+    rowsPerPage,
+    debouncedSearchTerm
+  ]);
 
   // Paper size state with localStorage persistence
   const [paperSize, setPaperSize] = useState(() => {
@@ -201,7 +210,7 @@ const RequestsTable = () => {
     setPaperSize(newSize);
     try {
       localStorage.setItem('assessor_print_paper_size', newSize);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   // Print ref
@@ -302,10 +311,31 @@ const RequestsTable = () => {
     }
   };
 
+  // Fetch request purposes from settings
+  const fetchRequestPurposes = async () => {
+    try {
+      const response = await apiService.getRequestPurposes();
+
+      const activeItems = (response?.items || [])
+        .filter((item) => item?.status === 'active')
+        .map((item) => ({
+          value: String(item.purpose || ''),
+          label: String(item.purpose || '')
+        }))
+        .filter((item) => item.value);
+
+      setPurposeOptions(activeItems);
+    } catch (err) {
+      console.error('Error fetching request purposes:', err);
+      setPurposeOptions([]);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     fetchSettings();
     fetchUsers();
+    fetchRequestPurposes();
   }, []);
 
   // Fetch requests for pagination (only when not searching)
@@ -320,7 +350,6 @@ const RequestsTable = () => {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        setLoadingAll(true);
         const params = {
           all: 1,
           search: debouncedSearchTerm || '',
@@ -339,8 +368,6 @@ const RequestsTable = () => {
       } catch (e) {
         // Fall back silently; keep existing page data
         setAllRequests([]);
-      } finally {
-        setLoadingAll(false);
       }
     };
 
@@ -388,6 +415,7 @@ const RequestsTable = () => {
     setSearchTerm('');
     setFilters({
       purpose: '',
+      requestType: '',
       dateIssued: '',
       preparedBy: ''
     });
@@ -469,9 +497,9 @@ const RequestsTable = () => {
   // Handle request form saved
   const handleRequestFormSaved = (requestData) => {
     setRequestFormModal(false);
+    setPage(0);
     // Refresh the requests list
-    fetchRequests();
-    // Show success message or handle as needed
+    fetchRequests(true);
     console.log('Request form saved:', requestData);
   };
 
@@ -483,7 +511,7 @@ const RequestsTable = () => {
 
     try {
       await apiService.deleteRequest(requestId);
-      fetchRequests(); // Refresh the list
+      fetchRequests(true); // Refresh the list
     } catch (err) {
       console.error('Error deleting request:', err);
       alert('Failed to delete request');
@@ -511,9 +539,6 @@ const RequestsTable = () => {
         <Typography variant="h6" color="text.secondary">
           Loading requests<LoadingDots />
         </Typography>
-        {/* <Typography variant="body2" color="text.secondary">
-          Please wait while the system loads
-        </Typography> */}
       </Box>
     );
   }
@@ -544,7 +569,6 @@ const RequestsTable = () => {
                 placeholder={`Total: ${totalCount} requests`}
                 value={searchTerm}
                 onChange={handleSearch}
-                // helperText={`Total: ${totalCount} requests`}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
@@ -559,7 +583,7 @@ const RequestsTable = () => {
                   onClick={() => setFilterModal(true)}
                   color="primary"
                   sx={{
-                    height: 40, // same as TextField small height
+                    height: 40,
                     '& .MuiToggleButton-root': {
                       height: '100%',
                       py: 0.5,
@@ -575,7 +599,7 @@ const RequestsTable = () => {
                   onClick={handleCreateRequest}
                   color="primary"
                   sx={{
-                    height: 40, // same as TextField small height
+                    height: 40,
                     '& .MuiToggleButton-root': {
                       height: '100%',
                       py: 0.5,
@@ -619,6 +643,20 @@ const RequestsTable = () => {
                       {option.label}
                     </MenuItem>
                   ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Request Type</InputLabel>
+                <Select
+                  value={filters.requestType}
+                  onChange={(e) => handleFilterChange('requestType', e.target.value)}
+                  label="Request Type"
+                >
+                  <MenuItem value="">All Request Types</MenuItem>
+                  <MenuItem value="0">Regular</MenuItem>
+                  <MenuItem value="1">Official Use</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -671,7 +709,22 @@ const RequestsTable = () => {
       </Dialog>
 
       {/* Requests Table */}
-      <Paper sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+      <Paper
+        sx={{
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          flexGrow: 1,
+          flexShrink: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+          position: 'relative',
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.05)'
+        }}
+      >
         {loading && (
           <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, pointerEvents: 'none' }}>
             <CircularProgress size={40} sx={{ mb: 2, color: 'primary.main' }} />
@@ -681,111 +734,432 @@ const RequestsTable = () => {
           </Box>
         )}
         <TableContainer ref={tableContainerRef} sx={{ flexGrow: 1, flexShrink: 1, minHeight: 0, overflow: 'auto' }}>
-          <Table stickyHeader sx={{ tableLayout: 'fixed' }}>
+          <Table stickyHeader sx={{ minWidth: '1120px', tableLayout: 'fixed' }}>
             <TableHead>
-              <TableRow>
-                <TableCell><strong>Receipt No.</strong></TableCell>
-                <TableCell><strong>Client Name</strong></TableCell>
-                <TableCell><strong>Property</strong></TableCell>
-                <TableCell><strong>Amount</strong></TableCell>
-                <TableCell><strong>Remarks</strong></TableCell>
-                <TableCell><strong>Purpose</strong></TableCell>
-                <TableCell><strong>Date Issued</strong></TableCell>
-                <TableCell><strong>Prepared By</strong></TableCell>
-                <TableCell><strong>Actions</strong></TableCell>
+              <TableRow sx={{
+                '& th': {
+                  backgroundColor: '#f8fafc',
+                  color: 'text.secondary',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  py: 1.5,
+                  px: '14px',
+                  whiteSpace: 'nowrap'
+                }
+              }}>
+                <TableCell sx={{ width: '150px' }}>Receipt</TableCell>
+                <TableCell sx={{ width: '235px' }}>Client</TableCell>
+                <TableCell sx={{ width: '275px' }}>Property</TableCell>
+                <TableCell sx={{ width: '330px' }}>Request Details</TableCell>
+                <TableCell sx={{ width: '135px' }}>Payment</TableCell>
+                <TableCell sx={{ width: '135px' }}>Issued</TableCell>
+                <TableCell sx={{ width: '160px' }}>Prepared By</TableCell>
+                <TableCell sx={{
+                  width: '105px',
+                  position: 'sticky',
+                  right: 0,
+                  zIndex: 3,
+                  backgroundColor: '#f8fafc !important',
+                  borderLeft: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.04)',
+                  textAlign: 'center'
+                }}>
+                  Actions
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody sx={{
+              '& td': {
+                verticalAlign: 'top',
+                py: 0.7,
+                px: 1.5,
+                borderBottom: '1px solid',
+                borderColor: 'divider'
+              },
+              '& tr:last-of-type td': {
+                borderBottom: 0
+              },
               opacity: (loading && !initialLoad) ? 0.5 : 1,
               pointerEvents: (loading && !initialLoad) ? 'none' : 'auto',
               transition: 'opacity 0.2s ease-in-out'
             }}>
-              {pagedRequests.map((request) => (
-                <TableRow key={request.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="medium">
-                      {request.receipt_number}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {request.client_name}
-                    </Typography>
-                    {request.client_address && (
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {request.client_address}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {(() => {
-                        const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
-                        const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
-                        if (declarant && business) return `${declarant} / ${business}`;
-                        return declarant || business || '';
-                      })()}
-                    </Typography>
-                    {request.tax_declaration_number && (
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        TD: {request.tax_declaration_number}
-                        <br />
-                        BARANGAY: {request.location}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight="bold" color="primary">
-                      {formatAmount(request.amount_paid)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {request.remarks || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {request.purpose}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {formatDateTable(request.date_issued)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {request.prepared_by}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => handlePrintRequest(request)}
-                        disabled={isViewer}
-                        title="Print Request History"
+              {pagedRequests.map((request) => {
+                const isOfficial = String(request.is_official_request) === '1' || request.is_official_request === 1 || request.is_official_request === true;
+                const declarant = formatDeclarantFromParts(request.declarant_last_name, request.declarant_first_name, request.declarant_middle_initial);
+                const business = request.business ? String(request.business).replace(/,\s*/g, ' ') : '';
+                const propertyTitle = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
+                const clientSecondary = [
+                  request.client_address,
+                  request.contact_number,
+                  request.email
+                ].filter(Boolean).join(' • ');
+                const propertySecondary = [
+                  request.location,
+                  request.kind_of_property_name || request.kind_of_property,
+                  request.gen_class_name || request.gen_class
+                ].filter(Boolean).join(' • ');
+
+                return (
+                  <TableRow
+                    key={request.id}
+                    hover
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(2, 71, 171, 0.025)'
+                      }
+                    }}
+                  >
+                    {/* RECEIPT */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          color: 'text.primary',
+                          letterSpacing: '0.02em',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
                       >
-                        <PrintIcon />
-                      </IconButton>
-                      {(isAdmin || isSuperAdmin) && (
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteRequest(request.id)}
-                          title="Delete Request"
-                          color="error"
+                        {request.receipt_number || '—'}
+                      </Typography>
+                      <Box sx={{ mt: 0.2 }}>
+                        {isOfficial ? (
+                          <Chip
+                            label="Official Use"
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              height: '19px',
+                              fontSize: '0.68rem',
+                              fontWeight: 600,
+                              borderColor: '#fcd34d',
+                              color: '#b45309',
+                              backgroundColor: '#fffbeb',
+                              '& .MuiChip-label': { px: 0.75, py: 0 }
+                            }}
+                          />
+                        ) : (
+                          <Chip
+                            label="Regular"
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              height: '19px',
+                              fontSize: '0.68rem',
+                              fontWeight: 500,
+                              borderColor: '#e2e8f0',
+                              color: '#475569',
+                              backgroundColor: '#f8fafc',
+                              '& .MuiChip-label': { px: 0.75, py: 0 }
+                            }}
+                          />
+                        )}
+                      </Box>
+                    </TableCell>
+
+                    {/* CLIENT */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          color: 'text.primary',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {request.client_name || '—'}
+                      </Typography>
+                      {clientSecondary && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.72rem',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={clientSecondary}
                         >
-                          <DeleteIcon />
-                        </IconButton>
+                          {clientSecondary}
+                        </Typography>
                       )}
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+
+                    {/* PROPERTY */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          color: request.tax_declaration_number ? 'primary.main' : 'text.secondary',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {request.tax_declaration_number || '—'}
+                      </Typography>
+                      {propertyTitle && (
+                        <Typography
+                          variant="caption"
+                          color="text.primary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.74rem',
+                            fontWeight: 500,
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={propertyTitle}
+                        >
+                          {propertyTitle}
+                        </Typography>
+                      )}
+                      {propertySecondary && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.72rem',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={propertySecondary}
+                        >
+                          {propertySecondary}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* REQUEST DETAILS (ONLY PURPOSE_DETAILS, NEVER PURPOSE) */}
+                    <TableCell>
+                      {request.purpose_details ? (
+                        <Tooltip
+                          title={String(request.purpose_details)}
+                          placement="top-start"
+                          arrow
+                        >
+                          <Typography
+                            variant="body2"
+                            color="text.primary"
+                            sx={{
+                              display: '-webkit-box',
+                              WebkitBoxOrient: 'vertical',
+                              WebkitLineClamp: 2,
+                              overflow: 'hidden',
+                              overflowWrap: 'anywhere',
+                              fontSize: '0.84rem',
+                              lineHeight: 1.3,
+                              cursor: 'help'
+                            }}
+                          >
+                            Purpose: {String(request.purpose_details)}
+                          </Typography>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.84rem', lineHeight: 1.25 }}>
+                          —
+                        </Typography>
+                      )}
+
+                      {request.remarks && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.72rem',
+                            fontStyle: 'italic',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={`Remarks: ${request.remarks}`}
+                        >
+                          Remarks: {request.remarks}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* PAYMENT */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          color: 'primary.dark',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {formatAmount(request.amount_paid)}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                        sx={{
+                          mt: 0.2,
+                          fontSize: '0.72rem',
+                          lineHeight: 1.25,
+                          textTransform: isOfficial ? 'none' : 'capitalize',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {isOfficial ? 'Official Use' : (request.payment_type ? request.payment_type.replace(/_/g, ' ') : '—')}
+                      </Typography>
+                    </TableCell>
+
+                    {/* ISSUED */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: '0.84rem',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {formatDateTable(request.date_issued) || '—'}
+                      </Typography>
+                      {request.place_issued && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.72rem',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={request.place_issued}
+                        >
+                          {request.place_issued}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* PREPARED BY */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: '0.84rem',
+                          lineHeight: 1.25,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {request.prepared_by || '—'}
+                      </Typography>
+                      {request.updated_by_name && request.updated_by_name !== request.prepared_by && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{
+                            mt: 0.2,
+                            fontSize: '0.72rem',
+                            lineHeight: 1.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                          title={`Updated by: ${request.updated_by_name}`}
+                        >
+                          Updated by: {request.updated_by_name}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* ACTIONS */}
+                    <TableCell sx={{
+                      verticalAlign: 'top',
+                      position: 'sticky',
+                      right: 0,
+                      zIndex: 1,
+                      backgroundColor: '#fff',
+                      borderLeft: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: '-4px 0 8px rgba(15, 23, 42, 0.04)',
+                      textAlign: 'center',
+                      py: 0.7,
+                      px: 1
+                    }}>
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center' }}>
+                        <Tooltip title="Print request" arrow>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handlePrintRequest(request)}
+                              disabled={isViewer}
+                              sx={{ p: 0.5 }}
+                            >
+                              <PrintIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        {(isAdmin || isSuperAdmin) && (
+                          <Tooltip title="Delete request" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteRequest(request.id)}
+                              color="error"
+                              sx={{ p: 0.5 }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {!loading && pagedRequests.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} sx={{ border: 'none', p: 0 }}>
+                  <TableCell colSpan={8} sx={{ border: 'none', p: 0 }}>
                     <Box sx={{
                       minHeight: 400,
                       width: '100%',
@@ -867,9 +1241,6 @@ const RequestsTable = () => {
               <Typography variant="h6" color="text.secondary">
                 Loading Request History...
               </Typography>
-              {/* <Typography variant="body2" color="text.secondary">
-                 Please wait while the system loads
-               </Typography> */}
             </Box>
           ) : (
             <Box

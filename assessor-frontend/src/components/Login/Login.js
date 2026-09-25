@@ -28,7 +28,7 @@ import { apiService } from '../../utils/api';
 import LoadingDots from '../LoadingDots';
 
 const Login = () => {
-  
+
   const { login, error, clearError } = useAuth();
   // Stable cache-buster and asset base to prevent background image reloads on re-render
   const bgVersionRef = useRef(
@@ -38,7 +38,7 @@ const Login = () => {
     if (typeof window === 'undefined') return '';
     return window.__PUBLIC_URL__ || (window.location.origin + "/wp-content/themes/assessor-theme/assets");
   }, []);
-  
+
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -51,7 +51,7 @@ const Login = () => {
     try {
       const cached = localStorage.getItem('assessor_settings');
       if (cached) return JSON.parse(cached);
-    } catch (_) {}
+    } catch (_) { }
     const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('app_logo_url') : '';
     if (cachedLogo) return { app_logo_url: cachedLogo };
     return null;
@@ -74,12 +74,12 @@ const Login = () => {
 
     const parts = formatter.formatToParts(new Date());
     const yearPart = parts.find(p => p.type === 'year');
-  
+
     if (yearPart) {
       setYear(yearPart.value);
     }
   }, []);
-  
+
   useEffect(() => {
     clearError();
   }, [clearError]);
@@ -92,7 +92,7 @@ const Login = () => {
         try {
           localStorage.setItem('assessor_settings', JSON.stringify(data));
           if (data && data.app_logo_url) localStorage.setItem('app_logo_url', data.app_logo_url);
-        } catch (_) {}
+        } catch (_) { }
       } catch (e) {
         const fallback = (window && window.__ASSESSOR_SETTINGS__) || null;
         setSettings(fallback);
@@ -107,7 +107,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
-    
+
     // Clear validation error for this field
     if (validationErrors[name]) {
       setValidationErrors(prev => ({
@@ -119,24 +119,24 @@ const Login = () => {
 
   const validateForm = () => {
     const errors = {};
-    
+
     if (!formData.username.trim()) {
       errors.username = 'Username is required';
     }
-    
+
     if (!formData.password) {
       errors.password = 'Password is required';
     }
-    
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Avoid logging form credentials
-    
+
     if (!validateForm()) {
       console.log('❌ Login Component: Form validation failed');
       return;
@@ -145,7 +145,7 @@ const Login = () => {
     // Form validation passed
     clearError();
     setLoading(true);
-    
+
     try {
       // Calling login function
       const result = await login(formData);
@@ -171,7 +171,7 @@ const Login = () => {
   const baseMunicipality = (settings && settings.header_municipality) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_municipality) || 'KITAOTAO';
   const toFormalCase = (text) => {
     if (!text) return '';
-    const small = new Set(['of','and','the','for','in','on','at','a','an']);
+    const small = new Set(['of', 'and', 'the', 'for', 'in', 'on', 'at', 'a', 'an']);
     const words = String(text).toLowerCase().split(/\s+/);
     return words.map((w, i) => {
       if (!w) return w;
@@ -250,12 +250,12 @@ const Login = () => {
                   }}
                 >
                   {settings?.app_logo_url ? (
-                    <img src={settings.app_logo_url} alt="Logo" style={{ height: isSmallScreen ? 64 : 96, marginBottom: 16, opacity: 0.9 }} />
+                    <img src={settings.app_logo_url} alt="Logo" style={{ height: isSmallScreen ? 64 : 96, width: 'auto', display: 'block', margin: '0 auto 16px', opacity: 0.9 }} />
                   ) : (
                     <Business sx={{ fontSize: isSmallScreen ? 44 : 60, marginBottom: 2, opacity: 0.8 }} />
                   )}
                 </motion.div>
-                
+
                 <motion.div
                   variants={{
                     initial: { opacity: 0, y: 20 },
@@ -266,7 +266,7 @@ const Login = () => {
                     Local Government of {headerMunicipality}
                   </Typography>
                 </motion.div>
-                
+
                 <motion.div
                   variants={{
                     initial: { opacity: 0, y: 20 },
@@ -311,7 +311,7 @@ const Login = () => {
                       </InputAdornment>
                     ),
                   }}
-                  sx={{ 
+                  sx={{
                     marginBottom: isSmallScreen ? 1.5 : 2,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
@@ -354,7 +354,7 @@ const Login = () => {
                       </InputAdornment>
                     ),
                   }}
-                  sx={{ 
+                  sx={{
                     marginBottom: isSmallScreen ? 2 : 3,
                     '& .MuiOutlinedInput-root': {
                       backgroundColor: 'transparent !important',
@@ -417,7 +417,7 @@ const Login = () => {
             </Typography>
           </Box>
           <Box sx={{ textAlign: 'center', marginTop: 3 }}>
-          <Typography variant="body2" color="#475569" sx={{ opacity: 0.8 }}>
+            <Typography variant="body2" color="#475569" sx={{ opacity: 0.8 }}>
               Developed by:{' '}
             </Typography>
             <Typography variant="body2" color="#475569" sx={{ opacity: 0.8, marginTop: 2 }}>
