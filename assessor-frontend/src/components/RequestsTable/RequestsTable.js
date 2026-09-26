@@ -1399,7 +1399,7 @@ const RequestsTable = () => {
                       >
                         {request.receipt_number || '—'}
                       </Typography>
-                      <Box sx={{ mt: 0.35 }}>
+                      {/* <Box sx={{ mt: 0.35 }}>
                         {isOfficial ? (
                           <Chip
                             label="Official Use"
@@ -1415,23 +1415,8 @@ const RequestsTable = () => {
                               '& .MuiChip-label': { px: 0.75, py: 0 }
                             }}
                           />
-                        ) : (
-                          <Chip
-                            label="Regular"
-                            size="small"
-                            variant="outlined"
-                            sx={{
-                              height: '19px',
-                              fontSize: '0.68rem',
-                              fontWeight: 500,
-                              borderColor: '#cbd5e1',
-                              color: '#475569',
-                              backgroundColor: '#f8fafc',
-                              '& .MuiChip-label': { px: 0.75, py: 0 }
-                            }}
-                          />
-                        )}
-                      </Box>
+                        ) : ''}
+                      </Box> */}
                     </TableCell>
 
                     {/* CLIENT */}
