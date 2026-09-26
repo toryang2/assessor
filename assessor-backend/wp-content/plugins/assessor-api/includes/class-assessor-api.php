@@ -478,6 +478,12 @@ class Assessor_API {
             'callback' => array($this, 'create_request'),
             'permission_callback' => array($this, 'check_auth')
         ));
+
+        register_rest_route('assessor/v1', '/requests/bulk', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'create_bulk_requests'),
+            'permission_callback' => array($this, 'check_auth')
+        ));
         
         register_rest_route('assessor/v1', '/requests/(?P<id>[a-zA-Z0-9\-\_]+)', array(
             'methods' => 'GET',
@@ -1432,6 +1438,14 @@ class Assessor_API {
     public function create_request($request) {
         $requests = new Assessor_Requests();
         return $requests->create_request($request->get_params(), $request);
+    }
+
+    public function create_bulk_requests($request) {
+        $requests = new Assessor_Requests();
+        return $requests->create_bulk_requests(
+            $request->get_json_params(),
+            $request
+        );
     }
     
     public function get_request($request) {

@@ -106,6 +106,7 @@ export const endpoints = {
   
   // Requests
   requests: '/requests',
+  requestsBulk: '/requests/bulk',
   request: (id) => `/requests/${id}`,
   requestStatistics: '/requests/statistics',
 
@@ -685,6 +686,18 @@ export const apiService = {
   createRequest: async (requestData) => {
     try {
       const response = await api.post(endpoints.requests, requestData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  createBulkRequests: async (requestData) => {
+    try {
+      const response = await api.post(
+        endpoints.requestsBulk,
+        requestData
+      );
       return response.data;
     } catch (error) {
       throw handleApiError(error);

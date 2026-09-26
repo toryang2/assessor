@@ -710,7 +710,7 @@ class Assessor_Sync_Receiver {
      */
     private function sanitize_incoming_request_record($record) {
         $allowed = array(
-            'id', 'property_id', 'amount_paid', 'receipt_number',
+            'id', 'property_id', 'batch_id', 'amount_paid', 'receipt_number',
             'is_official_request', 'date_issued', 'place_issued',
             'prepared_by', 'payment_type', 'purpose', 'purpose_details', 'client_name',
             'client_address', 'contact_number', 'email', 'remarks',
@@ -735,7 +735,7 @@ class Assessor_Sync_Receiver {
      */
     private function sanitize_outgoing_request_record($record) {
         $allowed = array(
-            'id', 'property_id', 'amount_paid', 'receipt_number',
+            'id', 'property_id', 'batch_id', 'amount_paid', 'receipt_number',
             'is_official_request', 'date_issued', 'place_issued',
             'prepared_by', 'payment_type', 'purpose', 'purpose_details', 'client_name',
             'client_address', 'contact_number', 'email', 'remarks',
