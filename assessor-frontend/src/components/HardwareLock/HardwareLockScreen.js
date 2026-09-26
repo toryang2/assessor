@@ -43,7 +43,7 @@ const HardwareLockScreen = ({ onUnlocked }) => {
       setSubmitting(true);
       setError('');
       await apiService.activateHardwareLock(activationKey);
-      
+
       // Clear global locked state and reload app
       window.dispatchEvent(new Event('hardware_unlocked'));
       if (onUnlocked) {
@@ -60,9 +60,9 @@ const HardwareLockScreen = ({ onUnlocked }) => {
 
   if (loading) {
     return (
-      <Box sx={{ 
+      <Box sx={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
-        display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: '#f4f6f8' 
+        display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: '#f4f6f8'
       }}>
         <CircularProgress />
       </Box>
@@ -70,12 +70,12 @@ const HardwareLockScreen = ({ onUnlocked }) => {
   }
 
   return (
-    <Box 
-      sx={{ 
+    <Box
+      sx={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         bgcolor: '#f4f6f8',
         p: 3
       }}
@@ -84,13 +84,13 @@ const HardwareLockScreen = ({ onUnlocked }) => {
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, color: 'primary.main' }}>
           <LockIcon sx={{ fontSize: 60 }} />
         </Box>
-        
+
         <Typography variant="h4" gutterBottom fontWeight="bold" color="text.primary">
           Application Locked
         </Typography>
-        
+
         <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 4 }}>
-          This installation of the Assessor App must be activated to run on this machine. Please provide the Hardware ID below to your administrator to receive an Activation Key.
+          This installation of the Assessor Archiving System must be activated to run on this machine. Please provide the Hardware ID below to your administrator to receive an Activation Key.
         </Typography>
 
         {error && (
@@ -139,11 +139,11 @@ const HardwareLockScreen = ({ onUnlocked }) => {
             />
           </Box>
 
-          <Button 
-            type="submit" 
-            variant="contained" 
-            color="primary" 
-            fullWidth 
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            fullWidth
             size="large"
             disabled={submitting || !activationKey.trim()}
             sx={{ py: 1.5, fontSize: '1.1rem', fontWeight: 'bold' }}
