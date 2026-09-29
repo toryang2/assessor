@@ -1229,7 +1229,7 @@ class Assessor_API {
         $settings = new Assessor_Settings();
         $data = $settings->get_settings();
 
-        return array(
+        $result = array(
             'app_logo_url'           => isset($data['app_logo_url']) ? $data['app_logo_url'] : '',
             'header_photo_url'       => isset($data['header_photo_url']) ? $data['header_photo_url'] : '',
             'header_province'        => isset($data['header_province']) ? $data['header_province'] : '',
@@ -1237,6 +1237,32 @@ class Assessor_API {
             'header_office'          => isset($data['header_office']) ? $data['header_office'] : '',
             'enable_etracs_features' => !empty($data['enable_etracs_features']) ? 1 : 0
         );
+
+        $auth = new Assessor_Auth();
+
+        if ($auth->verify_token($request)) {
+            $result['verifier_signatory_name'] =
+                isset($data['verifier_signatory_name']) ? $data['verifier_signatory_name'] : '';
+
+            $result['verifier_signatory_title'] =
+                isset($data['verifier_signatory_title']) ? $data['verifier_signatory_title'] : '';
+
+            $result['municipal_assessor_name'] =
+                isset($data['municipal_assessor_name']) ? $data['municipal_assessor_name'] : '';
+
+            $result['municipal_assessor_suffix'] =
+                isset($data['municipal_assessor_suffix']) ? $data['municipal_assessor_suffix'] : '';
+
+            $result['municipal_assessor_title'] =
+                isset($data['municipal_assessor_title']) ? $data['municipal_assessor_title'] : '';
+
+            $result['municipal_assessor_license'] =
+                isset($data['municipal_assessor_license'])
+                    ? (string) $data['municipal_assessor_license']
+                    : '';
+        }
+
+        return $result;
     }
 
     public function get_settings($request) {

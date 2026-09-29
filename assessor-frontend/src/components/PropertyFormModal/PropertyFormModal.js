@@ -803,10 +803,10 @@ const isEffectivityExemptValue = (value) =>
           .join(', ')
         : (formData.supporting_documents || '');
 
-      // Pull signatories from settings to store on the property record
+      // Pull signatories from bootstrap settings to store on the property record
       let settings = null;
       try {
-        settings = await apiService.getSettings();
+        settings = await apiService.getBootstrapSettings();
       } catch (_) { }
 
       // Only submit the selected unit; blank the other
