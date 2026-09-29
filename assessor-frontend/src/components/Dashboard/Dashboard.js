@@ -163,10 +163,10 @@ const Dashboard = ({ onNavigate }) => {
 
   const fetchSettings = async () => {
     try {
-      const data = await apiService.getSettings();
+      const data = await apiService.getBootstrapSettings();
       setSettings(data);
     } catch (error) {
-      console.error('❌ Dashboard: Error fetching settings:', error);
+      console.error('❌ Dashboard: Error fetching bootstrap settings:', error);
     }
   };
 

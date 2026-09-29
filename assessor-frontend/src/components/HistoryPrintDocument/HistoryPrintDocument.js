@@ -224,15 +224,15 @@ const HistoryPrintDocument = forwardRef(
     const verifierSignatoryFullName =
       (isRequest && requestData?.verifier_signatory_name) ||
       propertySignatorySource?.verifier_signatory_name ||
-      (printHistory && printHistory[0] && printHistory[0].verifier_signatory_name) ||
-      (settings && settings.verifier_signatory_name) ||
+      printHistory?.[0]?.verifier_signatory_name ||
+      settings?.verifier_signatory_name ||
       '';
 
     const verifierSignatoryTitle =
       (isRequest && requestData?.verifier_signatory_title) ||
       propertySignatorySource?.verifier_signatory_title ||
-      (printHistory && printHistory[0] && printHistory[0].verifier_signatory_title) ||
-      (settings && settings.verifier_signatory_title) ||
+      printHistory?.[0]?.verifier_signatory_title ||
+      settings?.verifier_signatory_title ||
       'Local Assessment Operations Officer II / Appraiser';
 
     // Signatory 3: Municipal assessor signatory resolution:
@@ -243,29 +243,29 @@ const HistoryPrintDocument = forwardRef(
     const assessorName =
       (isRequest && requestData?.municipal_assessor_name) ||
       propertySignatorySource?.municipal_assessor_name ||
-      (printHistory && printHistory[0] && printHistory[0].municipal_assessor_name) ||
-      (settings && settings.municipal_assessor_name) ||
+      printHistory?.[0]?.municipal_assessor_name ||
+      settings?.municipal_assessor_name ||
       '';
 
     const assessorSuffix =
       (isRequest && requestData?.municipal_assessor_suffix) ||
       propertySignatorySource?.municipal_assessor_suffix ||
-      (printHistory && printHistory[0] && printHistory[0].municipal_assessor_suffix) ||
-      (settings && settings.municipal_assessor_suffix) ||
+      printHistory?.[0]?.municipal_assessor_suffix ||
+      settings?.municipal_assessor_suffix ||
       '';
 
     const assessorTitle =
       (isRequest && requestData?.municipal_assessor_title) ||
       propertySignatorySource?.municipal_assessor_title ||
-      (printHistory && printHistory[0] && printHistory[0].municipal_assessor_title) ||
-      (settings && settings.municipal_assessor_title) ||
+      printHistory?.[0]?.municipal_assessor_title ||
+      settings?.municipal_assessor_title ||
       'MUNICIPAL ASSESSOR';
 
     const assessorLicense =
       (isRequest && requestData?.municipal_assessor_license) ||
       propertySignatorySource?.municipal_assessor_license ||
-      (printHistory && printHistory[0] && printHistory[0].municipal_assessor_license) ||
-      (settings && settings.municipal_assessor_license) ||
+      printHistory?.[0]?.municipal_assessor_license ||
+      settings?.municipal_assessor_license ||
       '';
 
 

@@ -659,16 +659,19 @@ const PropertyTable = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const data = await apiService.getSettings();
+        const data = await apiService.getBootstrapSettings();
         setSettings(data);
         try {
           localStorage.setItem('assessor_settings', JSON.stringify(data));
-          if (data && data.app_logo_url) localStorage.setItem('app_logo_url', data.app_logo_url);
+          if (data && data.app_logo_url) {
+            localStorage.setItem('app_logo_url', data.app_logo_url);
+          }
         } catch (_) { }
       } catch (e) {
-        setSettings(null);
+        console.error('Failed to load bootstrap settings:', e);
       }
     };
+
     loadSettings();
 
     const handleSettingsUpdated = (event) => {
@@ -1002,6 +1005,29 @@ const PropertyTable = () => {
       );
 
       setPrintHistory(response || []);
+
+      console.log('PRINT SIGNATORY SOURCE DEBUG', {
+        clickedProperty: {
+          id: selectedProperty?.id,
+          taxDeclarationNumber: selectedProperty?.tax_declaration_number,
+          verifierSignatoryName: selectedProperty?.verifier_signatory_name,
+          verifierSignatoryTitle: selectedProperty?.verifier_signatory_title,
+          municipalAssessorName: selectedProperty?.municipal_assessor_name,
+          municipalAssessorSuffix: selectedProperty?.municipal_assessor_suffix,
+          municipalAssessorTitle: selectedProperty?.municipal_assessor_title,
+          municipalAssessorLicense: selectedProperty?.municipal_assessor_license
+        },
+        historyFirst: {
+          id: response?.[0]?.id,
+          taxDeclarationNumber: response?.[0]?.tax_declaration_number,
+          verifierSignatoryName: response?.[0]?.verifier_signatory_name,
+          verifierSignatoryTitle: response?.[0]?.verifier_signatory_title,
+          municipalAssessorName: response?.[0]?.municipal_assessor_name,
+          municipalAssessorSuffix: response?.[0]?.municipal_assessor_suffix,
+          municipalAssessorTitle: response?.[0]?.municipal_assessor_title,
+          municipalAssessorLicense: response?.[0]?.municipal_assessor_license
+        }
+      });
       // Load documents for the current (latest) property for preview
       try {
         const current = Array.isArray(response) && response.length > 0 ? response[0] : null;
