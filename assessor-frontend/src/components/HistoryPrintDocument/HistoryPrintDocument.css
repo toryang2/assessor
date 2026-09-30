@@ -92,6 +92,28 @@
     page-break-inside: avoid;
     break-inside: avoid;
   }
+
+  .history-table,
+  .history-table thead,
+  .history-table tbody,
+  .history-table tr,
+  .history-table th,
+  .history-table td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .history-table .history-table-header-row {
+    background-color: var(--history-print-header-bg) !important;
+  }
+
+  .history-table tbody tr:nth-child(odd):not(.active-row):not(.history-origin-row) {
+    background-color: var(--history-print-row-odd) !important;
+  }
+
+  .history-table tbody tr:nth-child(even):not(.active-row):not(.history-origin-row) {
+    background-color: var(--history-print-row-even) !important;
+  }
 }
 
 /* Scoped Reset */

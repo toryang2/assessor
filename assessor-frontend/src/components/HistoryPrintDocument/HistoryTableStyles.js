@@ -1,10 +1,14 @@
 export const HISTORY_TABLE_STYLES = {
   default: {
     label: 'Default',
-    header: '#f1f5f9',
+    header: '#dbe4ee',
     odd: '#ffffff',
-    even: '#f8fafc',
-    hover: '#eef4fb',
+    even: '#eef3f8',
+    hover: '#d9e4ef',
+
+    printHeader: '#cbd8e5',
+    printOdd: '#ffffff',
+    printEven: '#e3ebf2',
   },
 
   blue: {
@@ -13,6 +17,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#eff6ff',
     hover: '#dbeafe',
+
+    printHeader: '#b9d5ff',
+    printOdd: '#ffffff',
+    printEven: '#dcecff',
   },
 
   green: {
@@ -21,6 +29,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#f0fdf4',
     hover: '#dcfce7',
+
+    printHeader: '#b9e6c5',
+    printOdd: '#ffffff',
+    printEven: '#ddf2e2',
   },
 
   yellow: {
@@ -29,6 +41,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#fefce8',
     hover: '#fef3c7',
+
+    printHeader: '#ffe39a',
+    printOdd: '#ffffff',
+    printEven: '#fff0bd',
   },
 
   orange: {
@@ -37,6 +53,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#fff7ed',
     hover: '#ffedd5',
+
+    printHeader: '#ffd0a3',
+    printOdd: '#ffffff',
+    printEven: '#ffe7cf',
   },
 
   red: {
@@ -45,6 +65,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#fef2f2',
     hover: '#fee2e2',
+
+    printHeader: '#ffc1c1',
+    printOdd: '#ffffff',
+    printEven: '#ffe0e0',
   },
 
   purple: {
@@ -53,6 +77,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#f5f3ff',
     hover: '#ede9fe',
+
+    printHeader: '#d3c6f4',
+    printOdd: '#ffffff',
+    printEven: '#e9e2fb',
   },
 
   teal: {
@@ -61,6 +89,10 @@ export const HISTORY_TABLE_STYLES = {
     odd: '#ffffff',
     even: '#f0fdfa',
     hover: '#ccfbf1',
+
+    printHeader: '#a9e5da',
+    printOdd: '#ffffff',
+    printEven: '#dff4ef',
   },
 };
 

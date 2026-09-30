@@ -290,6 +290,15 @@ const HistoryPrintDocument = forwardRef(
           '--history-row-odd': activeHistoryTableStyle.odd,
           '--history-row-even': activeHistoryTableStyle.even,
           '--history-row-hover': activeHistoryTableStyle.hover,
+
+          '--history-print-header-bg':
+            activeHistoryTableStyle.printHeader || activeHistoryTableStyle.header,
+
+          '--history-print-row-odd':
+            activeHistoryTableStyle.printOdd || activeHistoryTableStyle.odd,
+
+          '--history-print-row-even':
+            activeHistoryTableStyle.printEven || activeHistoryTableStyle.even,
         }}
       >
         {/* Subtle watermark circle */}
