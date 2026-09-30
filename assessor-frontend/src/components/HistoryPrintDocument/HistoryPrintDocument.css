@@ -450,7 +450,7 @@ table.history-table,
 }
 
 .history-table-header-row {
-  background-color: #f1f5f9;
+  background-color: var(--history-header-bg, #f1f5f9);
 }
 
 .history-table-header-row th {
@@ -486,12 +486,16 @@ table.history-table,
 }
 
 /* Row Styling */
-.history-table tr.active-row {
-  background-color: rgba(255, 255, 255, 0.7);
+.history-table tbody tr:nth-child(odd) {
+  background-color: var(--history-row-odd);
 }
 
-.history-table tr:nth-child(even):not(.active-row) {
-  background-color: rgba(255, 255, 255, 0.7);
+.history-table tbody tr:nth-child(even) {
+  background-color: var(--history-row-even);
+}
+
+.history-table tr.active-row {
+  background-color: var(--history-row-odd);
 }
 
 /* History Table Typography Roles */

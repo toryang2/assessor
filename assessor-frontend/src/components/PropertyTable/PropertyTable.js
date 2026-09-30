@@ -46,7 +46,9 @@ import {
   BrokenImage as BrokenImageIcon,
   Image as ImageIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  PaletteOutlined as PaletteOutlinedIcon,
+  Check as CheckIcon
 } from '@mui/icons-material';
 import { color, motion } from 'framer-motion';
 
@@ -61,6 +63,10 @@ import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
 import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
+import {
+  HISTORY_TABLE_STYLES,
+  DEFAULT_HISTORY_TABLE_STYLE
+} from '../HistoryPrintDocument/HistoryTableStyles';
 import PropertyDossierModal from './PropertyDossierModal';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -465,6 +471,34 @@ const PropertyTable = () => {
       return 'a4';
     }
   });
+
+  const [historyTableStyle, setHistoryTableStyle] = useState(() => {
+    try {
+      return localStorage.getItem('assessor_history_table_style') || 'default';
+    } catch (_) {
+      return 'default';
+    }
+  });
+
+  const [historyStyleMenuAnchor, setHistoryStyleMenuAnchor] = useState(null);
+
+  const activeHistoryTableStyle =
+    HISTORY_TABLE_STYLES[historyTableStyle] ||
+    HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
+
+  const handleHistoryTableStyleChange = (styleKey) => {
+    if (!HISTORY_TABLE_STYLES[styleKey]) return;
+
+    setHistoryTableStyle(styleKey);
+    setHistoryStyleMenuAnchor(null);
+
+    try {
+      localStorage.setItem(
+        'assessor_history_table_style',
+        styleKey
+      );
+    } catch (_) {}
+  };
 
   const handlePaperSizeChange = (newSize) => {
     if (!newSize) return;
@@ -2186,269 +2220,137 @@ const PropertyTable = () => {
       <Dialog
         open={printModal}
         onClose={() => setPrintModal(false)}
-        maxWidth="xl"
-        fullWidth
-        PaperProps={{ sx: { maxWidth: '80vw', height: '90vh' } }}
+        maxWidth="md"
       >
-        <DialogTitle sx={{ textAlign: 'center' }}>
-          Tax Declaration History (Printable)
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 3, py: 2 }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            Tax Declaration History (Printable)
+          </Typography>
+          <Tooltip title="Table Style">
+            <IconButton
+              size="small"
+              onClick={(e) => setHistoryStyleMenuAnchor(e.currentTarget)}
+              sx={{
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                p: '5px'
+              }}
+            >
+              <PaletteOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </DialogTitle>
-        <DialogContent sx={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Menu
+          anchorEl={historyStyleMenuAnchor}
+          open={Boolean(historyStyleMenuAnchor)}
+          onClose={() => setHistoryStyleMenuAnchor(null)}
+          PaperProps={{
+            sx: {
+              minWidth: 190,
+              py: 0.5,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+              borderRadius: '8px'
+            }
+          }}
+        >
+          <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e2e8f0' }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Table Style
+            </Typography>
+          </Box>
+          {Object.entries(HISTORY_TABLE_STYLES).map(([key, style]) => {
+            const isSelected = (historyTableStyle || DEFAULT_HISTORY_TABLE_STYLE) === key;
+            return (
+              <MenuItem
+                key={key}
+                onClick={() => handleHistoryTableStyleChange(key)}
+                selected={isSelected}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  py: 1,
+                  px: 2,
+                  fontSize: '0.875rem'
+                }}
+              >
+                {/* 3-row mini table preview */}
+                <Box
+                  sx={{
+                    width: 22,
+                    height: 18,
+                    borderRadius: '3px',
+                    border: '1px solid #cbd5e1',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexShrink: 0
+                  }}
+                >
+                  <Box sx={{ flex: 1, backgroundColor: style.header }} />
+                  <Box sx={{ flex: 1, backgroundColor: style.odd }} />
+                  <Box sx={{ flex: 1, backgroundColor: style.even }} />
+                </Box>
+                <Typography sx={{ flex: 1, fontSize: '0.875rem', fontWeight: isSelected ? 600 : 400 }}>
+                  {style.label}
+                </Typography>
+                {isSelected && (
+                  <CheckIcon sx={{ fontSize: 18, color: 'primary.main', ml: 'auto' }} />
+                )}
+              </MenuItem>
+            );
+          })}
+        </Menu>
+        <DialogContent
+          sx={{
+            p: 2,
+            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center'
+          }}
+        >
           {printLoading ? (
-            <Box display="flex" justifyContent="center" p={3}>
-              <Typography>Loading history...</Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '40vh',
+                minWidth: '40vw',
+                gap: 2
+              }}
+            >
+              <CircularProgress size={50} thickness={4} />
+              <Typography variant="h6" color="text.secondary">
+                Loading History...
+              </Typography>
             </Box>
           ) : printHistory.length > 0 ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
-                <TableContainer component={Paper}>
-                  {(() => {
-                    const isSmallScreen = (() => {
-                      try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080); } catch (_) { return false; }
-                    })();
-                    return (
-                      <div className="print-header" style={{ textAlign: 'center', fontFamily: 'Times New Roman, sans-serif' }}>
-                        {appLogoUrl ? (
-                          <img src={appLogoUrl} alt="Logo" style={{ height: isSmallScreen ? 48 : 64, display: 'block', margin: isSmallScreen ? '0 auto 6px auto' : '0 auto 8px auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                        ) : null}
-                        <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerPh}</h4>
-                        <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerProvince}</h4>
-                        <h4 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 400 }}>{headerMunicipality}</h4>
-                        <h3 style={{ fontSize: isSmallScreen ? 14 : 16, margin: '-6px 0', fontWeight: 600 }}>{headerOffice}</h3>
-                        <div style={{ marginTop: isSmallScreen ? 6 : 8, marginBottom: isSmallScreen ? 10 : 15, fontWeight: 700, textDecoration: 'underline', fontFamily: 'Tahoma, serif', fontSize: isSmallScreen ? 13 : 14 }}>{headerTitle}</div>
-                      </div>
-                    );
-                  })()}
-                  <Table size="small" stickyHeader sx={{ tableLayout: 'fixed' }}>
-                    <TableBody sx={{ '& td': { borderBottom: 'none', padding: { xs: '3px 8px', md: '4px 12px' } } }}>
-                      <TableRow sx={{ '& td': { paddingTop: '12px' } }}>
-                        <TableCell><strong>TAX DECLARATION NUMBER:</strong> {printHistory[0].tax_declaration_number}</TableCell>
-                        <TableCell><strong>PIN:</strong> {printHistory[0].pin}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}><strong>OWNER:</strong> {normalizeDeclarantString(printHistory[0].declarant_name) || ''}</TableCell>
-                        <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                          <strong>ADDRESS:</strong>{' '}
-                          <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                            {printHistory[0].address}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>ADMINISTRATOR/BUSINESS NAME:</strong> {sanitizeBusinessName(printHistory[0].business_name) || ''}</TableCell>
-                        <TableCell><strong>ASSESSMENT DATE:</strong> {printHistory[0].assessment_date}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>LOCATION:</strong> {printHistory[0].location}</TableCell>
-                        <TableCell><strong>KIND OF PROPERTY:</strong> {printHistory[0].kind_of_property_name || printHistory[0].kind_of_property}</TableCell>
-                      </TableRow>
-                      <TableRow sx={{ '& td': { paddingBottom: '12px' } }}>
-                        <TableCell><strong>EFFECTIVITY:</strong> {formatEffectivityDisplay(printHistory[0])}</TableCell>
-                        <TableCell><strong>GEN. CLASS:</strong> {printHistory[0].gen_class_name || printHistory[0].gen_class}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                  <Table size="small" stickyHeader>
-                    {/* <colgroup>
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '28%' }} />
-                </colgroup> */}
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Tax Declaration Number</TableCell>
-                        <TableCell>Declarant</TableCell>
-                        <TableCell>Barangay</TableCell>
-                        <TableCell>Lot Number</TableCell>
-                        <TableCell>Survey Number</TableCell>
-                        <TableCell>Area</TableCell>
-                        <TableCell>Title Number</TableCell>
-                        <TableCell>Assessed Value</TableCell>
-                        <TableCell>Effectivity</TableCell>
-                        <TableCell>Memoranda</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
-                      {printHistory.map((item, index) => {
-                        if (item.is_history_origin) {
-                          return (
-                            <TableRow
-                              key={`print-origin-${index}`}
-                              sx={{
-                                backgroundColor: '#f0f9ff',
-                                '&:hover': { backgroundColor: '#e0f2fe !important' }
-                              }}
-                            >
-                              <TableCell sx={{ borderLeft: '3px solid #0284c7' }}>
-                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0369a1', letterSpacing: '0.05em' }}>
-                                    NEW
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      px: 0.75,
-                                      py: 0.25,
-                                      borderRadius: 0.5,
-                                      bgcolor: '#bae6fd',
-                                      color: '#0369a1',
-                                      fontWeight: 600,
-                                      fontSize: '0.65rem'
-                                    }}
-                                  >
-                                    Original Declaration
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>{item.location || '—'}</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                              <TableCell>—</TableCell>
-                            </TableRow>
-                          );
-                        }
-
-                        // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
-                        const wasConsolidatedInto = printHistory.some(otherItem => {
-                          if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
-                            const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
-                            return prevTds.includes(String(item.tax_declaration_number).trim());
-                          }
-                          return false;
-                        });
-                        // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
-                        const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
-                        const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
-
-                        return (
-                          <TableRow key={index} hover>
-                            <TableCell>
-                              <Typography
-                                variant="body2"
-                                fontWeight={600}
-                                color={isConsolidated ? "warning.main" : "primary"}
-                              >
-                                {item.tax_declaration_number}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                                {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
-                                  <Box mt={0.5}>
-                                    <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
-                                      Consolidated
-                                    </Typography>
-                                  </Box>
-                                ) : null}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              {(() => {
-                                const d = normalizeDeclarantString(item.declarant_name);
-                                const b = item.business_name
-                                  ? String(item.business_name).replace(/,\s*/g, ' ')
-                                  : '';
-
-                                if (!d && !b) return '—';
-
-                                return (
-                                  <>
-                                    {d && (
-                                      <Typography variant='body' fontWeight='bold'>
-                                        {d}
-                                      </Typography>
-                                    )}
-                                    {b && (
-                                      <Typography variant="caption" color="text.secondary" display="block">
-                                        {b}
-                                      </Typography>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell>{item.location || '—'}</TableCell>
-                            <TableCell>{item.lot_number || '—'}</TableCell>
-                            <TableCell>{item.survey_number || '—'}</TableCell>
-                            <TableCell>{(() => {
-                              const haRaw = item.area_hectare;
-                              const sqmRaw = item.area_sqm;
-                              const oldHaRaw = item.area_hectare_old;
-                              const numHa = Number(haRaw);
-                              const numSqm = Number(sqmRaw);
-                              const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                              const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                              const hasOldHa = oldHaRaw && oldHaRaw !== '';
-
-                              if (!hasHa && !hasSqm && !hasOldHa) return '—';
-
-                              let currentArea = '';
-                              if (hasHa) {
-                                const unit = numHa <= 1 ? 'ha' : 'has';
-                                currentArea = `${numHa.toFixed(4)} ${unit}`;
-                              } else if (hasSqm) {
-                                currentArea = `${numSqm.toFixed(2)} sqm`;
-                              }
-
-                              if (hasOldHa && currentArea) {
-                                return `${currentArea} ${oldHaRaw}`;
-                              } else if (hasOldHa) {
-                                return oldHaRaw;
-                              } else {
-                                return currentArea || '—';
-                              }
-                            })()}</TableCell>
-                            <TableCell>{item.title_number || '—'}</TableCell>
-                            <TableCell>
-                              {(() => {
-                                const currentValue = item.assessed_value;
-                                const oldValue = item.assessed_value_old;
-                                const hasCurrent = currentValue !== undefined && currentValue !== null;
-                                const hasOld = oldValue && oldValue !== '';
-
-                                if (!hasCurrent && !hasOld) return '₱0.00';
-
-                                let displayValue = '';
-                                if (hasCurrent) {
-                                  displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                                }
-
-                                if (hasOld && displayValue) {
-                                  return `${displayValue} ${oldValue}`;
-                                } else if (hasOld) {
-                                  return oldValue;
-                                } else {
-                                  return displayValue || '₱0.00';
-                                }
-                              })()}
-                            </TableCell>
-                            <TableCell>{formatEffectivityDisplay(item)}</TableCell>
-                            <TableCell sx={{ maxWidth: 280 }}>
-                              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                {item.memoranda || '—'}
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+            <Box
+              sx={{
+                width: '100%',
+                maxHeight: '70vh',
+                overflow: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center'
+              }}
+            >
+              <HistoryPrintDocument
+                settings={settings}
+                printHistory={printHistory}
+                requestData={printRequestData}
+                printPropertyData={printPropertyData}
+                documentType="property"
+                paperSize={paperSize}
+                printGeneratedAt={printGeneratedAt}
+                historyTableStyle={historyTableStyle}
+              />
                 {/* Attached Documents Section (Preview Only, non-sticky; included in scroll area) */}
                 {Array.isArray(printDocuments) && printDocuments.length > 0 && (
-                  <Box sx={{ p: 1, backgroundColor: 'background.paper' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  <Box sx={{ width: '100%', maxWidth: 900, mt: 2, p: 2, backgroundColor: 'background.paper', borderRadius: 1, border: '1px solid #e2e8f0' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, mb: 1, display: 'block' }}>
                       Attached Documents
                     </Typography>
                     {(() => {
@@ -2536,9 +2438,23 @@ const PropertyTable = () => {
                   </Box>
                 )}
               </Box>
-            </Box>
           ) : (
-            <Typography>No history found for this tax declaration number.</Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '40vh',
+                minWidth: '40vw',
+                textAlign: 'center',
+                px: 3
+              }}
+            >
+              <Typography variant="h6" color="text.secondary">
+                No history found for this tax declaration number.
+              </Typography>
+            </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2761,6 +2677,7 @@ const PropertyTable = () => {
           documentType="property"
           paperSize={paperSize}
           printGeneratedAt={printGeneratedAt}
+          historyTableStyle={historyTableStyle}
         />
       </div>
     </Box>

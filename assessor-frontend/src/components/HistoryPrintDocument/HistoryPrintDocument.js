@@ -2,6 +2,10 @@ import React, { forwardRef } from 'react';
 import { Typography } from '@mui/material';
 import { Receipt, Layers, AlignJustify } from 'lucide-react';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
+import {
+  HISTORY_TABLE_STYLES,
+  DEFAULT_HISTORY_TABLE_STYLE
+} from './HistoryTableStyles';
 import './HistoryPrintDocument.css';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
@@ -157,9 +161,14 @@ const HistoryPrintDocument = forwardRef(
     printPropertyData,
     documentType,
     paperSize = 'a4',
-    printGeneratedAt
+    printGeneratedAt,
+    historyTableStyle = DEFAULT_HISTORY_TABLE_STYLE
   }, ref) => {
     const isRequest = documentType === 'request' || (documentType === undefined && Boolean(requestData && (requestData.id || requestData.receipt_number || requestData.purpose || requestData.purpose_details || requestData.client_name)));
+
+    const activeHistoryTableStyle =
+      HISTORY_TABLE_STYLES[historyTableStyle] ||
+      HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
 
     const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
     const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
@@ -273,7 +282,16 @@ const HistoryPrintDocument = forwardRef(
     const paperClass = `paper-${paperSize || 'a4'}`;
 
     return (
-      <div ref={ref} className={`print-root document-page ${paperClass}`}>
+      <div
+        ref={ref}
+        className={`print-root document-page ${paperClass}`}
+        style={{
+          '--history-header-bg': activeHistoryTableStyle.header,
+          '--history-row-odd': activeHistoryTableStyle.odd,
+          '--history-row-even': activeHistoryTableStyle.even,
+          '--history-row-hover': activeHistoryTableStyle.hover,
+        }}
+      >
         {/* Subtle watermark circle */}
         {/* <div className="print-watermark" aria-hidden="true">
         <div className="print-watermark-inner">
@@ -474,8 +492,19 @@ const HistoryPrintDocument = forwardRef(
 
               const isActiveRow = index === 0;
 
+              const rowBackground =
+                index % 2 === 0
+                  ? activeHistoryTableStyle.odd
+                  : activeHistoryTableStyle.even;
+
               return (
-                <tr key={index} className={isActiveRow ? 'active-row' : undefined}>
+                <tr
+                  key={index}
+                  className={isActiveRow ? 'active-row' : undefined}
+                  style={{
+                    backgroundColor: rowBackground
+                  }}
+                >
                   <td style={{ padding: 4, verticalAlign: 'top', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                     <div
                       className="history-td-number"

@@ -27,7 +27,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Tooltip
+  Tooltip,
+  Menu
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -39,7 +40,9 @@ import {
   Refresh as RefreshIcon,
   PlaylistAdd as PlaylistAddIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  PaletteOutlined as PaletteOutlinedIcon,
+  Check as CheckIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
@@ -52,6 +55,10 @@ import LoadingDots from '../LoadingDots';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 import { formatAppDate } from '../../utils/dateTime';
 import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
+import {
+  HISTORY_TABLE_STYLES,
+  DEFAULT_HISTORY_TABLE_STYLE
+} from '../HistoryPrintDocument/HistoryTableStyles';
 
 // Format declarant from discrete fields; add dot only for single-character middle
 const formatDeclarantFromParts = (last, first, middle) => {
@@ -223,6 +230,34 @@ const RequestsTable = () => {
       return 'a4';
     }
   });
+
+  const [historyTableStyle, setHistoryTableStyle] = useState(() => {
+    try {
+      return localStorage.getItem('assessor_history_table_style') || 'default';
+    } catch (_) {
+      return 'default';
+    }
+  });
+
+  const [historyStyleMenuAnchor, setHistoryStyleMenuAnchor] = useState(null);
+
+  const activeHistoryTableStyle =
+    HISTORY_TABLE_STYLES[historyTableStyle] ||
+    HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
+
+  const handleHistoryTableStyleChange = (styleKey) => {
+    if (!HISTORY_TABLE_STYLES[styleKey]) return;
+
+    setHistoryTableStyle(styleKey);
+    setHistoryStyleMenuAnchor(null);
+
+    try {
+      localStorage.setItem(
+        'assessor_history_table_style',
+        styleKey
+      );
+    } catch (_) {}
+  };
 
   const handlePaperSizeChange = (newSize) => {
     if (!newSize) return;
@@ -1720,12 +1755,88 @@ const RequestsTable = () => {
         onClose={() => setPrintModal(false)}
         maxWidth="md"
       >
-        <DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 3, py: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <PrintIcon />
-            Print Request History
+            <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+              Print Request History
+            </Typography>
           </Box>
+          <Tooltip title="Table Style">
+            <IconButton
+              size="small"
+              onClick={(e) => setHistoryStyleMenuAnchor(e.currentTarget)}
+              sx={{
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                p: '5px'
+              }}
+            >
+              <PaletteOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </DialogTitle>
+        <Menu
+          anchorEl={historyStyleMenuAnchor}
+          open={Boolean(historyStyleMenuAnchor)}
+          onClose={() => setHistoryStyleMenuAnchor(null)}
+          PaperProps={{
+            sx: {
+              minWidth: 190,
+              py: 0.5,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+              borderRadius: '8px'
+            }
+          }}
+        >
+          <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e2e8f0' }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Table Style
+            </Typography>
+          </Box>
+          {Object.entries(HISTORY_TABLE_STYLES).map(([key, style]) => {
+            const isSelected = (historyTableStyle || DEFAULT_HISTORY_TABLE_STYLE) === key;
+            return (
+              <MenuItem
+                key={key}
+                onClick={() => handleHistoryTableStyleChange(key)}
+                selected={isSelected}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  py: 1,
+                  px: 2,
+                  fontSize: '0.875rem'
+                }}
+              >
+                {/* 3-row mini table preview */}
+                <Box
+                  sx={{
+                    width: 22,
+                    height: 18,
+                    borderRadius: '3px',
+                    border: '1px solid #cbd5e1',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexShrink: 0
+                  }}
+                >
+                  <Box sx={{ flex: 1, backgroundColor: style.header }} />
+                  <Box sx={{ flex: 1, backgroundColor: style.odd }} />
+                  <Box sx={{ flex: 1, backgroundColor: style.even }} />
+                </Box>
+                <Typography sx={{ flex: 1, fontSize: '0.875rem', fontWeight: isSelected ? 600 : 400 }}>
+                  {style.label}
+                </Typography>
+                {isSelected && (
+                  <CheckIcon sx={{ fontSize: 18, color: 'primary.main', ml: 'auto' }} />
+                )}
+              </MenuItem>
+            );
+          })}
+        </Menu>
         <DialogContent
           sx={{
             p: 2,
@@ -1767,6 +1878,7 @@ const RequestsTable = () => {
                 documentType="request"
                 paperSize={paperSize}
                 printGeneratedAt={printGeneratedAt}
+                historyTableStyle={historyTableStyle}
               />
             </Box>
           )}
@@ -1829,6 +1941,7 @@ const RequestsTable = () => {
           documentType="request"
           paperSize={paperSize}
           printGeneratedAt={printGeneratedAt}
+          historyTableStyle={historyTableStyle}
         />
       </div>
 
