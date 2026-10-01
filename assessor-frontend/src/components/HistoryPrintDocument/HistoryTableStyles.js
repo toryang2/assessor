@@ -97,3 +97,29 @@ export const HISTORY_TABLE_STYLES = {
 };
 
 export const DEFAULT_HISTORY_TABLE_STYLE = 'default';
+
+export const normalizeHistoryTableStyle = (styleId) => {
+  if (styleId && typeof styleId === 'string' && HISTORY_TABLE_STYLES[styleId.toLowerCase()]) {
+    return styleId.toLowerCase();
+  }
+  return DEFAULT_HISTORY_TABLE_STYLE;
+};
+
+export async function saveHistoryTableStyle(styleId) {
+  const normalized = normalizeHistoryTableStyle(styleId);
+  const { apiService } = await import('../../utils/api');
+  const response = await apiService.saveSettings({ history_table_style: normalized });
+  const savedStyle = response?.history_table_style
+    ? normalizeHistoryTableStyle(response.history_table_style)
+    : normalized;
+
+  try {
+    localStorage.setItem('assessor_history_table_style', savedStyle);
+  } catch (_) {}
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: response }));
+  }
+
+  return savedStyle;
+}

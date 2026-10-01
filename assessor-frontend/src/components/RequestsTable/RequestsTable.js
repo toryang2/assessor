@@ -57,7 +57,9 @@ import { formatAppDate } from '../../utils/dateTime';
 import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
 import {
   HISTORY_TABLE_STYLES,
-  DEFAULT_HISTORY_TABLE_STYLE
+  DEFAULT_HISTORY_TABLE_STYLE,
+  normalizeHistoryTableStyle,
+  saveHistoryTableStyle
 } from '../HistoryPrintDocument/HistoryTableStyles';
 
 // Format declarant from discrete fields; add dot only for single-character middle
@@ -95,7 +97,20 @@ const useDebounce = (value, delay) => {
 
 const RequestsTable = () => {
   const tableContainerRef = useRef(null);
-  const { isAdmin, isSuperAdmin, isViewer } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isAssessor, canManage, isViewer } = useAuth();
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  const canChangeHistoryTableStyle = Boolean(
+    canManage ||
+    isAssessor ||
+    isAdmin ||
+    isSuperAdmin ||
+    normalizedRole === 'assessor' ||
+    normalizedRole === 'municipal assessor' ||
+    normalizedRole === 'admin' ||
+    normalizedRole === 'administrator' ||
+    normalizedRole === 'superadmin' ||
+    normalizedRole === 'super_admin'
+  );
 
   // Grouped requests states
   const [groups, setGroups] = useState([]);
@@ -137,7 +152,15 @@ const RequestsTable = () => {
   const [bulkRequestModal, setBulkRequestModal] = useState(false);
 
   // Settings state
-  const [settings, setSettings] = useState({});
+  const initialSettings = (() => {
+    if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
+    try {
+      const cached = localStorage.getItem('assessor_settings');
+      if (cached) return JSON.parse(cached);
+    } catch (_) { }
+    return {};
+  })();
+  const [settings, setSettings] = useState(initialSettings);
 
   // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
   useLoadingWatchdog({
@@ -233,9 +256,12 @@ const RequestsTable = () => {
 
   const [historyTableStyle, setHistoryTableStyle] = useState(() => {
     try {
-      return localStorage.getItem('assessor_history_table_style') || 'default';
+      const cached = localStorage.getItem('assessor_history_table_style');
+      return normalizeHistoryTableStyle(
+        cached || DEFAULT_HISTORY_TABLE_STYLE
+      );
     } catch (_) {
-      return 'default';
+      return DEFAULT_HISTORY_TABLE_STYLE;
     }
   });
 
@@ -245,18 +271,24 @@ const RequestsTable = () => {
     HISTORY_TABLE_STYLES[historyTableStyle] ||
     HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
 
-  const handleHistoryTableStyleChange = (styleKey) => {
-    if (!HISTORY_TABLE_STYLES[styleKey]) return;
+  const handleHistoryTableStyleChange = async (styleKey) => {
+    if (!canChangeHistoryTableStyle) {
+      setError('Only an Assessor or Administrator can change the History Table Style.');
+      return;
+    }
 
-    setHistoryTableStyle(styleKey);
+    const normalizedKey = normalizeHistoryTableStyle(styleKey);
     setHistoryStyleMenuAnchor(null);
 
+    const previousStyle = historyTableStyle;
     try {
-      localStorage.setItem(
-        'assessor_history_table_style',
-        styleKey
-      );
-    } catch (_) {}
+      const persisted = await saveHistoryTableStyle(normalizedKey);
+      setHistoryTableStyle(persisted);
+    } catch (err) {
+      console.error('Failed to save history table style:', err);
+      setHistoryTableStyle(previousStyle);
+      setError(err?.message || 'Failed to save history table style setting.');
+    }
   };
 
   const handlePaperSizeChange = (newSize) => {
@@ -376,8 +408,21 @@ const RequestsTable = () => {
   // Fetch settings
   const fetchSettings = async () => {
     try {
-      const response = await apiService.getSettings();
+      const response = await apiService.getBootstrapSettings();
       setSettings(response || {});
+      if (response && response.history_table_style) {
+        const style = normalizeHistoryTableStyle(response.history_table_style);
+        setHistoryTableStyle(style);
+        try {
+          localStorage.setItem('assessor_history_table_style', style);
+        } catch (_) { }
+      }
+      try {
+        localStorage.setItem('assessor_settings', JSON.stringify(response));
+        if (response && response.app_logo_url) {
+          localStorage.setItem('app_logo_url', response.app_logo_url);
+        }
+      } catch (_) { }
     } catch (err) {
       console.error('Error fetching settings:', err);
     }
@@ -408,6 +453,26 @@ const RequestsTable = () => {
     fetchSettings();
     fetchUsers();
     fetchRequestPurposes();
+
+    const handleSettingsUpdated = (event) => {
+      if (event?.detail) {
+        setSettings(event.detail);
+        if (event.detail.history_table_style) {
+          const style = normalizeHistoryTableStyle(event.detail.history_table_style);
+          setHistoryTableStyle(style);
+          try {
+            localStorage.setItem('assessor_history_table_style', style);
+          } catch (_) { }
+        }
+      } else {
+        fetchSettings();
+      }
+    };
+
+    window.addEventListener('settingsUpdated', handleSettingsUpdated);
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdated);
+    };
   }, []);
 
   // Fetch requests for pagination (only when not searching)
@@ -1762,18 +1827,21 @@ const RequestsTable = () => {
               Print Request History
             </Typography>
           </Box>
-          <Tooltip title="Table Style">
-            <IconButton
-              size="small"
-              onClick={(e) => setHistoryStyleMenuAnchor(e.currentTarget)}
-              sx={{
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                p: '5px'
-              }}
-            >
-              <PaletteOutlinedIcon fontSize="small" />
-            </IconButton>
+          <Tooltip title={canChangeHistoryTableStyle ? "Table Style" : "Table Style (Read-only)"}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={(e) => canChangeHistoryTableStyle && setHistoryStyleMenuAnchor(e.currentTarget)}
+                disabled={!canChangeHistoryTableStyle}
+                sx={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  p: '5px'
+                }}
+              >
+                <PaletteOutlinedIcon fontSize="small" />
+              </IconButton>
+            </span>
           </Tooltip>
         </DialogTitle>
         <Menu

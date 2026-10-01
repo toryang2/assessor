@@ -179,6 +179,12 @@ class Assessor_Database {
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN enable_etracs_features tinyint(1) NOT NULL DEFAULT 0 AFTER public_api_enabled");
         }
+
+        // Migration: Add history_table_style column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'history_table_style'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN history_table_style varchar(20) DEFAULT 'default' AFTER enable_etracs_features");
+        }
         
         // Migration: Add municipality_prefix column to settings table
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'municipality_prefix'", $table_settings));
@@ -206,6 +212,7 @@ class Assessor_Database {
             public_api_key_prefix varchar(20) DEFAULT '',
             public_api_enabled tinyint(1) NOT NULL DEFAULT 0,
             enable_etracs_features tinyint(1) NOT NULL DEFAULT 0,
+            history_table_style varchar(20) DEFAULT 'default',
             print_layout_templates longtext,
             app_secondary_logo_url varchar(500) DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -2064,6 +2071,12 @@ class Assessor_Database {
         $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'request_place_issued_default'", $table_settings));
         if (!$column) {
             $wpdb->query("ALTER TABLE $table_settings ADD COLUMN request_place_issued_default varchar(255) DEFAULT '' AFTER header_office");
+        }
+
+        // Migration: Add history_table_style column to settings table
+        $column = $wpdb->get_var($wpdb->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'history_table_style'", $table_settings));
+        if (!$column) {
+            $wpdb->query("ALTER TABLE $table_settings ADD COLUMN history_table_style varchar(20) DEFAULT 'default' AFTER enable_etracs_features");
         }
 
         // Cleanup: remove legacy purpose fields from settings table (migrated to assessor_request_purposes)

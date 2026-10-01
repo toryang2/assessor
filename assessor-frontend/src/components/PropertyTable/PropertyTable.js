@@ -65,7 +65,9 @@ import { formatAppDateTime, formatAppDate } from '../../utils/dateTime';
 import HistoryPrintDocument, { getHistoryPrintPageStyle } from '../HistoryPrintDocument/HistoryPrintDocument';
 import {
   HISTORY_TABLE_STYLES,
-  DEFAULT_HISTORY_TABLE_STYLE
+  DEFAULT_HISTORY_TABLE_STYLE,
+  normalizeHistoryTableStyle,
+  saveHistoryTableStyle
 } from '../HistoryPrintDocument/HistoryTableStyles';
 import PropertyDossierModal from './PropertyDossierModal';
 
@@ -236,7 +238,20 @@ const getStateColor = (state) => {
 };
 
 const PropertyTable = () => {
-  const { isAdmin, isSuperAdmin, canEdit, isViewer } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isAssessor, canManage, canEdit, isViewer } = useAuth();
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  const canChangeHistoryTableStyle = Boolean(
+    canManage ||
+    isAssessor ||
+    isAdmin ||
+    isSuperAdmin ||
+    normalizedRole === 'assessor' ||
+    normalizedRole === 'municipal assessor' ||
+    normalizedRole === 'admin' ||
+    normalizedRole === 'administrator' ||
+    normalizedRole === 'superadmin' ||
+    normalizedRole === 'super_admin'
+  );
   const tableContainerRef = useRef(null);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -474,9 +489,12 @@ const PropertyTable = () => {
 
   const [historyTableStyle, setHistoryTableStyle] = useState(() => {
     try {
-      return localStorage.getItem('assessor_history_table_style') || 'default';
+      const cached = localStorage.getItem('assessor_history_table_style');
+      return normalizeHistoryTableStyle(
+        cached || DEFAULT_HISTORY_TABLE_STYLE
+      );
     } catch (_) {
-      return 'default';
+      return DEFAULT_HISTORY_TABLE_STYLE;
     }
   });
 
@@ -486,18 +504,24 @@ const PropertyTable = () => {
     HISTORY_TABLE_STYLES[historyTableStyle] ||
     HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
 
-  const handleHistoryTableStyleChange = (styleKey) => {
-    if (!HISTORY_TABLE_STYLES[styleKey]) return;
+  const handleHistoryTableStyleChange = async (styleKey) => {
+    if (!canChangeHistoryTableStyle) {
+      setError('Only an Assessor or Administrator can change the History Table Style.');
+      return;
+    }
 
-    setHistoryTableStyle(styleKey);
+    const normalizedKey = normalizeHistoryTableStyle(styleKey);
     setHistoryStyleMenuAnchor(null);
 
+    const previousStyle = historyTableStyle;
     try {
-      localStorage.setItem(
-        'assessor_history_table_style',
-        styleKey
-      );
-    } catch (_) {}
+      const persisted = await saveHistoryTableStyle(normalizedKey);
+      setHistoryTableStyle(persisted);
+    } catch (err) {
+      console.error('Failed to save history table style:', err);
+      setHistoryTableStyle(previousStyle);
+      setError(err?.message || 'Failed to save history table style setting.');
+    }
   };
 
   const handlePaperSizeChange = (newSize) => {
@@ -522,6 +546,18 @@ const PropertyTable = () => {
     return null;
   })();
   const [settings, setSettings] = useState(initialSettings);
+
+  // Sync initial cached/bootstrapped settings history_table_style if present
+  useEffect(() => {
+    const backendStyle = initialSettings?.history_table_style;
+    if (backendStyle) {
+      const normalized = normalizeHistoryTableStyle(backendStyle);
+      setHistoryTableStyle(normalized);
+      try {
+        localStorage.setItem('assessor_history_table_style', normalized);
+      } catch (_) { }
+    }
+  }, [initialSettings]);
 
   // Universal safety watchdog: prevent infinite initial loading if the backend/network hangs
   useLoadingWatchdog({
@@ -695,6 +731,13 @@ const PropertyTable = () => {
       try {
         const data = await apiService.getBootstrapSettings();
         setSettings(data);
+        if (data && data.history_table_style) {
+          const style = normalizeHistoryTableStyle(data.history_table_style);
+          setHistoryTableStyle(style);
+          try {
+            localStorage.setItem('assessor_history_table_style', style);
+          } catch (_) { }
+        }
         try {
           localStorage.setItem('assessor_settings', JSON.stringify(data));
           if (data && data.app_logo_url) {
@@ -711,6 +754,13 @@ const PropertyTable = () => {
     const handleSettingsUpdated = (event) => {
       if (event?.detail) {
         setSettings(event.detail);
+        if (event.detail.history_table_style) {
+          const style = normalizeHistoryTableStyle(event.detail.history_table_style);
+          setHistoryTableStyle(style);
+          try {
+            localStorage.setItem('assessor_history_table_style', style);
+          } catch (_) { }
+        }
       } else {
         loadSettings();
       }
@@ -2226,18 +2276,21 @@ const PropertyTable = () => {
           <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
             Tax Declaration History (Printable)
           </Typography>
-          <Tooltip title="Table Style">
-            <IconButton
-              size="small"
-              onClick={(e) => setHistoryStyleMenuAnchor(e.currentTarget)}
-              sx={{
-                border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                p: '5px'
-              }}
-            >
-              <PaletteOutlinedIcon fontSize="small" />
-            </IconButton>
+          <Tooltip title={canChangeHistoryTableStyle ? "Table Style" : "Table Style (Read-only)"}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={(e) => canChangeHistoryTableStyle && setHistoryStyleMenuAnchor(e.currentTarget)}
+                disabled={!canChangeHistoryTableStyle}
+                sx={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  p: '5px'
+                }}
+              >
+                <PaletteOutlinedIcon fontSize="small" />
+              </IconButton>
+            </span>
           </Tooltip>
         </DialogTitle>
         <Menu
@@ -2347,97 +2400,97 @@ const PropertyTable = () => {
                 printGeneratedAt={printGeneratedAt}
                 historyTableStyle={historyTableStyle}
               />
-                {/* Attached Documents Section (Preview Only, non-sticky; included in scroll area) */}
-                {Array.isArray(printDocuments) && printDocuments.length > 0 && (
-                  <Box sx={{ width: '100%', maxWidth: 900, mt: 2, p: 2, backgroundColor: 'background.paper', borderRadius: 1, border: '1px solid #e2e8f0' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, mb: 1, display: 'block' }}>
-                      Attached Documents
-                    </Typography>
-                    {(() => {
-                      const isLegacy = (d) => String(d?.id || '').startsWith('legacy-') || String(d?.description || '') === 'Legacy document';
-                      const managedDocs = (printDocuments || []).filter(d => !isLegacy(d));
-                      const legacyDocs = (printDocuments || []).filter(d => isLegacy(d));
+              {/* Attached Documents Section (Preview Only, non-sticky; included in scroll area) */}
+              {Array.isArray(printDocuments) && printDocuments.length > 0 && (
+                <Box sx={{ width: '100%', maxWidth: 900, mt: 2, p: 2, backgroundColor: 'background.paper', borderRadius: 1, border: '1px solid #e2e8f0' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, mb: 1, display: 'block' }}>
+                    Attached Documents
+                  </Typography>
+                  {(() => {
+                    const isLegacy = (d) => String(d?.id || '').startsWith('legacy-') || String(d?.description || '') === 'Legacy document';
+                    const managedDocs = (printDocuments || []).filter(d => !isLegacy(d));
+                    const legacyDocs = (printDocuments || []).filter(d => isLegacy(d));
 
-                      const isImage = (ext) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(String(ext || '').toLowerCase());
+                    const isImage = (ext) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(String(ext || '').toLowerCase());
 
-                      const renderThumbnails = (docs) => {
-                        const images = docs.filter(d => isImage(d.file_type));
-                        if (!images.length) return null;
-                        return (
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {images.map((doc) => (
-                              <Box
-                                key={doc.id}
-                                sx={{
-                                  width: 128,
-                                  height: 128,
-                                  border: '1px solid #ddd',
-                                  borderRadius: 1,
-                                  overflow: 'hidden',
-                                  cursor: 'pointer',
-                                  '&:hover': { borderColor: 'primary.main', boxShadow: 1 }
-                                }}
-                                onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: String(doc.file_type || '').toLowerCase() })}
-                                title={doc.original_filename || doc.filename}
-                              >
-                                <img
-                                  src={doc.file_url}
-                                  alt={doc.original_filename || doc.filename}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                                />
-                                <Box sx={{ display: 'none', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', backgroundColor: 'grey.100' }}>
-                                  <Typography variant="caption">Failed to load</Typography>
-                                </Box>
+                    const renderThumbnails = (docs) => {
+                      const images = docs.filter(d => isImage(d.file_type));
+                      if (!images.length) return null;
+                      return (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {images.map((doc) => (
+                            <Box
+                              key={doc.id}
+                              sx={{
+                                width: 128,
+                                height: 128,
+                                border: '1px solid #ddd',
+                                borderRadius: 1,
+                                overflow: 'hidden',
+                                cursor: 'pointer',
+                                '&:hover': { borderColor: 'primary.main', boxShadow: 1 }
+                              }}
+                              onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: String(doc.file_type || '').toLowerCase() })}
+                              title={doc.original_filename || doc.filename}
+                            >
+                              <img
+                                src={doc.file_url}
+                                alt={doc.original_filename || doc.filename}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                              />
+                              <Box sx={{ display: 'none', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'text.secondary', backgroundColor: 'grey.100' }}>
+                                <Typography variant="caption">Failed to load</Typography>
                               </Box>
-                            ))}
-                          </Box>
-                        );
-                      };
-
-                      const renderLinks = (docs) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
-                          {docs.map((doc) => {
-                            const ext = String(doc.file_type || '').toLowerCase();
-                            if (isImage(ext)) return null; // images handled by thumbnails
-                            return (
-                              <Box key={doc.id} sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
-                                  sx={{ minWidth: 0, p: 0.25, fontSize: '0.75rem', textTransform: 'none' }}
-                                >
-                                  {doc.original_filename || doc.filename}
-                                </Button>
-                              </Box>
-                            );
-                          })}
+                            </Box>
+                          ))}
                         </Box>
                       );
+                    };
 
-                      return (
-                        <>
-                          {/* Managed docs: thumbnails for images, links for others */}
-                          {renderThumbnails(managedDocs)}
-                          {renderLinks(managedDocs)}
+                    const renderLinks = (docs) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
+                        {docs.map((doc) => {
+                          const ext = String(doc.file_type || '').toLowerCase();
+                          if (isImage(ext)) return null; // images handled by thumbnails
+                          return (
+                            <Box key={doc.id} sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <Button
+                                size="small"
+                                variant="text"
+                                onClick={() => setPrintDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename, type: ext })}
+                                sx={{ minWidth: 0, p: 0.25, fontSize: '0.75rem', textTransform: 'none' }}
+                              >
+                                {doc.original_filename || doc.filename}
+                              </Button>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    );
 
-                          {/* Legacy docs section (if any) */}
-                          {legacyDocs.length > 0 && (
-                            <>
-                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                                Legacy documents
-                              </Typography>
-                              {renderThumbnails(legacyDocs)}
-                              {renderLinks(legacyDocs)}
-                            </>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </Box>
-                )}
-              </Box>
+                    return (
+                      <>
+                        {/* Managed docs: thumbnails for images, links for others */}
+                        {renderThumbnails(managedDocs)}
+                        {renderLinks(managedDocs)}
+
+                        {/* Legacy docs section (if any) */}
+                        {legacyDocs.length > 0 && (
+                          <>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                              Legacy documents
+                            </Typography>
+                            {renderThumbnails(legacyDocs)}
+                            {renderLinks(legacyDocs)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </Box>
+              )}
+            </Box>
           ) : (
             <Box
               sx={{

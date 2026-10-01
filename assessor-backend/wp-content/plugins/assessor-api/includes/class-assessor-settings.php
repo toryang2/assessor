@@ -32,8 +32,13 @@ class Assessor_Settings {
 				'municipal_assessor_title' => '',
 				'municipal_assessor_suffix' => '',
 				'afk_timeout' => 30,
-				'enable_etracs_features' => 0
+				'enable_etracs_features' => 0,
+				'history_table_style' => 'default'
 			);
+		}
+
+		if (empty($settings['history_table_style'])) {
+			$settings['history_table_style'] = 'default';
 		}
 		// Ensure municipal_assessor_license is always returned as a string to preserve leading zeros
 		if (isset($settings['municipal_assessor_license'])) {
@@ -89,18 +94,31 @@ class Assessor_Settings {
 			$params = $request->get_params();
 		}
 
-		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','municipality_prefix','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout', 'enable_etracs_features');
+		$allowed_keys = array('app_logo_url','header_photo_url','header_province','header_municipality','municipality_prefix','lgu_pin','header_office','request_place_issued_default','verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title','afk_timeout', 'enable_etracs_features', 'history_table_style');
 		$uppercase_keys = array('verifier_signatory_name','verifier_signatory_title','municipal_assessor_name','municipal_assessor_license','municipal_assessor_suffix','municipal_assessor_title');
 		$integer_keys = array('afk_timeout', 'enable_etracs_features');
+		$allowed_history_styles = array('default', 'blue', 'green', 'yellow', 'orange', 'red', 'purple', 'teal');
+
 		$data = array();
 		foreach ($allowed_keys as $key) {
 			if (isset($params[$key])) {
-				if (in_array($key, $integer_keys, true)) {
+				if ($key === 'history_table_style') {
+					$auth = new Assessor_Auth();
+					if (!$auth->verify_manager($request)) {
+						return new WP_Error('forbidden', 'Assessor role or above required to change history table style.', array('status' => 403));
+					}
+					$style_val = is_string($params[$key]) ? strtolower(trim($params[$key])) : '';
+					if (!in_array($style_val, $allowed_history_styles, true)) {
+						return new WP_Error('invalid_style', 'Invalid history table style value.', array('status' => 400));
+					}
+					$data[$key] = $style_val;
+				} elseif (in_array($key, $integer_keys, true)) {
 					$val = intval($params[$key]);
 					// Ensure afk_timeout is within valid range (5-480 minutes)
 					if ($key === 'afk_timeout' && ($val < 5 || $val > 480)) {
 						$val = 30; // Default to 30 minutes if invalid
 					}
+					$data[$key] = $val;
 				} else {
 					// Special handling for municipal_assessor_license to preserve leading zeros
 					if ($key === 'municipal_assessor_license') {
@@ -112,9 +130,8 @@ class Assessor_Settings {
 							$val = strtoupper($val);
 						}
 					}
+					$data[$key] = $val;
 				}
-				$data[$key] = $val;
-				
 			}
 		}
 		if (!empty($data)) {

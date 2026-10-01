@@ -1235,7 +1235,8 @@ class Assessor_API {
             'header_province'        => isset($data['header_province']) ? $data['header_province'] : '',
             'header_municipality'    => isset($data['header_municipality']) ? $data['header_municipality'] : '',
             'header_office'          => isset($data['header_office']) ? $data['header_office'] : '',
-            'enable_etracs_features' => !empty($data['enable_etracs_features']) ? 1 : 0
+            'enable_etracs_features' => !empty($data['enable_etracs_features']) ? 1 : 0,
+            'history_table_style'    => !empty($data['history_table_style']) ? $data['history_table_style'] : 'default'
         );
 
         $auth = new Assessor_Auth();
