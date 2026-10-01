@@ -2105,30 +2105,22 @@ const PropertyTable = () => {
                       return (
                         <TableRow
                           key={`origin-${index}`}
-                          sx={{
-                            backgroundColor: '#f0f9ff',
-                            '&:hover': { backgroundColor: '#e0f2fe !important' }
-                          }}
                         >
-                          <TableCell sx={{ borderLeft: '3px solid #0284c7' }}>
-                            <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  color: '#0369a1',
-                                  letterSpacing: '0.05em'
-                                }}
-                              >
-                                NEW
-                              </Typography>
-                            </Box>
+                          <TableCell>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 700,
+                                color: '#0369a1',
+                                letterSpacing: '0.05em'
+                              }}
+                            >
+                              NEW
+                            </Typography>
                           </TableCell>
 
                           <TableCell>—</TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>
-                            {item.location || '—'}
-                          </TableCell>
+                          <TableCell>{item.location || '—'}</TableCell>
                           <TableCell>—</TableCell>
                           <TableCell>—</TableCell>
                           <TableCell>—</TableCell>
@@ -2172,8 +2164,29 @@ const PropertyTable = () => {
                         .includes('NEW');
 
                     return (
-                      <TableRow key={index} hover>
-                        <TableCell>
+                      <TableRow
+                        key={index}
+                        hover
+                        sx={
+                          isOriginalDeclaration
+                            ? {
+                                backgroundColor: '#f0f9ff',
+                                '&:hover': {
+                                  backgroundColor: '#e0f2fe !important'
+                                }
+                              }
+                            : undefined
+                        }
+                      >
+                        <TableCell
+                          sx={
+                            isOriginalDeclaration
+                              ? {
+                                  borderLeft: '3px solid #0284c7'
+                                }
+                              : undefined
+                          }
+                        >
                           {/* TDN + Original Declaration badge on the SAME LINE */}
                           <Box
                             sx={{
