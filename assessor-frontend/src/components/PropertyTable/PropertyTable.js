@@ -2099,6 +2099,8 @@ const PropertyTable = () => {
                 </TableHead>
                 <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
                   {taxHistory.map((item, index) => {
+                    // Special history-origin marker row.
+                    // This row represents NEW and must NOT show "Original Declaration".
                     if (item.is_history_origin) {
                       return (
                         <TableRow
@@ -2109,28 +2111,24 @@ const PropertyTable = () => {
                           }}
                         >
                           <TableCell sx={{ borderLeft: '3px solid #0284c7' }}>
-                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0369a1', letterSpacing: '0.05em' }}>
-                                NEW
-                              </Typography>
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
                               <Typography
-                                variant="caption"
+                                variant="body2"
                                 sx={{
-                                  px: 0.75,
-                                  py: 0.25,
-                                  borderRadius: 0.5,
-                                  bgcolor: '#bae6fd',
+                                  fontWeight: 700,
                                   color: '#0369a1',
-                                  fontWeight: 600,
-                                  fontSize: '0.65rem'
+                                  letterSpacing: '0.05em'
                                 }}
                               >
-                                Original Declaration
+                                NEW
                               </Typography>
                             </Box>
                           </TableCell>
+
                           <TableCell>—</TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>{item.location || '—'}</TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: '#0369a1' }}>
+                            {item.location || '—'}
+                          </TableCell>
                           <TableCell>—</TableCell>
                           <TableCell>—</TableCell>
                           <TableCell>—</TableCell>
@@ -2140,37 +2138,115 @@ const PropertyTable = () => {
                       );
                     }
 
-                    // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
+                    // Check if this TDN is consolidated
+                    // (appears in another item's previous_tax_declaration_number)
                     const wasConsolidatedInto = taxHistory.some(otherItem => {
-                      if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
-                        const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
-                        return prevTds.includes(String(item.tax_declaration_number).trim());
+                      if (
+                        otherItem.previous_tax_declaration_number &&
+                        String(otherItem.previous_tax_declaration_number).includes(';')
+                      ) {
+                        const prevTds = String(otherItem.previous_tax_declaration_number)
+                          .split(';')
+                          .map(td => String(td).trim());
+
+                        return prevTds.includes(
+                          String(item.tax_declaration_number).trim()
+                        );
                       }
+
                       return false;
                     });
-                    // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
-                    const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
-                    const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
+
+                    // Check if this TDN is itself a consolidated TD
+                    const isConsolidatedTD =
+                      item.previous_tax_declaration_number &&
+                      String(item.previous_tax_declaration_number).includes(';');
+
+                    const isConsolidated =
+                      wasConsolidatedInto || isConsolidatedTD;
+
+                    const isOriginalDeclaration =
+                      String(item.previous_tax_declaration_number || '')
+                        .split(';')
+                        .map(value => String(value).trim().toUpperCase())
+                        .includes('NEW');
 
                     return (
                       <TableRow key={index} hover>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={600} color={isConsolidated ? "warning.main" : "primary"}>
-                            {item.tax_declaration_number}
+                          {/* TDN + Original Declaration badge on the SAME LINE */}
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.75,
+                              flexWrap: 'wrap'
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              color={isConsolidated ? 'warning.main' : 'primary'}
+                            >
+                              {item.tax_declaration_number}
+                            </Typography>
+
+                            {isOriginalDeclaration && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.25,
+                                  borderRadius: 0.5,
+                                  bgcolor: '#bae6fd',
+                                  color: '#0369a1',
+                                  fontWeight: 600,
+                                  fontSize: '0.65rem',
+                                  lineHeight: 1.4
+                                }}
+                              >
+                                Original Declaration
+                              </Typography>
+                            )}
+                          </Box>
+
+                          {/* Property state stays underneath the TDN */}
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ textTransform: 'capitalize' }}
+                          >
+                            {item.property_state
+                              ? item.property_state.toLowerCase()
+                              : (index === 0 ? 'current' : 'previous')}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                            {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
+
+                          {/* Consolidated badge */}
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            {item.previous_tax_declaration_number &&
+                            String(item.previous_tax_declaration_number).includes(';') ? (
                               <Box mt={0.5}>
-                                <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
+                                <Typography
+                                  variant="caption"
+                                  color="white"
+                                  bgcolor="warning.light"
+                                  sx={{
+                                    px: 0.75,
+                                    py: 0.25,
+                                    borderRadius: 0.5,
+                                    fontWeight: 600
+                                  }}
+                                >
                                   Consolidated
                                 </Typography>
                               </Box>
                             ) : null}
                           </Typography>
                         </TableCell>
+
                         <TableCell>
                           {(() => {
                             const d = normalizeDeclarantString(item.declarant_name);
@@ -2187,8 +2263,13 @@ const PropertyTable = () => {
                                     {d}
                                   </Typography>
                                 )}
+
                                 {b && (
-                                  <Typography variant="caption" color="text.secondary" display="block">
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    display="block"
+                                  >
                                     {b}
                                   </Typography>
                                 )}
@@ -2196,61 +2277,97 @@ const PropertyTable = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell>{item.location || '—'}</TableCell>
-                        <TableCell>{item.lot_number || '—'}</TableCell>
-                        <TableCell>{(() => {
-                          const haRaw = item.area_hectare;
-                          const sqmRaw = item.area_sqm;
-                          const oldHaRaw = item.area_hectare_old;
-                          const numHa = Number(haRaw);
-                          const numSqm = Number(sqmRaw);
-                          const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                          const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                          const hasOldHa = oldHaRaw && oldHaRaw !== '';
 
-                          if (!hasHa && !hasSqm && !hasOldHa) return '—';
+                        <TableCell>
+                          {item.location || '—'}
+                        </TableCell>
 
-                          let currentArea = '';
-                          if (hasHa) {
-                            const unit = numHa <= 1 ? 'ha' : 'has';
-                            currentArea = `${numHa.toFixed(4)} ${unit}`;
-                          } else if (hasSqm) {
-                            currentArea = `${numSqm.toFixed(2)} sqm`;
-                          }
+                        <TableCell>
+                          {item.lot_number || '—'}
+                        </TableCell>
 
-                          if (hasOldHa && currentArea) {
-                            return `${currentArea} ${oldHaRaw}`;
-                          } else if (hasOldHa) {
-                            return oldHaRaw;
-                          } else {
-                            return currentArea || '—';
-                          }
-                        })()}</TableCell>
-                        <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{item.title_number || '—'}</TableCell>
                         <TableCell>
                           {(() => {
-                            const currentValue = item.assessed_value;
-                            const oldValue = item.assessed_value_old;
-                            const hasCurrent = currentValue !== undefined && currentValue !== null;
-                            const hasOld = oldValue && oldValue !== '';
+                            const haRaw = item.area_hectare;
+                            const sqmRaw = item.area_sqm;
+                            const oldHaRaw = item.area_hectare_old;
 
-                            if (!hasCurrent && !hasOld) return '₱0.00';
+                            const numHa = Number(haRaw);
+                            const numSqm = Number(sqmRaw);
 
-                            let displayValue = '';
-                            if (hasCurrent) {
-                              displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                            const hasHa =
+                              haRaw !== undefined &&
+                              haRaw !== null &&
+                              haRaw !== '' &&
+                              !isNaN(numHa) &&
+                              numHa > 0;
+
+                            const hasSqm =
+                              sqmRaw !== undefined &&
+                              sqmRaw !== null &&
+                              sqmRaw !== '' &&
+                              !isNaN(numSqm) &&
+                              numSqm > 0;
+
+                            const hasOldHa =
+                              oldHaRaw &&
+                              oldHaRaw !== '';
+
+                            if (!hasHa && !hasSqm && !hasOldHa) {
+                              return '—';
                             }
 
-                            if (hasOld && displayValue) {
-                              return `${displayValue} ${oldValue}`;
-                            } else if (hasOld) {
-                              return oldValue;
+                            let currentArea = '';
+
+                            if (hasHa) {
+                              const unit = numHa <= 1 ? 'ha' : 'has';
+                              currentArea = `${numHa.toFixed(4)} ${unit}`;
+                            } else if (hasSqm) {
+                              currentArea = `${numSqm.toFixed(2)} sqm`;
+                            }
+
+                            if (hasOldHa && currentArea) {
+                              return `${currentArea} ${oldHaRaw}`;
+                            } else if (hasOldHa) {
+                              return oldHaRaw;
                             } else {
-                              return displayValue || '₱0.00';
+                              return currentArea || '—';
                             }
                           })()}
                         </TableCell>
-                        <TableCell>{formatEffectivityDisplay(item)}</TableCell>
+
+                        <TableCell
+                          sx={{
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word'
+                          }}
+                        >
+                          {item.title_number || '—'}
+                        </TableCell>
+
+                        <TableCell>
+                          {(() => {
+                            const value = Number(item.assessed_value);
+
+                            if (
+                              item.assessed_value === undefined ||
+                              item.assessed_value === null ||
+                              item.assessed_value === '' ||
+                              isNaN(value)
+                            ) {
+                              return '—';
+                            }
+
+                            return value.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            });
+                          })()}
+                        </TableCell>
+
+                        <TableCell>
+                          {formatEffectivityDisplay(item)}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
