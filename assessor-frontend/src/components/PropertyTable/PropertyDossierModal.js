@@ -17,13 +17,16 @@ import {
   XCircle,
   Clock,
   Layers,
-  Trash2
+  Trash2,
+  Activity,
+  RotateCcw
 } from 'lucide-react';
 import {
   Close as CloseIcon,
   BrokenImage as BrokenImageIcon
 } from '@mui/icons-material';
 import { apiService } from '../../utils/api';
+import { formatAppDateTime } from '../../utils/dateTime';
 
 /**
  * Format declarant from discrete fields; add dot only for single-character middle
@@ -185,6 +188,139 @@ const formatBytes = (bytes) => {
   return `${(num / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const AUDIT_FIELD_LABELS = {
+  tax_declaration_number: 'Tax Declaration Number',
+  property_state: 'Property State',
+  pin: 'PIN',
+  arp_no: 'ARP Number',
+  declarant_name: 'Declarant Name',
+  declarant_last_name: 'Last Name',
+  declarant_first_name: 'First Name',
+  declarant_middle_initial: 'Middle Initial',
+  business_name: 'Business / Company Name',
+  owner_address: 'Owner Address',
+  administrator_name: 'Administrator Name',
+  administrator_address: 'Administrator Address',
+  location: 'Property Location / Sitio',
+  barangay: 'Barangay',
+  municipality: 'Municipality',
+  province: 'Province',
+  oct_tct_no: 'OCT / TCT No.',
+  survey_no: 'Survey No.',
+  lot_no: 'Lot No.',
+  block_no: 'Block No.',
+  gen_class: 'General Classification',
+  gen_class_name: 'Classification Name',
+  actual_use: 'Actual Use',
+  kind_of_property: 'Kind of Property',
+  area_hectare: 'Area (Hectares)',
+  area_sqm: 'Area (Sqm)',
+  market_value: 'Market Value',
+  assessment_level: 'Assessment Level (%)',
+  assessed_value: 'Assessed Value',
+  effectivity_date: 'Effectivity Date / Quarter',
+  effectivity_exempt: 'Effectivity Status',
+  taxability: 'Taxability',
+  previous_tax_declaration_number: 'Predecessor TDN',
+  memoranda: 'Memoranda & Annotations',
+  appraised_by: 'Appraised By',
+  tax_mapped_by: 'Tax Mapped By',
+  municipal_assessor_name: 'Municipal Assessor Name'
+};
+
+const IGNORED_AUDIT_FIELDS = new Set([
+  'id',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by'
+]);
+
+const formatAuditFieldName = (fieldKey) => {
+  if (AUDIT_FIELD_LABELS[fieldKey]) return AUDIT_FIELD_LABELS[fieldKey];
+  return fieldKey
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const formatAuditFieldValue = (fieldKey, value) => {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  if (fieldKey === 'assessed_value' || fieldKey === 'market_value') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      return `₱${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+  }
+
+  if (fieldKey === 'area_hectare') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      return `${num.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha`;
+    }
+  }
+
+  if (fieldKey === 'area_sqm') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      return `${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sqm`;
+    }
+  }
+
+  if (fieldKey === 'effectivity_exempt') {
+    return (value === 1 || value === '1' || value === true) ? 'EXEMPT' : 'TAXABLE / NORMAL';
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch (_) {
+      return String(value);
+    }
+  }
+
+  return String(value);
+};
+
+const parseAuditChanges = (log) => {
+  try {
+    if (log && log.changes) {
+      const parsed = typeof log.changes === 'string' ? JSON.parse(log.changes) : log.changes;
+      if (parsed && typeof parsed === 'object') {
+        const sample = Object.values(parsed)[0];
+        if (sample && (Object.prototype.hasOwnProperty.call(sample, 'old_value') || Object.prototype.hasOwnProperty.call(sample, 'new_value'))) {
+          return Object.entries(parsed)
+            .filter(([k]) => !IGNORED_AUDIT_FIELDS.has(k))
+            .map(([field, delta]) => ({
+              field,
+              oldValue: delta?.old_value,
+              newValue: delta?.new_value
+            }));
+        }
+      }
+    }
+
+    const oldVals = log && log.old_values ? (typeof log.old_values === 'string' ? JSON.parse(log.old_values) : log.old_values) : {};
+    const newVals = log && log.new_values ? (typeof log.new_values === 'string' ? JSON.parse(log.new_values) : log.new_values) : {};
+    const allKeys = Array.from(new Set([...Object.keys(oldVals || {}), ...Object.keys(newVals || {})]))
+      .filter((k) => !IGNORED_AUDIT_FIELDS.has(k));
+
+    return allKeys.map((field) => ({
+      field,
+      oldValue: oldVals ? oldVals[field] : undefined,
+      newValue: newVals ? newVals[field] : undefined
+    }));
+  } catch (_) {
+    return [];
+  }
+};
+
 const PropertyDossierModal = ({
   open,
   onClose,
@@ -204,6 +340,9 @@ const PropertyDossierModal = ({
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [lineageList, setLineageList] = useState([]);
   const [loadingLineage, setLoadingLineage] = useState(false);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [activityError, setActivityError] = useState(false);
 
   // Sync tab with parent if provided
   const activeTab = onTabChange ? currentTab : internalTab;
@@ -318,8 +457,44 @@ const PropertyDossierModal = ({
       }
     };
 
+    // Fetch property activity log / audit trail
+    const fetchActivity = async () => {
+      if (!property?.id) {
+        if (isMounted) {
+          setActivityLogs([]);
+          setLoadingActivity(false);
+          setActivityError(false);
+        }
+        return;
+      }
+      try {
+        setLoadingActivity(true);
+        setActivityError(false);
+        const res = await apiService.getAuditTrail({
+          page: 1,
+          per_page: 100,
+          table: 'assessor_properties',
+          record_id: property.id,
+          _t: Date.now()
+        });
+        if (isMounted) {
+          const logs = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+          setActivityLogs(logs);
+        }
+      } catch (e) {
+        console.error('Error fetching property activity trail:', e);
+        if (isMounted) {
+          setActivityLogs([]);
+          setActivityError(true);
+        }
+      } finally {
+        if (isMounted) setLoadingActivity(false);
+      }
+    };
+
     fetchDocs();
     fetchLineage();
+    fetchActivity();
 
     return () => {
       isMounted = false;
@@ -557,7 +732,20 @@ const PropertyDossierModal = ({
             Lineage History
           </button>
 
-          {/* Tab 3: Memoranda & Annotations */}
+          {/* Tab 3: Activity Log */}
+          <button
+            type="button"
+            onClick={() => handleTabClick('activity')}
+            className={`pb-2.5 px-3 border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
+              activeTab === 'activity'
+                ? 'border-sky-600 text-sky-900 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+            }`}
+          >
+            Activity {activityLogs.length > 0 && `(${activityLogs.length})`}
+          </button>
+
+          {/* Tab 4: Memoranda & Annotations */}
           <button
             type="button"
             onClick={() => handleTabClick('memoranda')}
@@ -1055,7 +1243,225 @@ const PropertyDossierModal = ({
             </div>
           )}
 
-          {/* TAB 3: MEMORANDA & ANNOTATIONS */}
+          {/* TAB: ACTIVITY / AUDIT LOG */}
+          {activeTab === 'activity' && (
+            <div className="space-y-6">
+              {/* Header Title & Subtitle */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-sky-600" />
+                    Property Activity History
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Audit log of creations, updates, and status transitions for this property
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                    {activityLogs.length} event{activityLogs.length === 1 ? '' : 's'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!property?.id) return;
+                      setLoadingActivity(true);
+                      setActivityError(false);
+                      try {
+                        const res = await apiService.getAuditTrail({
+                          page: 1,
+                          per_page: 100,
+                          table: 'assessor_properties',
+                          record_id: property.id,
+                          _t: Date.now()
+                        });
+                        const logs = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+                        setActivityLogs(logs);
+                      } catch (err) {
+                        console.error('Failed to reload activity:', err);
+                        setActivityError(true);
+                      } finally {
+                        setLoadingActivity(false);
+                      }
+                    }}
+                    title="Refresh activity log"
+                    className="p-1.5 text-slate-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${loadingActivity ? 'animate-spin text-sky-600' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingActivity ? (
+                <div className="py-16 text-center space-y-3">
+                  <div className="inline-block w-6 h-6 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs font-medium text-slate-500">
+                    Loading activity history...
+                  </p>
+                </div>
+              ) : activityError ? (
+                <div className="p-8 text-center bg-rose-50/50 rounded-2xl border border-rose-200 space-y-3">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-rose-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-rose-800">
+                      Unable to load property activity
+                    </p>
+                    <p className="text-xs text-rose-600">
+                      There was a problem retrieving the audit events.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!property?.id) return;
+                      setLoadingActivity(true);
+                      setActivityError(false);
+                      try {
+                        const res = await apiService.getAuditTrail({
+                          page: 1,
+                          per_page: 100,
+                          table: 'assessor_properties',
+                          record_id: property.id,
+                          _t: Date.now()
+                        });
+                        const logs = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+                        setActivityLogs(logs);
+                      } catch (err) {
+                        setActivityError(true);
+                      } finally {
+                        setLoadingActivity(false);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Retry
+                  </button>
+                </div>
+              ) : activityLogs.length === 0 ? (
+                <div className="p-12 text-center border border-dashed border-slate-200 rounded-2xl text-slate-400 space-y-2 bg-slate-50/40">
+                  <Clock className="w-8 h-8 mx-auto text-slate-300" />
+                  <div className="font-semibold text-slate-600 text-sm">
+                    No activity recorded for this property yet.
+                  </div>
+                  <div className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Property creation, edits, status changes, and other recorded actions will appear here.
+                  </div>
+                </div>
+              ) : (
+                /* Activity Timeline */
+                <div className="relative pl-6 sm:pl-8 space-y-6 before:content-[''] before:absolute before:left-2.5 sm:before:left-3 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
+                  {activityLogs.map((log, idx) => {
+                    const actionType = String(log.action || '').toLowerCase();
+                    const userName = log.user_name || 'System';
+                    const changes = parseAuditChanges(log);
+
+                    let badgeColor = 'bg-sky-50 text-sky-700 border-sky-200';
+                    let dotColor = 'bg-sky-500';
+                    let actionLabel = actionType.toUpperCase();
+
+                    if (actionType === 'create' || actionType === 'insert') {
+                      badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                      dotColor = 'bg-emerald-500';
+                      actionLabel = 'Created';
+                    } else if (actionType === 'update') {
+                      badgeColor = 'bg-sky-50 text-sky-700 border-sky-200';
+                      dotColor = 'bg-sky-500';
+                      actionLabel = 'Updated';
+                    } else if (actionType === 'state_change') {
+                      badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                      dotColor = 'bg-amber-500';
+                      actionLabel = 'Status Changed';
+                    } else if (actionType === 'delete') {
+                      badgeColor = 'bg-rose-50 text-rose-700 border-rose-200';
+                      dotColor = 'bg-rose-500';
+                      actionLabel = 'Deleted';
+                    }
+
+                    return (
+                      <div key={log.id || `activity-${idx}`} className="relative group">
+                        {/* Timeline Node */}
+                        <div
+                          className={`absolute -left-6 sm:-left-8 top-3 w-3 h-3 rounded-full ${dotColor} ring-4 ring-white shadow-xs`}
+                        />
+
+                        {/* Event Card */}
+                        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition-shadow p-4 space-y-3">
+                          {/* Card Top: Action Badge, Date, and User */}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${badgeColor}`}>
+                                {actionLabel}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                                <User className="w-3 h-3 text-slate-400" />
+                                {userName}
+                              </span>
+                            </div>
+
+                            <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                              <Calendar className="w-3 h-3 text-slate-300" />
+                              {formatAppDateTime(log.created_at)}
+                            </span>
+                          </div>
+
+                          {/* Action Content / Changes */}
+                          {actionType === 'create' || actionType === 'insert' ? (
+                            <div className="text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                              <span className="font-semibold text-slate-700">Initial record creation</span>
+                              {property.tax_declaration_number && (
+                                <span className="text-slate-500 ml-1">
+                                  for TDN <span className="font-mono font-medium text-slate-700">{property.tax_declaration_number}</span>
+                                </span>
+                              )}
+                              .
+                            </div>
+                          ) : actionType === 'delete' ? (
+                            <div className="text-xs text-rose-600 bg-rose-50/60 p-2.5 rounded-lg border border-rose-100">
+                              Property record was removed.
+                            </div>
+                          ) : changes.length > 0 ? (
+                            <div className="space-y-1.5 pt-1">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Changed Fields ({changes.length})
+                              </div>
+                              <div className="bg-slate-50 rounded-lg border border-slate-100 divide-y divide-slate-100 text-xs overflow-hidden">
+                                {changes.map((ch, chIdx) => (
+                                  <div
+                                    key={chIdx}
+                                    className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                                  >
+                                    <span className="font-medium text-slate-700 sm:w-1/3 shrink-0">
+                                      {formatAuditFieldName(ch.field)}
+                                    </span>
+                                    <div className="flex items-center gap-2 flex-1 min-w-0 font-mono text-[11px]">
+                                      <span className="text-slate-500 bg-rose-50/80 border border-rose-100 text-rose-800 px-1.5 py-0.5 rounded truncate max-w-[140px] sm:max-w-[180px]">
+                                        {formatAuditFieldValue(ch.field, ch.oldValue)}
+                                      </span>
+                                      <span className="text-slate-400 shrink-0">→</span>
+                                      <span className="text-slate-700 bg-emerald-50/80 border border-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold truncate max-w-[140px] sm:max-w-[180px]">
+                                        {formatAuditFieldValue(ch.field, ch.newValue)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-500 italic bg-slate-50/60 p-2 rounded-lg">
+                              Record modified with no specific property field deltas captured.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: MEMORANDA & ANNOTATIONS */}
           {activeTab === 'memoranda' && (
             <div className="space-y-6">
               {/* Memoranda Block */}

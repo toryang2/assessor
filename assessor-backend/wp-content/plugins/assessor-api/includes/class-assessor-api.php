@@ -1230,13 +1230,14 @@ class Assessor_API {
         $data = $settings->get_settings();
 
         $result = array(
-            'app_logo_url'           => isset($data['app_logo_url']) ? $data['app_logo_url'] : '',
-            'header_photo_url'       => isset($data['header_photo_url']) ? $data['header_photo_url'] : '',
-            'header_province'        => isset($data['header_province']) ? $data['header_province'] : '',
-            'header_municipality'    => isset($data['header_municipality']) ? $data['header_municipality'] : '',
-            'header_office'          => isset($data['header_office']) ? $data['header_office'] : '',
-            'enable_etracs_features' => !empty($data['enable_etracs_features']) ? 1 : 0,
-            'history_table_style'    => !empty($data['history_table_style']) ? $data['history_table_style'] : 'default'
+            'app_logo_url'                  => isset($data['app_logo_url']) ? $data['app_logo_url'] : '',
+            'header_photo_url'              => isset($data['header_photo_url']) ? $data['header_photo_url'] : '',
+            'header_province'               => isset($data['header_province']) ? $data['header_province'] : '',
+            'header_municipality'           => isset($data['header_municipality']) ? $data['header_municipality'] : '',
+            'header_office'                 => isset($data['header_office']) ? $data['header_office'] : '',
+            'enable_etracs_features'        => !empty($data['enable_etracs_features']) ? 1 : 0,
+            'history_table_style'           => !empty($data['history_table_style']) ? $data['history_table_style'] : 'default',
+            'experimental_property_dossier' => !empty($data['experimental_property_dossier']) ? 1 : 0
         );
 
         $auth = new Assessor_Auth();

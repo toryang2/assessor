@@ -1298,7 +1298,9 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             )
         );
 
-        if ($current_state === $new_state) {
+        $current_state_normalized = $current_state ? strtoupper(trim($current_state)) : 'CURRENT';
+
+        if ($current_state_normalized === $new_state) {
             return ['success' => true, 'state' => $new_state];
         }
 
@@ -1320,6 +1322,21 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to update property state', ['status' => 500]);
         }
+
+        // Audit state change
+        $audit = new Assessor_Audit();
+        $audit->log_activity(
+            $user_id,
+            'state_change',
+            'assessor_properties',
+            $id,
+            array(
+                'property_state' => $current_state_normalized
+            ),
+            array(
+                'property_state' => $new_state
+            )
+        );
 
         // Bump parent property updated_at so incremental sync sees it
         $wpdb->update(
@@ -2047,6 +2064,12 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         ));
 
         if ($is_superseded) {
+            $current_state = $wpdb->get_var($wpdb->prepare(
+                "SELECT state FROM {$wpdb->prefix}assessor_property_states WHERE property_id = %s LIMIT 1",
+                $property_id
+            ));
+            $current_state_normalized = $current_state ? strtoupper(trim($current_state)) : 'CURRENT';
+
             $wpdb->replace(
                 "{$wpdb->prefix}assessor_property_states",
                 [
@@ -2057,6 +2080,22 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 ],
                 ['%s', '%s', '%s', '%s']
             );
+
+            if ($current_state_normalized !== 'CANCELLED') {
+                $audit = new Assessor_Audit();
+                $audit->log_activity(
+                    $user_id,
+                    'state_change',
+                    'assessor_properties',
+                    $property_id,
+                    array(
+                        'property_state' => $current_state_normalized
+                    ),
+                    array(
+                        'property_state' => 'CANCELLED'
+                    )
+                );
+            }
         }
     }
 
@@ -2093,7 +2132,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 ));
 
                 if (!empty($prev_prop_ids)) {
+                    $audit = new Assessor_Audit();
                     foreach ($prev_prop_ids as $prev_prop_id) {
+                        $current_state = $wpdb->get_var($wpdb->prepare(
+                            "SELECT state FROM $table_property_states WHERE property_id = %s LIMIT 1",
+                            $prev_prop_id
+                        ));
+                        $current_state_normalized = $current_state ? strtoupper(trim($current_state)) : 'CURRENT';
+
                         $wpdb->replace(
                             $table_property_states,
                             [
@@ -2104,6 +2150,21 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                             ],
                             ['%s', '%s', '%s', '%s']
                         );
+
+                        if ($current_state_normalized !== 'CURRENT') {
+                            $audit->log_activity(
+                                $user_id,
+                                'state_change',
+                                'assessor_properties',
+                                $prev_prop_id,
+                                array(
+                                    'property_state' => $current_state_normalized
+                                ),
+                                array(
+                                    'property_state' => 'CURRENT'
+                                )
+                            );
+                        }
                     }
                 }
             }
