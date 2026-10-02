@@ -228,7 +228,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     const loadRequestDefaults = async () => {
       try {
         const [settings, purposesRes] = await Promise.all([
-          apiService.getSettings(),
+          apiService.getBootstrapSettings(),
           apiService.getRequestPurposes()
         ]);
         const activeItems = (purposesRes?.items || []).filter(x => x.status === 'active');

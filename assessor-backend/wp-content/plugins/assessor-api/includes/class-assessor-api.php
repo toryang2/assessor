@@ -1235,6 +1235,9 @@ class Assessor_API {
             'header_province'               => isset($data['header_province']) ? $data['header_province'] : '',
             'header_municipality'           => isset($data['header_municipality']) ? $data['header_municipality'] : '',
             'header_office'                 => isset($data['header_office']) ? $data['header_office'] : '',
+            'request_place_issued_default'  => isset($data['request_place_issued_default'])
+                ? $data['request_place_issued_default']
+                : '',
             'enable_etracs_features'        => !empty($data['enable_etracs_features']) ? 1 : 0,
             'history_table_style'           => !empty($data['history_table_style']) ? $data['history_table_style'] : 'default',
             'experimental_property_dossier' => !empty($data['experimental_property_dossier']) ? 1 : 0

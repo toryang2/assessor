@@ -142,7 +142,7 @@ const BulkRequestModal = ({
     const loadDefaults = async () => {
       try {
         const [settings, purposesRes] = await Promise.all([
-          apiService.getSettings(),
+          apiService.getBootstrapSettings(),
           apiService.getRequestPurposes()
         ]);
 
