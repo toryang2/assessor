@@ -943,7 +943,13 @@ const LiveServerDashboard = ({ syncConfig, onOpenBrowser }) => {
 // ─── Main SyncModal / Sync Center Component ───────────────────────
 const SyncModal = ({ open, onClose }) => {
   const theme = useTheme();
-  const { syncStatus, syncMessage, syncRunId, triggerManualSync } = useAuth();
+  const {
+    syncStatus,
+    syncMessage,
+    syncRunId,
+    triggerManualSync,
+    canManage
+  } = useAuth();
   const [syncConfig, setSyncConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
@@ -1378,9 +1384,17 @@ const SyncModal = ({ open, onClose }) => {
                   <Alert
                     severity="warning"
                     action={
-                      <Button color="inherit" size="small" onClick={handleRetryFailed} startIcon={<ReplayIcon sx={{ fontSize: 16 }} />} sx={{ textTransform: 'none', fontWeight: 600 }}>
-                        Retry Failed
-                      </Button>
+                      canManage ? (
+                        <Button
+                          color="inherit"
+                          size="small"
+                          onClick={handleRetryFailed}
+                          startIcon={<ReplayIcon sx={{ fontSize: 16 }} />}
+                          sx={{ textTransform: 'none', fontWeight: 600 }}
+                        >
+                          Retry Failed
+                        </Button>
+                      ) : undefined
                     }
                     sx={{ borderRadius: 1.5 }}
                   >
@@ -1822,15 +1836,17 @@ const SyncModal = ({ open, onClose }) => {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-            <Button
-              variant="outlined"
-              color="warning"
-              onClick={() => setFullResyncConfirmOpen(true)}
-              disabled={isSyncing}
-              sx={{ textTransform: 'none', fontWeight: 500 }}
-            >
-              Full Resync...
-            </Button>
+            {canManage && (
+              <Button
+                variant="outlined"
+                color="warning"
+                onClick={() => setFullResyncConfirmOpen(true)}
+                disabled={isSyncing}
+                sx={{ textTransform: 'none', fontWeight: 500 }}
+              >
+                Full Resync...
+              </Button>
+            )}
 
             <Button
               variant="contained"

@@ -560,7 +560,7 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/sync/queue-status', array(
             'methods'             => 'GET',
             'callback'            => array($this, 'sync_queue_status'),
-            'permission_callback' => array($this, 'check_manager'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
 
         // Local admin: trigger immediate push + pull
@@ -623,7 +623,7 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/sync/config', array(
             'methods'             => 'GET',
             'callback'            => array($this, 'sync_get_config'),
-            'permission_callback' => array($this, 'check_manager'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
 
         register_rest_route('assessor/v1', '/sync/generate-token', array(
@@ -911,8 +911,24 @@ class Assessor_API {
                 'is_live' => true
             );
         }
-        $params     = $request->get_json_params();
+
+        $params = $request->get_json_params();
         $force_full = !empty($params['force_full']);
+
+        // Full resync is a privileged operation.
+        // Normal sync remains available to every authenticated user.
+        if ($force_full) {
+            $auth = new Assessor_Auth();
+
+            if (!$auth->verify_manager($request)) {
+                return new WP_Error(
+                    'forbidden',
+                    'Full resync requires assessor or administrator privileges.',
+                    array('status' => 403)
+                );
+            }
+        }
+
         return Assessor_Sync::manual_sync($force_full);
     }
 

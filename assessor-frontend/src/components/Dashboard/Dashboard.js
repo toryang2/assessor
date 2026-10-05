@@ -67,7 +67,16 @@ import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
 const Dashboard = ({ onNavigate }) => {
   const theme = useTheme();
-  const { isAuthenticated, loading: authLoading, isSuperAdmin, isAdmin, canEdit, isViewer } = useAuth();
+  const {
+    isAuthenticated,
+    loading: authLoading,
+    isSuperAdmin,
+    isAdmin,
+    isAssessor,
+    canEdit,
+    isViewer
+  } = useAuth();
+  const canViewEtracs = !!(isSuperAdmin || isAdmin);
   const { addCacheBuster } = useCacheBuster();
   const [dashboardData, setDashboardData] = useState(null);
   const [etracsStats, setEtracsStats] = useState(null);
@@ -103,14 +112,17 @@ const Dashboard = ({ onNavigate }) => {
   })();
 
   useEffect(() => {
-    // Only fetch dashboard data when authentication is complete and user is authenticated
+    // Only fetch dashboard data when authentication is complete and user is authenticated.
     if (!authLoading && isAuthenticated) {
       fetchDashboardData();
       fetchProperties();
       fetchSettings();
-      fetchEtracsStats();
+
+      if (canViewEtracs) {
+        fetchEtracsStats();
+      }
     }
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated, canViewEtracs]);
 
   const fetchDashboardData = async (useCacheBusting = false) => {
     try {
@@ -641,7 +653,7 @@ const Dashboard = ({ onNavigate }) => {
               trend={computeRequestsTrend()}
             />
           </Grid>
-          {settings?.enable_etracs_features == 1 && (
+          {settings?.enable_etracs_features == 1 && canViewEtracs && (
             <Grid item xs={12} sm={6} md={3}>
               <StatCard
                 title="ETRACS FAAS"
