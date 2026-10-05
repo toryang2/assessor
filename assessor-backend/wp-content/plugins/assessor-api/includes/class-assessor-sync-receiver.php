@@ -116,7 +116,7 @@ class Assessor_Sync_Receiver {
                 $key = !empty($req_id) ? $req_id : '__missing_req_id_' . ($errors + 1);
                 $results[$key] = $result;
 
-                if ($result['status'] === 'synced') {
+                if (in_array($result['status'], array('created', 'updated', 'deleted', 'synced'), true)) {
                     $synced++;
                 } elseif ($result['status'] === 'skipped') {
                     $skipped++;
@@ -145,7 +145,7 @@ class Assessor_Sync_Receiver {
             if (!empty($tax_num) && !isset($results[$tax_num])) {
                 $results[$tax_num] = $result;
             }
-            if ($result['status'] === 'synced') {
+            if (in_array($result['status'], array('created', 'updated', 'deleted', 'synced'), true)) {
                 $synced++;
             } elseif ($result['status'] === 'skipped') {
                 $skipped++;
@@ -298,6 +298,8 @@ class Assessor_Sync_Receiver {
 
         $safe = $this->sanitize_incoming_record($record_for_property);
 
+        $sync_action = $existing ? 'updated' : 'created';
+
         if ($existing) {
             // UPDATE existing record
             $updated = $wpdb->update($table, $safe, array('id' => $existing['id']), null, array('%s'));
@@ -321,6 +323,14 @@ class Assessor_Sync_Receiver {
                 return array('status' => 'error', 'message' => $wpdb->last_error);
             }
             $live_property_id = $safe['id'];
+        }
+
+        $is_deleted =
+            isset($safe['status']) &&
+            strtolower(trim((string) $safe['status'])) === 'deleted';
+
+        if ($is_deleted) {
+            $sync_action = 'deleted';
         }
 
         if (class_exists('Assessor_Audit')) {
@@ -382,7 +392,9 @@ class Assessor_Sync_Receiver {
             ), array('%s', '%s'));
         }
 
-        return array('status' => 'synced');
+        return array(
+            'status' => $sync_action
+        );
     }
 
     /**
@@ -412,6 +424,8 @@ class Assessor_Sync_Receiver {
 
         $safe = $this->sanitize_incoming_request_record($record);
 
+        $sync_action = $existing ? 'updated' : 'created';
+
         if ($existing) {
             // UPDATE existing record
             $updated = $wpdb->update($table, $safe, array('id' => $existing['id']), null, array('%s'));
@@ -426,13 +440,21 @@ class Assessor_Sync_Receiver {
             }
         }
 
+        $is_deleted = !empty($safe['deleted_at']);
+
+        if ($is_deleted) {
+            $sync_action = 'deleted';
+        }
+
         if (class_exists('Assessor_Audit')) {
             $audit = new Assessor_Audit();
             $action = !empty($safe['deleted_at']) ? 'SYNC_DELETE_REQUEST' : 'SYNC_REQUEST_FROM_LOCAL';
             $audit->log_activity(0, $action, $table, $req_id, null, array('receipt_number' => $record['receipt_number'] ?? ''));
         }
 
-        return array('status' => 'synced');
+        return array(
+            'status' => $sync_action
+        );
     }
 
     // -------------------------------------------------------------------------

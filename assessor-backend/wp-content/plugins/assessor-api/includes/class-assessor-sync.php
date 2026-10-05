@@ -984,9 +984,19 @@ class Assessor_Sync {
                 }
                 $res_status = isset($res_item['status']) ? $res_item['status'] : 'error';
 
-                if ($res_status === 'synced') {
+                if (in_array($res_status, array('created', 'updated', 'deleted', 'synced'), true)) {
                     $queue_status = 'synced';
-                    $item_action  = 'updated'; // Pushed upstream
+
+                    /*
+                     * Preserve the receiver's actual action.
+                     * Backward compatibility:
+                     * old receiver responses returning 'synced'
+                     * are treated as updated.
+                     */
+                    $item_action = $res_status === 'synced'
+                        ? 'updated'
+                        : $res_status;
+
                     $total_pushed++;
                 } elseif ($res_status === 'skipped') {
                     $queue_status = 'skipped';
@@ -995,7 +1005,11 @@ class Assessor_Sync {
                 } else {
                     $queue_status = 'failed';
                     $item_action  = 'failed';
-                    $total_errors[] = $pid . ': ' . (isset($res_item['message']) ? $res_item['message'] : 'unknown error');
+                    $total_errors[] = $pid . ': ' . (
+                        isset($res_item['message'])
+                            ? $res_item['message']
+                            : 'unknown error'
+                    );
                 }
 
                 $wpdb->update(

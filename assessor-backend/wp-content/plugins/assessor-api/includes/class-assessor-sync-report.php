@@ -33,7 +33,7 @@ class Assessor_Sync_Report {
 
     /** @var array Running counters */
     private $counters = array(
-        'properties' => array('created' => 0, 'updated' => 0, 'skipped' => 0, 'failed' => 0, 'total' => 0),
+        'properties' => array('created' => 0, 'updated' => 0, 'skipped' => 0, 'failed' => 0, 'deleted' => 0, 'total' => 0),
         'requests'   => array('created' => 0, 'updated' => 0, 'skipped' => 0, 'failed' => 0, 'deleted' => 0, 'total' => 0),
     );
 
@@ -130,11 +130,26 @@ class Assessor_Sync_Report {
      */
     public function record_item($record_type, $record_id, $direction, $action, $display_data = array()) {
         // Track running counters
-        if (isset($this->counters[$record_type . 's'])) {
-            $grp = &$this->counters[$record_type . 's'];
-            if (isset($grp[$action])) {
-                $grp[$action]++;
+        $counter_key = null;
+
+        if ($record_type === 'property') {
+            $counter_key = 'properties';
+        } elseif ($record_type === 'request') {
+            $counter_key = 'requests';
+        }
+
+        if ($counter_key !== null && isset($this->counters[$counter_key])) {
+            $grp = &$this->counters[$counter_key];
+
+            /*
+             * Ensure every supported action has a counter.
+             * This also allows property deletion reporting.
+             */
+            if (!isset($grp[$action])) {
+                $grp[$action] = 0;
             }
+
+            $grp[$action]++;
             $grp['total']++;
         }
 
@@ -330,10 +345,112 @@ class Assessor_Sync_Report {
     }
 
     /**
+     * Rebuild counters from persisted record-level items when available.
+     *
+     * @param string $run_id
+     * @return array|null
+     */
+    private static function get_item_counters_for_run($run_id) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'assessor_sync_run_items';
+
+        $table_exists = $wpdb->get_var(
+            $wpdb->prepare("SHOW TABLES LIKE %s", $table)
+        );
+
+        if (!$table_exists) {
+            return null;
+        }
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT record_type, action, COUNT(*) AS count
+                 FROM $table
+                 WHERE run_id = %s
+                 GROUP BY record_type, action",
+                $run_id
+            ),
+            ARRAY_A
+        );
+
+        if (!$rows) {
+            return null;
+        }
+
+        $counters = array(
+            'properties' => array(
+                'created' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deleted' => 0,
+                'total' => 0,
+            ),
+            'requests' => array(
+                'created' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deleted' => 0,
+                'total' => 0,
+            ),
+        );
+
+        foreach ($rows as $row) {
+            $record_type = isset($row['record_type'])
+                ? (string) $row['record_type']
+                : '';
+
+            $action = isset($row['action'])
+                ? (string) $row['action']
+                : '';
+
+            $count = isset($row['count'])
+                ? (int) $row['count']
+                : 0;
+
+            if ($record_type === 'property') {
+                $counter_key = 'properties';
+            } elseif ($record_type === 'request') {
+                $counter_key = 'requests';
+            } else {
+                continue;
+            }
+
+            if (!isset($counters[$counter_key][$action])) {
+                $counters[$counter_key][$action] = 0;
+            }
+
+            $counters[$counter_key][$action] += $count;
+            $counters[$counter_key]['total'] += $count;
+        }
+
+        return $counters;
+    }
+
+    /**
      * Format a run database row for JSON response.
      */
     private static function format_run_row($row) {
         $summary = !empty($row['summary_json']) ? json_decode($row['summary_json'], true) : array();
+
+        /*
+         * Rebuild counters from persisted record-level items when available.
+         *
+         * This repairs historical runs created before the property counter fix
+         * and guarantees Local and mirrored Live reports use the same source.
+         */
+        $item_counters = self::get_item_counters_for_run($row['id']);
+
+        if (is_array($item_counters)) {
+            $summary['counters'] = $item_counters;
+
+            // Keep legacy top-level fields synchronized for old UI/report consumers.
+            $summary['properties'] = $item_counters['properties'];
+            $summary['requests']   = $item_counters['requests'];
+        }
+
         return array(
             'id'           => $row['id'],
             'mode'         => $row['mode'],

@@ -184,47 +184,42 @@ const getActionChipProps = (action) => {
 const getReportCounters = (report) => {
   const summary = report?.summary;
 
-  if (!summary) {
-    return {
-      properties: {
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        failed: 0,
-        total: 0,
-      },
-      requests: {
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        failed: 0,
-        deleted: 0,
-        total: 0,
-      },
-    };
-  }
-
-  // Current/canonical format.
-  if (summary.counters) {
-    return summary.counters;
-  }
-
-  // Backward compatibility for reports created before the fix.
-  return {
-    properties: summary.properties || {
-      created: 0,
-      updated: 0,
-      skipped: 0,
-      failed: 0,
-      total: 0,
-    },
-    requests: summary.requests || {
+  const emptyCounters = {
+    properties: {
       created: 0,
       updated: 0,
       skipped: 0,
       failed: 0,
       deleted: 0,
       total: 0,
+    },
+    requests: {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      deleted: 0,
+      total: 0,
+    },
+  };
+
+  if (!summary) {
+    return emptyCounters;
+  }
+
+  const source = summary.counters || {
+    properties: summary.properties || {},
+    requests: summary.requests || {},
+  };
+
+  return {
+    properties: {
+      ...emptyCounters.properties,
+      ...(source.properties || {}),
+    },
+    requests: {
+      ...emptyCounters.requests,
+      ...(source.requests || {}),
     },
   };
 };
@@ -895,8 +890,8 @@ const LiveServerDashboard = ({ syncConfig, onOpenBrowser }) => {
               ) : (
                 reportHistory.map((run, idx) => {
                   const rCounters = getReportCounters(run);
-                  const pTot = (rCounters.properties?.created || 0) + (rCounters.properties?.updated || 0);
-                  const qTot = (rCounters.requests?.created || 0) + (rCounters.requests?.updated || 0);
+                  const pTot = rCounters.properties?.total || 0;
+                  const qTot = rCounters.requests?.total || 0;
                   return (
                     <TableRow key={run.id} sx={{
                       '&:hover': { bgcolor: 'action.hover' },
