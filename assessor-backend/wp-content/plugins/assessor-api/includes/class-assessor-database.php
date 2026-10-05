@@ -230,10 +230,12 @@ class Assessor_Database {
             sort_order int NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at datetime DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY code (code),
             KEY status (status),
-            KEY sort_order (sort_order)
+            KEY sort_order (sort_order),
+            KEY deleted_at (deleted_at)
         ) $charset_collate;";
 
         // General classes table
@@ -246,10 +248,12 @@ class Assessor_Database {
             sort_order int NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at datetime DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY code (code),
             KEY status (status),
-            KEY sort_order (sort_order)
+            KEY sort_order (sort_order),
+            KEY deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Locations table
@@ -263,10 +267,12 @@ class Assessor_Database {
             sort_order int NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at datetime DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY code (code),
             KEY status (status),
-            KEY sort_order (sort_order)
+            KEY sort_order (sort_order),
+            KEY deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Request purposes table (Purpose + Amount Paid)
@@ -2364,6 +2370,47 @@ class Assessor_Database {
                 AND child.previous_tax_declaration_number != ''
             )
         ");
+
+        // Migration: Ensure deleted_at column and index exist on lookup tables
+        $lookup_tombstone_tables = array(
+            $wpdb->prefix . 'assessor_property_types',
+            $wpdb->prefix . 'assessor_general_classes',
+            $wpdb->prefix . 'assessor_locations',
+        );
+
+        foreach ($lookup_tombstone_tables as $table) {
+            $column = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COLUMN_NAME
+                     FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = %s
+                       AND COLUMN_NAME = 'deleted_at'",
+                    $table
+                )
+            );
+
+            if (!$column) {
+                $wpdb->query("ALTER TABLE $table ADD COLUMN deleted_at datetime NULL AFTER updated_at");
+            }
+
+            // Ensure deleted_at index exists before adding it
+            $has_index = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT INDEX_NAME
+                     FROM INFORMATION_SCHEMA.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = %s
+                       AND INDEX_NAME = 'deleted_at'
+                     LIMIT 1",
+                    $table
+                )
+            );
+
+            if (!$has_index) {
+                $wpdb->query("ALTER TABLE $table ADD KEY deleted_at (deleted_at)");
+            }
+        }
     }
 }
 

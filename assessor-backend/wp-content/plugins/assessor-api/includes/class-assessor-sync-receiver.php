@@ -739,6 +739,15 @@ class Assessor_Sync_Receiver {
             }
         }
 
+        // Target tables business key mapping for collision safety
+        $biz_key_map = array(
+            'assessor_property_types'   => 'code',
+            'assessor_general_classes'  => 'code',
+            'assessor_locations'        => 'code',
+            'assessor_request_purposes' => 'purpose',
+        );
+        $biz_col = isset($biz_key_map[$table_suffix]) ? $biz_key_map[$table_suffix] : null;
+
         // Instead of wiping the live table (which deletes barangays added on live),
         // we will upsert (replace) records based on their unique keys.
         $inserted = 0;
@@ -756,6 +765,15 @@ class Assessor_Sync_Receiver {
             // Only strip if id is empty or numeric 0 to avoid DB errors on non-null PK columns.
             if (isset($clean['id']) && (empty($clean['id']) || (is_numeric($clean['id']) && intval($clean['id']) <= 0))) {
                 unset($clean['id']);
+            }
+
+            // Business-key collision safety: if a superseded live row has the same business key but different id, remove it
+            if ($biz_col && !empty($clean[$biz_col]) && !empty($clean['id'])) {
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM $table WHERE $biz_col = %s AND id != %s",
+                    $clean[$biz_col],
+                    $clean['id']
+                ));
             }
 
             // wpdb->replace uses REPLACE INTO, which updates if primary/unique key exists, or inserts if not

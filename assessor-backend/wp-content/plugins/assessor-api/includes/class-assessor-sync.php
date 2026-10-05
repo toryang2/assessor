@@ -1492,6 +1492,15 @@ class Assessor_Sync {
                 if (empty($clean['id'])) {
                     continue;
                 }
+                // Business-key collision safety: if a superseded local row has the same business key but different id, remove it
+                $biz_val = (string)($clean[$biz_col] ?? '');
+                if ($biz_val !== '') {
+                    $wpdb->query($wpdb->prepare(
+                        "DELETE FROM $full_table WHERE $biz_col = %s AND id != %s",
+                        $biz_val,
+                        $clean['id']
+                    ));
+                }
                 $wpdb->replace($full_table, $clean);
             }
         } finally {
@@ -1556,6 +1565,7 @@ class Assessor_Sync {
             'sort_order' => (int)($row['sort_order'] ?? 0),
             'pin'        => (string)($row['pin'] ?? ''),
             'amount'     => isset($row['amount']) ? (string)floatval($row['amount']) : '',
+            'deleted_at' => (string)($row['deleted_at'] ?? ''),
         );
         ksort($data);
         return md5(json_encode($data));

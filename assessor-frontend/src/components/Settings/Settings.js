@@ -254,6 +254,24 @@ const Settings = () => {
   const [newClass, setNewClass] = useState({ code: '', name: '' });
   const [locations, setLocations] = useState([]);
   const [newLocation, setNewLocation] = useState({ code: '', name: '', pin: '' });
+  const [editingPropertyTypeId, setEditingPropertyTypeId] = useState(null);
+  const [editPropertyTypeDraft, setEditPropertyTypeDraft] = useState({
+    code: '',
+    name: ''
+  });
+
+  const [editingGeneralClassId, setEditingGeneralClassId] = useState(null);
+  const [editGeneralClassDraft, setEditGeneralClassDraft] = useState({
+    code: '',
+    name: ''
+  });
+
+  const [editingLocationId, setEditingLocationId] = useState(null);
+  const [editLocationDraft, setEditLocationDraft] = useState({
+    code: '',
+    name: '',
+    pin: ''
+  });
   const [revisionEntries, setRevisionEntries] = useState([]);
   const [newRevisionEntry, setNewRevisionEntry] = useState({ revision_year: '', from_year: '', to_year: '' });
   const [requestPurposes, setRequestPurposes] = useState([]);
@@ -687,7 +705,7 @@ const Settings = () => {
       } else if (key === 'locations') {
         const next = reorder(locations);
         setLocations(next);
-        await Promise.all(next.map((item, idx) => apiService.saveLocation({ id: item.id, code: item.code, name: item.name, status: item.status, sort_order: idx + 1 })));
+        await Promise.all(next.map((item, idx) => apiService.saveLocation({ id: item.id, code: item.code, name: item.name, pin: item.pin || '', status: item.status, sort_order: idx + 1 })));
       } else if (key === 'revisionEntries') {
         const next = reorder(revisionEntries);
         setRevisionEntries(next);
@@ -699,6 +717,61 @@ const Settings = () => {
       }
     } finally {
       setDragging({ key: null, from: -1 });
+    }
+  };
+
+  const beginEditPropertyType = (row) => {
+    setEditingPropertyTypeId(row.id);
+    setEditPropertyTypeDraft({
+      code: row.code ?? '',
+      name: row.name ?? ''
+    });
+  };
+
+  const cancelEditPropertyType = () => {
+    setEditingPropertyTypeId(null);
+    setEditPropertyTypeDraft({
+      code: '',
+      name: ''
+    });
+  };
+
+  const saveEditPropertyType = async (row) => {
+    const code = String(editPropertyTypeDraft.code || '').trim().toUpperCase();
+    const name = String(editPropertyTypeDraft.name || '').trim().toUpperCase();
+
+    if (!code || !name) {
+      setToast({
+        open: true,
+        message: 'Property Type: Code and Name are required.',
+        severity: 'error'
+      });
+      return;
+    }
+
+    try {
+      const res = await apiService.savePropertyType({
+        id: row.id,
+        code,
+        name,
+        status: row.status,
+        sort_order: row.sort_order || 0
+      });
+
+      setPropertyTypes(res?.items || []);
+      cancelEditPropertyType();
+
+      setToast({
+        open: true,
+        message: 'Property type updated.',
+        severity: 'success'
+      });
+    } catch (err) {
+      setToast({
+        open: true,
+        message: err?.message || 'Failed to update property type.',
+        severity: 'error'
+      });
     }
   };
 
@@ -718,6 +791,61 @@ const Settings = () => {
     }
   };
 
+  const beginEditGeneralClass = (row) => {
+    setEditingGeneralClassId(row.id);
+    setEditGeneralClassDraft({
+      code: row.code ?? '',
+      name: row.name ?? ''
+    });
+  };
+
+  const cancelEditGeneralClass = () => {
+    setEditingGeneralClassId(null);
+    setEditGeneralClassDraft({
+      code: '',
+      name: ''
+    });
+  };
+
+  const saveEditGeneralClass = async (row) => {
+    const code = String(editGeneralClassDraft.code || '').trim().toUpperCase();
+    const name = String(editGeneralClassDraft.name || '').trim().toUpperCase();
+
+    if (!code || !name) {
+      setToast({
+        open: true,
+        message: 'General Class: Code and Name are required.',
+        severity: 'error'
+      });
+      return;
+    }
+
+    try {
+      const res = await apiService.saveGeneralClass({
+        id: row.id,
+        code,
+        name,
+        status: row.status,
+        sort_order: row.sort_order || 0
+      });
+
+      setGeneralClasses(res?.items || []);
+      cancelEditGeneralClass();
+
+      setToast({
+        open: true,
+        message: 'General class updated.',
+        severity: 'success'
+      });
+    } catch (err) {
+      setToast({
+        open: true,
+        message: err?.message || 'Failed to update general class.',
+        severity: 'error'
+      });
+    }
+  };
+
   const addGeneralClass = async () => {
     if (!newClass.code || !newClass.name) {
       setToast({ open: true, message: 'General Class: Code and Name are required.', severity: 'error' });
@@ -730,6 +858,65 @@ const Settings = () => {
       setToast({ open: true, message: 'General class saved.', severity: 'success' });
     } catch (err) {
       setToast({ open: true, message: 'Failed to save general class.', severity: 'error' });
+    }
+  };
+
+  const beginEditLocation = (row) => {
+    setEditingLocationId(row.id);
+    setEditLocationDraft({
+      code: row.code ?? '',
+      name: row.name ?? '',
+      pin: row.pin ?? ''
+    });
+  };
+
+  const cancelEditLocation = () => {
+    setEditingLocationId(null);
+    setEditLocationDraft({
+      code: '',
+      name: '',
+      pin: ''
+    });
+  };
+
+  const saveEditLocation = async (row) => {
+    const code = String(editLocationDraft.code || '').trim().toUpperCase();
+    const name = String(editLocationDraft.name || '').trim().toUpperCase();
+    const pin = String(editLocationDraft.pin || '').trim();
+
+    if (!code || !name) {
+      setToast({
+        open: true,
+        message: 'Barangay: Code and Name are required.',
+        severity: 'error'
+      });
+      return;
+    }
+
+    try {
+      const res = await apiService.saveLocation({
+        id: row.id,
+        code,
+        name,
+        pin,
+        status: row.status,
+        sort_order: row.sort_order || 0
+      });
+
+      setLocations(res?.items || []);
+      cancelEditLocation();
+
+      setToast({
+        open: true,
+        message: 'Barangay updated.',
+        severity: 'success'
+      });
+    } catch (err) {
+      setToast({
+        open: true,
+        message: err?.message || 'Failed to update barangay.',
+        severity: 'error'
+      });
     }
   };
 
@@ -2471,70 +2658,157 @@ const Settings = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredPropertyTypes.map((t, index) => (
-                        <TableRow
-                          key={t.id}
-                          hover
-                          draggable
-                          onDragStart={() => handleDragStart('propertyTypes', index)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop('propertyTypes', index)}
-                        >
-                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
-                            <DragIndicatorIcon fontSize="small" />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={t.code}
-                              size="small"
-                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
-                            />
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {t.name}
-                          </TableCell>
-                          <TableCell>
-                            <FormControlLabel
-                              sx={{ m: 0 }}
-                              control={
-                                <Switch
+                      filteredPropertyTypes.map((t, index) => {
+                        const isEditing = editingPropertyTypeId === t.id;
+                        return (
+                          <TableRow
+                            key={t.id}
+                            hover
+                            draggable={!isEditing}
+                            onDragStart={() => !isEditing && handleDragStart('propertyTypes', index)}
+                            onDragOver={(e) => !isEditing && e.preventDefault()}
+                            onDrop={() => !isEditing && handleDrop('propertyTypes', index)}
+                          >
+                            <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
+                              <DragIndicatorIcon fontSize="small" />
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
                                   size="small"
-                                  checked={t.status === 'active'}
-                                  onChange={async (e) => {
-                                    try {
-                                      const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
-                                      setPropertyTypes(updated?.items || []);
-                                      setToast({ open: true, message: 'Property type updated.', severity: 'success' });
-                                    } catch (err) {
-                                      setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
+                                  fullWidth
+                                  autoFocus
+                                  value={editPropertyTypeDraft.code}
+                                  onChange={(e) =>
+                                    setEditPropertyTypeDraft(prev => ({
+                                      ...prev,
+                                      code: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditPropertyType(t);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditPropertyType();
                                     }
                                   }}
                                 />
-                              }
-                              label={t.status === 'active' ? 'Active' : 'Disabled'}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              size="small"
-                              aria-label="delete"
-                              onClick={async () => {
-                                try {
-                                  await apiService.deletePropertyType(t.id);
-                                  const res = await apiService.getPropertyTypes();
-                                  setPropertyTypes(res?.items || []);
-                                  setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
-                                } catch (err) {
-                                  setToast({ open: true, message: 'Failed to delete property type.', severity: 'error' });
+                              ) : (
+                                <Chip
+                                  label={t.code}
+                                  size="small"
+                                  sx={{
+                                    height: 22,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    fontFamily: 'monospace',
+                                    bgcolor: 'action.hover',
+                                    borderRadius: 1
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  value={editPropertyTypeDraft.name}
+                                  onChange={(e) =>
+                                    setEditPropertyTypeDraft(prev => ({
+                                      ...prev,
+                                      name: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditPropertyType(t);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditPropertyType();
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                t.name
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <FormControlLabel
+                                sx={{ m: 0 }}
+                                control={
+                                  <Switch
+                                    size="small"
+                                    disabled={isEditing}
+                                    checked={t.status === 'active'}
+                                    onChange={async (e) => {
+                                      try {
+                                        const updated = await apiService.savePropertyType({ id: t.id, code: t.code, name: t.name, status: e.target.checked ? 'active' : 'disabled', sort_order: t.sort_order || 0 });
+                                        setPropertyTypes(updated?.items || []);
+                                        setToast({ open: true, message: 'Property type updated.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: 'Failed to update property type.', severity: 'error' });
+                                      }
+                                    }}
+                                  />
                                 }
-                              }}
-                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                                label={t.status === 'active' ? 'Active' : 'Disabled'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {isEditing ? (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    aria-label="save"
+                                    onClick={() => saveEditPropertyType(t)}
+                                  >
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="cancel"
+                                    onClick={cancelEditPropertyType}
+                                  >
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="edit"
+                                    onClick={() => beginEditPropertyType(t)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="delete"
+                                    onClick={async () => {
+                                      try {
+                                        await apiService.deletePropertyType(t.id);
+                                        const res = await apiService.getPropertyTypes();
+                                        setPropertyTypes(res?.items || []);
+                                        setToast({ open: true, message: 'Property type deleted.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: err?.message || 'Failed to delete property type.', severity: 'error' });
+                                      }
+                                    }}
+                                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -2566,70 +2840,157 @@ const Settings = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredGeneralClasses.map((c, index) => (
-                        <TableRow
-                          key={c.id}
-                          hover
-                          draggable
-                          onDragStart={() => handleDragStart('generalClasses', index)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop('generalClasses', index)}
-                        >
-                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
-                            <DragIndicatorIcon fontSize="small" />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={c.code}
-                              size="small"
-                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
-                            />
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {c.name}
-                          </TableCell>
-                          <TableCell>
-                            <FormControlLabel
-                              sx={{ m: 0 }}
-                              control={
-                                <Switch
+                      filteredGeneralClasses.map((c, index) => {
+                        const isEditing = editingGeneralClassId === c.id;
+                        return (
+                          <TableRow
+                            key={c.id}
+                            hover
+                            draggable={!isEditing}
+                            onDragStart={() => !isEditing && handleDragStart('generalClasses', index)}
+                            onDragOver={(e) => !isEditing && e.preventDefault()}
+                            onDrop={() => !isEditing && handleDrop('generalClasses', index)}
+                          >
+                            <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
+                              <DragIndicatorIcon fontSize="small" />
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
                                   size="small"
-                                  checked={c.status === 'active'}
-                                  onChange={async (e) => {
-                                    try {
-                                      const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
-                                      setGeneralClasses(updated?.items || []);
-                                      setToast({ open: true, message: 'General class updated.', severity: 'success' });
-                                    } catch (err) {
-                                      setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                                  fullWidth
+                                  autoFocus
+                                  value={editGeneralClassDraft.code}
+                                  onChange={(e) =>
+                                    setEditGeneralClassDraft(prev => ({
+                                      ...prev,
+                                      code: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditGeneralClass(c);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditGeneralClass();
                                     }
                                   }}
                                 />
-                              }
-                              label={c.status === 'active' ? 'Active' : 'Disabled'}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              size="small"
-                              aria-label="delete"
-                              onClick={async () => {
-                                try {
-                                  await apiService.deleteGeneralClass(c.id);
-                                  const res = await apiService.getGeneralClasses();
-                                  setGeneralClasses(res?.items || []);
-                                  setToast({ open: true, message: 'General class deleted.', severity: 'success' });
-                                } catch (err) {
-                                  setToast({ open: true, message: 'Failed to delete general class.', severity: 'error' });
+                              ) : (
+                                <Chip
+                                  label={c.code}
+                                  size="small"
+                                  sx={{
+                                    height: 22,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    fontFamily: 'monospace',
+                                    bgcolor: 'action.hover',
+                                    borderRadius: 1
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  value={editGeneralClassDraft.name}
+                                  onChange={(e) =>
+                                    setEditGeneralClassDraft(prev => ({
+                                      ...prev,
+                                      name: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditGeneralClass(c);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditGeneralClass();
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                c.name
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <FormControlLabel
+                                sx={{ m: 0 }}
+                                control={
+                                  <Switch
+                                    size="small"
+                                    disabled={isEditing}
+                                    checked={c.status === 'active'}
+                                    onChange={async (e) => {
+                                      try {
+                                        const updated = await apiService.saveGeneralClass({ id: c.id, code: c.code, name: c.name, status: e.target.checked ? 'active' : 'disabled', sort_order: c.sort_order || 0 });
+                                        setGeneralClasses(updated?.items || []);
+                                        setToast({ open: true, message: 'General class updated.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: 'Failed to update general class.', severity: 'error' });
+                                      }
+                                    }}
+                                  />
                                 }
-                              }}
-                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                                label={c.status === 'active' ? 'Active' : 'Disabled'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {isEditing ? (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    aria-label="save"
+                                    onClick={() => saveEditGeneralClass(c)}
+                                  >
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="cancel"
+                                    onClick={cancelEditGeneralClass}
+                                  >
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="edit"
+                                    onClick={() => beginEditGeneralClass(c)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="delete"
+                                    onClick={async () => {
+                                      try {
+                                        await apiService.deleteGeneralClass(c.id);
+                                        const res = await apiService.getGeneralClasses();
+                                        setGeneralClasses(res?.items || []);
+                                        setToast({ open: true, message: 'General class deleted.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: err?.message || 'Failed to delete general class.', severity: 'error' });
+                                      }
+                                    }}
+                                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -2662,75 +3023,188 @@ const Settings = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredLocations.map((l, index) => (
-                        <TableRow
-                          key={l.id}
-                          hover
-                          draggable
-                          onDragStart={() => handleDragStart('locations', index)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop('locations', index)}
-                        >
-                          <TableCell sx={{ cursor: 'grab', color: 'text.secondary', width: 44 }} title="Drag to reorder">
-                            <DragIndicatorIcon fontSize="small" />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={l.code}
-                              size="small"
-                              sx={{ height: 22, fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', bgcolor: 'action.hover', borderRadius: 1 }}
-                            />
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>
-                            {l.name}
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                              {l.pin || '—'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <FormControlLabel
-                              sx={{ m: 0 }}
-                              control={
-                                <Switch
+                      filteredLocations.map((l, index) => {
+                        const isEditing = editingLocationId === l.id;
+                        return (
+                          <TableRow
+                            key={l.id}
+                            hover
+                            draggable={!isEditing}
+                            onDragStart={() => !isEditing && handleDragStart('locations', index)}
+                            onDragOver={(e) => !isEditing && e.preventDefault()}
+                            onDrop={() => !isEditing && handleDrop('locations', index)}
+                          >
+                            <TableCell sx={{ cursor: isEditing ? 'default' : 'grab', color: 'text.secondary', width: 44 }} title={isEditing ? '' : 'Drag to reorder'}>
+                              <DragIndicatorIcon fontSize="small" />
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
                                   size="small"
-                                  checked={l.status === 'active'}
-                                  onChange={async (e) => {
-                                    try {
-                                      const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
-                                      setLocations(updated?.items || []);
-                                      setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
-                                    } catch (err) {
-                                      setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
+                                  fullWidth
+                                  autoFocus
+                                  value={editLocationDraft.code}
+                                  onChange={(e) =>
+                                    setEditLocationDraft(prev => ({
+                                      ...prev,
+                                      code: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditLocation(l);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditLocation();
                                     }
                                   }}
                                 />
-                              }
-                              label={l.status === 'active' ? 'Active' : 'Disabled'}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              size="small"
-                              aria-label="delete"
-                              onClick={async () => {
-                                try {
-                                  await apiService.deleteLocation(l.id);
-                                  const res = await apiService.getLocations();
-                                  setLocations(res?.items || []);
-                                  setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
-                                } catch (err) {
-                                  setToast({ open: true, message: 'Failed to delete barangay.', severity: 'error' });
+                              ) : (
+                                <Chip
+                                  label={l.code}
+                                  size="small"
+                                  sx={{
+                                    height: 22,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    fontFamily: 'monospace',
+                                    bgcolor: 'action.hover',
+                                    borderRadius: 1
+                                  }}
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  value={editLocationDraft.name}
+                                  onChange={(e) =>
+                                    setEditLocationDraft(prev => ({
+                                      ...prev,
+                                      name: e.target.value.toUpperCase()
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditLocation(l);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditLocation();
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                l.name
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  value={editLocationDraft.pin}
+                                  onChange={(e) =>
+                                    setEditLocationDraft(prev => ({
+                                      ...prev,
+                                      pin: e.target.value
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      saveEditLocation(l);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      cancelEditLocation();
+                                    }
+                                  }}
+                                  inputProps={{
+                                    style: { fontFamily: 'monospace' }
+                                  }}
+                                />
+                              ) : (
+                                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                  {l.pin || '—'}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <FormControlLabel
+                                sx={{ m: 0 }}
+                                control={
+                                  <Switch
+                                    size="small"
+                                    disabled={isEditing}
+                                    checked={l.status === 'active'}
+                                    onChange={async (e) => {
+                                      try {
+                                        const updated = await apiService.saveLocation({ id: l.id, code: l.code, name: l.name, pin: l.pin, status: e.target.checked ? 'active' : 'disabled', sort_order: l.sort_order || 0 });
+                                        setLocations(updated?.items || []);
+                                        setToast({ open: true, message: 'Barangay updated.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: 'Failed to update barangay.', severity: 'error' });
+                                      }
+                                    }}
+                                  />
                                 }
-                              }}
-                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                                label={l.status === 'active' ? 'Active' : 'Disabled'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {isEditing ? (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    aria-label="save"
+                                    onClick={() => saveEditLocation(l)}
+                                  >
+                                    <CheckIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="cancel"
+                                    onClick={cancelEditLocation}
+                                  >
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="edit"
+                                    onClick={() => beginEditLocation(l)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    aria-label="delete"
+                                    onClick={async () => {
+                                      try {
+                                        await apiService.deleteLocation(l.id);
+                                        const res = await apiService.getLocations();
+                                        setLocations(res?.items || []);
+                                        setToast({ open: true, message: 'Barangay deleted.', severity: 'success' });
+                                      } catch (err) {
+                                        setToast({ open: true, message: err?.message || 'Failed to delete barangay.', severity: 'error' });
+                                      }
+                                    }}
+                                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>

@@ -286,7 +286,7 @@ class Assessor_Settings {
 	public function get_property_types() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
-		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE deleted_at IS NULL AND status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
 		return array('items' => $rows);
 	}
 
@@ -308,11 +308,71 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
 		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		$now = Assessor_Timezone::now_mysql();
+
 		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%s'));
+			// Check if another non-deleted record uses the same code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND id != %s AND deleted_at IS NULL LIMIT 1", $code, $existing_id), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'Another property type already uses this code.', array('status' => 400));
+			}
+
+			$wpdb->update(
+				$table,
+				array(
+					'code'       => $code,
+					'name'       => $name,
+					'sort_order' => $sort_order,
+					'status'     => $status,
+					'updated_at' => $now,
+					'deleted_at' => null,
+				),
+				array('id' => $existing_id),
+				array('%s','%s','%d','%s','%s',null),
+				array('%s')
+			);
 		} else {
-			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
-			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%d','%s'));
+			// Check if another active/disabled record already uses this code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NULL LIMIT 1", $code), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'Property type code already exists.', array('status' => 400));
+			}
+
+			// Check whether a tombstoned row already exists with the same code to resurrect
+			$tombstone = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NOT NULL LIMIT 1", $code), ARRAY_A);
+			if ($tombstone) {
+				$reused_id = $tombstone['id'];
+				$wpdb->update(
+					$table,
+					array(
+						'code'       => $code,
+						'name'       => $name,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('id' => $reused_id),
+					array('%s','%s','%d','%s','%s',null),
+					array('%s')
+				);
+			} else {
+				$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+				$wpdb->insert(
+					$table,
+					array(
+						'id'         => $new_id,
+						'code'       => $code,
+						'name'       => $name,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'created_at' => $now,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('%s','%s','%s','%d','%s','%s','%s',null)
+				);
+			}
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_property_types');
@@ -331,7 +391,18 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_property_types';
-		$wpdb->delete($table, array('id' => $id), array('%s'));
+		$now = Assessor_Timezone::now_mysql();
+		$wpdb->update(
+			$table,
+			array(
+				'status'     => 'deleted',
+				'deleted_at' => $now,
+				'updated_at' => $now,
+			),
+			array('id' => $id),
+			array('%s', '%s', '%s'),
+			array('%s')
+		);
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_property_types');
 		}
@@ -341,7 +412,7 @@ class Assessor_Settings {
 	public function get_general_classes() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
-		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
+		$rows = $wpdb->get_results("SELECT id, code, name, status, sort_order FROM $table WHERE deleted_at IS NULL AND status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
 		return array('items' => $rows);
 	}
 
@@ -363,11 +434,71 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
 		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		$now = Assessor_Timezone::now_mysql();
+
 		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%d','%s'), array('%s'));
+			// Check if another non-deleted record uses the same code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND id != %s AND deleted_at IS NULL LIMIT 1", $code, $existing_id), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'Another general class already uses this code.', array('status' => 400));
+			}
+
+			$wpdb->update(
+				$table,
+				array(
+					'code'       => $code,
+					'name'       => $name,
+					'sort_order' => $sort_order,
+					'status'     => $status,
+					'updated_at' => $now,
+					'deleted_at' => null,
+				),
+				array('id' => $existing_id),
+				array('%s','%s','%d','%s','%s',null),
+				array('%s')
+			);
 		} else {
-			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
-			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%d','%s'));
+			// Check if another active/disabled record already uses this code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NULL LIMIT 1", $code), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'General class code already exists.', array('status' => 400));
+			}
+
+			// Check whether a tombstoned row already exists with the same code to resurrect
+			$tombstone = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NOT NULL LIMIT 1", $code), ARRAY_A);
+			if ($tombstone) {
+				$reused_id = $tombstone['id'];
+				$wpdb->update(
+					$table,
+					array(
+						'code'       => $code,
+						'name'       => $name,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('id' => $reused_id),
+					array('%s','%s','%d','%s','%s',null),
+					array('%s')
+				);
+			} else {
+				$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+				$wpdb->insert(
+					$table,
+					array(
+						'id'         => $new_id,
+						'code'       => $code,
+						'name'       => $name,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'created_at' => $now,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('%s','%s','%s','%d','%s','%s','%s',null)
+				);
+			}
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_general_classes');
@@ -386,7 +517,18 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_general_classes';
-		$wpdb->delete($table, array('id' => $id), array('%s'));
+		$now = Assessor_Timezone::now_mysql();
+		$wpdb->update(
+			$table,
+			array(
+				'status'     => 'deleted',
+				'deleted_at' => $now,
+				'updated_at' => $now,
+			),
+			array('id' => $id),
+			array('%s', '%s', '%s'),
+			array('%s')
+		);
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_general_classes');
 		}
@@ -396,7 +538,7 @@ class Assessor_Settings {
 	public function get_locations() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
-		$rows = $wpdb->get_results("SELECT id, code, name, pin, status, sort_order FROM $table WHERE status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
+		$rows = $wpdb->get_results("SELECT id, code, name, pin, status, sort_order FROM $table WHERE deleted_at IS NULL AND status IN ('active','disabled') ORDER BY sort_order ASC, name ASC", ARRAY_A);
 		return array('items' => $rows);
 	}
 
@@ -419,11 +561,74 @@ class Assessor_Settings {
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
 		$existing_id = isset($params['id']) ? trim(sanitize_text_field(strval($params['id']))) : '';
+		$now = Assessor_Timezone::now_mysql();
+
 		if (!empty($existing_id) && $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %s", $existing_id))) {
-			$wpdb->update($table, array('code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('id' => $existing_id), array('%s','%s','%s','%d','%s'), array('%s'));
+			// Check if another non-deleted record uses the same code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND id != %s AND deleted_at IS NULL LIMIT 1", $code, $existing_id), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'Another barangay already uses this code.', array('status' => 400));
+			}
+
+			$wpdb->update(
+				$table,
+				array(
+					'code'       => $code,
+					'name'       => $name,
+					'pin'        => $pin,
+					'sort_order' => $sort_order,
+					'status'     => $status,
+					'updated_at' => $now,
+					'deleted_at' => null,
+				),
+				array('id' => $existing_id),
+				array('%s','%s','%s','%d','%s','%s',null),
+				array('%s')
+			);
 		} else {
-			$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
-			$wpdb->insert($table, array('id' => $new_id, 'code' => $code, 'name' => $name, 'pin' => $pin, 'sort_order' => $sort_order, 'status' => $status), array('%s','%s','%s','%s','%d','%s'));
+			// Check if another active/disabled record already uses this code
+			$dup = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NULL LIMIT 1", $code), ARRAY_A);
+			if ($dup) {
+				return new WP_Error('duplicate_code', 'Barangay code already exists.', array('status' => 400));
+			}
+
+			// Check whether a tombstoned row already exists with the same code to resurrect
+			$tombstone = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table WHERE LOWER(code) = LOWER(%s) AND deleted_at IS NOT NULL LIMIT 1", $code), ARRAY_A);
+			if ($tombstone) {
+				$reused_id = $tombstone['id'];
+				$wpdb->update(
+					$table,
+					array(
+						'code'       => $code,
+						'name'       => $name,
+						'pin'        => $pin,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('id' => $reused_id),
+					array('%s','%s','%s','%d','%s','%s',null),
+					array('%s')
+				);
+			} else {
+				$new_id = (!empty($existing_id) && Assessor_UUID::is_valid($existing_id)) ? $existing_id : (class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4());
+				$wpdb->insert(
+					$table,
+					array(
+						'id'         => $new_id,
+						'code'       => $code,
+						'name'       => $name,
+						'pin'        => $pin,
+						'sort_order' => $sort_order,
+						'status'     => $status,
+						'created_at' => $now,
+						'updated_at' => $now,
+						'deleted_at' => null,
+					),
+					array('%s','%s','%s','%s','%d','%s','%s','%s',null)
+				);
+			}
 		}
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_locations');
@@ -442,7 +647,18 @@ class Assessor_Settings {
 		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'assessor_locations';
-		$wpdb->delete($table, array('id' => $id), array('%s'));
+		$now = Assessor_Timezone::now_mysql();
+		$wpdb->update(
+			$table,
+			array(
+				'status'     => 'deleted',
+				'deleted_at' => $now,
+				'updated_at' => $now,
+			),
+			array('id' => $id),
+			array('%s', '%s', '%s'),
+			array('%s')
+		);
 		if (class_exists('Assessor_Sync')) {
 			Assessor_Sync::enqueue_config_table('assessor_locations');
 		}
