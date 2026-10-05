@@ -548,6 +548,7 @@ class Assessor_Sync_Receiver {
             'assessor_property_types',
             'assessor_request_purposes',
             'assessor_revision_entries',
+            'assessor_memoranda_templates',
         );
 
         if (!in_array($table_suffix, $allowed_tables, true)) {
@@ -564,6 +565,78 @@ class Assessor_Sync_Receiver {
 
         global $wpdb;
         $table = $wpdb->prefix . $table_suffix;
+
+        if ($table_suffix === 'assessor_memoranda_templates') {
+            $wpdb->query("START TRANSACTION");
+
+            try {
+                $deleted = $wpdb->query("DELETE FROM $table");
+
+                if ($deleted === false) {
+                    throw new Exception('Failed to clear memoranda template table.');
+                }
+
+                $inserted = 0;
+
+                foreach ($rows as $row) {
+                    if (!is_array($row) || empty($row)) {
+                        continue;
+                    }
+
+                    $clean = array_filter($row, 'is_scalar');
+
+                    if (empty($clean)) {
+                        continue;
+                    }
+
+                    if (isset($clean['id'])) {
+                        $clean['id'] = intval($clean['id']);
+
+                        if ($clean['id'] <= 0) {
+                            unset($clean['id']);
+                        }
+                    }
+
+                    if (isset($clean['title'])) {
+                        $clean['title'] = sanitize_text_field($clean['title']);
+                    }
+
+                    if (isset($clean['template_text'])) {
+                        $clean['template_text'] = sanitize_textarea_field($clean['template_text']);
+                    }
+
+                    if (
+                        empty($clean['title']) ||
+                        empty($clean['template_text'])
+                    ) {
+                        continue;
+                    }
+
+                    $result = $wpdb->replace($table, $clean);
+
+                    if ($result !== false) {
+                        $inserted++;
+                    }
+                }
+
+                $wpdb->query("COMMIT");
+
+                return array(
+                    'table'     => $table_suffix,
+                    'inserted'  => $inserted,
+                    'server_ts' => Assessor_Timezone::now_mysql(),
+                );
+
+            } catch (Exception $e) {
+                $wpdb->query("ROLLBACK");
+
+                return new WP_Error(
+                    'memoranda_sync_failed',
+                    $e->getMessage(),
+                    array('status' => 500)
+                );
+            }
+        }
 
         // Instead of wiping the live table (which deletes barangays added on live),
         // we will upsert (replace) records based on their unique keys.
@@ -599,10 +672,10 @@ class Assessor_Sync_Receiver {
     }
 
     /**
-     * Serve full snapshots of the four lookup tables for bidirectional reconciliation.
+     * Serve full snapshots of the lookup tables and memoranda templates.
      *
      * GET /assessor/v1/sync/pull-config
-     * Returns the 4 lookup tables with original UUIDs and complete column sets.
+     * Returns lookup tables and memoranda templates with original IDs and complete column sets.
      * Does NOT mutate any data.
      *
      * @param WP_REST_Request $request
@@ -616,6 +689,7 @@ class Assessor_Sync_Receiver {
             'assessor_general_classes',
             'assessor_locations',
             'assessor_request_purposes',
+            'assessor_memoranda_templates',
         );
 
         $tables_data = array();

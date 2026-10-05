@@ -38,6 +38,7 @@ class Assessor_Sync {
         'assessor_property_types'    => 'code',
         'assessor_request_purposes'  => 'purpose',
         'assessor_revision_entries'  => 'revision_code',
+        'assessor_memoranda_templates' => 'title',
     );
 
     // -------------------------------------------------------------------------
@@ -340,6 +341,12 @@ class Assessor_Sync {
             $report->update_phase('properties', 'running');
         }
 
+        $pull_memoranda_result = self::pull_memoranda_templates_from_live();
+        error_log(
+            'Assessor Sync: Memoranda template pull result: ' .
+            json_encode($pull_memoranda_result)
+        );
+
         $pull_result = self::pull_from_live(false, $report);
         if ($report) {
             $report->update_phase('properties', empty($pull_result['errors']) ? 'completed' : 'failed', $pull_result);
@@ -363,7 +370,8 @@ class Assessor_Sync {
 
         if ($report) {
             $has_errors = !empty($push_result['errors']) || !empty($push_config_result['errors']) ||
-                          !empty($pull_result['errors']) || !empty($pull_requests_result['errors']) || !empty($pull_users_result['errors']);
+                          !empty($pull_result['errors']) || !empty($pull_requests_result['errors']) || !empty($pull_users_result['errors']) ||
+                          !empty($pull_memoranda_result['errors']);
 
             $total_changes = 0;
             if (isset($pull_result['synced'])) $total_changes += (int)$pull_result['synced'];
@@ -477,11 +485,13 @@ class Assessor_Sync {
             $report->update_phase('users', empty($users['errors']) ? 'completed' : 'failed', $users);
         }
 
+        $memoranda = self::pull_memoranda_templates_from_live();
+
         $message = $force_full
             ? 'Full resync completed. All records pulled from live site.'
             : 'Sync completed.';
 
-        $has_errors = !empty($push['errors']) || !empty($config['errors']) || !empty($pull['errors']) || !empty($requests['errors']) || !empty($users['errors']);
+        $has_errors = !empty($push['errors']) || !empty($config['errors']) || !empty($pull['errors']) || !empty($requests['errors']) || !empty($users['errors']) || !empty($memoranda['errors']);
         $final_status = $has_errors ? 'failed' : 'completed';
 
         if ($report) {
@@ -497,6 +507,7 @@ class Assessor_Sync {
             'push'        => $push,
             'config'      => $config,
             'revisions'   => $revisions,
+            'memoranda'   => $memoranda,
             'pull'        => $pull,
             'requests'    => $requests,
             'users'       => $users,
@@ -602,6 +613,126 @@ class Assessor_Sync {
             'errors'   => $errors,
             'count'    => count($records),
         );
+    }
+
+    /**
+     * Pull complete snapshot of memoranda templates from Live to Local.
+     * Full snapshot replacement ensures deletions on Live also propagate to Local.
+     *
+     * @return array
+     */
+    public static function pull_memoranda_templates_from_live() {
+        error_log('Assessor Sync: Memoranda templates pull START');
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'assessor_memoranda_templates';
+
+        $response = self::live_api_request(
+            'GET',
+            '/assessor/v1/sync/pull-config'
+        );
+
+        if (is_wp_error($response)) {
+            $err = $response->get_error_message();
+            error_log('Assessor Sync: Memoranda templates pull failed: ' . $err);
+            return array(
+                'success'  => false,
+                'upserted' => 0,
+                'errors'   => array($err),
+            );
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!is_array($body) || empty($body['success'])) {
+            $err = 'Invalid response from /sync/pull-config.';
+            error_log('Assessor Sync: Memoranda templates pull failed: ' . $err);
+            return array(
+                'success'  => false,
+                'upserted' => 0,
+                'errors'   => array($err),
+            );
+        }
+
+        $records = isset($body['tables']['assessor_memoranda_templates'])
+            && is_array($body['tables']['assessor_memoranda_templates'])
+            ? $body['tables']['assessor_memoranda_templates']
+            : array();
+
+        $prev_syncing = self::$syncing;
+        self::$syncing = true;
+
+        $wpdb->query("START TRANSACTION");
+
+        try {
+            // Full snapshot replacement.
+            // This also correctly propagates deletions from Live to Local.
+            $deleted = $wpdb->query("DELETE FROM $table");
+
+            if ($deleted === false) {
+                throw new Exception('Failed to clear local memoranda templates.');
+            }
+
+            $upserted = 0;
+
+            foreach ($records as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $clean = array(
+                    'title' => isset($row['title'])
+                        ? sanitize_text_field($row['title'])
+                        : '',
+                    'template_text' => isset($row['template_text'])
+                        ? sanitize_textarea_field($row['template_text'])
+                        : '',
+                );
+
+                if ($clean['title'] === '' || $clean['template_text'] === '') {
+                    continue;
+                }
+
+                // Keep the existing integer ID when supplied so Local mirrors Live.
+                if (isset($row['id']) && intval($row['id']) > 0) {
+                    $clean['id'] = intval($row['id']);
+                }
+
+                $result = $wpdb->replace(
+                    $table,
+                    $clean
+                );
+
+                if ($result !== false) {
+                    $upserted++;
+                }
+            }
+
+            $wpdb->query("COMMIT");
+
+            self::$syncing = $prev_syncing;
+
+            error_log('Assessor Sync: Memoranda templates pull completed — rows=' . $upserted);
+
+            return array(
+                'success'  => true,
+                'upserted' => $upserted,
+                'errors'   => array(),
+            );
+
+        } catch (Exception $e) {
+            $wpdb->query("ROLLBACK");
+            self::$syncing = $prev_syncing;
+
+            $err = $e->getMessage();
+            error_log('Assessor Sync: Memoranda templates pull exception: ' . $err);
+
+            return array(
+                'success'  => false,
+                'upserted' => 0,
+                'errors'   => array($err),
+            );
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1466,6 +1597,43 @@ class Assessor_Sync {
             }
         } else {
             $skipped[] = 'assessor_revision_entries';
+        }
+
+        // 3. Memoranda templates snapshot
+        $dirty_memoranda = (self::get_meta('config_dirty_assessor_memoranda_templates') === '1');
+
+        if ($dirty_memoranda) {
+            global $wpdb;
+
+            $table = $wpdb->prefix . 'assessor_memoranda_templates';
+            $rows  = $wpdb->get_results(
+                "SELECT id, title, template_text FROM $table ORDER BY id ASC",
+                ARRAY_A
+            );
+
+            if ($rows === null) {
+                $rows = array();
+            }
+
+            $payload = array(
+                'table' => 'assessor_memoranda_templates',
+                'rows'  => $rows,
+            );
+
+            $response = self::live_api_request(
+                'POST',
+                '/assessor/v1/sync/push-config',
+                $payload
+            );
+
+            if (is_wp_error($response)) {
+                $errors[] = 'assessor_memoranda_templates: ' . $response->get_error_message();
+            } else {
+                self::set_meta('config_dirty_assessor_memoranda_templates', '0');
+                $pushed[] = 'assessor_memoranda_templates';
+            }
+        } else {
+            $skipped[] = 'assessor_memoranda_templates';
         }
 
         return array('pushed' => $pushed, 'skipped' => $skipped, 'errors' => $errors);
