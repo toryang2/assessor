@@ -608,11 +608,15 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             );
         }
 
-        if (!$effectivity_exempt && $effectivity_year !== null) {
-            $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
-            $resolved_revision_id = $this->resolve_revision_by_effectivity_date($effectivity_year, $client_rev);
+        // Manual revision selection takes precedence, completely independent from effectivity
+        if (array_key_exists('revision_id', $params)) {
+            $client_rev = !empty($params['revision_id']) ? sanitize_text_field($params['revision_id']) : null;
+            $resolved_revision_id = $client_rev;
+        } else if (!$effectivity_exempt && $effectivity_year !== null) {
+            // Legacy fallback if revision_id is omitted completely by caller
+            $resolved_revision_id = $this->resolve_revision_by_effectivity_date($effectivity_year);
             if (is_wp_error($resolved_revision_id)) {
-                return $resolved_revision_id;
+                $resolved_revision_id = null;
             }
         } else {
             $resolved_revision_id = null;
@@ -1026,7 +1030,7 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             }
         }
 
-        // Handle effectivity_date, effectivity_exempt, and revision_id together
+        // Handle effectivity_date and effectivity_exempt
         $has_effectivity_date = array_key_exists('effectivity_date', $params);
         $has_effectivity_exempt = array_key_exists('effectivity_exempt', $params);
 
@@ -1041,22 +1045,14 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                 // A. EXEMPT
                 $update_data['effectivity_date'] = null;
                 $update_data['effectivity_exempt'] = 1;
-                $update_data['revision_id'] = null;
             } else if ($has_effectivity_date && ($params['effectivity_date'] === '' || $params['effectivity_date'] === null)) {
                 // B. BLANK
                 $update_data['effectivity_date'] = null;
                 $update_data['effectivity_exempt'] = 0;
-                $update_data['revision_id'] = null;
             } else if ($incoming_effectivity_year !== null) {
                 // C. NORMAL YEAR
-                $client_rev = isset($params['revision_id']) ? $params['revision_id'] : null;
-                $resolved_rev_id = $this->resolve_revision_by_effectivity_date($incoming_effectivity_year, $client_rev);
-                if (is_wp_error($resolved_rev_id)) {
-                    return $resolved_rev_id;
-                }
                 $update_data['effectivity_date'] = $incoming_effectivity_year;
                 $update_data['effectivity_exempt'] = 0;
-                $update_data['revision_id'] = $resolved_rev_id;
             } else if ($has_effectivity_date && $params['effectivity_date'] !== '') {
                 // Invalid non-empty year supplied
                 return new WP_Error(
@@ -1065,21 +1061,18 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
                     array('status' => 400)
                 );
             }
-        } elseif (!empty($client_rev)) {
-            // effectivity_date was not passed, but client passed revision_id: validate against current property revision
-            if (!empty($current_property->revision_id) && strcasecmp(trim($client_rev), $current_property->revision_id) !== 0) {
-                return new WP_Error(
-                    'revision_mismatch',
-                    'Client-supplied revision does not match the property revision.',
-                    array('status' => 400)
-                );
-            }
+        }
+
+        // Handle revision_id independently: manual selection takes precedence
+        if (array_key_exists('revision_id', $params)) {
+            $client_rev = !empty($params['revision_id']) ? sanitize_text_field($params['revision_id']) : null;
+            $update_data['revision_id'] = $client_rev;
         }
 
         // Validate revision-aware TDN uniqueness:
         // Exclude current property UUID ($id), reject if duplicate TDN exists in the target revision
         $target_tdn = isset($update_data['tax_declaration_number']) ? $update_data['tax_declaration_number'] : $current_property->tax_declaration_number;
-        $target_rev_id = isset($update_data['revision_id']) ? $update_data['revision_id'] : $current_property->revision_id;
+        $target_rev_id = array_key_exists('revision_id', $update_data) ? $update_data['revision_id'] : $current_property->revision_id;
 
         if ($this->is_tdn_duplicate_in_revision($target_tdn, $target_rev_id, $id)) {
             return new WP_Error(

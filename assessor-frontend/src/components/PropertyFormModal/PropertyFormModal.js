@@ -11,8 +11,6 @@ import {
   Typography,
   Alert,
   Divider,
-  Card,
-  CardContent,
   Snackbar,
   Dialog,
   DialogTitle,
@@ -22,28 +20,100 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction
+  ListItemSecondaryAction,
+  Chip,
+  Tooltip,
+  CircularProgress,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
-import { CloudUpload, Settings as SettingsIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
+import {
+  CloudUpload,
+  Settings as SettingsIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  HomeWork as PropertyIcon,
+  Close as CloseIcon,
+  Save as SaveIcon,
+  Badge as BadgeIcon,
+  Person as PersonIcon,
+  LocationOn as LocationIcon,
+  Calculate as ValuationIcon,
+  Event as EffectivityIcon,
+  Notes as NotesIcon,
+  AttachFile as AttachFileIcon,
+  InsertDriveFile as FileIcon,
+  Visibility as VisibilityIcon,
+  AccountTree as RevisionIcon
+} from '@mui/icons-material';
 
 import { apiService, uploadFile } from '../../utils/api';
 import useLoadingWatchdog from '../../hooks/useLoadingWatchdog';
 
+// Reusable standard section container matching RequestFormModal styling
+const FormSection = ({ icon: Icon, title, subtitle, children, sx = {}, error = false }) => {
+  const theme = useTheme();
+  return (
+    <Box
+      sx={{
+        borderRadius: 1,
+        border: 1,
+        borderColor: error ? theme.palette.error.main : theme.palette.divider,
+        backgroundColor: theme.palette.background.paper,
+        p: { xs: 1.5, sm: 2 },
+        ...sx
+      }}
+    >
+      <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {Icon && (
+            <Icon
+              sx={{
+                fontSize: 18,
+                color: theme.palette.primary.main
+              }}
+            />
+          )}
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: theme.palette.primary.main,
+              lineHeight: 1.2
+            }}
+          >
+            {title}
+          </Typography>
+        </Box>
+        {subtitle && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: theme.palette.text.secondary,
+              display: 'block',
+              mt: 0.25,
+              pl: Icon ? 3.25 : 0
+            }}
+          >
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+      {children}
+    </Box>
+  );
+};
+
 const PropertyFormModal = ({ property, onSave, onCancel, open, onClose }) => {
-  const isSmallScreen = (() => {
-    try {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080);
-    } catch (_) {
-      return false;
-    }
-  })();
-const isEffectivityExemptValue = (value) =>
-  value === true ||
-  value === 1 ||
-  value === '1';
+  const theme = useTheme();
+  const isEffectivityExemptValue = (value) =>
+    value === true ||
+    value === 1 ||
+    value === '1';
 
   // Extract a reliable 4-digit year from various backend formats
   const extractEffectivityYear = (raw) => {
@@ -63,6 +133,7 @@ const isEffectivityExemptValue = (value) =>
   const [formData, setFormData] = useState({
     tax_declaration_number: '',
     previous_tax_declaration_number: '',
+    revision_id: '',
     declarant_last_name: '',
     declarant_first_name: '',
     declarant_middle_initial: '',
@@ -91,6 +162,29 @@ const isEffectivityExemptValue = (value) =>
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
   const [duplicateTdnError, setDuplicateTdnError] = useState(false);
+  const [revisionEntries, setRevisionEntries] = useState([]);
+  const [revisionLoading, setRevisionLoading] = useState(false);
+  const [revisionError, setRevisionError] = useState(null);
+
+  // Preference state: Use last selected revision for new entries
+  const getStoredUseLastRevisionPref = () => {
+    try {
+      const val = localStorage.getItem('assessor_use_last_selected_revision');
+      return val === 'true';
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const getStoredLastRevisionId = () => {
+    try {
+      return localStorage.getItem('assessor_last_selected_revision_id') || '';
+    } catch (_) {
+      return '';
+    }
+  };
+
+  const [useLastRevision, setUseLastRevision] = useState(getStoredUseLastRevisionPref);
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
   const [generalClassOptions, setGeneralClassOptions] = useState([]);
   const [locationOptions, setLocationOptions] = useState([]);
@@ -294,6 +388,7 @@ const isEffectivityExemptValue = (value) =>
       setFormData({
         tax_declaration_number: property.tax_declaration_number || '',
         previous_tax_declaration_number: property.previous_tax_declaration_number || '',
+        revision_id: property.revision_id || '',
         property_state: property.property_state || 'CURRENT',
         declarant_last_name: property.declarant_last_name || '',
         declarant_first_name: property.declarant_first_name || '',
@@ -386,9 +481,18 @@ const isEffectivityExemptValue = (value) =>
       });
     } else {
       // Reset form for new property
+      const initialNewRevisionId = (() => {
+        if (getStoredUseLastRevisionPref()) {
+          return getStoredLastRevisionId();
+        }
+        return '';
+      })();
+
       setFormData({
         tax_declaration_number: '',
         previous_tax_declaration_number: '',
+        revision_id: initialNewRevisionId,
+        property_state: 'CURRENT',
         declarant_last_name: '',
         declarant_first_name: '',
         declarant_middle_initial: '',
@@ -469,6 +573,59 @@ const isEffectivityExemptValue = (value) =>
     const cacheAge = now - optionsCache.lastFetched;
     return cacheAge < 5 * 60 * 1000; // 5 minutes
   };
+
+  const loadRevisionEntries = async () => {
+    setRevisionLoading(true);
+    setRevisionError(null);
+    try {
+      const res = await apiService.getRevisionEntries();
+      const entries = Array.isArray(res?.items)
+        ? res.items
+        : Array.isArray(res?.entries)
+          ? res.entries
+          : Array.isArray(res)
+            ? res
+            : [];
+      setRevisionEntries(entries);
+
+      // In NEW property mode: if preference is ON and a stored revision ID was used,
+      // verify that it actually exists in the loaded entries. If not, reset to blank and prune stale ID.
+      if (!property) {
+        const storedPref = getStoredUseLastRevisionPref();
+        const storedId = getStoredLastRevisionId();
+        if (storedPref && storedId) {
+          const exists = entries.some(e => String(e.id) === String(storedId));
+          if (!exists) {
+            try {
+              localStorage.removeItem('assessor_last_selected_revision_id');
+            } catch (_) { }
+            setFormData(prev => ({
+              ...prev,
+              revision_id: prev.revision_id === storedId ? '' : prev.revision_id
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('PropertyFormModal: Error loading revision entries:', err);
+      setRevisionError(err.message || 'Failed to load revision entries');
+    } finally {
+      setRevisionLoading(false);
+    }
+  };
+
+  const retryLoadRevisions = () => {
+    loadRevisionEntries();
+  };
+
+  useEffect(() => {
+    if (open) {
+      setUseLastRevision(getStoredUseLastRevisionPref());
+      loadRevisionEntries();
+    } else {
+      setRevisionError(null);
+    }
+  }, [open]);
 
   useEffect(() => {
     // Don't load if modal is not open
@@ -813,6 +970,7 @@ const isEffectivityExemptValue = (value) =>
       const submitData = {
         tax_declaration_number: uppercaseFieldValue('tax_declaration_number', formData.tax_declaration_number),
         previous_tax_declaration_number: uppercaseFieldValue('previous_tax_declaration_number', formData.previous_tax_declaration_number),
+        revision_id: formData.revision_id || null,
         declarant_last_name: uppercaseFieldValue('declarant_last_name', formData.declarant_last_name),
         declarant_first_name: uppercaseFieldValue('declarant_first_name', formData.declarant_first_name),
         declarant_middle_initial: uppercaseFieldValue('declarant_middle_initial', formData.declarant_middle_initial),
@@ -965,532 +1123,918 @@ const isEffectivityExemptValue = (value) =>
     }
   };
 
-  const propertyTypes = propertyTypeOptions.map(o => o.code);
-
-  if (!open) return null;
-
   return (
     <>
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setToast(prev => ({ ...prev, open: false }))}
+          severity={toast.severity}
+          sx={{ width: '100%', borderRadius: 1 }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
+
       <Dialog
         open={open}
-        onClose={onClose || onCancel}
-        scroll="body"
-        maxWidth={false}
+        onClose={loading ? undefined : (onClose || onCancel)}
         fullWidth
+        maxWidth={false}
+        scroll="paper"
         PaperProps={{
+          component: motion.div,
+          initial: { opacity: 0, y: 12 },
+          animate: { opacity: 1, y: 0 },
+          exit: { opacity: 0, y: 12 },
+          transition: { duration: 0.2, ease: 'easeOut' },
           sx: {
-            maxHeight: '90vh',
-            width: isSmallScreen ? '85vw' : '96vw',
-            maxWidth: 'none'
+            width: {
+              xs: 'calc(100vw - 20px)',
+              sm: '94vw',
+              md: '1180px',
+              lg: '1280px'
+            },
+            maxWidth: '1320px',
+            height: { xs: '96vh', sm: '92vh' },
+            maxHeight: '94vh',
+            borderRadius: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            backgroundColor: theme.palette.background.paper,
+            m: { xs: 1, sm: 2 }
           }
         }}
       >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">
-              {property ? 'Edit Property' : 'Add New Property'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent
-          sx={
-            isSmallScreen
-              ? {
-                overflowY: 'visible',
-                '& .MuiTextField-root': { width: '100%', mb: 1 },
-                '& .MuiInputBase-root': { fontSize: '0.82rem' },
-                '& .MuiFormLabel-root': { fontSize: '0.82rem' },
-                '& .MuiFormHelperText-root': { fontSize: '0.72rem', lineHeight: 1.2 },
-                '& .MuiMenuItem-root': { fontSize: '0.82rem' },
-                '& .MuiOutlinedInput-input': { padding: '8.5px 12px' },
-                '& .MuiSelect-select.MuiInputBase-input': { padding: '8.5px 32px 8.5px 12px' },
-                '& .MuiInputLabel-outlined': { transform: 'translate(14px, 9px) scale(1)' },
-                '& .MuiInputLabel-outlined.MuiInputLabel-shrink': { transform: 'translate(14px, -9px) scale(0.75)' },
-                '& .MuiButton-root': { padding: '6px 12px' }
-              }
-              : {
-                overflowY: 'visible',
-                '& .MuiTextField-root': { width: '100%' },
-                '& .MuiInputBase-root': { fontSize: '0.86rem' },
-                '& .MuiFormLabel-root': { fontSize: '0.86rem' },
-                '& .MuiFormHelperText-root': { fontSize: '0.76rem', lineHeight: 1.2 },
-                '& .MuiMenuItem-root': { fontSize: '0.86rem' },
-                '& .MuiOutlinedInput-input': { padding: '8.5px 12px' },
-                '& .MuiSelect-select.MuiInputBase-input': { padding: '8.5px 32px 8.5px 12px' },
-                '& .MuiInputLabel-outlined': { transform: 'translate(14px, 9px) scale(1)' },
-                '& .MuiInputLabel-outlined.MuiInputLabel-shrink': { transform: 'translate(14px, -9px) scale(0.75)' }
-              }
-          }
+        {/* ================= A. FIXED HEADER ================= */}
+        <DialogTitle
+          sx={{
+            py: { xs: 1.5, sm: 2 },
+            px: { xs: 2, sm: 3 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            flexShrink: 0
+          }}
         >
-          <Snackbar
-            open={toast.open}
-            autoHideDuration={3000}
-            onClose={() => setToast(prev => ({ ...prev, open: false }))}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
-            <Alert onClose={() => setToast(prev => ({ ...prev, open: false }))} severity={toast.severity} sx={{ width: '100%' }}>
-              {toast.message}
-            </Alert>
-          </Snackbar>
-          <form onSubmit={handleSubmit}>
-            {/* Options Loading Error Display */}
-            {optionsError && (
-              <Alert
-                severity="error"
-                sx={{ mb: 2 }}
-                action={
-                  <Button
-                    color="inherit"
-                    size="small"
-                    onClick={retryLoadOptions}
-                    disabled={optionsLoading}
-                  >
-                    {optionsLoading ? 'Retrying...' : 'Retry'}
-                  </Button>
-                }
-              >
-                {optionsError}
-              </Alert>
-            )}
-
-            {/* Tax Declaration Information */}
-            <Box sx={{ mb: 0, ml: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Tax Declaration Information
-              </Typography>
-              <Grid
-                container
-                spacing={isSmallScreen ? 1 : 2}
-                sx={{
-                  '& > .MuiGrid-item': {
-                    flexBasis: { md: '19.8%' },
-                    maxWidth: { md: '19.8%' }
-                  }
-                }}
-              >
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    label="Tax Declaration Number"
-                    value={formData.tax_declaration_number}
-                    onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
-                    required
-                    error={duplicateTdnError}
-                    helperText={duplicateTdnError ? 'This Tax Declaration Number already exists. Please use a different number.' : ''}
-                    onFocus={() => console.log('TDN field focused, duplicateTdnError:', duplicateTdnError)}
-                    inputProps={{
-                      'data-debug': `duplicateTdnError: ${duplicateTdnError}`,
-                      style: { textTransform: 'uppercase' }
-                    }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    label="Previous Tax Declaration Number"
-                    value={formData.previous_tax_declaration_number}
-                    onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
-                    helperText="Optional: Use ';' to enter multiple previous TDs (consolidated)"
-                    inputProps={{ style: { textTransform: 'uppercase' } }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    label="PIN"
-                    value={formData.pin}
-                    onChange={(e) => handleInputChange('pin', e.target.value)}
-                    inputProps={{ style: { textTransform: 'uppercase' } }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Property State</InputLabel>
-                    <Select
-                      value={formData.property_state || 'CURRENT'}
-                      onChange={(e) => handleInputChange('property_state', e.target.value)}
-                      label="Property State"
-                    >
-                      <MenuItem value="CURRENT">CURRENT</MenuItem>
-                      <MenuItem value="CANCELLED">CANCELLED</MenuItem>
-                      <MenuItem value="INTERIM">INTERIM</MenuItem>
-                      <MenuItem value="PENDING">PENDING</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
+          {/* Left Side: Icon in soft rounded square, Title, Badge, Subtitle */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            <Box
+              sx={{
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
+                borderRadius: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.palette.primary.main + '14',
+                color: theme.palette.primary.main,
+                flexShrink: 0
+              }}
+            >
+              <PropertyIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
             </Box>
 
-            {/* Basic Information */}
-            <Card sx={{ mb: 1.5 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Basic Information
-                </Typography>
-                <Grid
-                  container
-                  spacing={isSmallScreen ? 1 : 2}
+            <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography
+                  variant="h6"
                   sx={{
-                    '& > .MuiGrid-item:not(.full-width-row)': {
-                      flexBasis: { md: '20%' },
-                      maxWidth: { md: '20%' }
-                    }
+                    fontWeight: 600,
+                    color: theme.palette.text.primary,
+                    lineHeight: 1.2,
+                    fontSize: { xs: '1rem', sm: '1.2rem' }
                   }}
                 >
-                  <Grid item xs={12} md={3}>
+                  {property ? 'Edit Property Record' : 'Add New Property Record'}
+                </Typography>
+
+                <Chip
+                  label={property ? 'EDITING' : 'NEW RECORD'}
+                  size="small"
+                  color={property ? 'primary' : 'success'}
+                  variant="outlined"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em'
+                  }}
+                />
+              </Box>
+
+              <Typography
+                variant="caption"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  display: { xs: 'none', sm: 'block' },
+                  mt: 0.25
+                }}
+              >
+                Encode and maintain the official real property assessment record.
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Right Side: TDN badge, Property State badge, Close button */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, ml: 1.5 }}>
+            {formData.tax_declaration_number && (
+              <Chip
+                label={`TDN: ${formData.tax_declaration_number}`}
+                size="small"
+                variant="outlined"
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  height: 24,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  fontFamily: 'monospace',
+                  borderColor: theme.palette.divider,
+                  color: theme.palette.text.primary,
+                  backgroundColor: theme.palette.background.paper
+                }}
+              />
+            )}
+
+            <Chip
+              label={formData.property_state || 'CURRENT'}
+              size="small"
+              color={
+                formData.property_state === 'CURRENT'
+                  ? 'success'
+                  : formData.property_state === 'CANCELLED'
+                    ? 'error'
+                    : formData.property_state === 'PENDING'
+                      ? 'warning'
+                      : 'default'
+              }
+              sx={{
+                height: 24,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                letterSpacing: '0.02em'
+              }}
+            />
+
+            <IconButton
+              size="small"
+              onClick={onClose || onCancel}
+              disabled={loading}
+              aria-label="Close Property Form"
+              sx={{
+                color: theme.palette.text.secondary,
+                ml: 0.5,
+                '&:hover': {
+                  color: theme.palette.error.main
+                }
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+
+        {/* ================= B. SCROLLABLE FORM BODY ================= */}
+        <DialogContent
+          sx={{
+            p: { xs: 1.5, sm: 2.5 },
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            backgroundColor: theme.palette.background.default
+          }}
+        >
+          <form onSubmit={handleSubmit} id="property-form-element">
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Options Loading Error Banner */}
+              {optionsError && (
+                <Alert
+                  severity="error"
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={retryLoadOptions}
+                      disabled={optionsLoading}
+                    >
+                      {optionsLoading ? 'Retrying...' : 'Retry'}
+                    </Button>
+                  }
+                  sx={{ borderRadius: 1 }}
+                >
+                  {optionsError}
+                </Alert>
+              )}
+
+              {/* Network / Save Verification Alert */}
+              {saveVerify.pending && (
+                <Alert
+                  severity="warning"
+                  sx={{ borderRadius: 1 }}
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={verifySaveStatus}
+                      disabled={saveVerify.checking}
+                    >
+                      {saveVerify.checking ? 'Checking...' : 'Verify Now'}
+                    </Button>
+                  }
+                >
+                  We detected a possible network issue while saving. Save status for TDN "{saveVerify.tdn}" is unknown.
+                </Alert>
+              )}
+
+              {/* Revision Loading Error Banner */}
+              {revisionError && (
+                <Alert
+                  severity="error"
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={retryLoadRevisions}
+                      disabled={revisionLoading}
+                    >
+                      {revisionLoading ? 'Retrying...' : 'Retry'}
+                    </Button>
+                  }
+                  sx={{ borderRadius: 1 }}
+                >
+                  Failed to load revision entries: {revisionError}
+                </Alert>
+              )}
+
+              {/* ---------------- ASSESSMENT REVISION ---------------- */}
+              {(() => {
+                const selectedRevision = revisionEntries.find(r => String(r.id) === String(formData.revision_id));
+                const isLegacyUnmatched = Boolean(
+                  formData.revision_id &&
+                  !selectedRevision &&
+                  !revisionLoading
+                );
+
+                // Build options list including legacy unmatched option if editing historical property
+                const revisionOptions = [...revisionEntries];
+                if (isLegacyUnmatched) {
+                  revisionOptions.unshift({
+                    id: formData.revision_id,
+                    revision_year: 'Previously Assigned Revision',
+                    revision_code: 'HISTORICAL',
+                    status: 'unavailable',
+                    from_year: '',
+                    to_year: ''
+                  });
+                }
+
+                const currentSelection = revisionOptions.find(r => String(r.id) === String(formData.revision_id)) || null;
+
+                const isPresent = currentSelection && (!currentSelection.to_year || String(currentSelection.to_year).toLowerCase() === 'present');
+                const coverageDisplay = currentSelection && currentSelection.from_year
+                  ? `${currentSelection.from_year} – ${isPresent ? 'Present' : currentSelection.to_year}`
+                  : null;
+
+                const activeRevisionName = currentSelection
+                  ? (currentSelection.revision_year || currentSelection.revision_code || 'Unnamed Revision')
+                  : null;
+
+                const handleRevisionChange = (newRevisionId) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    revision_id: newRevisionId
+                  }));
+
+                  // If in NEW property mode, save to localStorage as the last selected revision
+                  if (!property && newRevisionId) {
+                    try {
+                      localStorage.setItem('assessor_last_selected_revision_id', newRevisionId);
+                    } catch (_) { }
+                  }
+                };
+
+                const handleToggleUseLastRevision = (e) => {
+                  const checked = e.target.checked;
+                  setUseLastRevision(checked);
+                  try {
+                    localStorage.setItem('assessor_use_last_selected_revision', checked ? 'true' : 'false');
+                    if (checked && formData.revision_id) {
+                      localStorage.setItem('assessor_last_selected_revision_id', formData.revision_id);
+                    }
+                  } catch (_) { }
+                };
+
+                const renderRevisionRow = (option, { isSelectedValue = false } = {}) => {
+                  if (!option) return null;
+                  const isOptionActive = String(option.status || '').toLowerCase() === 'active';
+                  const isOptionUnavailable = option.status === 'unavailable';
+                  const optIsPresent = !option.to_year || String(option.to_year).toLowerCase() === 'present';
+                  const coverageRange = option.from_year
+                    ? `(${option.from_year} → ${optIsPresent ? 'Present' : option.to_year})`
+                    : null;
+                  const codeDisplay = option.revision_code || null;
+                  const statusLabel = isOptionUnavailable
+                    ? 'Unavailable'
+                    : isOptionActive
+                      ? 'Active'
+                      : 'Inactive';
+
+                  return (
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: isSelectedValue
+                          ? 'minmax(0, 1.2fr) auto auto auto'
+                          : 'minmax(140px, 1fr) auto auto auto',
+                        alignItems: 'center',
+                        columnGap: { xs: 1, sm: 1.5 },
+                        width: '100%',
+                        minWidth: 0,
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {/* 1. NAME - Strongest visual anchor */}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: theme.palette.text.primary,
+                          fontSize: '0.84rem',
+                          letterSpacing: '0.01em'
+                        }}
+                        title={option.revision_year || option.revision_code || 'Revision'}
+                      >
+                        {option.revision_year || option.revision_code || 'Revision'}
+                      </Typography>
+
+                      {/* 2. COVERAGE / PERIOD - Subtle secondary metadata */}
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          color: theme.palette.text.secondary,
+                          fontSize: '0.76rem',
+                          fontFamily: 'monospace',
+                          fontWeight: 500,
+                          letterSpacing: '-0.01em',
+                          opacity: 0.9
+                        }}
+                      >
+                        {coverageRange || ''}
+                      </Typography>
+
+                      {/* 3. CODE - Compact reference badge/code */}
+                      {codeDisplay ? (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            whiteSpace: 'nowrap',
+                            color: theme.palette.text.secondary,
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            px: 0.6,
+                            py: 0.15,
+                            borderRadius: 0.5,
+                            backgroundColor: theme.palette.action.hover,
+                            border: `1px solid ${theme.palette.divider}`
+                          }}
+                        >
+                          {codeDisplay}
+                        </Typography>
+                      ) : <Box />}
+
+                      {/* 4. STATUS CHIP - Restrained, clean enterprise chip */}
+                      {/* <Chip
+                        size="small"
+                        label={statusLabel}
+                        color={isOptionActive ? 'success' : isOptionUnavailable ? 'warning' : 'default'}
+                        variant={isOptionActive ? 'filled' : 'outlined'}
+                        sx={{
+                          height: 20,
+                          fontSize: '0.66rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          justifySelf: 'end',
+                          flexShrink: 0,
+                          ...(isOptionActive && {
+                            backgroundColor: theme.palette.success.main,
+                            color: '#ffffff'
+                          })
+                        }}
+                      /> */}
+                    </Box>
+                  );
+                };
+
+                return (
+                  <FormSection
+                    icon={RevisionIcon}
+                    title="Assessment Revision"
+                    subtitle="Select the approved revision applicable to this property."
+                  >
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {/* Revision Selector + Inline Metadata Row (Single horizontal line on desktop) */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexWrap: { xs: 'wrap', md: 'nowrap' },
+                          gap: 1.5,
+                          width: '100%',
+                          minWidth: 0
+                        }}
+                      >
+                        {/* External "Revision" Label */}
+                        {/* <Typography
+                          variant="body2"
+                          sx={{
+                            whiteSpace: 'nowrap',
+                            fontWeight: 600,
+                            color: theme.palette.text.secondary,
+                            fontSize: '0.84rem',
+                            flexShrink: 0
+                          }}
+                        >
+                          Revision
+                        </Typography> */}
+
+                        {/* Compact Single-Line Revision Select */}
+                        <Box sx={{ width: { xs: '100%', sm: 380, md: 430, lg: 470 }, flexShrink: 0 }}>
+                          <FormControl fullWidth size="small">
+                            <Select
+                              id="assessment-revision-select"
+                              value={formData.revision_id || ''}
+                              displayEmpty
+                              renderValue={(selected) => {
+                                if (!selected) {
+                                  return (
+                                    <Typography
+                                      component="span"
+                                      variant="body2"
+                                      sx={{
+                                        color: theme.palette.text.secondary,
+                                        fontStyle: 'italic',
+                                        fontSize: '0.84rem',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        display: 'block'
+                                      }}
+                                    >
+                                      Select revision...
+                                    </Typography>
+                                  );
+                                }
+                                const match = revisionOptions.find(o => String(o.id) === String(selected)) || {
+                                  id: selected,
+                                  revision_year: selected,
+                                  revision_code: '',
+                                  status: 'unavailable'
+                                };
+                                return renderRevisionRow(match, { isSelectedValue: true });
+                              }}
+                              onChange={(e) => handleRevisionChange(e.target.value)}
+                              disabled={revisionLoading}
+                              sx={{
+                                height: 40,
+                                minHeight: 40,
+                                backgroundColor: theme.palette.background.paper,
+                                borderRadius: 1,
+                                transition: theme.transitions.create(['border-color', 'box-shadow', 'background-color'], {
+                                  duration: 150
+                                }),
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: theme.palette.divider
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: theme.palette.text.secondary
+                                },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: theme.palette.primary.main,
+                                  borderWidth: '1.5px'
+                                },
+                                '& .MuiSelect-select': {
+                                  py: 0,
+                                  height: 40,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  pr: '36px !important'
+                                },
+                                '& .MuiSelect-icon': {
+                                  color: theme.palette.text.secondary,
+                                  right: 8
+                                }
+                              }}
+                              MenuProps={{
+                                autoFocus: false,
+                                PaperProps: {
+                                  elevation: 4,
+                                  sx: {
+                                    maxHeight: 360,
+                                    width: 'max-content',
+                                    minWidth: '100%',
+                                    maxWidth: 'min(92vw, 680px)',
+                                    borderRadius: 1,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    mt: 0.5,
+                                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+                                  }
+                                }
+                              }}
+                            >
+                              <MenuItem value="" sx={{ fontSize: '0.84rem', fontStyle: 'italic', color: 'text.secondary' }}>
+                                <em>Select revision...</em>
+                              </MenuItem>
+                              {revisionLoading ? (
+                                <MenuItem disabled sx={{ fontSize: '0.84rem' }}>
+                                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                                  Loading revisions...
+                                </MenuItem>
+                              ) : revisionError ? (
+                                <MenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    retryLoadRevisions();
+                                  }}
+                                  sx={{
+                                    color: 'error.main',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    fontSize: '0.84rem'
+                                  }}
+                                >
+                                  <Typography variant="body2" sx={{ color: 'error.main', fontSize: '0.84rem' }}>
+                                    Unable to load revisions
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 700, ml: 1 }}>
+                                    Retry
+                                  </Typography>
+                                </MenuItem>
+                              ) : revisionOptions.length === 0 ? (
+                                <MenuItem disabled sx={{ fontSize: '0.84rem' }}>No revisions configured</MenuItem>
+                              ) : (
+                                revisionOptions.map(option => {
+                                  const isSelected = String(option.id) === String(formData.revision_id);
+                                  return (
+                                    <MenuItem
+                                      key={option.id}
+                                      value={option.id}
+                                      sx={{
+                                        py: 1,
+                                        px: 1.5,
+                                        minHeight: 40,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        backgroundColor: isSelected ? theme.palette.action.selected : 'transparent',
+                                        borderLeft: isSelected
+                                          ? `3px solid ${theme.palette.primary.main}`
+                                          : '3px solid transparent',
+                                        '&:hover': {
+                                          backgroundColor: theme.palette.action.hover
+                                        },
+                                        transition: 'background-color 120ms ease, border-left-color 120ms ease'
+                                      }}
+                                    >
+                                      {renderRevisionRow(option, { isSelectedValue: false })}
+                                    </MenuItem>
+                                  );
+                                })
+                              )}
+                            </Select>
+                          </FormControl>
+                        </Box>
+
+                        {/* Inline Metadata: [Active Revision] Selected Name • Coverage: 2026–2030 */}
+                        {/* {currentSelection && (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1.25,
+                              flex: 1,
+                              minWidth: 0,
+                              height: 40,
+                              overflow: 'hidden',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Chip
+                              size="small"
+                              label={
+                                currentSelection.status === 'unavailable'
+                                  ? 'Historical'
+                                  : String(currentSelection.status || '').toLowerCase() === 'active'
+                                    ? 'Active Revision'
+                                    : (currentSelection.status || 'Archived')
+                              }
+                              color={
+                                String(currentSelection.status || '').toLowerCase() === 'active'
+                                  ? 'success'
+                                  : currentSelection.status === 'unavailable'
+                                    ? 'warning'
+                                    : 'default'
+                              }
+                              variant={String(currentSelection.status || '').toLowerCase() === 'active' ? 'filled' : 'outlined'}
+                              sx={{
+                                height: 22,
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                                flexShrink: 0,
+                                ...(String(currentSelection.status || '').toLowerCase() === 'active' && {
+                                  backgroundColor: theme.palette.success.main,
+                                  color: '#ffffff'
+                                })
+                              }}
+                            />
+
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 600,
+                                color: theme.palette.text.primary,
+                                fontSize: '0.85rem',
+                                lineHeight: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                                flexShrink: 1
+                              }}
+                              title={activeRevisionName}
+                            >
+                              {activeRevisionName}
+                            </Typography>
+
+                            {coverageDisplay && (
+                              <>
+                                <Typography
+                                  component="span"
+                                  sx={{
+                                    color: theme.palette.text.disabled,
+                                    fontSize: '0.85rem',
+                                    lineHeight: 1,
+                                    userSelect: 'none',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  •
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: theme.palette.text.secondary,
+                                    fontSize: '0.82rem',
+                                    lineHeight: 1,
+                                    fontWeight: 500,
+                                    flexShrink: 0,
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  Coverage: {coverageDisplay}
+                                </Typography>
+                              </>
+                            )}
+
+                            {isLegacyUnmatched && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'warning.main',
+                                  fontWeight: 600,
+                                  lineHeight: 1,
+                                  flexShrink: 0,
+                                  ml: 0.5
+                                }}
+                              >
+                                (Preserved ID)
+                              </Typography>
+                            )}
+                          </Box>
+                        )} */}
+                      </Box>
+
+                      {/* "Use last selected revision for new entries" Preference (NEW property mode only) */}
+                      {!property && (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            pt: 0.25,
+                            minHeight: 26
+                          }}
+                        >
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={useLastRevision}
+                                onChange={handleToggleUseLastRevision}
+                                sx={{
+                                  p: 0.5,
+                                  color: theme.palette.text.secondary,
+                                  '&.Mui-checked': {
+                                    color: theme.palette.primary.main
+                                  }
+                                }}
+                              />
+                            }
+                            label={
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 500,
+                                  fontSize: '0.82rem',
+                                  color: theme.palette.text.primary,
+                                  userSelect: 'none'
+                                }}
+                              >
+                                Use last selected revision for new entries
+                              </Typography>
+                            }
+                            sx={{ mr: 1, mb: 0 }}
+                          />
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: theme.palette.text.secondary,
+                              fontSize: '0.74rem',
+                              display: { xs: 'none', sm: 'inline' }
+                            }}
+                          >
+                            (Applies only to new properties)
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </FormSection>
+                );
+              })()}
+
+              {/* ---------------- 1. RECORD IDENTIFICATION ---------------- */}
+              <FormSection
+                icon={BadgeIcon}
+                title="Record Identification"
+                subtitle="Core identifiers and status for this real property record."
+                error={duplicateTdnError}
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={3}>
                     <TextField
+                      fullWidth
+                      size="small"
+                      label="Tax Declaration Number"
+                      value={formData.tax_declaration_number}
+                      onChange={(e) => handleInputChange('tax_declaration_number', e.target.value)}
+                      required
+                      error={duplicateTdnError}
+                      helperText={duplicateTdnError ? 'This Tax Declaration Number already exists. Please use a different number.' : ''}
+                      inputProps={{
+                        style: { textTransform: 'uppercase', fontWeight: 600 }
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: theme.palette.background.paper
+                        }
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Previous Tax Dec. Number"
+                      value={formData.previous_tax_declaration_number}
+                      onChange={(e) => handleInputChange('previous_tax_declaration_number', e.target.value)}
+                      helperText="Use ';' to separate multiple previous TDs"
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="PIN (Property Identification No.)"
+                      value={formData.pin}
+                      onChange={(e) => handleInputChange('pin', e.target.value)}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} md={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="property-state-label">Property State</InputLabel>
+                      <Select
+                        labelId="property-state-label"
+                        value={formData.property_state || 'CURRENT'}
+                        onChange={(e) => handleInputChange('property_state', e.target.value)}
+                        label="Property State"
+                      >
+                        <MenuItem value="CURRENT">CURRENT</MenuItem>
+                        <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                        <MenuItem value="INTERIM">INTERIM</MenuItem>
+                        <MenuItem value="PENDING">PENDING</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+              </FormSection>
+
+              {/* ---------------- 2. OWNER / DECLARANT ---------------- */}
+              <FormSection
+                icon={PersonIcon}
+                title="Owner / Declarant"
+                subtitle="Primary property owner, administrator, and declared correspondence address."
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4} md={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
                       label="Declarant Last Name"
                       value={formData.declarant_last_name}
                       onChange={(e) => handleInputChange('declarant_last_name', e.target.value)}
-                      // required
                       inputProps={{ style: { textTransform: 'uppercase' } }}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} sm={4} md={4}>
                     <TextField
+                      fullWidth
+                      size="small"
                       label="Declarant First Name"
                       value={formData.declarant_first_name}
                       onChange={(e) => handleInputChange('declarant_first_name', e.target.value)}
-                      // required
                       inputProps={{ style: { textTransform: 'uppercase' } }}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} sm={4} md={4}>
                     <TextField
-                      label="Declarant Middle Name/Initial"
+                      fullWidth
+                      size="small"
+                      label="Middle Name / Initial"
                       value={formData.declarant_middle_initial}
                       onChange={(e) => {
                         const raw = String(e.target.value || '').replace(/\./g, '');
-                        // allow up to 255 chars per backend change, but typical use is 1-3 letters
                         handleInputChange('declarant_middle_initial', raw);
                       }}
                       inputProps={{ maxLength: 255, style: { textTransform: 'uppercase' } }}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={5}>
                     <TextField
-                      label="Administrator/Business Name"
-                      InputLabelProps={{ sx: { color: 'primary.main' } }}
+                      fullWidth
+                      size="small"
+                      label="Administrator / Business Name"
                       value={formData.business_name}
                       onChange={(e) => handleInputChange('business_name', e.target.value)}
-                      inputProps={{ sx: { color: 'primary.main' }, style: { textTransform: 'uppercase' } }}
-                      placeholder="Administrator / business name (optional)"
+                      placeholder="Optional administrator or commercial entity"
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={7}>
                     <TextField
-                      label="Address"
+                      fullWidth
+                      size="small"
+                      label="Declarant Address"
                       value={formData.address}
                       onChange={(e) => handleInputChange('address', e.target.value)}
-                      placeholder="Complete address"
+                      placeholder="Complete street, barangay, or municipality address"
                       inputProps={{ style: { textTransform: 'uppercase' } }}
                     />
                   </Grid>
+                </Grid>
+              </FormSection>
 
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Title Number"
-                      value={formData.title_number}
-                      onChange={(e) => handleInputChange('title_number', e.target.value)}
-                      inputProps={{ style: { textTransform: 'uppercase' } }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Lot Number"
-                      value={formData.lot_number}
-                      onChange={(e) => handleInputChange('lot_number', e.target.value)}
-                      inputProps={{ style: { textTransform: 'uppercase' } }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Survey Number"
-                      value={formData.survey_number}
-                      onChange={(e) => handleInputChange('survey_number', e.target.value)}
-                      inputProps={{ style: { textTransform: 'uppercase' } }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    {Boolean(property && property.area_hectare_old) ? (
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                          label="Area"
-                          value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (formData.area_unit === 'hectares') {
-                              handleInputChange('area_hectare', value);
-                            } else {
-                              handleInputChange('area_sqm', value);
-                            }
-                          }}
-                          type="number"
-                          inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01 }}
-                          placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
-                          onBlur={() => {
-                            const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
-                            if (v === '' || v === null || v === undefined) return;
-                            const n = Number(v);
-                            if (!isNaN(n)) {
-                              if (formData.area_unit === 'hectares') {
-                                const formatted = n.toFixed(4);
-                                setFormData(prev => ({ ...prev, area_hectare: formatted }));
-                              } else {
-                                const formatted = n.toFixed(2);
-                                setFormData(prev => ({ ...prev, area_sqm: formatted }));
-                              }
-                            }
-                          }}
-                          InputProps={{
-                            endAdornment: (
-                              <FormControl sx={{ minWidth: 68, ml: 1 }}>
-                                <Select
-                                  value={formData.area_unit}
-                                  onChange={(e) => {
-                                    const newUnit = e.target.value;
-                                    setFormData(prev => {
-                                      const next = { ...prev, area_unit: newUnit };
-                                      const numHa = Number(prev.area_hectare);
-                                      const numSqm = Number(prev.area_sqm);
-                                      const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
-                                      const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
-                                      if (newUnit === 'hectares') {
-                                        if (!hasHa && hasSqm) {
-                                          next.area_hectare = (numSqm / 10000).toFixed(4);
-                                          next.area_sqm = '';
-                                        } else if (hasHa) {
-                                          next.area_sqm = '';
-                                        }
-                                      } else if (newUnit === 'sqm') {
-                                        if (!hasSqm && hasHa) {
-                                          next.area_sqm = (numHa * 10000).toFixed(2);
-                                          next.area_hectare = '';
-                                        } else if (hasSqm) {
-                                          next.area_hectare = '';
-                                        }
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  sx={{
-                                    '& .MuiSelect-select': { py: 0.5, px: 1, minHeight: 'auto' },
-                                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                    '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                                  }}
-                                >
-                                  <MenuItem value="hectares">ha</MenuItem>
-                                  <MenuItem value="sqm">sqm</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )
-                          }}
-                          sx={{ flex: 1 }}
-                        />
-                        <TextField
-                          label="Area (Hectares - Old)"
-                          value={formData.area_hectare_old ?? ''}
-                          onChange={(e) => handleInputChange('area_hectare_old', e.target.value)}
-                          placeholder="Enter previous area in hectares"
-                          inputProps={{}}
-                          helperText="Clear this field and save to remove old area (sets to null)."
-                          sx={{ flex: 1 }}
-                        />
-                      </Box>
-                    ) : (
-                      <TextField
-                        label="Area"
-                        value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (formData.area_unit === 'hectares') {
-                            handleInputChange('area_hectare', value);
-                          } else {
-                            handleInputChange('area_sqm', value);
-                          }
-                        }}
-                        type="number"
-                        inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01 }}
-                        placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
-                        onBlur={() => {
-                          const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
-                          if (v === '' || v === null || v === undefined) return;
-                          const n = Number(v);
-                          if (!isNaN(n)) {
-                            if (formData.area_unit === 'hectares') {
-                              const formatted = n.toFixed(4);
-                              setFormData(prev => ({ ...prev, area_hectare: formatted }));
-                            } else {
-                              const formatted = n.toFixed(2);
-                              setFormData(prev => ({ ...prev, area_sqm: formatted }));
-                            }
-                          }
-                        }}
-                        InputProps={{
-                          endAdornment: (
-                            <FormControl sx={{ minWidth: 68, ml: 1 }}>
-                              <Select
-                                value={formData.area_unit}
-                                onChange={(e) => {
-                                  const newUnit = e.target.value;
-                                  setFormData(prev => {
-                                    const next = { ...prev, area_unit: newUnit };
-                                    const numHa = Number(prev.area_hectare);
-                                    const numSqm = Number(prev.area_sqm);
-                                    const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
-                                    const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
-                                    if (newUnit === 'hectares') {
-                                      if (!hasHa && hasSqm) {
-                                        next.area_hectare = (numSqm / 10000).toFixed(4);
-                                        next.area_sqm = '';
-                                      } else if (hasHa) {
-                                        next.area_sqm = '';
-                                      }
-                                    } else if (newUnit === 'sqm') {
-                                      if (!hasSqm && hasHa) {
-                                        next.area_sqm = (numHa * 10000).toFixed(2);
-                                        next.area_hectare = '';
-                                      } else if (hasSqm) {
-                                        next.area_hectare = '';
-                                      }
-                                    }
-                                    return next;
-                                  });
-                                }}
-                                sx={{
-                                  '& .MuiSelect-select': { py: 0.5, px: 1, minHeight: 'auto' },
-                                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' }
-                                }}
-                              >
-                                <MenuItem value="hectares">ha</MenuItem>
-                                <MenuItem value="sqm">sqm</MenuItem>
-                              </Select>
-                            </FormControl>
-                          )
-                        }}
-                      />
-                    )}
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    {Boolean(property && property.assessed_value_old) ? (
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                          label="Assessed Value (₱)"
-                          value={formData.assessed_value}
-                          onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                          type="number"
-                          inputProps={{ min: 0, step: 0.01 }}
-                          placeholder="0.00"
-                          onBlur={() => {
-                            const v = formData.assessed_value;
-                            if (v === '' || v === null || v === undefined) return;
-                            const n = Number(v);
-                            if (!isNaN(n)) {
-                              handleInputChange('assessed_value', n.toFixed(2));
-                            }
-                          }}
-                          sx={{ flex: 1 }}
-                        />
-                        <TextField
-                          label="Assessed Value (Old)"
-                          value={formData.assessed_value_old}
-                          onChange={(e) => handleInputChange('assessed_value_old', e.target.value)}
-                          inputProps={{}}
-                          placeholder="Enter previous assessed value notes"
-                          sx={{ flex: 1 }}
-                        />
-                      </Box>
-                    ) : (
-                      <TextField
-                        label="Assessed Value (₱)"
-                        value={formData.assessed_value}
-                        onChange={(e) => handleInputChange('assessed_value', e.target.value)}
-                        type="number"
-                        inputProps={{ min: 0, step: 0.01 }}
-                        placeholder="0.00"
-                        onBlur={() => {
-                          const v = formData.assessed_value;
-                          if (v === '' || v === null || v === undefined) return;
-                          const n = Number(v);
-                          if (!isNaN(n)) {
-                            handleInputChange('assessed_value', n.toFixed(2));
-                          }
-                        }}
-                      />
-                    )}
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <Box>
-                      <TextField
-                        label="Effectivity Year"
-                        value={formData.effectivity_date}
-                        onChange={(e) => {
-                          const value = String(e.target.value || '');
-                          if (/^\d{0,4}$/.test(value)) {
-                            setFormData(prev => ({
-                              ...prev,
-                              effectivity_date: value,
-                              effectivity_exempt: false
-                            }));
-                          }
-                        }}
-                        type="text"
-                        inputMode="numeric"
-                        inputProps={{
-                          inputMode: 'numeric',
-                          pattern: '[0-9]*',
-                          maxLength: 4
-                        }}
-                        placeholder="YYYY"
-                        disabled={effectivityIsExempt}
-                        fullWidth
-                      />
-                      <Box display="flex" gap={0.75} mt={0.5}>
-                        <Button
-                          size="small"
-                          variant={effectivityIsExempt ? 'contained' : 'outlined'}
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              effectivity_date: '',
-                              effectivity_exempt: !effectivityIsExempt
-                            }));
-                          }}
-                        >
-                          EXEMPT
-                        </Button>
-                      </Box>
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Assessment Date"
-                      value={formData.assessment_date}
-                      onChange={(e) => handleInputChange('assessment_date', e.target.value)}
-                      type="date"
-                      InputLabelProps={{
-                        shrink: true,
-                      }}
-                      inputProps={{}}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
+              {/* ---------------- 3. PROPERTY LOCATION & CLASSIFICATION ---------------- */}
+              <FormSection
+                icon={LocationIcon}
+                title="Property Location & Classification"
+                subtitle="Official geographic location, cadastre, title records, and land use class."
+              >
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
                     <FormControl
                       fullWidth
+                      size="small"
                       required
                       onKeyDown={(e) => {
                         if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
@@ -1506,23 +2050,18 @@ const isEffectivityExemptValue = (value) =>
                         }
                       }}
                     >
-                      <InputLabel>Location</InputLabel>
+                      <InputLabel id="location-select-label">Location (Barangay)</InputLabel>
                       <Select
+                        labelId="location-select-label"
                         value={
                           !optionsLoading && locationOptions.length > 0 && locationOptions.some(loc => loc.name === formData.location)
                             ? formData.location
                             : ''
                         }
-                        label="Location"
+                        label="Location (Barangay)"
                         onChange={(e) => handleInputChange('location', e.target.value)}
                         disabled={optionsLoading || locationOptions.length === 0}
-                        MenuProps={{
-                          PaperProps: {
-                            style: {
-                              maxHeight: 300,
-                            },
-                          },
-                        }}
+                        MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
                       >
                         {optionsLoading ? (
                           <MenuItem disabled>Loading locations...</MenuItem>
@@ -1555,15 +2094,43 @@ const isEffectivityExemptValue = (value) =>
                     </FormControl>
                   </Grid>
 
-                  <Grid item xs={12} className="full-width-row">
-                    <Typography variant="h6" gutterBottom>
-                      Kind of Property
-                    </Typography>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Lot Number"
+                      value={formData.lot_number}
+                      onChange={(e) => handleInputChange('lot_number', e.target.value)}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
                   </Grid>
 
-                  <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Survey Number"
+                      value={formData.survey_number}
+                      onChange={(e) => handleInputChange('survey_number', e.target.value)}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Title Number (OCT / TCT / CLOA)"
+                      value={formData.title_number}
+                      onChange={(e) => handleInputChange('title_number', e.target.value)}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
                     <FormControl
                       fullWidth
+                      size="small"
                       required
                       onKeyDown={(e) => {
                         if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
@@ -1579,8 +2146,9 @@ const isEffectivityExemptValue = (value) =>
                         }
                       }}
                     >
-                      <InputLabel>Kind of Property</InputLabel>
+                      <InputLabel id="kind-of-property-label">Kind of Property</InputLabel>
                       <Select
+                        labelId="kind-of-property-label"
                         value={
                           !optionsLoading && propertyTypeOptions.length > 0 && propertyTypeOptions.some(pt => pt.code === formData.kind_of_property)
                             ? formData.kind_of_property
@@ -1589,36 +2157,12 @@ const isEffectivityExemptValue = (value) =>
                         label="Kind of Property"
                         onChange={(e) => handleInputChange('kind_of_property', e.target.value)}
                         disabled={optionsLoading || propertyTypeOptions.length === 0}
-                        MenuProps={{
-                          PaperProps: {
-                            style: {
-                              maxHeight: 300,
-                            },
-                          },
-                        }}
+                        MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
                       >
                         {optionsLoading ? (
                           <MenuItem disabled>Loading property types...</MenuItem>
                         ) : optionsError ? (
-                          <MenuItem disabled>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2" color="error">
-                                Error loading property types
-                              </Typography>
-                              <Button
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  retryLoadOptions();
-                                }}
-                                sx={{ minWidth: 'auto', p: 0.5 }}
-                              >
-                                Retry
-                              </Button>
-                            </Box>
-                          </MenuItem>
-                        ) : propertyTypeOptions.length === 0 ? (
-                          <MenuItem disabled>No property types available</MenuItem>
+                          <MenuItem disabled>Error loading property types</MenuItem>
                         ) : (
                           propertyTypeOptions.map(pt => (
                             <MenuItem key={pt.code} value={pt.code}>{pt.name}</MenuItem>
@@ -1628,9 +2172,10 @@ const isEffectivityExemptValue = (value) =>
                     </FormControl>
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12}>
                     <FormControl
                       fullWidth
+                      size="small"
                       onKeyDown={(e) => {
                         if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
                           e.preventDefault();
@@ -1645,46 +2190,23 @@ const isEffectivityExemptValue = (value) =>
                         }
                       }}
                     >
-                      <InputLabel>General Class</InputLabel>
+                      <InputLabel id="general-class-label">General Classification</InputLabel>
                       <Select
+                        labelId="general-class-label"
                         value={
                           !optionsLoading && generalClassOptions.length > 0 && generalClassOptions.some(gc => gc.code === formData.gen_class)
                             ? formData.gen_class
                             : ''
                         }
-                        label="General Class"
+                        label="General Classification"
                         onChange={(e) => handleInputChange('gen_class', e.target.value)}
                         disabled={optionsLoading || generalClassOptions.length === 0}
-                        MenuProps={{
-                          PaperProps: {
-                            style: {
-                              maxHeight: 300,
-                            },
-                          },
-                        }}
+                        MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
                       >
                         {optionsLoading ? (
                           <MenuItem disabled>Loading general classes...</MenuItem>
                         ) : optionsError ? (
-                          <MenuItem disabled>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2" color="error">
-                                Error loading general classes
-                              </Typography>
-                              <Button
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  retryLoadOptions();
-                                }}
-                                sx={{ minWidth: 'auto', p: 0.5 }}
-                              >
-                                Retry
-                              </Button>
-                            </Box>
-                          </MenuItem>
-                        ) : generalClassOptions.length === 0 ? (
-                          <MenuItem disabled>No general classes available</MenuItem>
+                          <MenuItem disabled>Error loading general classes</MenuItem>
                         ) : (
                           generalClassOptions.map(gc => (
                             <MenuItem key={gc.code} value={gc.code}>{gc.name}</MenuItem>
@@ -1694,278 +2216,628 @@ const isEffectivityExemptValue = (value) =>
                     </FormControl>
                   </Grid>
                 </Grid>
-              </CardContent>
-            </Card>
+              </FormSection>
 
-            {/* Kind of Property */}
-            {/* <Card sx={{ mb: 1.5 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Kind of Property
-              </Typography>
-              <Grid
-                container
-                spacing={isSmallScreen ? 1.5 : 2}
+              {/* ---------------- 4. ASSESSMENT & VALUATION ---------------- */}
+              <FormSection
+                icon={ValuationIcon}
+                title="Assessment & Valuation"
+                subtitle="Calculated taxable area, assessed valuations, assessment date, and effectivity status."
                 sx={{
-                  '& > .MuiGrid-item': {
-                    flexBasis: { md: '20%' },
-                    maxWidth: { md: '20%' }
-                  }
+                  borderLeft: 3,
+                  borderLeftColor: theme.palette.primary.main
                 }}
               >
-                
-              </Grid>
-            </CardContent>
-          </Card> */}
-
-            {/* Supporting Documents */}
-            <Card sx={{ mb: 1 }}>
-              <CardContent sx={{ pb: 0, '&:last-child': { pb: 0 } }}>
-                <Typography variant="h6" gutterBottom>
-                  Supporting Documents
-                </Typography>
-                <Grid
-                  container
-                  spacing={isSmallScreen ? 1.5 : 2}
-                >
-                  <Grid item xs={12}>
-                    {memorandaTemplates.length > 0 && (
-                      <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
-                          Insert Memoranda:
-                        </Typography>
-                        {memorandaTemplates.map(template => (
-                          <Button
-                            key={template.id}
-                            variant="outlined"
-                            size="small"
-                            sx={{ borderRadius: 10, textTransform: 'none', py: 0.25, minHeight: '28px' }}
-                            onClick={() => {
-                              const currentText = formData.memoranda ? formData.memoranda + '\n\n' : '';
-                              handleInputChange('memoranda', currentText + template.template_text);
-                            }}
-                          >
-                            + {template.title}
-                          </Button>
-                        ))}
-                        <Button
-                          variant="text"
-                          size="small"
-                          color="primary"
-                          onClick={() => setManageTemplatesOpen(true)}
-                          sx={{ minWidth: 'auto', p: 0.5, borderRadius: 1 }}
-                          title="Manage Templates"
-                        >
-                          <SettingsIcon fontSize="small" />
-                        </Button>
-                      </Box>
-                    )}
-                    {memorandaTemplates.length === 0 && (
-                      <Box display="flex" justifyContent="flex-end" mb={1}>
-                        <Button
-                          variant="text"
-                          size="small"
-                          color="primary"
-                          onClick={() => setManageTemplatesOpen(true)}
-                          sx={{ minWidth: 'auto', p: 0.5, borderRadius: 1 }}
-                          title="Manage Templates"
-                        >
-                          <SettingsIcon fontSize="small" sx={{ mr: 0.5 }} /> Manage Templates
-                        </Button>
-                      </Box>
-                    )}
+                <Grid container spacing={2}>
+                  {/* Current Area input with Ha / Sqm Unit Switcher */}
+                  <Grid item xs={12} sm={Boolean(property && property.area_hectare_old) ? 6 : 6} md={3}>
                     <TextField
                       fullWidth
-                      label="Memoranda"
-                      value={formData.memoranda}
-                      onChange={(e) => handleInputChange('memoranda', e.target.value)}
-                      placeholder="Additional notes or memoranda"
-                      multiline
-                      rows={7}
-                      inputProps={{ style: { textTransform: 'uppercase' } }}
-                      sx={{
-                        '& .MuiInputBase-multiline': {
-                          padding: '0.3rem 0 0 0.5rem',
-                        },
-                        '& .MuiInputBase-multiline textarea': {
-                          padding: '0.3rem 0 0 0.5rem',   // top=0, right=0, bottom=0, left=0.5rem
-                        }
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <input
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      style={{ display: 'none' }}
-                      id="supporting-documents-upload"
-                      multiple
-                      type="file"
+                      size="small"
+                      label="Area"
+                      value={formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm}
                       onChange={(e) => {
-                        const files = Array.from(e.target.files);
-                        setFormData(prev => ({
-                          ...prev,
-                          supporting_documents: files
-                        }));
-                        setPendingUploads(files);
-                      }}
-                    />
-                    <label htmlFor="supporting-documents-upload">
-                      <Button
-                        variant="outlined"
-                        component="span"
-                        startIcon={<CloudUpload />}
-                        fullWidth
-                        sx={{
-                          height: isSmallScreen ? 44 : 56,
-                          borderStyle: 'dashed',
-                          borderWidth: 2,
-                          '&:hover': {
-                            borderStyle: 'solid'
-                          }
-                        }}
-                      >
-                        {pendingUploads && pendingUploads.length > 0
-                          ? `${pendingUploads.length} file(s) selected`
-                          : 'Upload Supporting Documents'
+                        const value = e.target.value;
+                        if (formData.area_unit === 'hectares') {
+                          handleInputChange('area_hectare', value);
+                        } else {
+                          handleInputChange('area_sqm', value);
                         }
-                      </Button>
-                    </label>
-
-                    {(Array.isArray(pendingUploads) && pendingUploads.length > 0) && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Selected (to be uploaded upon save):
-                        </Typography>
-                        <Box
-                          sx={{
-                            mt: 0.5,
-                            ml: 0,
-                            height: 80,
-                            minHeight: 80,
-                            maxHeight: 80,
-                            overflowY: 'auto',
-                            overflowX: 'hidden',
-                            pr: 0.5
-                          }}
-                        >
-                          {pendingUploads.map((file, index) => (
-                            <Typography
-                              key={index}
-                              variant="body2"
-                              component="div"
+                      }}
+                      type="number"
+                      inputProps={{ min: 0, step: formData.area_unit === 'hectares' ? 0.0001 : 0.01 }}
+                      placeholder={formData.area_unit === 'hectares' ? '0.0000' : '0.00'}
+                      onBlur={() => {
+                        const v = formData.area_unit === 'hectares' ? formData.area_hectare : formData.area_sqm;
+                        if (v === '' || v === null || v === undefined) return;
+                        const n = Number(v);
+                        if (!isNaN(n)) {
+                          if (formData.area_unit === 'hectares') {
+                            setFormData(prev => ({ ...prev, area_hectare: n.toFixed(4) }));
+                          } else {
+                            setFormData(prev => ({ ...prev, area_sqm: n.toFixed(2) }));
+                          }
+                        }
+                      }}
+                      InputProps={{
+                        endAdornment: (
+                          <FormControl sx={{ minWidth: 64, ml: 0.5 }}>
+                            <Select
+                              value={formData.area_unit}
+                              onChange={(e) => {
+                                const newUnit = e.target.value;
+                                setFormData(prev => {
+                                  const next = { ...prev, area_unit: newUnit };
+                                  const numHa = Number(prev.area_hectare);
+                                  const numSqm = Number(prev.area_sqm);
+                                  const hasHa = prev.area_hectare !== undefined && prev.area_hectare !== null && prev.area_hectare !== '' && !isNaN(numHa);
+                                  const hasSqm = prev.area_sqm !== undefined && prev.area_sqm !== null && prev.area_sqm !== '' && !isNaN(numSqm);
+                                  if (newUnit === 'hectares') {
+                                    if (!hasHa && hasSqm) {
+                                      next.area_hectare = (numSqm / 10000).toFixed(4);
+                                      next.area_sqm = '';
+                                    } else if (hasHa) {
+                                      next.area_sqm = '';
+                                    }
+                                  } else if (newUnit === 'sqm') {
+                                    if (!hasSqm && hasHa) {
+                                      next.area_sqm = (numHa * 10000).toFixed(2);
+                                      next.area_hectare = '';
+                                    } else if (hasSqm) {
+                                      next.area_hectare = '';
+                                    }
+                                  }
+                                  return next;
+                                });
+                              }}
                               sx={{
-                                minWidth: 0,
-                                m: 0,
-                                lineHeight: 1.25
+                                '& .MuiSelect-select': { py: 0.25, px: 0.75, fontSize: '0.8rem', fontWeight: 600 },
+                                '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
                               }}
                             >
-                              • {(file && file.name) ? file.name : String(file)}
-                            </Typography>
-                          ))}
-                        </Box>
-                      </Box>
-                    )}
+                              <MenuItem value="hectares">ha</MenuItem>
+                              <MenuItem value="sqm">sqm</MenuItem>
+                            </Select>
+                          </FormControl>
+                        )
+                      }}
+                    />
                   </Grid>
 
-                  {/* Existing documents (edit mode) */}
-                  <Grid item xs={12}>
-                    {Array.isArray(existingDocuments) && existingDocuments.length > 0 && (
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>Existing Documents</Typography>
-                        <Grid container spacing={1.5}>
-                          {existingDocuments.map((doc) => {
-                            const ext = String(doc.file_type || '').toLowerCase();
-                            const isImage = ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
-                            return (
-                              <Grid item key={doc.id} xs={12} sm={6} md={4} lg={3}>
-                                <Box sx={{ border: '1px solid #eee', p: 1, borderRadius: 1 }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <Typography variant="body2" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.original_filename || doc.filename}>
-                                      {doc.original_filename || doc.filename}
-                                    </Typography>
-                                    <Button size="small" color="error" onClick={() => {
-                                      // Defer deletion until save; optimistically hide from list
+                  {/* Previous Area (Historical) if applicable */}
+                  {Boolean(property && property.area_hectare_old) && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Previous Area (Old)"
+                        value={formData.area_hectare_old ?? ''}
+                        onChange={(e) => handleInputChange('area_hectare_old', e.target.value)}
+                        placeholder="Historical area string"
+                        helperText="Clear to remove old area"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: theme.palette.action.hover
+                          }
+                        }}
+                      />
+                    </Grid>
+                  )}
+
+                  {/* Assessed Value (₱) */}
+                  <Grid item xs={12} sm={Boolean(property && property.assessed_value_old) ? 6 : 6} md={3}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Assessed Value"
+                      value={formData.assessed_value}
+                      onChange={(e) => handleInputChange('assessed_value', e.target.value)}
+                      type="number"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      placeholder="0.00"
+                      InputProps={{
+                        startAdornment: (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: theme.palette.text.secondary,
+                              mr: 0.5,
+                              fontWeight: 600
+                            }}
+                          >
+                            ₱
+                          </Typography>
+                        )
+                      }}
+                      onBlur={() => {
+                        const v = formData.assessed_value;
+                        if (v === '' || v === null || v === undefined) return;
+                        const n = Number(v);
+                        if (!isNaN(n)) {
+                          handleInputChange('assessed_value', n.toFixed(2));
+                        }
+                      }}
+                    />
+                  </Grid>
+
+                  {/* Previous Assessed Value (Historical) if applicable */}
+                  {Boolean(property && property.assessed_value_old) && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Previous Assessed Value (Old)"
+                        value={formData.assessed_value_old}
+                        onChange={(e) => handleInputChange('assessed_value_old', e.target.value)}
+                        placeholder="Historical value notes"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: theme.palette.action.hover
+                          }
+                        }}
+                      />
+                    </Grid>
+                  )}
+
+                  {/* Assessment Date */}
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Assessment Date"
+                      value={formData.assessment_date}
+                      onChange={(e) => handleInputChange('assessment_date', e.target.value)}
+                      type="date"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+
+                  {/* Effectivity Year with BLANK and EXEMPT buttons */}
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Effectivity Year"
+                        value={formData.effectivity_date}
+                        onChange={(e) => {
+                          const value = String(e.target.value || '');
+                          if (/^\d{0,4}$/.test(value)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: value,
+                              effectivity_exempt: false
+                            }));
+                          }
+                        }}
+                        type="text"
+                        inputProps={{
+                          inputMode: 'numeric',
+                          pattern: '[0-9]*',
+                          maxLength: 4,
+                          style: { fontWeight: 600 }
+                        }}
+                        placeholder="YYYY"
+                        disabled={effectivityIsExempt}
+                        helperText={effectivityIsExempt ? 'Property is flagged as EXEMPT' : '4-digit year or blank'}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, mt: 0.75 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={effectivityIsExempt && !formData.effectivity_date}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: '',
+                              effectivity_exempt: false
+                            }));
+                          }}
+                          sx={{
+                            fontSize: '0.72rem',
+                            py: 0.25,
+                            px: 1,
+                            minWidth: 'auto',
+                            borderColor: theme.palette.divider,
+                            color: theme.palette.text.secondary
+                          }}
+                        >
+                          BLANK
+                        </Button>
+                        <Button
+                          size="small"
+                          variant={effectivityIsExempt ? 'contained' : 'outlined'}
+                          color={effectivityIsExempt ? 'primary' : 'inherit'}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              effectivity_date: '',
+                              effectivity_exempt: !effectivityIsExempt
+                            }));
+                          }}
+                          sx={{
+                            fontSize: '0.72rem',
+                            py: 0.25,
+                            px: 1,
+                            minWidth: 'auto',
+                            fontWeight: 600
+                          }}
+                        >
+                          EXEMPT
+                        </Button>
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </FormSection>
+
+              {/* ---------------- 5. MEMORANDA ---------------- */}
+              <FormSection
+                icon={NotesIcon}
+                title="Memoranda"
+                subtitle="Official assessment remarks, encumbrances, annotations, and quick standard templates."
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700, mr: 0.5 }}>
+                      QUICK INSERT:
+                    </Typography>
+                    {memorandaTemplates.map(template => (
+                      <Button
+                        key={template.id}
+                        variant="outlined"
+                        size="small"
+                        sx={{
+                          borderRadius: 6,
+                          textTransform: 'none',
+                          fontSize: '0.75rem',
+                          py: 0.2,
+                          px: 1.2,
+                          minHeight: 26,
+                          borderColor: theme.palette.divider,
+                          color: theme.palette.text.primary,
+                          '&:hover': {
+                            borderColor: theme.palette.primary.main,
+                            backgroundColor: theme.palette.primary.main + '0a'
+                          }
+                        }}
+                        onClick={() => {
+                          const currentText = formData.memoranda ? formData.memoranda + '\n\n' : '';
+                          handleInputChange('memoranda', currentText + template.template_text);
+                        }}
+                      >
+                        + {template.title}
+                      </Button>
+                    ))}
+                  </Box>
+
+                  <Tooltip title="Manage Templates">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="primary"
+                      onClick={() => setManageTemplatesOpen(true)}
+                      sx={{
+                        fontSize: '0.75rem',
+                        py: 0.25,
+                        px: 1,
+                        minHeight: 26,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5
+                      }}
+                    >
+                      <SettingsIcon sx={{ fontSize: 15 }} />
+                      Templates
+                    </Button>
+                  </Tooltip>
+                </Box>
+
+                <TextField
+                  fullWidth
+                  size="small"
+                  multiline
+                  rows={4}
+                  label="Official Memoranda"
+                  value={formData.memoranda}
+                  onChange={(e) => handleInputChange('memoranda', e.target.value)}
+                  placeholder="Enter assessment remarks, tax exemptions, or administrative annotations..."
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                />
+              </FormSection>
+
+              {/* ---------------- 6. SUPPORTING DOCUMENTS ---------------- */}
+              <FormSection
+                icon={AttachFileIcon}
+                title="Supporting Documents"
+                subtitle="Upload title deeds, tax receipts, surveyor endorsements, and cadastral maps."
+              >
+                {/* Hidden File Input */}
+                <input
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  id="supporting-documents-upload"
+                  multiple
+                  type="file"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files);
+                    setFormData(prev => ({
+                      ...prev,
+                      supporting_documents: files
+                    }));
+                    setPendingUploads(files);
+                  }}
+                />
+
+                {/* Modern Dashed Upload Zone */}
+                <Box
+                  component="label"
+                  htmlFor="supporting-documents-upload"
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    py: 2.5,
+                    px: 2,
+                    border: '2px dashed',
+                    borderColor: theme.palette.divider,
+                    borderRadius: 1,
+                    backgroundColor: theme.palette.background.paper,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      backgroundColor: theme.palette.primary.main + '05'
+                    }
+                  }}
+                >
+                  <CloudUpload sx={{ fontSize: 32, color: theme.palette.primary.main, mb: 0.5 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                    Click to select supporting documents
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.25 }}>
+                    Accepted formats: PDF, DOC, DOCX, JPG, JPEG, PNG
+                  </Typography>
+                </Box>
+
+                {/* Pending Upload Queue */}
+                {Array.isArray(pendingUploads) && pendingUploads.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: theme.palette.text.secondary, display: 'block', mb: 1 }}>
+                      PENDING UPLOADS (SAVED ON SUBMISSION):
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                      {pendingUploads.map((file, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            px: 1.5,
+                            borderRadius: 1,
+                            border: 1,
+                            borderColor: theme.palette.divider,
+                            backgroundColor: theme.palette.background.paper
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                            <FileIcon sx={{ fontSize: 18, color: theme.palette.primary.main, flexShrink: 0 }} />
+                            <Typography variant="body2" noWrap sx={{ fontSize: '0.82rem', fontWeight: 500 }}>
+                              {file?.name || String(file)}
+                            </Typography>
+                            {file?.size && (
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, flexShrink: 0 }}>
+                                ({(file.size / 1024).toFixed(1)} KB)
+                              </Typography>
+                            )}
+                          </Box>
+
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              const updated = pendingUploads.filter((_, i) => i !== idx);
+                              setPendingUploads(updated);
+                              setFormData(prev => ({ ...prev, supporting_documents: updated }));
+                            }}
+                            sx={{ color: theme.palette.text.secondary, '&:hover': { color: theme.palette.error.main } }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Existing Documents Cards */}
+                {Array.isArray(existingDocuments) && existingDocuments.length > 0 && (
+                  <Box sx={{ mt: 2.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: theme.palette.text.secondary, display: 'block', mb: 1 }}>
+                      RECORD DOCUMENTS ({existingDocuments.length}):
+                    </Typography>
+                    <Grid container spacing={1.5}>
+                      {existingDocuments.map((doc, idx) => {
+                        const ext = String(doc.file_type || '').toLowerCase();
+                        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                        const isLegacy = !doc.id;
+
+                        return (
+                          <Grid item key={doc.id || idx} xs={12} sm={6} md={4} lg={3}>
+                            <Box
+                              sx={{
+                                border: 1,
+                                borderColor: theme.palette.divider,
+                                borderRadius: 1,
+                                p: 1.25,
+                                backgroundColor: theme.palette.background.paper,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: '100%',
+                                position: 'relative'
+                              }}
+                            >
+                              {/* Header: file name & delete button */}
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography
+                                  variant="body2"
+                                  noWrap
+                                  sx={{ fontWeight: 600, fontSize: '0.8rem', mr: 1 }}
+                                  title={doc.original_filename || doc.filename}
+                                >
+                                  {doc.original_filename || doc.filename}
+                                </Typography>
+
+                                {!isLegacy ? (
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
                                       setDocumentsToDelete(prev => (prev.includes(doc.id) ? prev : [...prev, doc.id]));
                                       setExistingDocuments(prev => prev.filter(d => d.id !== doc.id));
                                       setToast({ open: true, message: 'Document marked for deletion. Save to apply.', severity: 'info' });
-                                    }}>Delete</Button>
-                                  </Box>
-                                  <Box sx={{ mt: 1 }}>
-                                    {isImage ? (
-                                      <img
-                                        src={doc.file_url}
-                                        alt={doc.original_filename || doc.filename}
-                                        style={{ width: '100%', height: 140, objectFit: 'cover', cursor: 'pointer' }}
-                                        onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
-                                      />
-                                    ) : (
-                                      <Button size="small" onClick={() => window.open(doc.file_url, '_blank')}>View File</Button>
-                                    )}
-                                  </Box>
-                                  {doc.description && (
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                      {doc.description}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              </Grid>
-                            );
-                          })}
-                        </Grid>
-                      </Box>
-                    )}
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
+                                    }}
+                                    title="Delete document"
+                                    sx={{ p: 0.5 }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                ) : (
+                                  <Chip
+                                    label="Legacy"
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 18, fontSize: '0.65rem' }}
+                                  />
+                                )}
+                              </Box>
 
-            {/* Form Actions */}
-            <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
-              <Button
-                variant="outlined"
-                onClick={onCancel}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={loading || optionsLoading}
-              >
-                {loading ? 'Saving...' : (property ? 'Update Property' : 'Create Property')}
-              </Button>
+                              {/* Body: Preview image or file action */}
+                              <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 90, backgroundColor: theme.palette.background.default, borderRadius: 1, overflow: 'hidden', mb: 1 }}>
+                                {isImage ? (
+                                  <img
+                                    src={doc.file_url}
+                                    alt={doc.original_filename || doc.filename}
+                                    style={{ width: '100%', height: 90, objectFit: 'cover', cursor: 'pointer' }}
+                                    onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
+                                  />
+                                ) : (
+                                  <Box sx={{ textAlign: 'center', p: 1 }}>
+                                    <FileIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+                                    <Typography variant="caption" sx={{ display: 'block', textTransform: 'uppercase', mt: 0.5, fontWeight: 600 }}>
+                                      {ext || 'FILE'}
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Box>
+
+                              {/* Action Footer */}
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 'auto' }}>
+                                {isImage ? (
+                                  <Button
+                                    size="small"
+                                    startIcon={<VisibilityIcon fontSize="small" />}
+                                    onClick={() => setDocPreview({ open: true, src: doc.file_url, filename: doc.original_filename || doc.filename })}
+                                    sx={{ fontSize: '0.75rem', p: 0.25 }}
+                                  >
+                                    Preview
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="small"
+                                    onClick={() => window.open(doc.file_url, '_blank')}
+                                    sx={{ fontSize: '0.75rem', p: 0.25 }}
+                                  >
+                                    Open File
+                                  </Button>
+                                )}
+                              </Box>
+                            </Box>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Box>
+                )}
+              </FormSection>
             </Box>
           </form>
-          {/* Network/Save verification banner */}
-          {saveVerify.pending && (
-            <Alert
-              severity="warning"
-              sx={{ mt: 2 }}
-              action={
-                <Button
-                  color="inherit"
-                  size="small"
-                  onClick={verifySaveStatus}
-                  disabled={saveVerify.checking}
-                >
-                  {saveVerify.checking ? 'Checking...' : 'Verify Now'}
-                </Button>
-              }
+        </DialogContent>
+
+        {/* ================= C. STABLE / STICKY FOOTER ================= */}
+        <DialogActions
+          sx={{
+            py: 1.5,
+            px: { xs: 2, sm: 3 },
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: theme.palette.text.secondary,
+              display: { xs: 'none', sm: 'block' }
+            }}
+          >
+            Required fields are marked with an asterisk (*). Changes take effect immediately upon save.
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
+            <Button
+              onClick={onCancel}
+              variant="outlined"
+              disabled={loading}
+              sx={{ minWidth: 90 }}
             >
-              We detected a possible network issue while saving. Save status for TDN "{saveVerify.tdn}" is unknown.
-            </Alert>
-          )}
-          {/* Image Preview Dialog */}
-          <Dialog open={docPreview.open} onClose={() => setDocPreview({ open: false, src: '', filename: '' })} maxWidth="md" fullWidth>
-            <DialogTitle>{docPreview.filename}</DialogTitle>
-            <DialogContent>
-              {docPreview.src ? (
-                <img src={docPreview.src} alt={docPreview.filename} style={{ width: '100%', height: 'auto' }} />
-              ) : null}
-            </DialogContent>
-          </Dialog>
+              Cancel
+            </Button>
+
+            <Button
+              onClick={handleSubmit}
+              variant="contained"
+              disabled={loading || optionsLoading}
+              startIcon={
+                loading ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <SaveIcon />
+                )
+              }
+              sx={{ minWidth: 140 }}
+            >
+              {loading ? 'Saving...' : (property ? 'Update Property' : 'Create Property')}
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/* Image Preview Dialog */}
+      <Dialog
+        open={docPreview.open}
+        onClose={() => setDocPreview({ open: false, src: '', filename: '' })}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 1 } }}
+      >
+        <DialogTitle sx={{ py: 1.5, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{docPreview.filename}</Typography>
+          <IconButton size="small" onClick={() => setDocPreview({ open: false, src: '', filename: '' })}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2, textAlign: 'center', backgroundColor: theme.palette.background.default }}>
+          {docPreview.src ? (
+            <img src={docPreview.src} alt={docPreview.filename} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
+          ) : null}
         </DialogContent>
       </Dialog>
 
