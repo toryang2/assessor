@@ -1186,31 +1186,52 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
         return $this->get_property($id);
     }
     
+    /**
+     * Check if property synchronization is enabled for this deployment.
+     *
+     * @return bool
+     */
+    private function is_property_sync_enabled() {
+        $is_local =
+            defined('ASSESSOR_IS_LOCAL_BUILD') &&
+            ASSESSOR_IS_LOCAL_BUILD;
+
+        $has_sync_token =
+            defined('ASSESSOR_SYNC_TOKEN') &&
+            !empty(trim((string) ASSESSOR_SYNC_TOKEN));
+
+        if ($is_local) {
+            $has_live_url =
+                defined('ASSESSOR_LIVE_SITE_URL') &&
+                !empty(trim((string) ASSESSOR_LIVE_SITE_URL));
+
+            return $has_live_url && $has_sync_token;
+        }
+
+        /*
+         * Non-local deployment with the shared sync token
+         * represents the synchronized Live peer.
+         */
+        return $has_sync_token;
+    }
+
     public function delete_property($id, $request) {
         global $wpdb;
-        
+
         $user_id = $this->get_user_id_from_request($request);
-        
-        // Check if property exists
+
+        // Check if property exists.
         $property = $this->get_property($id);
         if (is_wp_error($property)) {
             return $property;
         }
-        
-        // Hard delete the property record. Related records (versions/documents)
-        // are configured with ON DELETE CASCADE via foreign keys.
+
         $table_properties = $wpdb->prefix . 'assessor_properties';
-        $result = $wpdb->delete(
-            $table_properties,
-            array('id' => $id),
-            array('%s')
-        );
-        
-        if ($result === false) {
-            return new WP_Error('delete_failed', 'Failed to delete property', array('status' => 500));
-        }
-        
-        // Log audit trail with full snapshot of property values for complete history
+
+        /*
+         * Capture the complete property snapshot BEFORE either
+         * soft-deleting or physically deleting the row.
+         */
         $old_values = array(
             'id' => $property->id,
             'tax_declaration_number' => $property->tax_declaration_number,
@@ -1218,42 +1239,161 @@ error_log('Final filtered count: ' . count($filtered) . ' properties');
             'declarant_last_name' => $property->declarant_last_name,
             'declarant_first_name' => $property->declarant_first_name,
             'declarant_middle_initial' => $property->declarant_middle_initial,
-            'business' => isset($property->business) ? $property->business : (isset($property->business_name) ? $property->business_name : ''),
+            'business' => isset($property->business)
+                ? $property->business
+                : (isset($property->business_name) ? $property->business_name : ''),
             'location' => $property->location,
             'lot_number' => $property->lot_number,
             'unique_lot_number_identified' => $property->unique_lot_number_identified,
-            'survey_number' => isset($property->survey_number) ? $property->survey_number : $property->unique_lot_number_identified,
+            'survey_number' => isset($property->survey_number)
+                ? $property->survey_number
+                : $property->unique_lot_number_identified,
             'area_hectare' => $property->area_hectare,
             'area_hectare_old' => $property->area_hectare_old,
+            'area_sqm' => isset($property->area_sqm) ? $property->area_sqm : null,
             'title_number' => $property->title_number,
             'assessed_value' => $property->assessed_value,
-            'assessed_value_old' => isset($property->assessed_value_old) ? $property->assessed_value_old : '',
+            'assessed_value_old' => isset($property->assessed_value_old)
+                ? $property->assessed_value_old
+                : '',
             'effectivity_date' => $property->effectivity_date,
+            'effectivity_exempt' => isset($property->effectivity_exempt)
+                ? $property->effectivity_exempt
+                : 0,
             'pin' => $property->pin,
             'address' => $property->address,
             'assessment_date' => $property->assessment_date,
             'kind_of_property' => $property->kind_of_property,
-            'gen_class' => $property->gen_class,
+            'gen_class' => isset($property->gen_class) ? $property->gen_class : '',
             'memoranda' => $property->memoranda,
             'supporting_documents' => $property->supporting_documents,
-            'supporting_documents_old' => isset($property->supporting_documents_old) ? $property->supporting_documents_old : '',
-            'verifier_signatory_name' => isset($property->verifier_signatory_name) ? $property->verifier_signatory_name : '',
-            'verifier_signatory_title' => isset($property->verifier_signatory_title) ? $property->verifier_signatory_title : '',
-            'municipal_assessor_name' => isset($property->municipal_assessor_name) ? $property->municipal_assessor_name : '',
-            'municipal_assessor_suffix' => isset($property->municipal_assessor_suffix) ? $property->municipal_assessor_suffix : '',
-            'municipal_assessor_title' => isset($property->municipal_assessor_title) ? $property->municipal_assessor_title : '',
-            'municipal_assessor_license' => isset($property->municipal_assessor_license) ? $property->municipal_assessor_license : '',
+            'supporting_documents_old' => isset($property->supporting_documents_old)
+                ? $property->supporting_documents_old
+                : '',
+            'verifier_signatory_name' => isset($property->verifier_signatory_name)
+                ? $property->verifier_signatory_name
+                : '',
+            'verifier_signatory_title' => isset($property->verifier_signatory_title)
+                ? $property->verifier_signatory_title
+                : '',
+            'municipal_assessor_name' => isset($property->municipal_assessor_name)
+                ? $property->municipal_assessor_name
+                : '',
+            'municipal_assessor_suffix' => isset($property->municipal_assessor_suffix)
+                ? $property->municipal_assessor_suffix
+                : '',
+            'municipal_assessor_title' => isset($property->municipal_assessor_title)
+                ? $property->municipal_assessor_title
+                : '',
+            'municipal_assessor_license' => isset($property->municipal_assessor_license)
+                ? $property->municipal_assessor_license
+                : '',
+            'status' => isset($property->status)
+                ? $property->status
+                : 'active',
+            'revision_id' => isset($property->revision_id)
+                ? $property->revision_id
+                : null,
             'created_at' => $property->created_at,
-            'updated_at' => isset($property->updated_at) ? $property->updated_at : null,
-            'created_by' => isset($property->created_by) ? $property->created_by : null,
-            'updated_by' => isset($property->updated_by) ? $property->updated_by : null
+            'updated_at' => isset($property->updated_at)
+                ? $property->updated_at
+                : null,
+            'created_by' => isset($property->created_by)
+                ? $property->created_by
+                : null,
+            'updated_by' => isset($property->updated_by)
+                ? $property->updated_by
+                : null,
         );
+
+        $sync_enabled = $this->is_property_sync_enabled();
+
+        /*
+         * SYNCHRONIZED LOCAL <-> LIVE:
+         *
+         * Keep the property row as a tombstone.
+         * This gives the sync system a durable record to propagate.
+         */
+        if ($sync_enabled) {
+            $updated_at = Assessor_Timezone::now_mysql();
+
+            $result = $wpdb->update(
+                $table_properties,
+                array(
+                    'status' => 'deleted',
+                    'updated_at' => $updated_at,
+                    'updated_by' => $user_id,
+                ),
+                array('id' => $id),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+
+            if ($result === false) {
+                return new WP_Error(
+                    'delete_failed',
+                    'Failed to mark property as deleted',
+                    array('status' => 500)
+                );
+            }
+
+        /*
+         * STANDALONE LOCAL OR STANDALONE LIVE:
+         *
+         * Preserve the original physical delete behavior.
+         */
+        } else {
+            $result = $wpdb->delete(
+                $table_properties,
+                array('id' => $id),
+                array('%s')
+            );
+
+            if ($result === false) {
+                return new WP_Error(
+                    'delete_failed',
+                    'Failed to delete property',
+                    array('status' => 500)
+                );
+            }
+        }
+
+        /*
+         * Preserve the existing delete audit trail.
+         */
         $audit = new Assessor_Audit();
-        $audit->log_activity($user_id, 'delete', 'assessor_properties', $id, $old_values, null);
-        
-        $this->revert_cancelled_states($property->previous_tax_declaration_number, $id, $user_id);
-        
-        return array('success' => true, 'message' => 'Property deleted successfully');
+        $audit->log_activity(
+            $user_id,
+            'delete',
+            'assessor_properties',
+            $id,
+            $old_values,
+            null
+        );
+
+        /*
+         * Only the Local side has the outgoing sync queue.
+         *
+         * enqueue_property() itself already prevents queueing on Live
+         * and prevents re-enqueueing when writes originate from sync.
+         */
+        if ($sync_enabled && class_exists('Assessor_Sync')) {
+            Assessor_Sync::enqueue_property($id, 'delete');
+        }
+
+        /*
+         * Preserve existing TDN state-reversion behavior.
+         */
+        $this->revert_cancelled_states(
+            $property->previous_tax_declaration_number,
+            $id,
+            $user_id
+        );
+
+        return array(
+            'success' => true,
+            'message' => 'Property deleted successfully'
+        );
     }
     public function update_property_state($id, $state, $request) {
         global $wpdb;

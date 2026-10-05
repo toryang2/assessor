@@ -1772,6 +1772,10 @@ class Assessor_Sync {
         $prop_id = isset($remote['id']) ? trim((string)$remote['id']) : '';
         $revision_id = isset($remote['revision_id']) && !empty($remote['revision_id']) ? trim((string)$remote['revision_id']) : null;
 
+        $is_incoming_deleted =
+            isset($remote['status']) &&
+            strtolower(trim((string) $remote['status'])) === 'deleted';
+
         if ($tax_num === '' && $prop_id === '') {
             if ($report) {
                 $report->record_item('property', $prop_id ?: 'unknown', 'live_to_local', 'skipped', array(
@@ -1818,33 +1822,110 @@ class Assessor_Sync {
             }
         }
 
-        // Secondary fallback: match by (tax_declaration_number, revision_id) if UUID didn't match
+        if (
+            $local &&
+            isset($local['status']) &&
+            $local['status'] === 'deleted' &&
+            !$is_incoming_deleted
+        ) {
+            /*
+             * Never resurrect a local tombstone using an active record.
+             * A recreated property must have a new UUID.
+             */
+            $local = null;
+        }
+
+        /*
+         * Secondary fallback:
+         *
+         * Active records may match an existing ACTIVE property by
+         * (tax_declaration_number, revision_id).
+         *
+         * Deleted records are different:
+         * if the incoming tombstone has a UUID, that UUID is authoritative.
+         * Never use another property's TDN to delete/reuse it.
+         *
+         * TDN+revision fallback for a deletion is allowed only when the
+         * incoming record has no UUID, for legacy compatibility.
+         */
         if (!$local && !empty($tax_num) && !empty($revision_id)) {
-            $local = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT
-                        id,
-                        tax_declaration_number,
-                        declarant_last_name,
-                        declarant_first_name,
-                        declarant_middle_initial,
-                        business,
-                        location,
-                        pin,
-                        assessed_value,
-                        assessed_value_old,
-                        revision_id,
-                        status,
-                        updated_at
-                     FROM $table
-                     WHERE tax_declaration_number = %s
-                       AND revision_id = %s
-                     LIMIT 1",
-                    $tax_num,
-                    $revision_id
-                ),
-                ARRAY_A
-            );
+
+            if ($is_incoming_deleted && !empty($prop_id)) {
+
+                /*
+                 * Do NOT perform TDN+revision fallback.
+                 *
+                 * UUID-A identifies the exact deleted property.
+                 * If UUID-A does not exist locally, the normal INSERT path
+                 * below must create UUID-A as the tombstone.
+                 */
+                $local = null;
+
+            } elseif ($is_incoming_deleted) {
+
+                /*
+                 * Legacy deletion without a UUID.
+                 * Preserve TDN+revision fallback for compatibility.
+                 */
+                $local = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT
+                            id,
+                            tax_declaration_number,
+                            declarant_last_name,
+                            declarant_first_name,
+                            declarant_middle_initial,
+                            business,
+                            location,
+                            pin,
+                            assessed_value,
+                            assessed_value_old,
+                            revision_id,
+                            status,
+                            updated_at
+                         FROM $table
+                         WHERE tax_declaration_number = %s
+                           AND revision_id = %s
+                         LIMIT 1",
+                        $tax_num,
+                        $revision_id
+                    ),
+                    ARRAY_A
+                );
+
+            } else {
+
+                /*
+                 * Active property:
+                 * NEVER reuse a deleted/tombstone row.
+                 */
+                $local = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT
+                            id,
+                            tax_declaration_number,
+                            declarant_last_name,
+                            declarant_first_name,
+                            declarant_middle_initial,
+                            business,
+                            location,
+                            pin,
+                            assessed_value,
+                            assessed_value_old,
+                            revision_id,
+                            status,
+                            updated_at
+                         FROM $table
+                         WHERE tax_declaration_number = %s
+                           AND revision_id = %s
+                           AND status != 'deleted'
+                         LIMIT 1",
+                        $tax_num,
+                        $revision_id
+                    ),
+                    ARRAY_A
+                );
+            }
 
             if ($wpdb->last_error) {
                 error_log(

@@ -176,28 +176,107 @@ class Assessor_Sync_Receiver {
         $prop_id = isset($record['id']) ? trim((string)$record['id']) : '';
         $revision_id = isset($record['revision_id']) && !empty($record['revision_id']) ? trim((string)$record['revision_id']) : null;
 
+        $is_incoming_deleted =
+            isset($record['status']) &&
+            strtolower(trim((string) $record['status'])) === 'deleted';
+
         // Exact match by UUID first
         $existing = null;
         if (!empty($prop_id)) {
             $existing = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, updated_at FROM $table WHERE id = %s LIMIT 1",
+                    "SELECT id, updated_at, status FROM $table WHERE id = %s LIMIT 1",
                     $prop_id
                 ),
                 ARRAY_A
             );
         }
 
-        // Secondary fallback: match by (tax_declaration_number, revision_id) if UUID didn't match
+        if (
+            $existing &&
+            isset($existing['status']) &&
+            $existing['status'] === 'deleted' &&
+            !$is_incoming_deleted
+        ) {
+            /*
+             * A deleted UUID is a tombstone.
+             * A recreated active declaration must use a new UUID.
+             * Do not resurrect the tombstone.
+             */
+            $existing = null;
+        }
+
+        /*
+         * Secondary fallback:
+         *
+         * Active records may match an existing ACTIVE property by
+         * (tax_declaration_number, revision_id).
+         *
+         * Deleted records are different:
+         * if the incoming tombstone has a UUID, that UUID is authoritative.
+         * Never use another property's TDN to delete/reuse it.
+         *
+         * TDN+revision fallback for a deletion is allowed only when the
+         * incoming record has no UUID at all, for legacy compatibility.
+         */
         if (!$existing && !empty($tax_num) && !empty($revision_id)) {
-            $existing = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT id, updated_at FROM $table WHERE tax_declaration_number = %s AND revision_id = %s LIMIT 1",
-                    $tax_num,
-                    $revision_id
-                ),
-                ARRAY_A
-            );
+            if ($is_incoming_deleted && !empty($prop_id)) {
+                /*
+                 * Do NOT perform TDN+revision fallback.
+                 *
+                 * The incoming UUID identifies the exact property that was deleted.
+                 * If it does not exist locally, the normal INSERT path below will
+                 * create the tombstone using the incoming UUID.
+                 */
+                $existing = null;
+
+            } elseif ($is_incoming_deleted) {
+                /*
+                 * Legacy deletion without a UUID.
+                 * Keep the old TDN+revision fallback for compatibility.
+                 */
+                $existing = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id, updated_at, status
+                         FROM $table
+                         WHERE tax_declaration_number = %s
+                           AND revision_id = %s
+                         LIMIT 1",
+                        $tax_num,
+                        $revision_id
+                    ),
+                    ARRAY_A
+                );
+
+            } else {
+                /*
+                 * Active property:
+                 * NEVER reuse a deleted/tombstone row.
+                 */
+                $existing = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id, updated_at, status
+                         FROM $table
+                         WHERE tax_declaration_number = %s
+                           AND revision_id = %s
+                           AND status != 'deleted'
+                         LIMIT 1",
+                        $tax_num,
+                        $revision_id
+                    ),
+                    ARRAY_A
+                );
+            }
+
+            if ($wpdb->last_error) {
+                error_log(
+                    'Assessor Sync TDN+Revision Lookup SQL ERROR: ' .
+                    $wpdb->last_error .
+                    ' id=' . $prop_id .
+                    ' tdn=' . $tax_num .
+                    ' revision_id=' . $revision_id
+                );
+            }
         }
 
         $remote_ts   = isset($record['updated_at']) ? strtotime($record['updated_at']) : 0;
