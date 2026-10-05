@@ -151,6 +151,18 @@ const RequestsTable = () => {
   const [requestFormModal, setRequestFormModal] = useState(false);
   const [bulkRequestModal, setBulkRequestModal] = useState(false);
 
+  // Delete confirmation modal states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteRequestId, setDeleteRequestId] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const requestDeleteConfirmation = (requestId) => {
+    setDeleteRequestId(requestId);
+    setDeleteError('');
+    setDeleteDialogOpen(true);
+  };
+
   // Settings state
   const initialSettings = (() => {
     if (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__) return window.__ASSESSOR_SETTINGS__;
@@ -646,17 +658,24 @@ const RequestsTable = () => {
   };
 
   // Handle delete request
-  const handleDeleteRequest = async (requestId) => {
-    if (!window.confirm('Are you sure you want to delete this request?')) {
-      return;
-    }
+  const handleDeleteRequest = async () => {
+    if (!deleteRequestId || deleteLoading) return;
+
+    setDeleteLoading(true);
+    setDeleteError('');
 
     try {
-      await apiService.deleteRequest(requestId);
+      await apiService.deleteRequest(deleteRequestId);
+
+      setDeleteDialogOpen(false);
+      setDeleteRequestId(null);
+
       fetchRequests(true);
     } catch (err) {
       console.error('Error deleting request:', err);
-      alert('Failed to delete request');
+      setDeleteError(err?.message || 'Failed to delete request');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -1437,7 +1456,7 @@ const RequestsTable = () => {
                                       color="error"
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        handleDeleteRequest(child.id);
+                                        requestDeleteConfirmation(child.id);
                                       }}
                                       sx={{ p: 0.35 }}
                                     >
@@ -1751,7 +1770,7 @@ const RequestsTable = () => {
                           <Tooltip title="Delete request" arrow>
                             <IconButton
                               size="small"
-                              onClick={() => handleDeleteRequest(request.id)}
+                              onClick={() => requestDeleteConfirmation(request.id)}
                               color="error"
                               sx={{ p: 0.5 }}
                             >
@@ -2028,6 +2047,61 @@ const RequestsTable = () => {
         onClose={() => setBulkRequestModal(false)}
         onSuccess={handleBulkRequestSuccess}
       />
+
+      {/* Delete Request Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          if (!deleteLoading) {
+            setDeleteDialogOpen(false);
+            setDeleteRequestId(null);
+            setDeleteError('');
+          }
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+          <DeleteIcon />
+          <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
+            Delete Request
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+            Are you sure you want to delete this request? This action cannot be undone.
+          </Typography>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }} onClose={() => setDeleteError('')}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setDeleteRequestId(null);
+              setDeleteError('');
+            }}
+            variant="outlined"
+            disabled={deleteLoading}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteRequest}
+            variant="contained"
+            color="error"
+            disabled={deleteLoading}
+            startIcon={deleteLoading ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Error Alert */}
       {error && (

@@ -3,25 +3,20 @@ import {
   Box,
   TextField,
   Grid,
-  Checkbox,
-  FormControlLabel,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Button,
+  IconButton,
   Typography,
   Alert,
-  Divider,
-  Card,
-  CardContent,
   Snackbar,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   InputAdornment,
-  FormHelperText,
   Autocomplete,
   CircularProgress,
   Table,
@@ -30,10 +25,28 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  Chip,
+  Tooltip
 } from '@mui/material';
-import { motion } from 'framer-motion';
-import { Receipt, Payment, Save, Cancel, Search } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Receipt,
+  Search,
+  Close as CloseIcon,
+  HomeWork as PropertyIcon,
+  Person as ClientIcon,
+  Description as DetailsIcon,
+  CalendarToday as DateIcon,
+  LocationOn as LocationIcon,
+  Badge as PreparedByIcon,
+  Lock as LockIcon,
+  History as HistoryIcon,
+  VerifiedUser as VerifiedIcon,
+  Save as SaveIcon,
+  Payment as PaymentIcon
+} from '@mui/icons-material';
 
 import { apiService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -74,7 +87,6 @@ const normalizeDeclarantString = (name) => {
   const s = sanitizeDeclarant(name);
   if (!s) return s;
 
-  // Split by comma to separate last name from first/middle
   const parts = s.split(',');
   if (parts.length < 2) return s;
 
@@ -82,32 +94,21 @@ const normalizeDeclarantString = (name) => {
   const rest = parts.slice(1).join(',').trim();
   if (!rest) return `${last}`;
 
-  // Handle cases where we have "LAST, ET. AL., FIRST MI" format
-  // We want to preserve the "ET. AL." part and format the first name and middle initial
   const restParts = rest.split(/\s+/);
-
-  // Find the actual first name and middle initial
-  // Look for the last meaningful word (middle initial) and the word before it (first name)
   const meaningfulParts = restParts.filter(part => part.length > 0);
 
   if (meaningfulParts.length === 0) return `${last}`;
   if (meaningfulParts.length === 1) return `${last}, ${rest}`;
 
-  // Take the last two meaningful parts as first name and middle initial
   const first = meaningfulParts[meaningfulParts.length - 2];
   const middleRaw = meaningfulParts[meaningfulParts.length - 1];
 
-  // Format middle initial
   const middleNoDots = middleRaw.replace(/\./g, '');
   const middleFormatted = middleNoDots.length === 1 ? `${middleNoDots}.` : middleNoDots;
 
-  // Reconstruct with all parts preserved
   const beforeFirst = meaningfulParts.slice(0, -2).join(' ');
-  const result = `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
-
-  return result;
+  return `${last}, ${beforeFirst ? beforeFirst + ' ' : ''}${first} ${middleFormatted}`.trim();
 };
-
 
 const isEffectivityExemptValue = (value) =>
   value === true ||
@@ -133,10 +134,52 @@ const formatEffectivityDisplay = (item) => {
   return raw;
 };
 
+// Reusable standard section header matching Assessor application styling
+const SectionHeader = ({ icon: Icon, title, subtitle }) => {
+  const theme = useTheme();
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {Icon && (
+          <Icon
+            sx={{
+              fontSize: 18,
+              color: theme.palette.primary.main
+            }}
+          />
+        )}
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            color: theme.palette.primary.main,
+            lineHeight: 1.2
+          }}
+        >
+          {title}
+        </Typography>
+      </Box>
+      {subtitle && (
+        <Typography
+          variant="caption"
+          sx={{
+            color: theme.palette.text.secondary,
+            display: 'block',
+            mt: 0.25,
+            pl: Icon ? 3.25 : 0
+          }}
+        >
+          {subtitle}
+        </Typography>
+      )}
+    </Box>
+  );
+};
+
 const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
-  const isSmallScreen = (() => {
-    try { const w = window.innerWidth; const h = window.innerHeight; return (w <= 1280 && h <= 720) || (w <= 1366 && h <= 768) || (w <= 1920 && h <= 1080); } catch (_) { return false; }
-  })();
+  const theme = useTheme();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     amount_paid: '',
@@ -293,7 +336,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     };
 
     if (open) loadRequestDefaults();
-  }, [open]);
+  }, [open, isOfficialRequest]);
 
   const handlePurposeChange = (event) => {
     const value = event.target.value;
@@ -327,7 +370,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       const response = await apiService.getProperties({
         q: searchTerm.trim(),
         per_page: 10,
-        // Add cache busting timestamp to prevent browser caching
         _t: Date.now()
       });
 
@@ -348,17 +390,14 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
   // Handle property search input change
   const handlePropertySearchChange = (event, newValue) => {
-    // Don't convert to uppercase immediately - let CSS handle visual display
     setPropertySearchTerm(newValue || '');
 
     if (newValue && newValue.length >= 2) {
-      // Use original value for search to maintain case-insensitive functionality
       searchProperties(newValue);
     } else {
       setPropertyOptions([]);
     }
 
-    // Clear property selection validation error when user starts typing
     if (validationErrors.has('property_selection')) {
       setValidationErrors(prev => {
         const newErrors = new Set(prev);
@@ -374,7 +413,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     setTaxHistoryModal(false);
     setTaxHistory([]);
 
-    // Clear property selection validation error when user selects a property
     if (validationErrors.has('property_selection')) {
       setValidationErrors(prev => {
         const newErrors = new Set(prev);
@@ -490,9 +528,30 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     return true;
   };
 
+  // Helper function to uppercase field values on submit
+  const uppercaseFieldValue = (field, value) => {
+    const uppercaseFields = new Set([
+      'client_name',
+      'client_address',
+      'contact_number',
+      'remarks',
+      'receipt_number',
+      'place_issued',
+      'prepared_by',
+      'purpose_details'
+    ]);
+
+    if (uppercaseFields.has(field) && typeof value === 'string') {
+      return value.toUpperCase();
+    }
+    return value;
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
 
     if (!validateForm()) {
       return;
@@ -500,12 +559,9 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
 
     setLoading(true);
     try {
-      // Send "0.00" (string) for official requests to avoid server-side
-      // required checks that treat numeric 0 as empty (e.g., PHP empty()).
       const finalAmountPaid = isOfficialRequest ? '0.00' : parseFloat(formData.amount_paid);
       const finalReceiptNumber = isOfficialRequest ? 'Official Use' : uppercaseFieldValue('receipt_number', formData.receipt_number);
 
-      // Prepare the data for saving with uppercase applied to appropriate fields
       const requestData = {
         client_name: uppercaseFieldValue('client_name', formData.client_name),
         client_address: uppercaseFieldValue('client_address', formData.client_address),
@@ -515,7 +571,7 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         place_issued: formData.place_issued,
         prepared_by: formData.prepared_by,
         purpose: formData.purpose,
-        purpose_details: formData.purpose_details,
+        purpose_details: uppercaseFieldValue('purpose_details', formData.purpose_details),
         date_issued: formData.date_issued,
         property_id: selectedProperty?.id,
         amount_paid: finalAmountPaid,
@@ -529,7 +585,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         municipal_assessor_suffix: formData.municipal_assessor_suffix
       };
 
-      // Call API to save the request
       const response = await apiService.createRequest(requestData);
 
       setToast({
@@ -538,12 +593,9 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         severity: 'success'
       });
 
-      // Call the onSave callback with the saved data
       if (onSave) {
-        // Combine the response data with property information for the receipt
         const receiptData = {
           ...response,
-          // Add property information for the receipt display
           tax_declaration_number: selectedProperty?.tax_declaration_number,
           declarant_last_name: selectedProperty?.declarant_last_name,
           declarant_first_name: selectedProperty?.declarant_first_name,
@@ -555,7 +607,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         onSave(receiptData);
       }
 
-      // Close the modal after a short delay
       setTimeout(() => {
         handleClose();
       }, 1500);
@@ -565,7 +616,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       const extractErrorMessages = (err) => {
         const data = err?.response?.data || err?.data;
 
-        // Prefer structured backend errors if present
         if (data) {
           if (Array.isArray(data.errors)) {
             return data.errors.filter(Boolean).map(String);
@@ -587,7 +637,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
         }
 
         if (typeof err?.message === 'string' && err.message.trim()) {
-          // Support newline-delimited messages as bullets
           if (err.message.includes('\n')) {
             return err.message.split('\n').map(s => s.trim()).filter(Boolean);
           }
@@ -608,24 +657,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     }
   };
 
-  // Helper function to uppercase field values on submit
-  const uppercaseFieldValue = (field, value) => {
-    const uppercaseFields = new Set([
-      'client_name',
-      'client_address',
-      'contact_number',
-      'remarks',
-      'receipt_number',
-      'place_issued',
-      'prepared_by'
-    ]);
-
-    if (uppercaseFields.has(field) && typeof value === 'string') {
-      return value.toUpperCase();
-    }
-    return value;
-  };
-
   // Handle form field changes
   const handleChange = (field) => (event) => {
     const value = event.target.value;
@@ -635,7 +666,6 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
       [field]: value
     }));
 
-    // Clear validation error when user starts typing
     if (validationErrors.has(field)) {
       setValidationErrors(prev => {
         const newErrors = new Set(prev);
@@ -667,582 +697,1233 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
     setPropertyOptions([]);
     setTaxHistoryModal(false);
     setTaxHistory([]);
+    if (onCancel) onCancel();
     if (onClose) onClose();
+  };
+
+  // Format owner / business display helper
+  const renderOwnerDisplay = (prop) => {
+    if (!prop) return '—';
+    const declarant = formatDeclarantFromParts(
+      prop.declarant_last_name,
+      prop.declarant_first_name,
+      prop.declarant_middle_initial
+    );
+    const business = sanitizeBusinessName(prop.business_name || prop.business);
+    if (declarant && business) return `${declarant} / ${business}`;
+    return declarant || business || '—';
+  };
+
+  // Format property area
+  const renderAreaDisplay = (prop) => {
+    if (!prop) return '—';
+    const haRaw = prop.area_hectare;
+    const sqmRaw = prop.area_sqm;
+    const oldHaRaw = prop.area_hectare_old;
+    const numHa = Number(haRaw);
+    const numSqm = Number(sqmRaw);
+    const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
+    const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
+    const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
+    if (!hasHa && !hasSqm && !hasOldHa) return '—';
+    let currentArea = '';
+    if (hasHa) {
+      const unit = numHa <= 1 ? 'ha' : 'has';
+      currentArea = `${numHa.toFixed(4)} ${unit}`;
+    } else if (hasSqm) {
+      currentArea = `${numSqm.toFixed(2)} sqm`;
+    }
+    if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
+    if (hasOldHa) return oldHaRaw;
+    return currentArea || '—';
+  };
+
+  // Format assessed value
+  const renderAssessedValueDisplay = (prop) => {
+    if (!prop) return '₱0.00';
+    const currentValue = prop.assessed_value;
+    const oldValue = prop.assessed_value_old;
+    const hasCurrent = currentValue !== undefined && currentValue !== null;
+    const hasOld = oldValue && oldValue !== '';
+
+    if (!hasCurrent && !hasOld) return '₱0.00';
+
+    let displayVal = '';
+    if (hasCurrent) {
+      displayVal = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    if (hasOld && displayVal) {
+      return `${displayVal} ${oldValue}`;
+    } else if (hasOld) {
+      return oldValue;
+    } else {
+      return displayVal || '₱0.00';
+    }
   };
 
   return (
     <>
       <Dialog
         open={open}
-        onClose={handleClose}
-        maxWidth={isSmallScreen ? 'sm' : 'md'}
+        onClose={loading ? undefined : handleClose}
         fullWidth
+        maxWidth={false}
         PaperProps={{
           component: motion.div,
-          initial: { opacity: 0, y: 20 },
+          initial: { opacity: 0, y: 12 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.3 },
-          sx: { width: isSmallScreen ? '60vw' : undefined, maxHeight: '100vh' }
+          exit: { opacity: 0, y: 12 },
+          transition: { duration: 0.2, ease: 'easeOut' },
+          sx: {
+            width: {
+              xs: 'calc(100vw - 24px)',
+              sm: '760px',
+              md: '960px',
+              lg: '1040px'
+            },
+            maxWidth: '1050px',
+            maxHeight: '92vh',
+            borderRadius: 1, // Restrained 4px shape language matching theme.shape.borderRadius
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            backgroundColor: theme.palette.background.paper,
+            m: { xs: 1.5, sm: 2 }
+          }
         }}
       >
-        <DialogTitle sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1
-        }}>
-          <Receipt />
-          Request Form
+        {/* ================= MODAL HEADER ================= */}
+        <DialogTitle
+          sx={{
+            py: { xs: 1.5, sm: 2 },
+            px: { xs: 2, sm: 3 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            flexShrink: 0
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            <Receipt
+              sx={{
+                fontSize: { xs: 22, sm: 24 },
+                color: theme.palette.primary.main,
+                flexShrink: 0
+              }}
+            />
+            <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 600,
+                    color: theme.palette.text.primary,
+                    lineHeight: 1.2
+                  }}
+                >
+                  Create Request
+                </Typography>
+
+                {/* Status Indicator */}
+                {selectedProperty ? (
+                  <Chip
+                    label={`Property: ${selectedProperty.tax_declaration_number}`}
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                    sx={{
+                      height: 22,
+                      fontSize: '0.75rem',
+                      fontWeight: 600
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    label="No Property Selected"
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      height: 22,
+                      fontSize: '0.75rem',
+                      color: theme.palette.text.secondary,
+                      borderColor: theme.palette.divider
+                    }}
+                  />
+                )}
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  display: 'block',
+                  mt: 0.25
+                }}
+              >
+                Create and issue an official assessment document
+              </Typography>
+            </Box>
+          </Box>
+
+          <IconButton
+            size="small"
+            onClick={handleClose}
+            disabled={loading}
+            aria-label="Close Request Form"
+            sx={{
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                color: theme.palette.error.main
+              }
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </DialogTitle>
-        <DialogContent sx={isSmallScreen ? { p: 2, '& .MuiTextField-root': { mb: 1 }, '& .MuiInputBase-root': { fontSize: '0.9rem' }, '& .MuiFormLabel-root': { fontSize: '0.85rem' }, '& .MuiButton-root': { padding: '6px 12px' } } : { p: 3 }}>
-          <form onSubmit={handleSubmit}>
-            <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 3 })}>
-              {/* Property Search Section */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: 'primary.main'
-                    }}>
-                      <Search />
-                      Property Information (Required) *
-                    </Typography>
-                    <Divider sx={{ mb: 1 }} />
-                    <Autocomplete
-                      options={propertyOptions}
-                      getOptionLabel={(option) => {
-                        const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
-                        const business = sanitizeBusinessName(option.business_name);
-                        const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
-                        return `${option.tax_declaration_number || ''} - ${displayName}`;
+
+        {/* ================= MODAL SCROLLABLE BODY ================= */}
+        <DialogContent
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            backgroundColor: theme.palette.background.paper
+          }}
+        >
+          <form onSubmit={handleSubmit} id="request-form-element">
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+
+              {/* ---------------- 1. PROPERTY SECTION ---------------- */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: validationErrors.has('property_selection')
+                    ? theme.palette.error.main
+                    : theme.palette.divider,
+                  backgroundColor: theme.palette.background.paper
+                }}
+              >
+                <SectionHeader
+                  icon={PropertyIcon}
+                  title="Property"
+                  subtitle="Select the real property associated with this assessment request."
+                />
+
+                <Autocomplete
+                  options={propertyOptions}
+                  getOptionLabel={(option) => {
+                    const declarant = formatDeclarantFromParts(
+                      option.declarant_last_name,
+                      option.declarant_first_name,
+                      option.declarant_middle_initial
+                    );
+                    const business = sanitizeBusinessName(option.business_name);
+                    const displayName = declarant && business ? `${declarant} / ${business}` : (declarant || business || '');
+                    return `${option.tax_declaration_number || ''} - ${displayName}`;
+                  }}
+                  value={selectedProperty}
+                  onChange={handlePropertySelect}
+                  inputValue={propertySearchTerm}
+                  onInputChange={handlePropertySearchChange}
+                  loading={propertySearchLoading}
+                  noOptionsText="No properties found. Try searching with a TDN, owner, or business."
+                  isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                  clearOnBlur={false}
+                  clearOnEscape={false}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      label="Search Property *"
+                      placeholder="Search Tax Declaration Number, owner, or business..."
+                      error={validationErrors.has('property_selection')}
+                      inputProps={{
+                        ...params.inputProps,
+                        style: {
+                          ...params.inputProps?.style,
+                          textTransform: 'uppercase'
+                        }
                       }}
-                      value={selectedProperty}
-                      onChange={handlePropertySelect}
-                      inputValue={propertySearchTerm}
-                      onInputChange={handlePropertySearchChange}
-                      loading={propertySearchLoading}
-                      noOptionsText="No properties found. Try searching with different terms."
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Search for Property *"
-                          placeholder="Search by Tax Declaration Number, owner name, or business name..."
-                          helperText={validationErrors.has('property_selection') ? "Property selection is required" : "Start typing to search for properties. Property selection is required."}
-                          error={validationErrors.has('property_selection')}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                          inputProps={{ ...params.inputProps, style: { textTransform: 'uppercase' } }}
-                          InputProps={{
-                            ...params.InputProps,
-                            endAdornment: (
-                              <>
-                                {propertySearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                                {params.InputProps.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      )}
-                      renderOption={(props, option) => (
-                        <Box component="li" {...props}>
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <>
+                            {propertySearchLoading ? <CircularProgress color="inherit" size={18} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        )
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => {
+                    const declarant = formatDeclarantFromParts(
+                      option.declarant_last_name,
+                      option.declarant_first_name,
+                      option.declarant_middle_initial
+                    );
+                    const business = sanitizeBusinessName(option.business_name);
+                    const location = option.location;
+
+                    return (
+                      <Box
+                        component="li"
+                        {...props}
+                        sx={{
+                          py: 1,
+                          px: 1.5,
+                          borderBottom: 1,
+                          borderColor: theme.palette.divider,
+                          '&:hover': {
+                            backgroundColor: theme.palette.action.hover
+                          }
+                        }}
+                      >
+                        <Box sx={{ width: '100%' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                color: theme.palette.primary.main
+                              }}
+                            >
                               {option.tax_declaration_number}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {(() => {
-                                const declarant = formatDeclarantFromParts(option.declarant_last_name, option.declarant_first_name, option.declarant_middle_initial);
-                                const business = sanitizeBusinessName(option.business_name);
-                                if (declarant && business) return `${declarant} / ${business}`;
-                                return declarant || business || '';
-                              })()}
+                            {option.property_state && (
+                              <Chip
+                                label={option.property_state.toLowerCase()}
+                                size="small"
+                                variant="outlined"
+                                color={option.property_state.toLowerCase() === 'current' ? 'success' : 'default'}
+                                sx={{
+                                  height: 20,
+                                  fontSize: '0.7rem',
+                                  textTransform: 'capitalize'
+                                }}
+                              />
+                            )}
+                          </Box>
+
+                          {(declarant || business) && (
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: theme.palette.text.primary,
+                                fontWeight: 500,
+                                mt: 0.25
+                              }}
+                            >
+                              {declarant}
+                              {business && declarant && (
+                                <span style={{ color: theme.palette.text.secondary, fontWeight: 400 }}> / {business}</span>
+                              )}
+                              {business && !declarant && business}
+                            </Typography>
+                          )}
+
+                          {location && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: theme.palette.text.secondary,
+                                display: 'block',
+                                mt: 0.25
+                              }}
+                            >
+                              {location}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    );
+                  }}
+                />
+
+                {/* Property validation error */}
+                {validationErrors.has('property_selection') && (
+                  <Typography
+                    variant="caption"
+                    color="error"
+                    sx={{ mt: 0.75, display: 'block' }}
+                  >
+                    Select a property before saving this request.
+                  </Typography>
+                )}
+
+                {/* Selected Property Panel */}
+                <AnimatePresence>
+                  {selectedProperty && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Box
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          borderRadius: 1,
+                          border: 1,
+                          borderColor: theme.palette.divider,
+                          backgroundColor: theme.palette.background.default
+                        }}
+                      >
+                        {/* Selected Property Header */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: { xs: 'flex-start', sm: 'center' },
+                            justifyContent: 'space-between',
+                            flexDirection: { xs: 'column', sm: 'row' },
+                            gap: 1,
+                            pb: 1.5,
+                            mb: 1.5,
+                            borderBottom: 1,
+                            borderColor: theme.palette.divider
+                          }}
+                        >
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontWeight: 700,
+                                color: theme.palette.text.secondary,
+                                textTransform: 'uppercase'
+                              }}
+                            >
+                              Selected Property
+                            </Typography>
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                color: theme.palette.text.primary,
+                                lineHeight: 1.2,
+                                mt: 0.25
+                              }}
+                            >
+                              {selectedProperty.tax_declaration_number}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: theme.palette.text.primary,
+                                fontWeight: 500,
+                                mt: 0.25
+                              }}
+                            >
+                              {renderOwnerDisplay(selectedProperty)}
                             </Typography>
                           </Box>
-                        </Box>
-                      )}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      clearOnBlur={false}
-                      clearOnEscape={false}
-                    />
 
-                    {validationErrors.has('property_selection') && (
-                      <Typography variant="body2" color="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
-                        Property selection is required. Please search and select a property before proceeding.
-                      </Typography>
-                    )}
-
-                    {!selectedProperty && propertySearchTerm && propertyOptions.length === 0 && !propertySearchLoading && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                        No properties found matching "{propertySearchTerm}". Try searching with different terms. Property selection is required to create a request.
-                      </Typography>
-                    )}
-
-                    {selectedProperty && (
-                      <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                        <Typography variant="subtitle2" gutterBottom>Selected Property:</Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2">
-                              <strong>Tax Declaration Number:</strong> {selectedProperty.tax_declaration_number}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2">
-                              <strong>Location:</strong> {selectedProperty.location || 'N/A'}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2">
-                              <strong>Owner/Business:</strong> {(() => {
-                                const declarant = formatDeclarantFromParts(selectedProperty.declarant_last_name, selectedProperty.declarant_first_name, selectedProperty.declarant_middle_initial);
-                                const business = sanitizeBusinessName(selectedProperty.business_name);
-                                if (declarant && business) return `${declarant} / ${business}`;
-                                return declarant || business || 'N/A';
-                              })()}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2">
-                              <strong>Area:</strong> {(() => {
-                                const haRaw = selectedProperty.area_hectare;
-                                const sqmRaw = selectedProperty.area_sqm;
-                                const oldHaRaw = selectedProperty.area_hectare_old;
-                                const numHa = Number(haRaw);
-                                const numSqm = Number(sqmRaw);
-                                const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                                const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                                const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
-                                if (!hasHa && !hasSqm && !hasOldHa) return '—';
-                                let currentArea = '';
-                                if (hasHa) {
-                                  const unit = numHa <= 1 ? 'ha' : 'has';
-                                  currentArea = `${numHa.toFixed(4)} ${unit}`;
-                                } else if (hasSqm) {
-                                  currentArea = `${numSqm.toFixed(2)} sqm`;
-                                }
-                                if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
-                                if (hasOldHa) return oldHaRaw;
-                                return currentArea || '—';
-                              })()}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography variant="body2">
-                              <strong>Assessed Value:</strong> {(() => {
-                                const currentValue = selectedProperty.assessed_value;
-                                const oldValue = selectedProperty.assessed_value_old;
-                                const hasCurrent = currentValue !== undefined && currentValue !== null;
-                                const hasOld = oldValue && oldValue !== '';
-
-                                if (!hasCurrent && !hasOld) return '₱0.00';
-
-                                let displayValue = '';
-                                if (hasCurrent) {
-                                  displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                                }
-
-                                if (hasOld && displayValue) {
-                                  return `${displayValue} ${oldValue}`;
-                                } else if (hasOld) {
-                                  return oldValue;
-                                } else {
-                                  return displayValue || '₱0.00';
-                                }
-                              })()}
-                            </Typography>
-                          </Grid>
-                        </Grid>
-
-                        <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                           <Button
                             variant="outlined"
                             size="small"
                             onClick={handleViewTaxHistory}
                             disabled={taxHistoryLoading}
-                            startIcon={taxHistoryLoading ? <CircularProgress size={16} /> : null}
+                            startIcon={
+                              taxHistoryLoading ? (
+                                <CircularProgress size={14} color="inherit" />
+                              ) : (
+                                <HistoryIcon fontSize="small" />
+                              )
+                            }
                           >
-                            {taxHistoryLoading ? 'Loading...' : 'View Tax History'}
+                            {taxHistoryLoading ? 'Loading History...' : 'View Tax History'}
                           </Button>
                         </Box>
+
+                        {/* Property Details Grid */}
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                              LOCATION
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
+                              {selectedProperty.location || '—'}
+                            </Typography>
+                          </Grid>
+
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                              AREA
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
+                              {renderAreaDisplay(selectedProperty)}
+                            </Typography>
+                          </Grid>
+
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                              ASSESSED VALUE
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+                              {renderAssessedValueDisplay(selectedProperty)}
+                            </Typography>
+                          </Grid>
+
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                              EFFECTIVITY
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
+                              {formatEffectivityDisplay(selectedProperty)}
+                            </Typography>
+                          </Grid>
+                        </Grid>
                       </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Box>
 
-              {/* Client Information Section */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: 'primary.main'
-                    }}>
-                      <Receipt />
-                      Client Information
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
+              {/* ---------------- 2. CLIENT SECTION ---------------- */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  backgroundColor: theme.palette.background.paper
+                }}
+              >
+                <SectionHeader
+                  icon={ClientIcon}
+                  title="Client"
+                  subtitle="Who is requesting this document?"
+                />
 
-                    <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Client Name *"
-                          value={formData.client_name}
-                          onChange={handleChange('client_name')}
-                          error={validationErrors.has('client_name')}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={7}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Client Name *"
+                      value={formData.client_name}
+                      onChange={handleChange('client_name')}
+                      error={validationErrors.has('client_name')}
+                      helperText={validationErrors.has('client_name') ? 'Client name is required.' : undefined}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                    />
+                  </Grid>
 
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Contact Number"
-                          value={formData.contact_number}
-                          onChange={handleChange('contact_number')}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
+                  <Grid item xs={12} sm={5}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Contact Number"
+                      value={formData.contact_number}
+                      onChange={handleChange('contact_number')}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                      placeholder="Optional"
+                    />
+                  </Grid>
 
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Client Address"
-                          value={formData.client_address}
-                          onChange={handleChange('client_address')}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                          multiline
-                          rows={2}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Client Address"
+                      value={formData.client_address}
+                      onChange={handleChange('client_address')}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                      multiline
+                      minRows={2}
+                      maxRows={3}
+                      placeholder="Street, Barangay, Municipality/City, Province"
+                    />
+                  </Grid>
 
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Remarks"
-                          value={formData.remarks}
-                          onChange={handleChange('remarks')}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                          multiline
-                          rows={3}
-                          placeholder="Additional notes or special instructions..."
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Remarks"
+                      value={formData.remarks}
+                      onChange={handleChange('remarks')}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                      multiline
+                      minRows={2}
+                      maxRows={4}
+                      placeholder="Additional notes or special instructions..."
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
 
-              {/* Payment Information Section */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
+              {/* ---------------- 3. REQUEST DETAILS SECTION ---------------- */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  backgroundColor: theme.palette.background.paper
+                }}
+              >
+                <SectionHeader
+                  icon={DetailsIcon}
+                  title="Request Details"
+                  subtitle="Specify request type, purpose, and detailed description."
+                />
+
+                {/* Request Type Segmented Control at top of Request Details */}
+                <Box sx={{ mb: 2 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      color: theme.palette.text.secondary,
+                      textTransform: 'uppercase',
+                      display: 'block',
+                      mb: 1
+                    }}
+                  >
+                    Request Type
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                      gap: 1.5,
+                      p: 0.5,
+                      borderRadius: 1,
+                      border: 1,
+                      borderColor: theme.palette.divider,
+                      backgroundColor: theme.palette.background.default
+                    }}
+                  >
+                    {/* STANDARD REQUEST BUTTON */}
                     <Box
+                      component="button"
+                      type="button"
+                      onClick={() => {
+                        if (isOfficialRequest) {
+                          setIsOfficialRequest(false);
+                          setFormData(prev => ({
+                            ...prev,
+                            amount_paid: prev.purpose && purposeAmountMap[prev.purpose] !== undefined
+                              ? Number(purposeAmountMap[prev.purpose]).toFixed(2)
+                              : '',
+                            receipt_number: ''
+                          }));
+                        }
+                      }}
                       sx={{
+                        p: 1.25,
+                        borderRadius: 1,
+                        border: 1,
+                        borderColor: !isOfficialRequest ? theme.palette.primary.main : 'transparent',
+                        backgroundColor: !isOfficialRequest ? theme.palette.background.paper : 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 1,
-                        mb: 0.5
+                        alignItems: 'flex-start',
+                        gap: 1.25,
+                        transition: 'all 0.15s ease',
+                        '&:hover': {
+                          backgroundColor: !isOfficialRequest ? theme.palette.background.paper : theme.palette.action.hover
+                        }
                       }}
                     >
-                      <Typography
-                        variant="h6"
-                        gutterBottom={false}
+                      <Box
                         sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          color: 'primary.main'
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: 2,
+                          borderColor: !isOfficialRequest ? theme.palette.primary.main : theme.palette.text.secondary,
+                          backgroundColor: !isOfficialRequest ? theme.palette.primary.main : 'transparent',
+                          mt: 0.35,
+                          flexShrink: 0
                         }}
-                      >
-                        <Payment />
-                        Payment Information
-                      </Typography>
-
-                      <FormControlLabel
-                        sx={{
-                          m: 0,
-                          '& .MuiFormControlLabel-label': {
-                            fontSize: isSmallScreen ? '0.8rem' : '0.9rem'
-                          }
-                        }}
-                        control={(
-                          <Checkbox
-                            size={isSmallScreen ? 'small' : 'medium'}
-                            checked={isOfficialRequest}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setIsOfficialRequest(checked);
-                              setFormData(prev => ({
-                                ...prev,
-                                amount_paid: checked
-                                  ? '0.00'
-                                  : (prev.purpose && purposeAmountMap[prev.purpose] !== undefined
-                                    ? Number(purposeAmountMap[prev.purpose]).toFixed(2)
-                                    : ''),
-                                receipt_number: checked ? 'Official Use' : ''
-                              }));
-
-                              if (checked) {
-                                setValidationErrors(prev => {
-                                  const next = new Set(prev);
-                                  next.delete('amount_paid');
-                                  next.delete('receipt_number');
-                                  return next;
-                                });
-                              }
-                            }}
-                          />
-                        )}
-                        label="Official Request"
                       />
+                      <Box>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 600,
+                            color: !isOfficialRequest ? theme.palette.primary.main : theme.palette.text.primary,
+                            lineHeight: 1.2
+                          }}
+                        >
+                          Standard Request
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            display: 'block',
+                            mt: 0.25
+                          }}
+                        >
+                          Regular paid request with Official Receipt
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Divider sx={{ mb: 2 }} />
 
-                    <Grid container {...(isSmallScreen ? { rowSpacing: 1, columnSpacing: 2 } : { spacing: 2 })}>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Amount Paid *"
-                          type="number"
-                          value={formData.amount_paid}
-                          onChange={handleChange('amount_paid')}
-                          disabled={isOfficialRequest}
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start">₱</InputAdornment>,
+                    {/* OFFICIAL REQUEST BUTTON */}
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => {
+                        if (!isOfficialRequest) {
+                          setIsOfficialRequest(true);
+                          setFormData(prev => ({
+                            ...prev,
+                            amount_paid: '0.00',
+                            receipt_number: 'Official Use'
+                          }));
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete('amount_paid');
+                            next.delete('receipt_number');
+                            return next;
+                          });
+                        }
+                      }}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1,
+                        border: 1,
+                        borderColor: isOfficialRequest ? theme.palette.primary.main : 'transparent',
+                        backgroundColor: isOfficialRequest ? theme.palette.background.paper : 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 1.25,
+                        transition: 'all 0.15s ease',
+                        '&:hover': {
+                          backgroundColor: isOfficialRequest ? theme.palette.background.paper : theme.palette.action.hover
+                        }
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: 2,
+                          borderColor: isOfficialRequest ? theme.palette.primary.main : theme.palette.text.secondary,
+                          backgroundColor: isOfficialRequest ? theme.palette.primary.main : 'transparent',
+                          mt: 0.35,
+                          flexShrink: 0
+                        }}
+                      />
+                      <Box>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 600,
+                            color: isOfficialRequest ? theme.palette.primary.main : theme.palette.text.primary,
+                            lineHeight: 1.2
                           }}
-                          inputProps={{ min: 0, step: 0.01 }}
-                          error={validationErrors.has('amount_paid')}
-                          placeholder="0.00"
-                          onBlur={() => {
-                            if (isOfficialRequest) return;
-                            const v = formData.amount_paid;
-                            if (v === '' || v === null || v === undefined) return;
-                            const n = Number(v);
-                            if (!isNaN(n)) {
-                              setFormData(prev => ({
-                                ...prev,
-                                amount_paid: n.toFixed(2)
-                              }));
+                        >
+                          Official Request
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            display: 'block',
+                            mt: 0.25
+                          }}
+                        >
+                          Government or internal use (No payment required)
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <FormControl
+                      fullWidth
+                      size="small"
+                      error={validationErrors.has('purpose')}
+                    >
+                      <InputLabel id="request-purpose-label">Purpose *</InputLabel>
+                      <Select
+                        labelId="request-purpose-label"
+                        value={formData.purpose}
+                        onChange={handlePurposeChange}
+                        label="Purpose *"
+                      >
+                        {purposeOptions.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {validationErrors.has('purpose') && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                          Purpose is required.
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      multiline
+                      minRows={3}
+                      maxRows={5}
+                      label="Purpose Details *"
+                      value={formData.purpose_details}
+                      onChange={handleChange('purpose_details')}
+                      error={validationErrors.has('purpose_details')}
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                      helperText={
+                        validationErrors.has('purpose_details')
+                          ? 'Purpose Details is required.'
+                          : 'Enter the specific purpose or statement. This text will appear directly on the printed document.'
+                      }
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* ---------------- 4. ISSUANCE SECTION ---------------- */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  backgroundColor: theme.palette.background.paper
+                }}
+              >
+                <SectionHeader
+                  icon={VerifiedIcon}
+                  title="Issuance"
+                  subtitle="Verification and issuing office parameters."
+                />
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Date Issued *"
+                      type="date"
+                      value={formData.date_issued}
+                      onChange={handleChange('date_issued')}
+                      InputLabelProps={{ shrink: true }}
+                      error={validationErrors.has('date_issued')}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <DateIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Tooltip title="Configured via Office Settings (Read-only)" arrow>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Place Issued"
+                        value={formData.place_issued}
+                        onChange={handleChange('place_issued')}
+                        InputProps={{
+                          readOnly: true,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LocationIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <LockIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          )
+                        }}
+                        inputProps={{ tabIndex: -1 }}
+                        error={validationErrors.has('place_issued')}
+                      />
+                    </Tooltip>
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Tooltip title="Current active user account (Read-only)" arrow>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Prepared By"
+                        value={formData.prepared_by}
+                        onChange={handleChange('prepared_by')}
+                        InputLabelProps={{ shrink: true }}
+                        InputProps={{
+                          readOnly: true,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PreparedByIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <LockIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+                            </InputAdornment>
+                          )
+                        }}
+                        inputProps={{ tabIndex: -1 }}
+                        error={validationErrors.has('prepared_by')}
+                      />
+                    </Tooltip>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* ---------------- 5. PAYMENT SECTION ---------------- */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  backgroundColor: theme.palette.background.paper,
+                  minHeight: '160px',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                <SectionHeader
+                  icon={PaymentIcon}
+                  title="Payment"
+                  subtitle="Payment details and official receipt records."
+                />
+
+                {/* Stable Grid for Payment Fields */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Amount Paid *"
+                      type={isOfficialRequest ? 'text' : 'number'}
+                      value={isOfficialRequest ? '0.00' : formData.amount_paid}
+                      onChange={handleChange('amount_paid')}
+                      disabled={isOfficialRequest}
+                      helperText={
+                        isOfficialRequest
+                          ? 'No payment required.'
+                          : 'Amount based on selected purpose.'
+                      }
+                      InputProps={{
+                        readOnly: isOfficialRequest,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span style={{ fontWeight: 600, color: theme.palette.text.secondary }}>₱</span>
+                          </InputAdornment>
+                        ),
+                        ...(isOfficialRequest ? {
+                          sx: {
+                            backgroundColor: theme.palette.background.default,
+                            '& .MuiInputBase-input': {
+                              color: theme.palette.text.primary,
+                              fontWeight: 600
                             }
-                          }}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Receipt Number *"
-                          value={formData.receipt_number}
-                          onChange={handleChange('receipt_number')}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                          error={validationErrors.has('receipt_number')}
-                          disabled={isOfficialRequest}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Date Issued *"
-                          type="date"
-                          value={formData.date_issued}
-                          onChange={handleChange('date_issued')}
-                          InputLabelProps={{ shrink: true }}
-                          error={validationErrors.has('date_issued')}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Place Issued"
-                          value={formData.place_issued}
-                          onChange={handleChange('place_issued')}
-                          InputProps={{ readOnly: true, style: isSmallScreen ? { fontSize: '0.9rem' } : undefined }}
-                          inputProps={{ tabIndex: -1 }}
-                          variant="outlined"
-                          // inputProps={{style: { textTransform: 'uppercase' }}}
-                          error={validationErrors.has('place_issued')}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                          sx={{
-                            pointerEvents: 'none',
-                            '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <FormControl fullWidth error={validationErrors.has('purpose')} size={isSmallScreen ? 'small' : 'medium'}>
-                          <InputLabel>Purpose *</InputLabel>
-                          <Select
-                            value={formData.purpose}
-                            onChange={handlePurposeChange}
-                            label="Purpose *">
-                            {purposeOptions.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Prepared By"
-                          value={formData.prepared_by}
-                          onChange={handleChange('prepared_by')}
-                          InputProps={{ readOnly: true, style: isSmallScreen ? { fontSize: '0.9rem' } : undefined }}
-                          InputLabelProps={{ shrink: true }}
-                          inputProps={{ tabIndex: -1 }}
-                          variant="outlined"
-                          error={validationErrors.has('prepared_by')}
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          sx={{
-                            pointerEvents: 'none',
-                            '& .MuiOutlinedInput-input.Mui-disabled': { WebkitTextFillColor: 'inherit' }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={4}
-                          label="Purpose Details *"
-                          value={formData.purpose_details}
-                          onChange={handleChange('purpose_details')}
-                          error={validationErrors.has('purpose_details')}
-                          helperText={validationErrors.has('purpose_details') ? 'Purpose Details is required.' : 'Enter the specific purpose or statement for this request. This text will appear on the printed document.'}
-                          placeholder="e.g. PROCESS RIGHT-OF-WAY ACQUISITION AND REFERENCE CONCERNING AFFECTED LOTS NECESSARY FOR VERIFICATION PURPOSES"
-                          size={isSmallScreen ? 'small' : 'medium'}
-                          margin={isSmallScreen ? 'dense' : 'normal'}
-                        />
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mt: 2 }}>
-              <Button
-                onClick={handleClose}
-                variant="outlined"
-                size={isSmallScreen ? 'small' : 'medium'}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                startIcon={<Save />}
-                variant="contained"
-                size={isSmallScreen ? 'small' : 'medium'}
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Save Request'}
-              </Button>
+                          }
+                        } : {})
+                      }}
+                      inputProps={{ min: 0, step: 0.01 }}
+                      error={!isOfficialRequest && validationErrors.has('amount_paid')}
+                      placeholder="0.00"
+                      onBlur={() => {
+                        if (isOfficialRequest) return;
+                        const v = formData.amount_paid;
+                        if (v === '' || v === null || v === undefined) return;
+                        const n = Number(v);
+                        if (!isNaN(n)) {
+                          setFormData(prev => ({
+                            ...prev,
+                            amount_paid: n.toFixed(2)
+                          }));
+                        }
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Receipt Number *"
+                      value={isOfficialRequest ? 'Official Use' : formData.receipt_number}
+                      onChange={handleChange('receipt_number')}
+                      disabled={isOfficialRequest}
+                      helperText={
+                        isOfficialRequest
+                          ? 'Official request record.'
+                          : 'Enter official receipt number.'
+                      }
+                      inputProps={{ style: { textTransform: 'uppercase' } }}
+                      error={!isOfficialRequest && validationErrors.has('receipt_number')}
+                      placeholder="e.g. OR-123456"
+                      InputProps={
+                        isOfficialRequest ? {
+                          readOnly: true,
+                          sx: {
+                            backgroundColor: theme.palette.background.default,
+                            '& .MuiInputBase-input': {
+                              color: theme.palette.text.primary,
+                              fontWeight: 600
+                            }
+                          }
+                        } : undefined
+                      }
+                    />
+                  </Grid>
+                </Grid>
+
+                {/* Stable subtle indicator for Official Request */}
+                <Box sx={{ mt: 1, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+                  {isOfficialRequest ? (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: theme.palette.success.main,
+                        fontWeight: 600
+                      }}
+                    >
+                      Official Request — No payment required for this request.
+                    </Typography>
+                  ) : null}
+                </Box>
+              </Box>
+
             </Box>
           </form>
         </DialogContent>
+
+        {/* ================= MODAL FOOTER ================= */}
+        <DialogActions
+          sx={{
+            py: 1.5,
+            px: { xs: 2, sm: 3 },
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: theme.palette.text.secondary,
+              display: { xs: 'none', sm: 'block' }
+            }}
+          >
+            Request will be permanently recorded in assessment logs.
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
+            <Button
+              onClick={handleClose}
+              variant="outlined"
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={handleSubmit}
+              variant="contained"
+              disabled={loading}
+              startIcon={
+                loading ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <SaveIcon />
+                )
+              }
+            >
+              {loading ? 'Saving Request...' : 'Save Request'}
+            </Button>
+          </Box>
+        </DialogActions>
       </Dialog>
 
-      {/* Tax History Modal */}
+      {/* ================= TAX DECLARATION HISTORY MODAL ================= */}
       <Dialog
         open={taxHistoryModal}
         onClose={() => setTaxHistoryModal(false)}
-        maxWidth={isSmallScreen ? 'lg' : 'xl'}
+        maxWidth="lg"
         fullWidth
         PaperProps={{
           component: motion.div,
-          initial: { opacity: 0, y: 20 },
+          initial: { opacity: 0, y: 12 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.3 },
-          sx: { width: isSmallScreen ? '80vw' : undefined, maxHeight: '90vh' }
+          transition: { duration: 0.2 },
+          sx: {
+            width: { xs: 'calc(100vw - 24px)', sm: '90vw', md: '1100px' },
+            maxHeight: '90vh',
+            borderRadius: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            backgroundColor: theme.palette.background.paper
+          }
         }}
       >
-        <DialogTitle sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1
-        }}>
-          <Search />
-          Tax Declaration History - {selectedProperty?.tax_declaration_number}
+        {/* Tax History Header */}
+        <DialogTitle
+          sx={{
+            py: { xs: 1.5, sm: 2 },
+            px: { xs: 2, sm: 3 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            flexShrink: 0
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <HistoryIcon sx={{ fontSize: 22, color: theme.palette.primary.main }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary, lineHeight: 1.2 }}>
+                Tax Declaration History
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  fontFamily: 'monospace',
+                  fontWeight: 600
+                }}
+              >
+                {selectedProperty?.tax_declaration_number}
+              </Typography>
+            </Box>
+          </Box>
+
+          <IconButton
+            size="small"
+            onClick={() => setTaxHistoryModal(false)}
+            aria-label="Close Tax History"
+            sx={{
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                color: theme.palette.error.main
+              }
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </DialogTitle>
 
-        <DialogContent sx={{ p: isSmallScreen ? 2 : 3 }}>
+        <DialogContent
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            overflowY: 'auto',
+            backgroundColor: theme.palette.background.paper
+          }}
+        >
           {taxHistoryLoading ? (
-            <Box display="flex" justifyContent="center" p={3}>
-              <CircularProgress />
+            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={8} gap={2}>
+              <CircularProgress size={32} />
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                Loading tax declaration history chain...
+              </Typography>
             </Box>
           ) : taxHistory.length > 0 ? (
             <Box>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                Property: <strong>{selectedProperty?.tax_declaration_number}</strong> -
-                {(() => {
-                  const declarant = formatDeclarantFromParts(
-                    selectedProperty?.declarant_last_name,
-                    selectedProperty?.declarant_first_name,
-                    selectedProperty?.declarant_middle_initial
-                  );
-                  const business = sanitizeBusinessName(selectedProperty?.business_name);
-                  if (declarant && business) return ` ${declarant} / ${business}`;
-                  return ` ${declarant || business || ''}`;
-                })()}
-              </Typography>
+              {/* Compact Property Summary Box */}
+              <Box
+                sx={{
+                  mb: 2,
+                  p: 1.5,
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  backgroundColor: theme.palette.background.default,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5
+                }}
+              >
+                <Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 700 }}>
+                    SUBJECT PROPERTY
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, color: theme.palette.primary.main }}>
+                    {selectedProperty?.tax_declaration_number}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.text.primary }}>
+                    {renderOwnerDisplay(selectedProperty)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>LOCATION</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{selectedProperty?.location || '—'}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>ASSESSED VALUE</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                      {renderAssessedValueDisplay(selectedProperty)}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
 
-              <TableContainer component={Paper} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+              {/* Table Container */}
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{
+                  maxHeight: '55vh',
+                  overflow: 'auto',
+                  border: 1,
+                  borderColor: theme.palette.divider,
+                  borderRadius: 1
+                }}
+              >
                 <Table size="small" stickyHeader>
-                  {/* <colgroup>
-                    <col style={{ width: '15%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '28%' }} />
-                  </colgroup> */}
                   <TableHead>
                     <TableRow>
-                      <TableCell><strong>Tax Declaration Number</strong></TableCell>
-                      <TableCell><strong>Declarant</strong></TableCell>
-                      <TableCell><strong>Barangay</strong></TableCell>
-                      <TableCell><strong>Lot Number</strong></TableCell>
-                      <TableCell><strong>Survey Number</strong></TableCell>
-                      <TableCell><strong>Area</strong></TableCell>
-                      <TableCell><strong>Title Number</strong></TableCell>
-                      <TableCell><strong>Assessed Value</strong></TableCell>
-                      <TableCell><strong>Effectivity</strong></TableCell>
-                      <TableCell><strong>Memoranda</strong></TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Tax Declaration No.</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Declarant</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Barangay</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Survey Number</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Area</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Title Number</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Assessed Value</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Effectivity</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: 220 }}>Memoranda</TableCell>
                     </TableRow>
                   </TableHead>
-                  <TableBody sx={{ '& td': { verticalAlign: 'top' } }}>
+                  <TableBody sx={{ '& td': { verticalAlign: 'top', py: 1 } }}>
                     {taxHistory.map((item, index) => {
-                      // Check if this TDN is consolidated (appears in another item's previous_tax_declaration_number)
                       const wasConsolidatedInto = taxHistory.some(otherItem => {
                         if (otherItem.previous_tax_declaration_number && String(otherItem.previous_tax_declaration_number).includes(';')) {
                           const prevTds = String(otherItem.previous_tax_declaration_number).split(';').map(td => String(td).trim());
@@ -1250,103 +1931,118 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
                         }
                         return false;
                       });
-                      // Check if this TDN is a consolidated TD (has previous_tax_declaration_number with semicolons)
                       const isConsolidatedTD = item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';');
                       const isConsolidated = wasConsolidatedInto || isConsolidatedTD;
 
+                      const stateText = item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous');
+                      const isCurrentState = stateText === 'current';
+                      const isCancelledState = stateText === 'cancelled';
+
                       return (
-                        <TableRow key={index} hover>
+                        <TableRow
+                          key={index}
+                          hover
+                          sx={{
+                            backgroundColor: isCurrentState ? theme.palette.action.hover : 'inherit'
+                          }}
+                        >
                           <TableCell>
-                            <Typography variant="body2" fontWeight="600" color={isConsolidated ? "warning.main" : "primary"}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                color: isConsolidated
+                                  ? theme.palette.warning.main
+                                  : (isCurrentState ? theme.palette.primary.main : theme.palette.text.primary)
+                              }}
+                            >
                               {item.tax_declaration_number}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                              {item.property_state ? item.property_state.toLowerCase() : (index === 0 ? 'current' : 'previous')}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {item.previous_tax_declaration_number && String(item.previous_tax_declaration_number).includes(';') ? (
-                                <Box mt={0.5}>
-                                  <Typography variant="caption" color="white" bgcolor="warning.light" sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, fontWeight: 600 }}>
-                                    Consolidated
-                                  </Typography>
-                                </Box>
-                              ) : null}
-                            </Typography>
+
+                            <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                              <Chip
+                                label={stateText}
+                                size="small"
+                                variant="outlined"
+                                color={
+                                  isCurrentState
+                                    ? 'success'
+                                    : isCancelledState
+                                      ? 'error'
+                                      : 'default'
+                                }
+                                sx={{
+                                  height: 18,
+                                  fontSize: '0.65rem',
+                                  textTransform: 'uppercase',
+                                  fontWeight: 600
+                                }}
+                              />
+                              {isConsolidated && (
+                                <Chip
+                                  label="CONSOLIDATED"
+                                  size="small"
+                                  variant="outlined"
+                                  color="warning"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: '0.65rem',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              )}
+                            </Box>
                           </TableCell>
+
                           <TableCell>
                             {(() => {
                               const d = normalizeDeclarantString(item.declarant_name);
                               const b = sanitizeBusinessName(item.business_name);
-                              if (!d && !b) return '';
+                              if (!d && !b) return '—';
                               return (
-                                <>
+                                <Box>
                                   {d && (
-                                    <Typography style={{ fontSize: 12, fontWeight: 600 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
                                       {d}
                                     </Typography>
                                   )}
                                   {b && (
-                                    <Typography style={{ fontSize: 10 }}>
+                                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                                       {b}
                                     </Typography>
                                   )}
-                                </>
+                                </Box>
                               );
                             })()}
                           </TableCell>
-                          <TableCell>{item.location || '—'}</TableCell>
-                          <TableCell>{item.lot_number || '—'}</TableCell>
-                          <TableCell>{item.survey_number || '—'}</TableCell>
-                          <TableCell>
-                            {(() => {
-                              const haRaw = item.area_hectare;
-                              const sqmRaw = item.area_sqm;
-                              const oldHaRaw = item.area_hectare_old;
-                              const numHa = Number(haRaw);
-                              const numSqm = Number(sqmRaw);
-                              const hasHa = haRaw !== undefined && haRaw !== null && haRaw !== '' && !isNaN(numHa) && numHa > 0;
-                              const hasSqm = sqmRaw !== undefined && sqmRaw !== null && sqmRaw !== '' && !isNaN(numSqm) && numSqm > 0;
-                              const hasOldHa = !!(oldHaRaw && oldHaRaw !== '');
-                              if (!hasHa && !hasSqm && !hasOldHa) return '—';
-                              let currentArea = '';
-                              if (hasHa) {
-                                const unit = numHa <= 1 ? 'ha' : 'has';
-                                currentArea = `${numHa.toFixed(4)} ${unit}`;
-                              } else if (hasSqm) {
-                                currentArea = `${numSqm.toFixed(2)} sqm`;
-                              }
-                              if (hasOldHa && currentArea) return `${currentArea} ${oldHaRaw}`;
-                              if (hasOldHa) return oldHaRaw;
-                              return currentArea || '—';
-                            })()}
+
+                          <TableCell sx={{ fontSize: '0.85rem' }}>{item.location || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.85rem' }}>{item.lot_number || '—'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.85rem' }}>{item.survey_number || '—'}</TableCell>
+
+                          <TableCell sx={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                            {renderAreaDisplay(item)}
                           </TableCell>
-                          <TableCell>{item.title_number || '—'}</TableCell>
-                          <TableCell>
-                            {(() => {
-                              const currentValue = item.assessed_value;
-                              const oldValue = item.assessed_value_old;
-                              const hasCurrent = currentValue !== undefined && currentValue !== null;
-                              const hasOld = oldValue && oldValue !== '';
 
-                              if (!hasCurrent && !hasOld) return '₱0.00';
+                          <TableCell sx={{ fontSize: '0.85rem' }}>{item.title_number || '—'}</TableCell>
 
-                              let displayValue = '';
-                              if (hasCurrent) {
-                                displayValue = `₱${Number(currentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                              }
-
-                              if (hasOld && displayValue) {
-                                return `${displayValue} ${oldValue}`;
-                              } else if (hasOld) {
-                                return oldValue;
-                              } else {
-                                return displayValue || '₱0.00';
-                              }
-                            })()}
+                          <TableCell sx={{ fontSize: '0.85rem', fontWeight: 600, color: theme.palette.primary.main, whiteSpace: 'nowrap' }}>
+                            {renderAssessedValueDisplay(item)}
                           </TableCell>
-                          <TableCell>{formatEffectivityDisplay(item)}</TableCell>
+
+                          <TableCell sx={{ fontSize: '0.85rem' }}>{formatEffectivityDisplay(item)}</TableCell>
+
                           <TableCell sx={{ maxWidth: 280 }}>
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.8rem',
+                                color: theme.palette.text.primary,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                              }}
+                            >
                               {item.memoranda || '—'}
                             </Typography>
                           </TableCell>
@@ -1358,31 +2054,44 @@ const RequestFormModal = ({ property, onSave, onCancel, open, onClose }) => {
               </TableContainer>
             </Box>
           ) : (
-            <Typography color="text.secondary" textAlign="center">
-              No tax declaration history found for this property.
-            </Typography>
+            <Box py={6} textAlign="center">
+              <Typography color="text.secondary">
+                No tax declaration history found for this property.
+              </Typography>
+            </Box>
           )}
         </DialogContent>
 
-        <DialogActions sx={{ p: 3, pt: 0 }}>
+        <DialogActions
+          sx={{
+            py: 1.5,
+            px: { xs: 2, sm: 3 },
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: theme.palette.background.default,
+            display: 'flex',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}
+        >
           <Button
             onClick={() => setTaxHistoryModal(false)}
             variant="outlined"
           >
             Close
           </Button>
+
           <Button
             onClick={handleConfirmProperty}
             variant="contained"
             color="success"
-            startIcon={<Save />}
           >
             Confirm Property Selection
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Toast Notification */}
+      {/* ================= TOAST NOTIFICATION ================= */}
       <Snackbar
         open={toast.open}
         autoHideDuration={6000}

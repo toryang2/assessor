@@ -437,7 +437,7 @@ const BulkRequestModal = ({
                 fullWidth
                 size="small"
                 label="Client Address"
-                placeholder="e.g. POBLACION, KITAOTAO"
+                placeholder="e.g. Street, Barangay, Municipality/City, Province"
                 value={formData.client_address}
                 inputProps={{ style: { textTransform: 'uppercase' } }}
                 onChange={(e) => handleFieldChange('client_address', e.target.value)}
