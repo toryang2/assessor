@@ -26,6 +26,7 @@
     "cross-env": "^7.0.3",
     "env-cmd": "^11.0.0",
     "http-proxy-middleware": "^3.0.5",
+    "patch-package": "^8.0.1",
     "react-scripts": "^5.0.1",
     "tailwindcss": "^4.1.14"
   },
@@ -33,7 +34,7 @@
     "download:fonts": "node scripts/download-fonts.cjs",
     "prestart": "npm run download:fonts",
     "prebuild": "npm run download:fonts",
-    "postinstall": "npm run download:fonts",
+    "postinstall": "patch-package && npm run download:fonts",
     "prebuild:prod": "npm run download:fonts",
     "prebuild:local": "npm run download:fonts",
     "start": "react-scripts start",
