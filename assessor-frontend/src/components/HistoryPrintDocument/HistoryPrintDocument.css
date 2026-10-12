@@ -23,7 +23,7 @@
 
   @page {
     size: auto;
-    margin: 8mm 6mm;
+    margin: 8mm 6mm 15mm;
   }
 
   table {
@@ -879,7 +879,7 @@ table.history-table,
 .print-security-notice {
   font-size: 8.5px;
   text-align: center;
-  color: #94a3b8;
+  color: #64748b;
   margin-top: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
