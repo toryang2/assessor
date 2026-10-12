@@ -807,13 +807,13 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
   return `
     @page {
       size: auto;
-      margin: 8mm 6mm;
+      margin: 8mm 6mm 15mm;
 
       @bottom-right {
         content: counter(page) "/" counter(pages);
         font-family: 'Arial', sans-serif;
         font-size: 10px;
-        color: #ddddddff;
+        color: #64748b;
       }
     }
 
