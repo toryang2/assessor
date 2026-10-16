@@ -88,9 +88,33 @@
   .print-signature,
   .signatories-grid,
   .print-receipt-docket,
-  .receipt-box {
-    page-break-inside: avoid;
-    break-inside: avoid;
+  .receipt-box,
+  .print-property-archive-panel,
+  .print-property-verification-area,
+  .qr-flush-container {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .qr-verification-modal-backdrop,
+  .qr-verification-modal-dialog {
+    display: none !important;
+  }
+
+  .qr-flush-container {
+    background-color: #ffffff !important;
+    border: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    cursor: default !important;
+  }
+
+  .qr-flush-svg {
+    display: block !important;
+  }
+
+  .qr-verification-strip-btn {
+    cursor: default !important;
   }
 
   .history-table,
@@ -883,4 +907,643 @@ table.history-table,
   margin-top: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+}
+
+/* ==========================================================================
+   QR BASE & OFFICIAL QR VERIFICATION BASE MODAL STYLES
+   Visual Match to AI Studio Certification QR Base Component
+   ========================================================================== */
+
+/* Receipt box body with QR layout */
+.print-receipt-body-with-qr {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.print-receipt-body-with-qr .print-receipt-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+.print-receipt-qr-side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+}
+
+/* OFFICIAL QR VERIFICATION BASE - Flush Square QR (Latest AI Studio Design) */
+.qr-flush-container {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: opacity 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.print-receipt-qr-side .qr-flush-container {
+  width: 108px;
+  height: 108px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  padding: 0;
+}
+
+.print-receipt-qr-side .qr-flush-svg {
+  display: block;
+  width: 108px !important;
+  height: 108px !important;
+  aspect-ratio: 1 / 1 !important;
+  flex-shrink: 0 !important;
+}
+
+.qr-flush-container:hover {
+  opacity: 0.9;
+}
+
+.qr-flush-svg {
+  display: block;
+}
+
+/* Verification Strip */
+.print-verification-strip-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.print-verification-strip-container.property-strip {
+  margin-top: 4px;
+  justify-content: flex-start;
+}
+
+.qr-verification-strip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 8px;
+  color: #0f172a;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.qr-verification-strip-btn:hover {
+  color: #1d4ed8;
+  background-color: #eff6ff;
+}
+
+.qr-strip-icon {
+  width: 12px;
+  height: 12px;
+  color: #1e3a8a;
+  flex-shrink: 0;
+}
+
+.qr-strip-lot {
+  font-weight: 900;
+  color: #020617;
+}
+
+.qr-strip-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  color: #172554;
+}
+
+/* ==========================================================================
+   RECORD VERIFICATION DATA FORM - BOTTOM QR & ARCHIVE RECORD PANEL
+   (NON-CERTIFICATE PROPERTYTABLE PRINT LAYOUT)
+   ========================================================================== */
+.print-property-archive-panel {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #f8fafc;
+  border: 1px solid #94a3b8;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #334155;
+}
+
+.print-property-archive-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+
+.print-property-archive-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.print-property-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  background-color: #1e40af;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+
+.print-property-form-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.print-property-form-ref-val {
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.print-property-archive-desc {
+  font-size: 9.5px;
+  color: #334155;
+  line-height: 1.35;
+  margin: 0;
+  word-break: break-word;
+}
+
+.print-property-owner-strong {
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.print-property-archive-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 8.5px;
+  color: #64748b;
+  padding-top: 5px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.print-property-archive-meta .meta-strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.print-property-archive-meta .meta-sep {
+  color: #94a3b8;
+}
+
+.print-property-archive-meta .meta-status {
+  color: #166534;
+  font-weight: 700;
+}
+
+.print-property-archive-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px;
+}
+
+.property-qr-box {
+  width: 72px;
+  height: 72px;
+  background-color: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  padding: 2px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.property-qr-box:hover {
+  border-color: #1e40af;
+  box-shadow: 0 2px 6px rgba(30, 64, 175, 0.15);
+}
+
+.print-property-qr-caption {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 7.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+/* ==========================================================================
+   OFFICIAL QR VERIFICATION BASE MODAL (SCREEN PREVIEW)
+   ========================================================================== */
+.qr-verification-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.qr-verification-modal-dialog {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 560px;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+  animation: qrModalFadeIn 0.15s ease-out;
+}
+
+@keyframes qrModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Modal Header */
+.qr-modal-header {
+  padding: 16px;
+  background: linear-gradient(to right, #172554, #0f172a, #1e1b4b);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qr-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qr-modal-header-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.qr-modal-header-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.qr-modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.qr-modal-subtitle {
+  font-size: 11px;
+  color: rgba(191, 219, 254, 0.8);
+  margin: 2px 0 0 0;
+  line-height: 1.2;
+}
+
+.qr-modal-close-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 8px;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.qr-modal-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.qr-modal-close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Modal Body */
+.qr-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* Highlight Summary Cards */
+.qr-modal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qr-modal-summary-card {
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.qr-modal-summary-card.lot-card {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.qr-modal-summary-card.ref-card {
+  background-color: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.qr-modal-summary-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.qr-modal-summary-label.lot-label {
+  color: #1d4ed8;
+}
+
+.qr-modal-summary-label.ref-label {
+  color: #4338ca;
+}
+
+.qr-modal-summary-val {
+  font-size: 14px;
+  font-weight: 900;
+  margin: 3px 0 0 0;
+  line-height: 1.35;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.qr-modal-summary-val.lot-val {
+  color: #172554;
+  font-size: 15px;
+}
+
+.qr-modal-summary-val.ref-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e1b4b;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.qr-modal-summary-caption {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.qr-modal-summary-caption.lot-caption {
+  color: #2563eb;
+}
+
+.qr-modal-summary-caption.ref-caption {
+  color: #4f46e5;
+}
+
+/* Scanner simulation */
+.qr-modal-scanner-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.qr-modal-qr-preview-box {
+  width: 200px;
+  height: 220px;
+  padding: 10px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex: 0 0 auto;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.qr-modal-svg {
+  display: block !important;
+  width: 180px !important;
+  height: 180px !important;
+  aspect-ratio: 1 / 1 !important;
+  flex: 0 0 180px !important;
+}
+
+.qr-modal-scan-hint {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 8px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.qr-modal-payload-box {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qr-modal-payload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.qr-modal-payload-label {
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qr-modal-scan-icon {
+  width: 14px;
+  height: 14px;
+  color: #1d4ed8;
+}
+
+.qr-modal-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background-color: #dbeafe;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.qr-modal-copy-btn:hover {
+  background-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.qr-copy-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.qr-copy-check-icon {
+  width: 12px;
+  height: 12px;
+  color: #059669;
+}
+
+.qr-modal-payload-code {
+  background-color: #0f172a;
+  border-radius: 8px;
+  padding: 10px;
+  color: #34d399;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 160px;
+  border: 1px solid #1e293b;
+  box-sizing: border-box;
+}
+
+.qr-modal-payload-code pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+}
+
+.qr-modal-description {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Modal Footer */
+.qr-modal-footer {
+  padding: 14px 16px;
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qr-modal-control-info {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11.5px;
+  color: #64748b;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-width: 70%;
+}
+
+.qr-modal-footer-close-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qr-modal-footer-close-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
 }

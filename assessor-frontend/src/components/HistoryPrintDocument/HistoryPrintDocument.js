@@ -1,6 +1,7 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { Typography } from '@mui/material';
-import { Receipt, Layers, AlignJustify } from 'lucide-react';
+import { Receipt, Layers, AlignJustify, QrCode, Scan, Copy, Check, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
 import {
   HISTORY_TABLE_STYLES,
@@ -215,6 +216,143 @@ const HistoryPrintDocument = forwardRef(
       : (printHistory && printHistory[0] && (printHistory[0].id || printHistory[0].property_id))
         ? String(printHistory[0].id || printHistory[0].property_id)
         : 'CERT-HIST';
+
+    // Lot Number Resolution
+    const resolvedLotNumber =
+      printHistory?.[0]?.lot_number ||
+      printPropertyData?.lot_number ||
+      requestData?.lot_number ||
+      requestData?.lotNumber ||
+      'N/A';
+
+    // Additional QR Payload fields resolution from current document data
+    const qrTdNumber =
+      (printHistory && printHistory[0] && printHistory[0].tax_declaration_number) ||
+      printPropertyData?.tax_declaration_number ||
+      requestData?.tax_declaration_number ||
+      '';
+
+    const qrControlNo =
+      (requestData && (requestData.cert_number || requestData.control_no || requestData.control_number)) ||
+      '';
+
+    const qrPin =
+      (printHistory && printHistory[0] && printHistory[0].pin) ||
+      printPropertyData?.pin ||
+      requestData?.pin ||
+      '';
+
+    const qrOwner =
+      normalizeDeclarantString(printHistory?.[0]?.declarant_name) ||
+      (printPropertyData && normalizeDeclarantString(printPropertyData.declarant_name)) ||
+      (requestData && (requestData.owner_name || requestData.client_name)) ||
+      '';
+
+    const qrOrNumber = receiptNumber || (requestData && requestData.receipt_number) || '';
+
+    const qrDateIssued = formattedDateIssued !== '—' ? formattedDateIssued : (rawDateIssued || '');
+
+    const qrMunicipality = `${toFormalCase(baseMunicipality)}, ${toFormalCase(baseProvince)}`;
+
+    const qrTimeGenerated = formattedGeneratedAt !== '—'
+      ? formattedGeneratedAt
+      : (printGeneratedAt ? formatAppDateTime(printGeneratedAt) : formatAppDateTime(new Date()));
+
+    // Distinct payloads based on document type (PropertyTable vs RequestTable)
+    // For RequestTable: concise labels reduce QR density while keeping full verification information
+    const qrPayload = isRequest
+      ? [
+        `LOT: ${resolvedLotNumber}`,
+        `REF: ${referenceId}`,
+        qrTdNumber ? `TD: ${qrTdNumber}` : null,
+        qrControlNo ? `CTRL: ${qrControlNo}` : null,
+        qrPin ? `PIN: ${qrPin}` : null,
+        qrOwner ? `OWNER: ${qrOwner}` : null,
+        qrOrNumber ? `OR: ${qrOrNumber}` : null,
+        amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT: ${currencySymbol}${amountPaidFormatted}` : null,
+        qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,
+        qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
+        `STATUS: OFFICIAL RECORD`
+      ].filter(Boolean).join('\n')
+      : [
+        `LOT NUMBER: ${resolvedLotNumber}`,
+        `REF ID: ${referenceId}`,
+        qrTdNumber ? `TD NUMBER: ${qrTdNumber}` : null,
+        qrPin ? `PIN: ${qrPin}` : null,
+        qrOwner ? `DECLARED OWNER: ${qrOwner}` : null,
+        `TIME GENERATED: ${qrTimeGenerated}`,
+        qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
+        `STATUS: ARCHIVE RECORD VERIFICATION`
+      ].filter(Boolean).join('\n');
+
+    // QR Scan Modal State
+    const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    const handleOpenScanModal = () => {
+      setCopied(false);
+      setIsQrModalOpen(true);
+    };
+
+    const handleCloseScanModal = () => {
+      setIsQrModalOpen(false);
+    };
+
+    const handleCopyQrPayload = () => {
+      if (!qrPayload) return;
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(qrPayload)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          })
+          .catch(() => {
+            // Graceful fallback
+            setCopied(false);
+          });
+      }
+    };
+
+    // Shared Flush Square QR component (matching latest AI Studio implementation)
+    const renderQrBaseCard = (extraClass = '', qrSize = 108) => (
+      <div
+        className={`qr-flush-container ${extraClass}`}
+        onClick={handleOpenScanModal}
+        title="Official QR Verification Base - Click to preview scanned data"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleOpenScanModal();
+          }
+        }}
+      >
+        <QRCodeSVG
+          value={qrPayload}
+          size={qrSize}
+          level="M"
+          includeMargin={true}
+          className="qr-flush-svg"
+        />
+      </div>
+    );
+
+    // Shared QR Verification Strip button
+    const renderVerificationStrip = () => (
+      <button
+        type="button"
+        onClick={handleOpenScanModal}
+        className="qr-verification-strip-btn"
+        title="Click to preview QR code scan result"
+      >
+        <QrCode className="qr-strip-icon" />
+        <span>
+          {/* QR Base: <strong className="qr-strip-lot">Lot {resolvedLotNumber}</strong> &bull; */}Ref ID:{' '}
+          <strong className="qr-strip-ref">{referenceId}</strong>
+        </span>
+      </button>
+    );
 
     // Signatory 1: Prepared by resolution
     const preparedByName = (requestData && requestData.prepared_by)
@@ -725,49 +863,122 @@ const HistoryPrintDocument = forwardRef(
           )} */}
           {/* Official Receipt Particulars / Local Government Audit Trail Box (Request Only) */}
           {isRequest && (
-            <div className="print-receipt-docket receipt-box">
-              <div className="print-receipt-docket-header">
-                <div className="print-receipt-docket-title">
-                  <Receipt className="print-receipt-icon" />
-                  <span className="print-receipt-title-main">OFFICIAL RECEIPT PARTICULARS</span>
-                  {/* <span className="print-receipt-title-sub">(LOCAL GOVERNMENT AUDIT TRAIL)</span> */}
+            <>
+              <div className="print-receipt-docket receipt-box">
+                <div className="print-receipt-docket-header">
+                  <div className="print-receipt-docket-title">
+                    <Receipt className="print-receipt-icon" />
+                    <span className="print-receipt-title-main">OFFICIAL RECEIPT PARTICULARS</span>
+                  </div>
                 </div>
-                {/* <span className="print-receipt-form-no">Form No. RPT-CERT-2026</span> */}
+
+                <div className="print-receipt-body-with-qr">
+                  <div className="print-receipt-grid">
+                    <div>
+                      <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
+                      <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
+                    </div>
+
+                    <div>
+                      <span className="print-receipt-field-label">Amount Paid:</span>
+                      <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
+                    </div>
+
+                    <div>
+                      <span className="print-receipt-field-label">Date Issued:</span>
+                      <span className="print-receipt-val-bold">{formattedDateIssued}</span>
+                    </div>
+
+                    <div className="print-receipt-col-span-2">
+                      <span className="print-receipt-field-label">Place Issued:</span>
+                      <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
+                    </div>
+
+                    <div className="print-receipt-purpose-row">
+                      <span className="print-receipt-field-label">Requested by:</span>
+                      <span className="print-receipt-val-purpose">{clientName}</span>
+                      <span className="print-receipt-field-label">Purpose:</span>
+                      <span className="print-receipt-val-purpose">{purpose}</span>
+                    </div>
+                  </div>
+
+                  <div className="print-receipt-qr-side">
+                    {renderQrBaseCard()}
+                  </div>
+                </div>
+
+                <div className="print-receipt-footer">
+                  <span className="print-receipt-seal">VALID ONLY WITH OFFICIAL RAISED DRY SEAL</span>
+                  {/* <span>Ref ID: {referenceId}</span> */}
+                  <div className="print-verification-strip-container">
+                    {renderVerificationStrip()}
+                  </div>
+                </div>
               </div>
 
-              <div className="print-receipt-grid">
-                <div>
-                  <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
-                  <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
+              {/* Clickable QR verification strip beneath the receipt box */}
+            </>
+          )}
+
+          {/* Property-only bottom document-verification archive panel (Non-Certificate) */}
+          {!isRequest && (
+            <div className="print-property-archive-panel">
+              <div className="print-property-archive-left">
+                <div className="print-property-archive-header">
+                  <span className="print-property-badge">
+                    RECORD VERIFICATION DATA
+                  </span>
                 </div>
 
-                <div>
-                  <span className="print-receipt-field-label">Amount Paid:</span>
-                  <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
-                </div>
+                <p className="print-property-archive-desc">
+                  Verified Real Property Archive Data for <strong className="print-property-owner-strong">{qrOwner || 'RECORD HOLDER'}</strong>. This record is synchronized with the assessor archiving system of <strong>{qrMunicipality}</strong>.
+                </p>
 
-                <div>
-                  <span className="print-receipt-field-label">Date Issued:</span>
-                  <span className="print-receipt-val-bold">{formattedDateIssued}</span>
-                </div>
-
-                <div className="print-receipt-col-span-2">
-                  <span className="print-receipt-field-label">Place Issued:</span>
-                  <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
-                </div>
-
-                <div className="print-receipt-purpose-row">
-                  <span className="print-receipt-field-label">Requested by:</span>
-                  <span className="print-receipt-val-purpose">{clientName}</span>
-                  <span className="print-receipt-field-label">Purpose:</span>
-                  <span className="print-receipt-val-purpose">{purpose}</span>
+                <div className="print-property-archive-meta">
+                  <span>LOT NO: <strong className="meta-strong">{resolvedLotNumber}</strong></span>
+                  <span className="meta-sep">&bull;</span>
+                  <span>TD NO: <strong className="meta-strong">{qrTdNumber || '—'}</strong></span>
+                  <span className="meta-sep">&bull;</span>
+                  <span>PIN: <strong className="meta-strong">{qrPin || '—'}</strong></span>
+                  <span className="meta-sep">&bull;</span>
+                  <span>TIME GENERATED: <strong className="meta-strong">{qrTimeGenerated}</strong></span>
+                  <span className="meta-sep">&bull;</span>
+                  <span className="meta-status">STATUS: ARCHIVE VERIFIED</span>
+                  <span className="meta-sep">&bull;</span>
+                  {isRequest ? '' : (
+                    <span>
+                      REF ID: <strong className="meta-strong">{referenceId || '—'}</strong>
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="print-receipt-footer">
-                {/* <span>Doc. Stamp Tax: PAID & AFFIXED</span> */}
-                <span className="print-receipt-seal">VALID ONLY WITH OFFICIAL RAISED DRY SEAL</span>
-                <span>Ref ID: {referenceId}</span>
+              {/* Right: Square QR Code with Scan to Verify caption */}
+              <div className="print-property-archive-right">
+                <div
+                  className="qr-flush-container property-qr-box"
+                  onClick={handleOpenScanModal}
+                  title="Click to preview decoded QR verification data"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleOpenScanModal();
+                    }
+                  }}
+                >
+                  <QRCodeSVG
+                    value={qrPayload}
+                    size={68}
+                    level="M"
+                    includeMargin={false}
+                    className="qr-flush-svg"
+                  />
+                </div>
+                <span className="print-property-qr-caption">
+                  Scan to Verify
+                </span>
               </div>
             </div>
           )}
@@ -776,19 +987,132 @@ const HistoryPrintDocument = forwardRef(
           <p className="print-security-notice">
             This document is generated by the Assessor's Archive System. Any alteration or erasure invalidates this document.
           </p>
-          <div className="print-receipt-footer">
+          {/* <div className="print-receipt-footer">
             <span>
               {isRequest
                 ? `System Generated Official Copy • ${formattedGeneratedAt}`
                 : `System Generated Copy • ${formattedGeneratedAt}`}
             </span>
             <span>
-              {isRequest
-                ? ``
-                : `Ref ID: ${referenceId}`}
+              {isRequest ? '' : `Ref ID: ${referenceId}`}
             </span>
-          </div>
+          </div> */}
         </div>
+
+        {/* Official QR Verification Base Modal (Screen Only) */}
+        {isQrModalOpen && (
+          <div
+            className="qr-verification-modal-backdrop"
+            onClick={handleCloseScanModal}
+            role="presentation"
+          >
+            <div
+              className="qr-verification-modal-dialog"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="qr-modal-title"
+            >
+              {/* Modal Header */}
+              <div className="qr-modal-header">
+                <div className="qr-modal-header-left">
+                  <div className="qr-modal-header-icon-box">
+                    <QrCode className="qr-modal-header-icon" />
+                  </div>
+                  <div>
+                    <h3 id="qr-modal-title" className="qr-modal-title">Official QR Verification Base</h3>
+                    <p className="qr-modal-subtitle">Decoded mobile scanner output preview</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseScanModal}
+                  className="qr-modal-close-btn"
+                  aria-label="Close modal"
+                >
+                  <X className="qr-modal-close-icon" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="qr-modal-body">
+                {/* Top summary highlight cards: Lot Number and Ref ID */}
+                <div className="qr-modal-summary-grid">
+                  <div className="qr-modal-summary-card lot-card">
+                    <span className="qr-modal-summary-label lot-label">Lot Number</span>
+                    <p className="qr-modal-summary-val lot-val" title={resolvedLotNumber}>
+                      {resolvedLotNumber}
+                    </p>
+                    <span className="qr-modal-summary-caption lot-caption">Scanned Primary Field</span>
+                  </div>
+
+                  <div className="qr-modal-summary-card ref-card">
+                    <span className="qr-modal-summary-label ref-label">Ref ID</span>
+                    <p className="qr-modal-summary-val ref-val" title={referenceId}>
+                      {referenceId}
+                    </p>
+                    <span className="qr-modal-summary-caption ref-caption">Unique Verification Ref</span>
+                  </div>
+                </div>
+
+                {/* QR Code and Scanner Simulation */}
+                <div className="qr-modal-scanner-section">
+                  <div className="qr-modal-qr-preview-box">
+                    <QRCodeSVG
+                      value={qrPayload}
+                      size={180}
+                      width={180}
+                      height={180}
+                      level="M"
+                      includeMargin={true}
+                      className="qr-modal-svg"
+                    />
+                    <span className="qr-modal-scan-hint">Scan With Camera</span>
+                  </div>
+
+                  <div className="qr-modal-payload-box">
+                    <div className="qr-modal-payload-header">
+                      <span className="qr-modal-payload-label">
+                        <Scan className="qr-modal-scan-icon" />
+                        <span>Decoded Text on Device</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyQrPayload}
+                        className="qr-modal-copy-btn"
+                      >
+                        {copied ? <Check className="qr-copy-check-icon" /> : <Copy className="qr-copy-icon" />}
+                        <span>{copied ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+
+                    <div className="qr-modal-payload-code">
+                      <pre>{qrPayload}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="qr-modal-description">
+                  Scanning this QR Code with an iPhone/Android camera, tablet, or handheld barcode scanner decodes the Lot Number, Reference ID, and official tax declaration records for immediate tamper-proof verification.
+                </p>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="qr-modal-footer">
+                <span className="qr-modal-control-info">
+                  {qrControlNo ? `Control: ${qrControlNo}` : `Ref ID: ${referenceId}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCloseScanModal}
+                  className="qr-modal-footer-close-btn"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   });
@@ -1013,9 +1337,33 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
     .print-signature,
     .signatories-grid,
     .print-receipt-docket,
-    .receipt-box {
+    .receipt-box,
+    .print-property-archive-panel,
+    .print-property-verification-area,
+    .qr-flush-container {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
+    }
+
+    .qr-verification-modal-backdrop,
+    .qr-verification-modal-dialog {
+      display: none !important;
+    }
+
+    .qr-flush-container {
+      background-color: #ffffff !important;
+      border: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      cursor: default !important;
+    }
+
+    .qr-flush-svg {
+      display: block !important;
+    }
+
+    .qr-verification-strip-btn {
+      cursor: default !important;
     }
   `;
 };
