@@ -1,9 +1,10 @@
-import React, { forwardRef, useState, useEffect } from 'react';
+import React, { forwardRef, useState, useEffect, useMemo } from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { Typography } from '@mui/material';
 import { Receipt, Layers, AlignJustify, QrCode, Scan, Copy, Check, X } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
+
 
 import {
   HISTORY_TABLE_STYLES,
@@ -31,7 +32,7 @@ export const calculateQrLogoSlot = (value, level = 'H') => {
     );
     const match = tempSvg.match(/viewBox="0 0 (\d+) (\d+)"/);
     const viewBoxSize = match && match[1] ? parseInt(match[1], 10) : 21;
-    const logoSlotUnits = Math.min(viewBoxSize * 0.25, 15);
+    const logoSlotUnits = Math.min(viewBoxSize * 0.40, 20);
     return Math.round(logoSlotUnits * 100) / 100;
   } catch {
     return 5;
@@ -201,7 +202,12 @@ const HistoryPrintDocument = forwardRef(
       HISTORY_TABLE_STYLES[DEFAULT_HISTORY_TABLE_STYLE];
 
     const rawLogo = (settings && settings.app_logo_url) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.app_logo_url) || '';
-    const appLogoUrl = rawLogo ? (rawLogo + (rawLogo.indexOf('?') === -1 ? '?v=' + Date.now() : '&v=' + Date.now())) : '';
+    const appLogoUrl = useMemo(() => {
+      if (!rawLogo) return '';
+
+      const separator = rawLogo.includes('?') ? '&' : '?';
+      return `${rawLogo}${separator}v=${Date.now()}`;
+    }, [rawLogo]);
     const headerPh = 'Republic of the Philippines';
     const baseProvince = (settings && settings.header_province) || (typeof window !== 'undefined' && window.__ASSESSOR_SETTINGS__ && window.__ASSESSOR_SETTINGS__.header_province) || 'Bukidnon';
     const headerProvince = `Province of ${toFormalCase(baseProvince)}`;
@@ -291,25 +297,29 @@ const HistoryPrintDocument = forwardRef(
     // For RequestTable: concise labels reduce QR density while keeping full verification information
     const qrPayload = isRequest
       ? [
-        `LOT NUMBER: ${resolvedLotNumber}`,
-        qrTdNumber ? `TD NUMBER: ${qrTdNumber}` : null,
-        qrPin ? `PIN: ${qrPin}` : null,
-        qrOrNumber ? `RECEIPT NO: ${qrOrNumber}` : null,
-        amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT PAID: ${currencySymbol}${amountPaidFormatted}` : null,
-        qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,
-        qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
-        `STATUS: OFFICIAL RECORD`,
-        `REF ID: ${referenceId}`
+        `Lot #: ${resolvedLotNumber}`,
+        qrTdNumber ? `TD #: ${qrTdNumber}` : null,
+        // qrControlNo ? `CTRL: ${qrControlNo}` : null,
+        // qrPin ? `PIN: ${qrPin}` : null,
+        // qrOwner ? `OWNER: ${qrOwner}` : null,
+        // qrOrNumber ? `OR: ${qrOrNumber}` : null,
+        // amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT: ${currencySymbol}${amountPaidFormatted}` : null,
+        // qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,qrOrNumber ? `RECEIPT NO: ${qrOrNumber}` : null,
+        // amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT PAID: ${currencySymbol}${amountPaidFormatted}` : null,
+        // qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,
+        // qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
+        // `STATUS: OFFICIAL RECORD`
+        `Ref ID: ${referenceId}`
       ].filter(Boolean).join('\n')
       : [
-        `LOT NUMBER: ${resolvedLotNumber}`,
-        qrTdNumber ? `TD NUMBER: ${qrTdNumber}` : null,
-        qrPin ? `PIN: ${qrPin}` : null,
+        `Lot #: ${resolvedLotNumber}`,
+        qrTdNumber ? `TD #: ${qrTdNumber}` : null,
+        // qrPin ? `PIN: ${qrPin}` : null,
         // qrOwner ? `DECLARED OWNER: ${qrOwner}` : null,
-        `TIME GENERATED: ${qrTimeGenerated}`,
-        qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
-        `STATUS: ARCHIVE RECORD VERIFICATION`,
-        `REF ID: ${referenceId}`
+        // `TIME GENERATED: ${qrTimeGenerated}`,
+        // qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
+        // `STATUS: ARCHIVE RECORD VERIFICATION`,
+        `Ref ID: ${referenceId}`
       ].filter(Boolean).join('\n');
 
     // QR Scan Modal State
@@ -343,8 +353,8 @@ const HistoryPrintDocument = forwardRef(
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, size, size);
 
-            // Inset logo by exactly 10% on each side to create subtle whitespace inside the slot
-            const pad = Math.round(size * 0.10);
+            // Inset logo by exactly 1% on each side to create subtle whitespace inside the slot
+            const pad = Math.round(size * 0.01);
             const drawSize = size - pad * 2;
             ctx.drawImage(img, pad, pad, drawSize, drawSize);
 
@@ -414,6 +424,17 @@ const HistoryPrintDocument = forwardRef(
         }
         : undefined;
 
+      const QR_CANVAS_SCALE = 4;
+      const canvasSize = qrSize * QR_CANVAS_SCALE;
+
+      const canvasImageSettings = imageSettings
+        ? {
+          ...imageSettings,
+          width: imageSettings.width * QR_CANVAS_SCALE,
+          height: imageSettings.height * QR_CANVAS_SCALE,
+        }
+        : undefined;
+
       return (
         <div className={`print-property-archive-right print-request-qr-side-inner ${extraClass}`}>
           <div
@@ -429,6 +450,14 @@ const HistoryPrintDocument = forwardRef(
               }
             }}
           >
+            <QRCodeCanvas
+              value={qrPayload}
+              size={canvasSize}
+              level="H"
+              includeMargin={false}
+              imageSettings={canvasImageSettings}
+              className="qr-flush-canvas-screen"
+            />
             <QRCodeSVG
               value={qrPayload}
               size={qrSize}
@@ -437,7 +466,7 @@ const HistoryPrintDocument = forwardRef(
               level="H"
               includeMargin={false}
               imageSettings={imageSettings}
-              className="qr-flush-svg"
+              className="qr-flush-svg-print qr-flush-svg"
             />
           </div>
           {caption && (
@@ -1460,8 +1489,16 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       box-shadow: none !important;
     }
 
-    .qr-flush-svg {
+    .qr-flush-canvas-screen {
       display: block !important;
+      width: 68px !important;
+      height: 68px !important;
+      flex: 0 0 68px !important;
+    }
+
+    .qr-flush-svg-print,
+    .qr-flush-svg:not(.qr-modal-svg) {
+      display: none !important;
     }
 
     .qr-verification-strip-btn {

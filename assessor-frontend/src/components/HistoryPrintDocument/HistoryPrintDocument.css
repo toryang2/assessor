@@ -1,6 +1,35 @@
-/* Print Styles for HistoryPrintDocument - Visual Match to Standalone HTML Specification */
+/* Screen: use the canvas renderer for the small QR preview. */
+@media screen {
+  .receipt-property-qr-box>.qr-flush-svg {
+    shape-rendering: crispEdges !important;
+  }
+
+  .qr-flush-canvas-screen {
+    display: block !important;
+    width: 68px !important;
+    height: 68px !important;
+    flex: 0 0 68px !important;
+  }
+
+  .qr-flush-svg-print {
+    display: none !important;
+  }
+}
 
 @media print {
+  /* Printing: use the high-resolution canvas renderer for crisp print output. */
+  .qr-flush-canvas-screen {
+    display: block !important;
+    width: 68px !important;
+    height: 68px !important;
+    flex: 0 0 68px !important;
+  }
+
+  .qr-flush-svg-print,
+  .qr-flush-svg:not(.qr-modal-svg) {
+    display: none !important;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
@@ -117,7 +146,7 @@
     box-sizing: border-box !important;
   }
 
-  .qr-flush-svg {
+  .qr-flush-svg:not(.qr-flush-svg-print) {
     display: block !important;
   }
 
