@@ -1,13 +1,42 @@
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useState, useEffect } from 'react';
+import ReactDOMServer from 'react-dom/server';
 import { Typography } from '@mui/material';
 import { Receipt, Layers, AlignJustify, QrCode, Scan, Copy, Check, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
+
 import {
   HISTORY_TABLE_STYLES,
   DEFAULT_HISTORY_TABLE_STYLE
 } from './HistoryTableStyles';
 import './HistoryPrintDocument.css';
+
+/**
+ * Dynamically calculates the logo slot size in QRCodeSVG viewBox units (modules)
+ * based on the actual QR matrix dimension.
+ *
+ * Formula:
+ * const logoSlotUnits = Math.min(viewBoxSize * 0.25, 9);
+ */
+export const calculateQrLogoSlot = (value, level = 'H') => {
+  if (!value) return 0;
+  try {
+    const tempSvg = ReactDOMServer.renderToStaticMarkup(
+      React.createElement(QRCodeSVG, {
+        value,
+        level,
+        size: 100,
+        includeMargin: false,
+      })
+    );
+    const match = tempSvg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const viewBoxSize = match && match[1] ? parseInt(match[1], 10) : 21;
+    const logoSlotUnits = Math.min(viewBoxSize * 0.25, 15);
+    return Math.round(logoSlotUnits * 100) / 100;
+  } catch {
+    return 5;
+  }
+};
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -262,32 +291,87 @@ const HistoryPrintDocument = forwardRef(
     // For RequestTable: concise labels reduce QR density while keeping full verification information
     const qrPayload = isRequest
       ? [
-        `LOT: ${resolvedLotNumber}`,
-        `REF: ${referenceId}`,
-        qrTdNumber ? `TD: ${qrTdNumber}` : null,
-        qrControlNo ? `CTRL: ${qrControlNo}` : null,
+        `LOT NUMBER: ${resolvedLotNumber}`,
+        qrTdNumber ? `TD NUMBER: ${qrTdNumber}` : null,
         qrPin ? `PIN: ${qrPin}` : null,
-        qrOwner ? `OWNER: ${qrOwner}` : null,
-        qrOrNumber ? `OR: ${qrOrNumber}` : null,
-        amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT: ${currencySymbol}${amountPaidFormatted}` : null,
+        qrOrNumber ? `RECEIPT NO: ${qrOrNumber}` : null,
+        amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT PAID: ${currencySymbol}${amountPaidFormatted}` : null,
         qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,
         qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
-        `STATUS: OFFICIAL RECORD`
+        `STATUS: OFFICIAL RECORD`,
+        `REF ID: ${referenceId}`
       ].filter(Boolean).join('\n')
       : [
         `LOT NUMBER: ${resolvedLotNumber}`,
-        `REF ID: ${referenceId}`,
         qrTdNumber ? `TD NUMBER: ${qrTdNumber}` : null,
         qrPin ? `PIN: ${qrPin}` : null,
-        qrOwner ? `DECLARED OWNER: ${qrOwner}` : null,
+        // qrOwner ? `DECLARED OWNER: ${qrOwner}` : null,
         `TIME GENERATED: ${qrTimeGenerated}`,
         qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
-        `STATUS: ARCHIVE RECORD VERIFICATION`
+        `STATUS: ARCHIVE RECORD VERIFICATION`,
+        `REF ID: ${referenceId}`
       ].filter(Boolean).join('\n');
 
     // QR Scan Modal State
     const [isQrModalOpen, setIsQrModalOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [paddedLogoUrl, setPaddedLogoUrl] = useState(appLogoUrl);
+
+    useEffect(() => {
+      if (!appLogoUrl) {
+        setPaddedLogoUrl('');
+        return;
+      }
+      if (typeof window === 'undefined' || typeof document === 'undefined') {
+        setPaddedLogoUrl(appLogoUrl);
+        return;
+      }
+
+      let isMounted = true;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          // High-resolution canvas (256x256) to ensure razor-sharp rendering on print and in modal preview
+          const size = 256;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // Fill entire slot background with pure white
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+
+            // Inset logo by exactly 10% on each side to create subtle whitespace inside the slot
+            const pad = Math.round(size * 0.10);
+            const drawSize = size - pad * 2;
+            ctx.drawImage(img, pad, pad, drawSize, drawSize);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            if (isMounted) {
+              setPaddedLogoUrl(dataUrl);
+            }
+            return;
+          }
+        } catch (e) {
+          // Fallback if canvas is tainted by CORS
+        }
+        if (isMounted) {
+          setPaddedLogoUrl(appLogoUrl);
+        }
+      };
+      img.onerror = () => {
+        if (isMounted) {
+          setPaddedLogoUrl(appLogoUrl);
+        }
+      };
+      img.src = appLogoUrl;
+
+      return () => {
+        isMounted = false;
+      };
+    }, [appLogoUrl]);
 
     const handleOpenScanModal = () => {
       setCopied(false);
@@ -313,30 +397,57 @@ const HistoryPrintDocument = forwardRef(
       }
     };
 
-    // Shared Flush Square QR component (matching latest AI Studio implementation)
-    const renderQrBaseCard = (extraClass = '', qrSize = 108) => (
-      <div
-        className={`qr-flush-container ${extraClass}`}
-        onClick={handleOpenScanModal}
-        title="Official QR Verification Base - Click to preview scanned data"
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleOpenScanModal();
-          }
-        }}
-      >
-        <QRCodeSVG
-          value={qrPayload}
-          size={qrSize}
-          level="M"
-          includeMargin={true}
-          className="qr-flush-svg"
-        />
-      </div>
-    );
+    // Shared QR Base component following PropertyTable's design exactly:
+    // Outer box: 72px x 72px, 1px solid #94a3b8 border, 4px radius, 2px padding, white background.
+    // QR SVG: 68px x 68px with level H and excavate: true using built-in imageSettings with canonical logo slot.
+    const renderQrBaseCard = (extraClass = '', qrSize = 68, caption = 'Scan to Verify') => {
+      // Calculate logo slot size in QRCodeSVG viewBox coordinate units:
+      // logoSlotUnits = Math.min(viewBoxSize * 0.25, 9)
+      const slotUnits = calculateQrLogoSlot(qrPayload, 'H');
+
+      const imageSettings = paddedLogoUrl && slotUnits > 0
+        ? {
+          src: paddedLogoUrl,
+          width: slotUnits,
+          height: slotUnits,
+          excavate: true
+        }
+        : undefined;
+
+      return (
+        <div className={`print-property-archive-right print-request-qr-side-inner ${extraClass}`}>
+          <div
+            className="qr-flush-container property-qr-box receipt-property-qr-box"
+            onClick={handleOpenScanModal}
+            title="Official QR Verification Base - Click to preview scanned data"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleOpenScanModal();
+              }
+            }}
+          >
+            <QRCodeSVG
+              value={qrPayload}
+              size={qrSize}
+              width={qrSize}
+              height={qrSize}
+              level="H"
+              includeMargin={false}
+              imageSettings={imageSettings}
+              className="qr-flush-svg"
+            />
+          </div>
+          {caption && (
+            <span className="print-property-qr-caption">
+              {caption}
+            </span>
+          )}
+        </div>
+      );
+    };
 
     // Shared QR Verification Strip button
     const renderVerificationStrip = () => (
@@ -872,38 +983,38 @@ const HistoryPrintDocument = forwardRef(
                   </div>
                 </div>
 
-                <div className="print-receipt-body-with-qr">
-                  <div className="print-receipt-grid">
-                    <div>
-                      <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
-                      <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
-                    </div>
+                <div className="print-receipt-grid">
+                  <div>
+                    <span className="print-receipt-field-label">Receipt # (O.R. No.):</span>
+                    <span className="print-receipt-val-blue print-receipt-number">{receiptNumber || '—'}</span>
+                  </div>
 
-                    <div>
-                      <span className="print-receipt-field-label">Amount Paid:</span>
-                      <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
-                    </div>
+                  <div>
+                    <span className="print-receipt-field-label">Amount Paid:</span>
+                    <span className="print-receipt-val-amount">{currencySymbol}{amountPaidFormatted}</span>
+                  </div>
 
-                    <div>
-                      <span className="print-receipt-field-label">Date Issued:</span>
-                      <span className="print-receipt-val-bold">{formattedDateIssued}</span>
-                    </div>
+                  <div>
+                    <span className="print-receipt-field-label">Date Issued:</span>
+                    <span className="print-receipt-val-bold">{formattedDateIssued}</span>
+                  </div>
 
-                    <div className="print-receipt-col-span-2">
-                      <span className="print-receipt-field-label">Place Issued:</span>
-                      <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
-                    </div>
+                  <div className="print-receipt-col-span-2">
+                    <span className="print-receipt-field-label">Place Issued:</span>
+                    <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
+                  </div>
 
-                    <div className="print-receipt-purpose-row">
+                  <div className="print-receipt-purpose-row">
+                    <div className="print-receipt-purpose-content">
                       <span className="print-receipt-field-label">Requested by:</span>
                       <span className="print-receipt-val-purpose">{clientName}</span>
                       <span className="print-receipt-field-label">Purpose:</span>
                       <span className="print-receipt-val-purpose">{purpose}</span>
                     </div>
-                  </div>
 
-                  <div className="print-receipt-qr-side">
-                    {renderQrBaseCard()}
+                    <div className="print-receipt-purpose-qr">
+                      {renderQrBaseCard('request-receipt-qr', 68, '')}
+                    </div>
                   </div>
                 </div>
 
@@ -954,32 +1065,7 @@ const HistoryPrintDocument = forwardRef(
               </div>
 
               {/* Right: Square QR Code with Scan to Verify caption */}
-              <div className="print-property-archive-right">
-                <div
-                  className="qr-flush-container property-qr-box"
-                  onClick={handleOpenScanModal}
-                  title="Click to preview decoded QR verification data"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleOpenScanModal();
-                    }
-                  }}
-                >
-                  <QRCodeSVG
-                    value={qrPayload}
-                    size={68}
-                    level="M"
-                    includeMargin={false}
-                    className="qr-flush-svg"
-                  />
-                </div>
-                <span className="print-property-qr-caption">
-                  Scan to Verify
-                </span>
-              </div>
+              {renderQrBaseCard('print-property-archive-qr', 68, 'Scan to Verify')}
             </div>
           )}
 
@@ -1058,15 +1144,21 @@ const HistoryPrintDocument = forwardRef(
                 {/* QR Code and Scanner Simulation */}
                 <div className="qr-modal-scanner-section">
                   <div className="qr-modal-qr-preview-box">
-                    <QRCodeSVG
-                      value={qrPayload}
-                      size={180}
-                      width={180}
-                      height={180}
-                      level="M"
-                      includeMargin={true}
-                      className="qr-modal-svg"
-                    />
+                    <div className="qr-modal-preview-wrapper" style={{ position: 'relative', width: '180px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <QRCodeSVG
+                        value={qrPayload}
+                        size={68}
+                        level="H"
+                        includeMargin={false}
+                        imageSettings={paddedLogoUrl ? {
+                          src: paddedLogoUrl,
+                          width: calculateQrLogoSlot(qrPayload, 'H'),
+                          height: calculateQrLogoSlot(qrPayload, 'H'),
+                          excavate: true
+                        } : undefined}
+                        className="qr-modal-svg"
+                      />
+                    </div>
                     <span className="qr-modal-scan-hint">Scan With Camera</span>
                   </div>
 
@@ -1356,6 +1448,16 @@ export const getHistoryPrintPageStyle = (paperSize = 'a4') => {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       cursor: default !important;
+    }
+
+    .print-root .property-qr-box,
+    .property-qr-box {
+      border: 1px solid #94a3b8 !important;
+      padding: 2px !important;
+      background-color: #ffffff !important;
+      border-radius: 4px !important;
+      box-sizing: border-box !important;
+      box-shadow: none !important;
     }
 
     .qr-flush-svg {

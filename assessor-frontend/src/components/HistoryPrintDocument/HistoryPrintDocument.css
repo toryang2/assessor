@@ -109,6 +109,14 @@
     cursor: default !important;
   }
 
+  .print-root .property-qr-box {
+    border: 1px solid #94a3b8 !important;
+    padding: 2px !important;
+    background-color: #ffffff !important;
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+  }
+
   .qr-flush-svg {
     display: block !important;
   }
@@ -808,6 +816,7 @@ table.history-table,
   column-gap: 12px;
   row-gap: 6px;
   font-size: 9px;
+  line-height: 1.35;
 }
 
 .print-receipt-col-span-2 {
@@ -821,6 +830,7 @@ table.history-table,
   font-weight: 600;
   color: #64748b;
   margin-bottom: 1px;
+  line-height: 1.35;
 }
 
 .print-receipt-val-blue,
@@ -829,6 +839,7 @@ table.history-table,
   font-weight: 700;
   color: #1e40af;
   font-size: 10px;
+  line-height: 1.35;
 }
 
 .print-receipt-val-amount {
@@ -836,38 +847,72 @@ table.history-table,
   font-weight: 700;
   color: #0f172a;
   font-size: 10px;
-}
-
-.print-receipt-val-amount {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-weight: 700;
-  color: #0f172a;
-  font-size: 10px;
+  line-height: 1.35;
 }
 
 .print-receipt-val-bold {
   font-weight: 600;
   color: #1e293b;
   font-size: 9px;
+  line-height: 1.35;
 }
 
 .print-receipt-val-medium {
   font-weight: 500;
   color: #1e293b;
   font-size: 9px;
+  line-height: 1.35;
 }
 
 .print-receipt-purpose-row {
-  grid-column: span 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  grid-column: 1 / -1;
   border-top: 1px dashed #cbd5e1;
   padding-top: 6px;
   margin-top: 4px;
+}
+
+.print-receipt-purpose-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.print-receipt-purpose-qr {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+}
+
+.print-receipt-purpose-qr .qr-flush-container {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  padding: 2px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+}
+
+.print-receipt-purpose-qr .qr-flush-svg {
+  display: block;
+  width: 68px !important;
+  height: 68px !important;
 }
 
 .print-receipt-val-purpose {
   font-weight: 600;
   color: #0f172a;
   font-size: 9.5px;
+  line-height: 1.35;
 }
 
 .print-receipt-footer {
@@ -914,28 +959,14 @@ table.history-table,
    Visual Match to AI Studio Certification QR Base Component
    ========================================================================== */
 
-/* Receipt box body with QR layout */
-.print-receipt-body-with-qr {
+.print-request-qr-side-inner {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-
-.print-receipt-body-with-qr .print-receipt-grid {
-  flex: 1;
-  min-width: 0;
-}
-
-.print-receipt-qr-side {
-  flex-shrink: 0;
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  align-self: center;
 }
 
-/* OFFICIAL QR VERIFICATION BASE - Flush Square QR (Latest AI Studio Design) */
+/* OFFICIAL QR VERIFICATION BASE - Flush Square QR */
 .qr-flush-container {
   flex-shrink: 0;
   display: flex;
@@ -943,34 +974,53 @@ table.history-table,
   justify-content: center;
   background-color: #ffffff;
   cursor: pointer;
-  border-radius: 2px;
-  transition: opacity 0.15s ease;
+  border-radius: 4px;
   user-select: none;
   box-sizing: border-box;
+  position: relative;
 }
 
-.print-receipt-qr-side .qr-flush-container {
-  width: 108px;
-  height: 108px;
-  aspect-ratio: 1 / 1;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #ffffff;
-  padding: 0;
+.receipt-property-qr-box {
+  width: 72px !important;
+  height: 72px !important;
+  padding: 2px !important;
+  background-color: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative !important;
 }
 
-.print-receipt-qr-side .qr-flush-svg {
+.receipt-property-qr-box:hover {
+  border-color: #1e40af !important;
+  box-shadow: 0 2px 6px rgba(30, 64, 175, 0.15);
+}
+
+.receipt-property-qr-box .qr-flush-svg {
   display: block;
-  width: 108px !important;
-  height: 108px !important;
+  width: 68px !important;
+  height: 68px !important;
   aspect-ratio: 1 / 1 !important;
   flex-shrink: 0 !important;
 }
 
-.qr-flush-container:hover {
-  opacity: 0.9;
+
+.print-receipt-purpose-qr .print-property-qr-caption,
+.print-receipt-qr-bottom .print-property-qr-caption {
+  margin-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 7.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .qr-flush-svg {
