@@ -250,7 +250,7 @@ const HistoryPrintDocument = forwardRef(
       ? String(requestData.id)
       : (printHistory && printHistory[0] && (printHistory[0].id || printHistory[0].property_id))
         ? String(printHistory[0].id || printHistory[0].property_id)
-        : 'CERT-HIST';
+        : '—';
 
     // Lot Number Resolution
     const resolvedLotNumber =
@@ -258,34 +258,34 @@ const HistoryPrintDocument = forwardRef(
       printPropertyData?.lot_number ||
       requestData?.lot_number ||
       requestData?.lotNumber ||
-      'N/A';
+      '—';
 
     // Additional QR Payload fields resolution from current document data
     const qrTdNumber =
       (printHistory && printHistory[0] && printHistory[0].tax_declaration_number) ||
       printPropertyData?.tax_declaration_number ||
       requestData?.tax_declaration_number ||
-      '';
+      '—';
 
     const qrControlNo =
       (requestData && (requestData.cert_number || requestData.control_no || requestData.control_number)) ||
-      '';
+      '—';
 
     const qrPin =
       (printHistory && printHistory[0] && printHistory[0].pin) ||
       printPropertyData?.pin ||
       requestData?.pin ||
-      '';
+      '—';
 
     const qrOwner =
       normalizeDeclarantString(printHistory?.[0]?.declarant_name) ||
       (printPropertyData && normalizeDeclarantString(printPropertyData.declarant_name)) ||
       (requestData && (requestData.owner_name || requestData.client_name)) ||
-      '';
+      '—';
 
-    const qrOrNumber = receiptNumber || (requestData && requestData.receipt_number) || '';
+    const qrOrNumber = receiptNumber || (requestData && requestData.receipt_number) || '—';
 
-    const qrDateIssued = formattedDateIssued !== '—' ? formattedDateIssued : (rawDateIssued || '');
+    const qrDateIssued = formattedDateIssued !== '—' ? formattedDateIssued : (rawDateIssued || '—');
 
     const qrMunicipality = `${toFormalCase(baseMunicipality)}, ${toFormalCase(baseProvince)}`;
 
@@ -298,22 +298,20 @@ const HistoryPrintDocument = forwardRef(
     const qrPayload = isRequest
       ? [
         `Lot #: ${resolvedLotNumber}`,
-        qrTdNumber ? `TD #: ${qrTdNumber}` : null,
+        `TD #: ${qrTdNumber}`,
         // qrControlNo ? `CTRL: ${qrControlNo}` : null,
         // qrPin ? `PIN: ${qrPin}` : null,
         // qrOwner ? `OWNER: ${qrOwner}` : null,
         // qrOrNumber ? `OR: ${qrOrNumber}` : null,
         // amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT: ${currencySymbol}${amountPaidFormatted}` : null,
-        // qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,qrOrNumber ? `RECEIPT NO: ${qrOrNumber}` : null,
-        // amountPaidFormatted && amountPaidFormatted !== '0.00' ? `AMOUNT PAID: ${currencySymbol}${amountPaidFormatted}` : null,
-        // qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null,
+        // qrDateIssued ? `DATE ISSUED: ${qrDateIssued}` : null, qrOrNumber ? `RECEIPT NO: ${qrOrNumber}` : null,
         // qrMunicipality ? `MUNICIPALITY: ${qrMunicipality}` : null,
         // `STATUS: OFFICIAL RECORD`
         `Ref ID: ${referenceId}`
       ].filter(Boolean).join('\n')
       : [
         `Lot #: ${resolvedLotNumber}`,
-        qrTdNumber ? `TD #: ${qrTdNumber}` : null,
+        `TD #: ${qrTdNumber}`,
         // qrPin ? `PIN: ${qrPin}` : null,
         // qrOwner ? `DECLARED OWNER: ${qrOwner}` : null,
         // `TIME GENERATED: ${qrTimeGenerated}`,
@@ -686,7 +684,7 @@ const HistoryPrintDocument = forwardRef(
               <span className="label">EFFECTIVITY DATE:</span>
               <span className="value effectivity">
                 {(printHistory && printHistory[0] &&
-                  formatPrintEffectivity(printHistory[0])) || '—'}
+                  formatPrintEffectivity(printHistory[0])) || ''}
               </span>
             </div>
 
@@ -1028,9 +1026,9 @@ const HistoryPrintDocument = forwardRef(
                     <span className="print-receipt-val-bold">{formattedDateIssued}</span>
                   </div>
 
-                  <div className="print-receipt-col-span-2">
+                  <div>
                     <span className="print-receipt-field-label">Place Issued:</span>
-                    <span className="print-receipt-val-medium">{placeIssued || 'Kitaotao, Bukidnon'}</span>
+                    <span className="print-receipt-val-medium">{placeIssued}</span>
                   </div>
 
                   <div className="print-receipt-purpose-row">
@@ -1135,7 +1133,7 @@ const HistoryPrintDocument = forwardRef(
                     <QrCode className="qr-modal-header-icon" />
                   </div>
                   <div>
-                    <h3 id="qr-modal-title" className="qr-modal-title">Official QR Verification Base</h3>
+                    <h3 id="qr-modal-title" className="qr-modal-title">Official QR Verification</h3>
                     <p className="qr-modal-subtitle">Decoded mobile scanner output preview</p>
                   </div>
                 </div>
@@ -1151,7 +1149,7 @@ const HistoryPrintDocument = forwardRef(
 
               {/* Modal Body */}
               <div className="qr-modal-body">
-                {/* Top summary highlight cards: Lot Number and Ref ID */}
+                {/* Top summary highlight cards: Lot Number and Tax Declaration Number */}
                 <div className="qr-modal-summary-grid">
                   <div className="qr-modal-summary-card lot-card">
                     <span className="qr-modal-summary-label lot-label">Lot Number</span>
@@ -1162,11 +1160,11 @@ const HistoryPrintDocument = forwardRef(
                   </div>
 
                   <div className="qr-modal-summary-card ref-card">
-                    <span className="qr-modal-summary-label ref-label">Ref ID</span>
-                    <p className="qr-modal-summary-val ref-val" title={referenceId}>
-                      {referenceId}
+                    <span className="qr-modal-summary-label ref-label">Tax Declaration Number</span>
+                    <p className="qr-modal-summary-val ref-val" title={qrTdNumber}>
+                      {qrTdNumber}
                     </p>
-                    <span className="qr-modal-summary-caption ref-caption">Unique Verification Ref</span>
+                    <span className="qr-modal-summary-caption ref-caption">Scanned Secondary Field</span>
                   </div>
                 </div>
 
@@ -1221,7 +1219,7 @@ const HistoryPrintDocument = forwardRef(
               {/* Modal Footer */}
               <div className="qr-modal-footer">
                 <span className="qr-modal-control-info">
-                  {qrControlNo ? `Control: ${qrControlNo}` : `Ref ID: ${referenceId}`}
+                  {`Ref ID: ${referenceId}`}
                 </span>
                 <button
                   type="button"
