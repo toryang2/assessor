@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workunit>
+    <invokers>
+        <invoker folderid="/menucategory/rpt/util" 
+            caption="Reprint Tax Declaration as Original"
+            role="RECORD_ADMIN"
+            permission="reprint_original_taxdec" />
+        
+        <invoker type="formActions" 
+          action="_close"
+          caption="Close"
+          immediate="true" 
+        />
+        <invoker type="formActions" 
+          action="preview"
+          caption="Preview"
+        />
+   </invokers>
+   <code class="com.rameses.gov.etracs.rptis.models.ReprintTaxDeclarationModel" >
+    </code>   
+  <pages>
+    <page template="com.rameses.gov.etracs.rptis.views.ReprintTaxDeclarationPage" />
+  </pages>
+</workunit>

@@ -1043,7 +1043,9 @@ class Assessor_Database {
   parentfaasid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   publicland int DEFAULT NULL,
   assessments longtext COLLATE utf8mb4_unicode_520_ci,
+  origin_type enum('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA',
   PRIMARY KEY (objid),
+  KEY idx_origin_type (origin_type),
   UNIQUE KEY ux_faas_utdno (utdno),
   KEY FK_faas_rpu (rpuid),
   KEY ix_faas_appraisedby (objid),
@@ -1457,6 +1459,40 @@ class Assessor_Database {
   KEY ix_structure_state (state)
 ) $charset_collate;";
 
+        // Shadow ETRACS Audit Trail (WP-07)
+        $table_shadow_audit = $wpdb->prefix . 'assessor_shadow_audit';
+        $sql_assessor_shadow_audit = "CREATE TABLE $table_shadow_audit (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  event_id varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  actor_name varchar(200) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  event_type varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  action_outcome varchar(20) COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'SUCCESS',
+  source_classification varchar(30) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  origin_type enum('REPLICA','LOCAL') COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'LOCAL',
+  object_type varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  object_id varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
+  faas_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  rpu_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  real_property_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  rpumaster_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  old_state varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  new_state varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  changed_fields text COLLATE utf8mb4_unicode_520_ci,
+  details longtext COLLATE utf8mb4_unicode_520_ci,
+  correlation_id varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  ip_address varchar(45) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uix_event_id (event_id),
+  KEY ix_object (object_type, object_id),
+  KEY ix_faas_id (faas_id),
+  KEY ix_user_id (user_id),
+  KEY ix_event_type (event_type),
+  KEY ix_created_at (created_at),
+  KEY ix_correlation_id (correlation_id)
+) $charset_collate;";
+
         // --- MISSING DETAIL TABLES (needed for sync from ETRACS) ---
 
         $table_assessor_machdetail = $wpdb->prefix . 'assessor_machdetail';
@@ -1616,6 +1652,55 @@ class Assessor_Database {
   nonproductive decimal(16,2) NOT NULL,
   PRIMARY KEY (objid),
   KEY FK_planttreerpu_landrpu (landrpuid)
+) $charset_collate;";
+
+        $table_assessor_machine = $wpdb->prefix . 'assessor_machine';
+        $sql_assessor_machine = "CREATE TABLE $table_assessor_machine (
+  objid varchar(50) NOT NULL,
+  state varchar(10) NOT NULL DEFAULT 'APPROVED',
+  code varchar(50) NOT NULL,
+  name varchar(250) NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_machine_code (code),
+  UNIQUE KEY ux_machine_name (name),
+  KEY ix_machine_state (state)
+) $charset_collate;";
+
+        $table_assessor_planttree = $wpdb->prefix . 'assessor_planttree';
+        $sql_assessor_planttree = "CREATE TABLE $table_assessor_planttree (
+  objid varchar(50) NOT NULL,
+  state varchar(10) NOT NULL DEFAULT 'APPROVED',
+  code varchar(20) NOT NULL,
+  name varchar(100) NOT NULL,
+  PRIMARY KEY (objid),
+  UNIQUE KEY ux_planttree_code (code),
+  UNIQUE KEY ux_planttree_name (name),
+  KEY ix_planttree_state (state)
+) $charset_collate;";
+
+        $table_assessor_planttreedetail = $wpdb->prefix . 'assessor_planttreedetail';
+        $sql_assessor_planttreedetail = "CREATE TABLE $table_assessor_planttreedetail (
+  objid varchar(50) NOT NULL,
+  planttreerpuid varchar(50) DEFAULT NULL,
+  landrpuid varchar(50) DEFAULT NULL,
+  planttreeunitvalue_objid varchar(50) DEFAULT NULL,
+  planttree_objid varchar(50) NOT NULL,
+  actualuse_objid varchar(50) DEFAULT NULL,
+  productive decimal(16,2) NOT NULL DEFAULT '0.00',
+  nonproductive decimal(16,2) NOT NULL DEFAULT '0.00',
+  nonproductiveage varchar(25) DEFAULT NULL,
+  unitvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  basemarketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  adjustment decimal(16,2) NOT NULL DEFAULT '0.00',
+  adjustmentrate decimal(16,2) NOT NULL DEFAULT '0.00',
+  marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
+  assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+  areacovered decimal(16,4) DEFAULT NULL,
+  PRIMARY KEY (objid),
+  KEY ix_planttreedetail_landrpuid (landrpuid),
+  KEY ix_planttreedetail_planttreerpuid (planttreerpuid),
+  KEY ix_planttreedetail_planttree_objid (planttree_objid)
 ) $charset_collate;";
 
 
@@ -1781,6 +1866,7 @@ class Assessor_Database {
         dbDelta($sql_assessor_rpu_assessment);
         dbDelta($sql_assessor_rpumaster);
         dbDelta($sql_assessor_structure);
+        dbDelta($sql_assessor_shadow_audit);
 
         // Missing detail & assess-level tables
         dbDelta($sql_assessor_machdetail);
@@ -1791,6 +1877,9 @@ class Assessor_Database {
         dbDelta($sql_assessor_machine_smv);
         dbDelta($sql_assessor_miscrpuitem);
         dbDelta($sql_assessor_planttreerpu);
+        dbDelta($sql_assessor_machine);
+        dbDelta($sql_assessor_planttree);
+        dbDelta($sql_assessor_planttreedetail);
         dbDelta($sql_assessor_faas_signatory);
         dbDelta($sql_assessor_landassesslevel);
         dbDelta($sql_assessor_bldgassesslevel);
@@ -2411,6 +2500,285 @@ class Assessor_Database {
                 $wpdb->query("ALTER TABLE $table ADD KEY deleted_at (deleted_at)");
             }
         }
+    }
+
+    /**
+     * WP-01: Versioned, idempotent migration for Shadow ETRACS ownership metadata.
+     *
+     * Adds `origin_type` ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'
+     * and an index on `origin_type` to all 24 transactional shadow ETRACS tables.
+     * Backfills any pre-existing rows with 'REPLICA'.
+     *
+     * @return array Summary of affected tables, columns added, and rows backfilled.
+     */
+    public function migrate_shadow_ownership_metadata() {
+        global $wpdb;
+
+        $shadow_tables = array(
+            'assessor_entity',
+            'assessor_real_property',
+            'assessor_rpu',
+            'assessor_faas',
+            'assessor_faas_previous',
+            'assessor_faas_list',
+            'assessor_faas_signatory',
+            'assessor_bldgrpu',
+            'assessor_bldgfloor',
+            'assessor_bldgflooradditional',
+            'assessor_bldgadditionalitem',
+            'assessor_bldguse',
+            'assessor_bldgstructure',
+            'assessor_bldgrpu_structuraltype',
+            'assessor_bldgtype_depreciation',
+            'assessor_landrpu',
+            'assessor_landdetail',
+            'assessor_machrpu',
+            'assessor_machdetail',
+            'assessor_miscrpu',
+            'assessor_miscrpuitem',
+            'assessor_planttreerpu',
+            'assessor_planttreedetail',
+            'assessor_rpu_assessment',
+            'assessor_rpumaster',
+        );
+
+        $results = array();
+
+        foreach ($shadow_tables as $suffix) {
+            $table = $wpdb->prefix . $suffix;
+            $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+            if ($table_exists !== $table) {
+                $results[$suffix] = array('status' => 'skipped_table_not_found');
+                continue;
+            }
+
+            // Check if column already exists
+            $column = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COLUMN_NAME
+                     FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = %s
+                       AND COLUMN_NAME = 'origin_type'",
+                    $table
+                )
+            );
+
+            $column_added = false;
+            if (!$column) {
+                $alter_sql = "ALTER TABLE `$table` ADD COLUMN `origin_type` ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'";
+                $wpdb->query($alter_sql);
+                $column_added = true;
+            }
+
+            // Ensure index on origin_type exists
+            $has_index = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT INDEX_NAME
+                     FROM INFORMATION_SCHEMA.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = %s
+                       AND INDEX_NAME = 'idx_origin_type'
+                     LIMIT 1",
+                    $table
+                )
+            );
+
+            $index_added = false;
+            if (!$has_index) {
+                $wpdb->query("ALTER TABLE `$table` ADD KEY `idx_origin_type` (`origin_type`)");
+                $index_added = true;
+            }
+
+            // Backfill: ensure any pre-existing or NULL rows receive 'REPLICA'
+            $backfilled = $wpdb->query("UPDATE `$table` SET `origin_type` = 'REPLICA' WHERE `origin_type` IS NULL OR `origin_type` = ''");
+
+            $results[$suffix] = array(
+                'status'       => 'migrated',
+                'column_added' => $column_added,
+                'index_added'  => $index_added,
+                'backfilled'   => $backfilled,
+            );
+        }
+
+        return $results;
+    }
+
+    /**
+     * Migration 007: Shadow ETRACS Dedicated Audit Trail Table (WP-07)
+     *
+     * Creates or updates `wp_assessor_shadow_audit` with indexes and fail-safe table verification.
+     *
+     * @return array Migration status summary.
+     */
+    public function migrate_shadow_audit_table() {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'assessor_shadow_audit';
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE IF NOT EXISTS `$table` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `event_id` varchar(50) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `user_id` varchar(50) DEFAULT NULL,
+  `actor_name` varchar(200) DEFAULT NULL,
+  `event_type` varchar(50) NOT NULL,
+  `action_outcome` varchar(20) NOT NULL DEFAULT 'SUCCESS',
+  `source_classification` varchar(30) NOT NULL,
+  `origin_type` enum('REPLICA','LOCAL') NOT NULL DEFAULT 'LOCAL',
+  `object_type` varchar(50) NOT NULL,
+  `object_id` varchar(50) NOT NULL,
+  `faas_id` varchar(50) DEFAULT NULL,
+  `rpu_id` varchar(50) DEFAULT NULL,
+  `real_property_id` varchar(50) DEFAULT NULL,
+  `rpumaster_id` varchar(50) DEFAULT NULL,
+  `old_state` varchar(25) DEFAULT NULL,
+  `new_state` varchar(25) DEFAULT NULL,
+  `changed_fields` text DEFAULT NULL,
+  `details` longtext DEFAULT NULL,
+  `correlation_id` varchar(50) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uix_event_id` (`event_id`),
+  KEY `ix_object` (`object_type`, `object_id`),
+  KEY `ix_faas_id` (`faas_id`),
+  KEY `ix_user_id` (`user_id`),
+  KEY `ix_event_type` (`event_type`),
+  KEY `ix_created_at` (`created_at`),
+  KEY `ix_correlation_id` (`correlation_id`)
+) ENGINE=InnoDB $charset_collate;";
+
+        $wpdb->query($sql);
+
+        $exists = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table);
+
+        return array(
+            'table'   => $table,
+            'created' => $exists,
+            'status'  => $exists ? 'success' : 'failed'
+        );
+    }
+
+    /**
+     * Migration 008: Property Assessed Descriptions Schema & Ownership Hardening
+     *
+     * Creates or updates `assessor_machine`, `assessor_planttree`, and `assessor_planttreedetail`.
+     * Applies `origin_type` ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'
+     * and `idx_origin_type` index to `assessor_planttreedetail`.
+     * Backfills pre-existing rows in `assessor_planttreedetail` as 'REPLICA'.
+     *
+     * @return array Migration summary
+     */
+    public function migrate_property_assessed_descriptions_schema() {
+        global $wpdb;
+
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_machine = $wpdb->prefix . 'assessor_machine';
+        $table_planttree = $wpdb->prefix . 'assessor_planttree';
+        $table_planttreedetail = $wpdb->prefix . 'assessor_planttreedetail';
+
+        $sql_machine = "CREATE TABLE IF NOT EXISTS `$table_machine` (
+  `objid` varchar(50) NOT NULL,
+  `state` varchar(10) NOT NULL DEFAULT 'APPROVED',
+  `code` varchar(50) NOT NULL,
+  `name` varchar(250) NOT NULL,
+  PRIMARY KEY (`objid`),
+  UNIQUE KEY `ux_machine_code` (`code`),
+  UNIQUE KEY `ux_machine_name` (`name`),
+  KEY `ix_machine_state` (`state`)
+) ENGINE=InnoDB $charset_collate;";
+
+        $sql_planttree = "CREATE TABLE IF NOT EXISTS `$table_planttree` (
+  `objid` varchar(50) NOT NULL,
+  `state` varchar(10) NOT NULL DEFAULT 'APPROVED',
+  `code` varchar(20) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  PRIMARY KEY (`objid`),
+  UNIQUE KEY `ux_planttree_code` (`code`),
+  UNIQUE KEY `ux_planttree_name` (`name`),
+  KEY `ix_planttree_state` (`state`)
+) ENGINE=InnoDB $charset_collate;";
+
+        $sql_planttreedetail = "CREATE TABLE IF NOT EXISTS `$table_planttreedetail` (
+  `objid` varchar(50) NOT NULL,
+  `planttreerpuid` varchar(50) DEFAULT NULL,
+  `landrpuid` varchar(50) DEFAULT NULL,
+  `planttreeunitvalue_objid` varchar(50) DEFAULT NULL,
+  `planttree_objid` varchar(50) NOT NULL,
+  `actualuse_objid` varchar(50) DEFAULT NULL,
+  `productive` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `nonproductive` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `nonproductiveage` varchar(25) DEFAULT NULL,
+  `unitvalue` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `basemarketvalue` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `adjustment` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `adjustmentrate` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `marketvalue` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `assesslevel` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `assessedvalue` decimal(16,2) NOT NULL DEFAULT '0.00',
+  `areacovered` decimal(16,4) DEFAULT NULL,
+  `origin_type` enum('REPLICA','LOCAL') NOT NULL DEFAULT 'REPLICA',
+  PRIMARY KEY (`objid`),
+  KEY `ix_planttreedetail_landrpuid` (`landrpuid`),
+  KEY `ix_planttreedetail_planttreerpuid` (`planttreerpuid`),
+  KEY `ix_planttreedetail_planttree_objid` (`planttree_objid`),
+  KEY `idx_origin_type` (`origin_type`)
+) ENGINE=InnoDB $charset_collate;";
+
+        $wpdb->query($sql_machine);
+        $wpdb->query($sql_planttree);
+        $wpdb->query($sql_planttreedetail);
+
+        // Ensure origin_type column exists on planttreedetail if table pre-existed without it
+        $col_origin = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME
+                 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = %s
+                   AND COLUMN_NAME = 'origin_type'",
+                $table_planttreedetail
+            )
+        );
+
+        $origin_col_added = false;
+        if (!$col_origin) {
+            $wpdb->query("ALTER TABLE `$table_planttreedetail` ADD COLUMN `origin_type` ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'");
+            $origin_col_added = true;
+        }
+
+        // Ensure idx_origin_type index exists
+        $has_origin_idx = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT INDEX_NAME
+                 FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = %s
+                   AND INDEX_NAME = 'idx_origin_type'
+                 LIMIT 1",
+                $table_planttreedetail
+            )
+        );
+
+        $origin_idx_added = false;
+        if (!$has_origin_idx) {
+            $wpdb->query("ALTER TABLE `$table_planttreedetail` ADD KEY `idx_origin_type` (`origin_type`)");
+            $origin_idx_added = true;
+        }
+
+        // Backfill pre-existing rows as REPLICA
+        $backfilled = $wpdb->query("UPDATE `$table_planttreedetail` SET `origin_type` = 'REPLICA' WHERE `origin_type` IS NULL OR `origin_type` = ''");
+
+        return array(
+            'machine_table'      => ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_machine)) === $table_machine),
+            'planttree_table'    => ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_planttree)) === $table_planttree),
+            'planttreedetail'    => ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_planttreedetail)) === $table_planttreedetail),
+            'origin_col_added'   => $origin_col_added,
+            'origin_idx_added'   => $origin_idx_added,
+            'rows_backfilled'    => $backfilled,
+            'status'             => 'success',
+        );
     }
 }
 

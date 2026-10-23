@@ -1,0 +1,311 @@
+🔍 Assessor Auth: Class file loaded - Version 1.0.2
+========================================================================
+   ASSESSOR REPO - PHASE 8 / WP-02 COMPREHENSIVE TEST HARNESS
+   Target Database: test_wp01_disposable (Disposable Isolated Environment)
+   Connection Guard: VERIFIED (DATABASE() === 'test_wp01_disposable')
+========================================================================
+
+
+--- Scenario 1: Initial Local FAAS Creation Lifecycle ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] create_faas() returns valid FAAS object
+ [PASS] New LOCAL FAAS state is 'INTERIM' (not CURRENT)
+ [PASS] New LOCAL FAAS origin_type is 'LOCAL'
+ [PASS] New LOCAL FAAS dtapproved is NULL upon creation
+ [PASS] Predecessor declaration remains 'CURRENT' upon draft creation (NOT cancelled)
+ [PASS] Related RPU record assigned origin_type = 'LOCAL'
+ [PASS] Related Real Property record assigned origin_type = 'LOCAL'
+
+--- Scenario 2: Permission Enforcement on Approval Route ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+    [authorization] => Array
+        (
+            [0] => Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDEsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoidmlld2VyIiwiaXNzIjoiaHR0cDpcL1wvbG9jYWxob3N0XC9hc3Nlc3NvciIsImlhdCI6MTc5MjY1MTAzNCwiZXhwIjoxNzkyNjU0NjM0fQ.uLw1gOF1XtZ2K3T6UodQ7WKreqsa4OiVJybZKK_vCpY
+        )
+
+)
+
+🔍 Assessor Auth: Authorization header found: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDEsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoidmlld2VyIiwiaXNzIjoiaHR0cDpcL1wvbG9jYWxob3N0XC9hc3Nlc3NvciIsImlhdCI6MTc5MjY1MTAzNCwiZXhwIjoxNzkyNjU0NjM0fQ.uLw1gOF1XtZ2K3T6UodQ7WKreqsa4OiVJybZKK_vCpY
+🔍 Assessor Auth: Bearer token extracted successfully
+🔍 Assessor Auth: verify_token_signature called with token: eyJ0eXAiOiJKV1QiLCJh...
+🔍 Assessor Auth: Token parts extracted - header: eyJ0eXAiOi..., payload: eyJ1c2VyX2..., signature: uLw1gOF1Xt...
+🔍 Assessor Auth: Expected signature: uLw1gOF1XtZ2K3T6UodQ7WKreqsa4OiVJybZKK_vCpY
+🔍 Assessor Auth: Actual signature: uLw1gOF1XtZ2K3T6UodQ7WKreqsa4OiVJybZKK_vCpY
+✅ Assessor Auth: Signature verification passed
+🔍 Assessor Auth: Decoded payload: stdClass Object
+(
+    [user_id] => 101
+    [username] => testuser
+    [role] => viewer
+    [iss] => http://localhost/assessor
+    [iat] => 1792651034
+    [exp] => 1792654634
+)
+
+✅ Assessor Auth: Token verification successful
+ [PASS] Viewer role cannot pass check_manager permission callback
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+    [authorization] => Array
+        (
+            [0] => Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDIsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoiYXNzZXNzb3IiLCJpc3MiOiJodHRwOlwvXC9sb2NhbGhvc3RcL2Fzc2Vzc29yIiwiaWF0IjoxNzkyNjUxMDM0LCJleHAiOjE3OTI2NTQ2MzR9.hKeGTeQ2nhv3LiBCEvHbPGKt7zt6h8epZIUJAkv6gks
+        )
+
+)
+
+🔍 Assessor Auth: Authorization header found: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDIsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoiYXNzZXNzb3IiLCJpc3MiOiJodHRwOlwvXC9sb2NhbGhvc3RcL2Fzc2Vzc29yIiwiaWF0IjoxNzkyNjUxMDM0LCJleHAiOjE3OTI2NTQ2MzR9.hKeGTeQ2nhv3LiBCEvHbPGKt7zt6h8epZIUJAkv6gks
+🔍 Assessor Auth: Bearer token extracted successfully
+🔍 Assessor Auth: verify_token_signature called with token: eyJ0eXAiOiJKV1QiLCJh...
+🔍 Assessor Auth: Token parts extracted - header: eyJ0eXAiOi..., payload: eyJ1c2VyX2..., signature: hKeGTeQ2nh...
+🔍 Assessor Auth: Expected signature: hKeGTeQ2nhv3LiBCEvHbPGKt7zt6h8epZIUJAkv6gks
+🔍 Assessor Auth: Actual signature: hKeGTeQ2nhv3LiBCEvHbPGKt7zt6h8epZIUJAkv6gks
+✅ Assessor Auth: Signature verification passed
+🔍 Assessor Auth: Decoded payload: stdClass Object
+(
+    [user_id] => 102
+    [username] => testuser
+    [role] => assessor
+    [iss] => http://localhost/assessor
+    [iat] => 1792651034
+    [exp] => 1792654634
+)
+
+✅ Assessor Auth: Token verification successful
+ [PASS] Assessor role passes check_manager permission callback
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+    [authorization] => Array
+        (
+            [0] => Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDMsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoiYWRtaW5pc3RyYXRvciIsImlzcyI6Imh0dHA6XC9cL2xvY2FsaG9zdFwvYXNzZXNzb3IiLCJpYXQiOjE3OTI2NTEwMzQsImV4cCI6MTc5MjY1NDYzNH0.abjdq7rXspHDDXUieM81koR3JOV9Ja02kVx521ztNVA
+        )
+
+)
+
+🔍 Assessor Auth: Authorization header found: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMDMsInVzZXJuYW1lIjoidGVzdHVzZXIiLCJyb2xlIjoiYWRtaW5pc3RyYXRvciIsImlzcyI6Imh0dHA6XC9cL2xvY2FsaG9zdFwvYXNzZXNzb3IiLCJpYXQiOjE3OTI2NTEwMzQsImV4cCI6MTc5MjY1NDYzNH0.abjdq7rXspHDDXUieM81koR3JOV9Ja02kVx521ztNVA
+🔍 Assessor Auth: Bearer token extracted successfully
+🔍 Assessor Auth: verify_token_signature called with token: eyJ0eXAiOiJKV1QiLCJh...
+🔍 Assessor Auth: Token parts extracted - header: eyJ0eXAiOi..., payload: eyJ1c2VyX2..., signature: abjdq7rXsp...
+🔍 Assessor Auth: Expected signature: abjdq7rXspHDDXUieM81koR3JOV9Ja02kVx521ztNVA
+🔍 Assessor Auth: Actual signature: abjdq7rXspHDDXUieM81koR3JOV9Ja02kVx521ztNVA
+✅ Assessor Auth: Signature verification passed
+🔍 Assessor Auth: Decoded payload: stdClass Object
+(
+    [user_id] => 103
+    [username] => testuser
+    [role] => administrator
+    [iss] => http://localhost/assessor
+    [iat] => 1792651034
+    [exp] => 1792654634
+)
+
+✅ Assessor Auth: Token verification successful
+ [PASS] Administrator role passes check_manager permission callback
+
+--- Scenario 3: Invalid State Transitions Leave Data Unchanged ---
+ [PASS] Direct approval of INTERIM declaration returns WP_Error
+ [PASS] Error code is 'invalid_state'
+ [PASS] Declaration state remains 'INTERIM' after failed direct approval
+ [PASS] Cancelling an INTERIM declaration returns WP_Error
+ [PASS] Error code is 'invalid_state'
+
+--- Scenario 4: Submission and Approval Flow ---
+ [PASS] submit_faas() succeeds
+ [PASS] Declaration state transitioned to 'FORAPPROVAL'
+ [PASS] Editing a declaration in FORAPPROVAL returns WP_Error
+ [PASS] Owner name remains unchanged after invalid edit
+ [PASS] approve_faas() succeeds
+ [PASS] Declaration state is now 'CURRENT'
+ [PASS] dtapproved recorded properly
+ [PASS] REPLICA Predecessor declaration RAW state remains 'CURRENT' (source-owned row untouched)
+ [PASS] REPLICA Predecessor raw canceldate remains empty/null
+ [PASS] REPLICA Predecessor raw cancelledbytdnos remains empty/null
+ [PASS] Predecessor effective state transitioned to 'CANCELLED'
+ [PASS] Predecessor effective_state field explicitly equals 'CANCELLED'
+ [PASS] Predecessor raw_state field equals 'CURRENT'
+ [PASS] Predecessor effective cancel_date set to successor approval date
+ [PASS] Predecessor effective cancelled_by_tdnos set to successor TD
+
+--- Scenario 5: Disapproval Lifecycle ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] disapprove_faas() succeeds
+ [PASS] Declaration state transitioned to 'DISAPPROVED'
+ [PASS] Disapproval reason recorded in cancelreason column
+ [PASS] DISAPPROVED declaration can be resubmitted to 'FORAPPROVAL'
+
+--- Scenario 6: REPLICA Records Lifecycle Protection ---
+ [PASS] Submitting REPLICA record returns WP_Error 'replica_protected'
+ [PASS] Approving REPLICA record returns WP_Error 'replica_protected'
+ [PASS] Disapproving REPLICA record returns WP_Error 'replica_protected'
+ [PASS] Updating REPLICA record returns WP_Error 'replica_protected'
+ [PASS] Deleting REPLICA record returns WP_Error 'replica_protected'
+
+--- Scenario 7: Explicit Cancellation of CURRENT Declaration ---
+ [PASS] cancel_faas() on CURRENT declaration succeeds
+ [PASS] Declaration state transitioned to 'CANCELLED'
+ [PASS] cancelreason recorded
+ [PASS] cancelnote recorded
+ [PASS] cancelledbytdnos recorded
+
+--- Scenario 8: Stats Aggregation With New Lifecycle States ---
+ [PASS] Stats returns array/object with required metrics
+ [PASS] Stats contains 'forapproval' count
+ [PASS] Stats contains 'interim' count
+ [PASS] Stats contains 'disapproved' count
+
+--- Scenario 9: Native Isolation and WP-01 Regression Checks ---
+ [PASS] Native Assessor table wp_assessor_properties does NOT exist in test database
+ [PASS] Assessor_Etracs code contains zero references to native Assessor tables
+
+--- Scenario 10: Section 1 — REPLICA Predecessor Lineage Across Source Refresh ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Successor 10 draft created
+ [PASS] Predecessor effective state remains CURRENT while successor is INTERIM
+ [PASS] Predecessor effective state remains CURRENT while successor is FORAPPROVAL
+ [PASS] Successor 10 approved to CURRENT
+ [PASS] REPLICA predecessor origin_type remains 'REPLICA'
+ [PASS] REPLICA predecessor RAW state in wp_assessor_faas remains 'CURRENT'
+ [PASS] REPLICA predecessor RAW canceldate is untouched/null
+ [PASS] REPLICA predecessor RAW cancelledbytdnos is untouched/null
+ [PASS] REPLICA predecessor effective state is 'CANCELLED'
+ [PASS] REPLICA predecessor effective_state field is 'CANCELLED'
+ [PASS] REPLICA predecessor raw_state field is 'CURRENT'
+ [PASS] REPLICA predecessor effective cancelled_by_tdnos points to successor
+ [PASS] REPLICA predecessor effective cancel_date points to successor dtapproved
+ [PASS] Predecessor lineage stored in wp_assessor_faas_previous
+ [PASS] Predecessor lineage row has origin_type = 'LOCAL'
+ [PASS] Predecessor origin_type remains REPLICA after source refresh
+ [PASS] Predecessor owner_name refreshed by source sync
+ [PASS] Predecessor EFFECTIVE state remains 'CANCELLED' after source sync refresh
+ [PASS] Predecessor EFFECTIVE cancelled_by_tdnos preserved after source refresh
+ [PASS] Successor record remains CURRENT after predecessor refresh
+ [PASS] Successor record remains LOCAL origin_type
+ [PASS] Successor queryable lineage (prevtdno) is fully preserved
+
+--- Scenario 10B: Multiple Revisions and Disapproved Successor Lineage ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Predecessor effective state remains 'CURRENT' when successor is DISAPPROVED
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Revision 2 approved to CURRENT
+ [PASS] Successor 10 (LOCAL) physically transitioned to CANCELLED
+ [PASS] Successor 10 cancelledbytdnos set to Revision 2 TD
+ [PASS] Historic lineage preserved: Original REPLICA predecessor remains effectively CANCELLED even when its successor is cancelled
+
+--- Scenario 11: Section 2 — Atomic Approval & Failure Injection Rollback ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Successful approval with no predecessor transitions to CURRENT
+ [PASS] Approved declaration without predecessor has null/empty prevtdno
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Approval fails and returns WP_Error when predecessor update fails
+ [PASS] Error code is 'approval_failed'
+ [PASS] ATOMIC GUARANTEE: Successor is NOT left in 'CURRENT' after rollback (state remains FORAPPROVAL)
+ [PASS] ATOMIC GUARANTEE: Predecessor is NOT partially modified (state remains CURRENT)
+ [PASS] ATOMIC GUARANTEE: Predecessor cancelledbytdnos is still empty/null
+ [PASS] ATOMIC GUARANTEE: No orphan lineage row created in wp_assessor_faas_previous
+
+--- Scenario 12: Section 3 — Ownership Assignment & REPLICA Preservation ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Draft 300 created successfully referencing entity
+ [PASS] Existing REPLICA entity address was NOT overwritten
+ [PASS] Existing REPLICA entity origin_type remains 'REPLICA'
+ [PASS] update_faas() succeeds
+ [PASS] REPLICA entity name remains 'Existing Source Corp' (untouched)
+ [PASS] REPLICA entity origin_type remains 'REPLICA'
+ [PASS] update_faas returns valid response
+ [PASS] REPLICA Real Property barangay was NOT overwritten
+ [PASS] REPLICA RPU total_market_value was NOT overwritten
+
+--- Scenario 13: Section 4 — State and Reason Semantics ---
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Disapproval reason recorded in cancelreason
+ [PASS] Disapproval reason explicitly tagged in cancelnote with [DISAPPROVED] prefix
+ [PASS] Disapproval does NOT physically erase historical prevtdno lineage
+ [PASS] delete_faas() succeeds
+ [PASS] Deleted row remains physically present in DB with state = 'DELETED'
+ [PASS] Deleted row retains historical prevtdno lineage intact
+
+--- Scenario 14: Multi-Successor Lineage & FAAS List Cardinality ---
+ [FAIL] Predecessor appears exactly once in list before successors
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Successor Lot 1 approved to CURRENT
+🔍 Assessor Auth: get_token_from_request - all headers: Array
+(
+)
+
+❌ Assessor Auth: No authorization header found
+ [PASS] Successor Lot 2 approved to CURRENT
+ [FAIL] CARDINALITY: Predecessor with multiple approved successors appears EXACTLY ONCE in list query
+ [FAIL] Total count in list reflects exact distinct rows without duplication
+
+Warning: Attempt to read property "effective_state" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1098
+ [FAIL] Predecessor effective state is CANCELLED in list
+PHP Warning:  Attempt to read property "effective_state" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1098
+PHP Warning:  Attempt to read property "raw_state" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1099
+
+Warning: Attempt to read property "raw_state" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1099
+ [FAIL] Predecessor raw state is CURRENT in list
+PHP Warning:  Attempt to read property "cancelled_by_tdnos" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1100
+
+Warning: Attempt to read property "cancelled_by_tdnos" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1100
+ [FAIL] Predecessor cancelled_by_tdnos contains BOTH successor TDs comma-separated
+PHP Warning:  Attempt to read property "cancel_date" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1101
+
+Warning: Attempt to read property "cancel_date" on null in D:\CODE\assessor\assessor-backend\scripts\test-wp02-faas-lifecycle.php on line 1101
+ [FAIL] Predecessor cancel_date reflects earliest approval timestamp
+ [PASS] Single-record get_faas returns effective state CANCELLED
+ [PASS] Single-record cancelled_by_tdnos contains BOTH successor TDs
+ [PASS] Dashboard cancelled count accurately incremented without duplicate counting
+ [PASS] Dashboard total equals sum of distinct rows
+ [PASS] Predecessor successfully resolved via prevfaasid even when prevtdno differs
+ [PASS] Predecessor cancelled_by_tdnos contains TD-2026-SUCC-ID-MATCH via prevfaasid link
+ [PASS] Predecessor successfully resolved via prevtdno fallback when prevfaasid is NULL
+ [PASS] Predecessor cancelled_by_tdnos contains TD-2026-SUCC-TD-FALLBACK via prevtdno link
+ [PASS] Consolidated predecessor 1 is effectively CANCELLED
+ [PASS] Consolidated predecessor 2 is effectively CANCELLED
+ [PASS] Both consolidated predecessors point to same successor TD
+
+========================================================================
+   WP-02 TEST SUMMARY
+   Total Tests Passed: 113
+   Total Tests Failed: 7
+========================================================================

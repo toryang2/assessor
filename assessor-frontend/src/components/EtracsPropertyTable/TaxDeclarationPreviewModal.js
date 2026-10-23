@@ -79,27 +79,55 @@ const numberToWords = (amount) => {
 };
 
 const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
-  const [assessments, setAssessments] = useState([]);
-  const [rpuDetail, setRpuDetail] = useState(null);
+  const initialAssessments = property?.assessments || property?.assessment_levels || [];
+  const [assessments, setAssessments] = useState(initialAssessments);
+  const [rpuDetail, setRpuDetail] = useState(property?.rpuDetail || null);
   const [sigs, setSigs] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open && property) {
-      setLoading(true);
-      Promise.all([
-        property.rpu_id ? etracsService.getRpuDetail(property.rpu_id) : Promise.resolve({ assessments: [] }),
-        property.id ? etracsService.getFaasSignatory(property.id) : Promise.resolve({})
-      ]).then(([rpuData, sigData]) => {
-        const rpu = rpuData?.data || rpuData || {};
-        setAssessments(rpu.assessments || []);
-        setRpuDetail(rpu);
-        setSigs(sigData || {});
-      }).catch(err => {
-        console.error("Failed to load preview details", err);
-      }).finally(() => {
-        setLoading(false);
-      });
+      const rpuId = property.rpu_id || property.rpuid;
+      const faasId = property.id || property.objid;
+
+      // Initialize with any pre-attached details from caller
+      setAssessments(property.assessments || property.assessment_levels || []);
+      setRpuDetail(property.rpuDetail || null);
+
+      if (rpuId || faasId) {
+        setLoading(true);
+        Promise.all([
+          rpuId ? etracsService.getRpuDetail(rpuId) : Promise.resolve({ assessments: [] }),
+          faasId ? etracsService.getFaasSignatory(faasId) : Promise.resolve({})
+        ]).then(([rpuData, sigData]) => {
+          const rpu = rpuData?.data || rpuData || {};
+          if (rpu.assessments && rpu.assessments.length > 0) {
+            setAssessments(rpu.assessments);
+          } else if (property.assessments || property.assessment_levels) {
+            setAssessments(property.assessments || property.assessment_levels);
+          }
+          const machineRows =
+            Array.isArray(rpu.machdetails) && rpu.machdetails.length > 0
+              ? rpu.machdetails
+              : Array.isArray(rpu.machines)
+                ? rpu.machines
+                : [];
+
+          setRpuDetail({
+            ...rpu,
+            machines: machineRows,
+          });
+          setSigs(sigData || {});
+        }).catch(err => {
+          console.error("Failed to load preview details", err);
+        }).finally(() => {
+          setLoading(false);
+        });
+      }
+    } else if (!open) {
+      setRpuDetail(null);
+      setAssessments([]);
+      setSigs({});
     }
   }, [open, property]);
 
@@ -124,6 +152,34 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
               <Typography variant="subtitle2" sx={{ fontWeight: 'normal', fontSize: '12px' }}>MUNICIPALITY OF KITAOTAO</Typography>
               <Typography variant="subtitle2" sx={{ fontWeight: 'normal', fontSize: '12px' }}>PROVINCE OF BUKIDNON</Typography>
               <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 2 }}>TAX DECLARATION OF REAL PROPERTY</Typography>
+              <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center', gap: 1 }}>
+                <Typography sx={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  bgcolor: (property.effective_state || property.state) === 'CURRENT' ? '#dcfce7' : (property.effective_state || property.state) === 'CANCELLED' ? '#fee2e2' : '#e0f2fe',
+                  color: (property.effective_state || property.state) === 'CURRENT' ? '#15803d' : (property.effective_state || property.state) === 'CANCELLED' ? '#991b1b' : '#0369a1',
+                  px: 1.5,
+                  py: 0.25,
+                  borderRadius: 1,
+                  border: '1px solid currentColor'
+                }}>
+                  {property.effective_state || property.state || 'CURRENT'}
+                </Typography>
+                {property.origin_type && (
+                  <Typography sx={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    bgcolor: property.origin_type === 'REPLICA' ? '#e0f2fe' : '#f0fdf4',
+                    color: property.origin_type === 'REPLICA' ? '#0284c7' : '#16a34a',
+                    px: 1.5,
+                    py: 0.25,
+                    borderRadius: 1,
+                    border: '1px solid currentColor'
+                  }}>
+                    {property.origin_type}
+                  </Typography>
+                )}
+              </Box>
             </Box>
 
             {/* TD No and PIN */}
@@ -277,54 +333,88 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
 
             {/* KIND OF PROPERTY ASSESSED */}
             <Typography sx={{ fontSize: '13px', mb: 1 }}>KIND OF PROPERTY ASSESSED :</Typography>
-            <Grid container spacing={2} sx={{ mb: 2, px: 2 }}>
-              <Grid item xs={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {(property.rpu_type || '').toLowerCase() === 'land' ? 'X' : ''}
-                  </Box>
-                  <Typography sx={{ fontSize: '13px', width: '100px' }}>LAND</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0 }}>
-                  <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {(property.rpu_type || '').toLowerCase() === 'bldg' ? 'X' : ''}
-                  </Box>
-                  <Typography sx={{ fontSize: '13px', width: '100px' }}>BUILDING</Typography>
-                  <Typography sx={{ fontSize: '13px', mr: 1 }}>No. of Storeys :</Typography>
-                  <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
-                    {rpuDetail?.subtype?.floorcount || ''}
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, ml: '124px' }}>
-                  <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
-                  <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
-                    {rpuDetail?.subtype?.bldgtypename || ''}
-                  </Box>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {(property.rpu_type || '').toLowerCase() === 'mach' ? 'X' : ''}
-                  </Box>
-                  <Typography sx={{ fontSize: '13px', width: '100px' }}>MACHINERY</Typography>
-                  <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
-                  <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
-                    {rpuDetail?.machines?.[0]?.machinename || ''}
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {['misc', 'planttree'].includes((property.rpu_type || '').toLowerCase()) ? 'X' : ''}
-                  </Box>
-                  <Typography sx={{ fontSize: '13px', width: '100px' }}>OTHERS</Typography>
-                  <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
-                  <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
-                    {rpuDetail?.miscitems?.[0]?.miscitemname || ''}
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
+            {(() => {
+              // Gather all types present in property or assessments
+              const assessmentTypes = (assessments || []).map(a => (a.rputype || '').toLowerCase()).filter(Boolean);
+              const primaryType = (property.rpu_type || '').toLowerCase();
+              const allTypes = new Set([primaryType, ...assessmentTypes]);
+
+              // Land
+              const isLand = allTypes.has('land') || !!rpuDetail?.landrpu || (rpuDetail?.landdetail && rpuDetail.landdetail.length > 0);
+              const landDesc = rpuDetail?.landdetail?.[0]?.subclassname || rpuDetail?.landdetail?.[0]?.subclass_name || rpuDetail?.landdetail?.[0]?.actualusename || rpuDetail?.landdetail?.[0]?.actualuse_name || rpuDetail?.landdetail?.[0]?.addlinfo || '';
+
+              // Building
+              const isBldg = allTypes.has('bldg') || !!rpuDetail?.subtype || (rpuDetail?.floors && rpuDetail.floors.length > 0);
+              const bldgStoreys = rpuDetail?.subtype?.floorcount || (rpuDetail?.floors ? rpuDetail.floors.length : '') || '';
+              const bldgDesc = rpuDetail?.subtype?.bldgkind_name || rpuDetail?.subtype?.bldgtypename || rpuDetail?.subtype?.bldgtype_name || '';
+
+              // Machinery
+              const isMach = allTypes.has('mach') || (rpuDetail?.machines && rpuDetail.machines.length > 0) || (rpuDetail?.machdetails && rpuDetail.machdetails.length > 0);
+              const machDesc = rpuDetail?.machdetails?.[0]?.machinename || rpuDetail?.machines?.[0]?.machinename || rpuDetail?.machines?.[0]?.machine_name || '';
+
+              // Others (Misc or Plant/Tree)
+              const isOthers = allTypes.has('misc') || allTypes.has('planttree') || (rpuDetail?.miscitems && rpuDetail.miscitems.length > 0) || (rpuDetail?.planttreedetails && rpuDetail.planttreedetails.length > 0) || (rpuDetail?.planttrees && rpuDetail.planttrees.length > 0);
+              const othersDesc = rpuDetail?.miscitems?.[0]?.miscitemname || rpuDetail?.miscitems?.[0]?.miscitem_name || rpuDetail?.planttreedetails?.[0]?.planttreename || rpuDetail?.planttreedetails?.[0]?.planttree_name || '';
+
+              return (
+                <Grid container spacing={2} sx={{ mb: 2, px: 2 }}>
+                  <Grid item xs={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        {isLand ? 'X' : ''}
+                      </Box>
+                      <Typography sx={{ fontSize: '13px', width: '100px' }}>LAND</Typography>
+                      {landDesc && (
+                        <>
+                          <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
+                          <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
+                            {landDesc}
+                          </Box>
+                        </>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0 }}>
+                      <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        {isBldg ? 'X' : ''}
+                      </Box>
+                      <Typography sx={{ fontSize: '13px', width: '100px' }}>BUILDING</Typography>
+                      <Typography sx={{ fontSize: '13px', mr: 1 }}>No. of Storeys :</Typography>
+                      <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
+                        {bldgStoreys}
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, ml: '124px' }}>
+                      <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
+                      <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
+                        {bldgDesc}
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        {isMach ? 'X' : ''}
+                      </Box>
+                      <Typography sx={{ fontSize: '13px', width: '100px' }}>MACHINERY</Typography>
+                      <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
+                      <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
+                        {machDesc}
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ width: 16, height: 16, border: '1px solid #000', mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        {isOthers ? 'X' : ''}
+                      </Box>
+                      <Typography sx={{ fontSize: '13px', width: '100px' }}>OTHERS</Typography>
+                      <Typography sx={{ fontSize: '13px', mr: 1 }}>Brief Description :</Typography>
+                      <Box sx={{ borderBottom: '1px solid #000', flexGrow: 1, textAlign: 'left', px: 1, fontSize: '13px', minHeight: '20px' }}>
+                        {othersDesc}
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              );
+            })()}
 
             {/* Table for Assessment */}
             <Box sx={{ border: '1px solid #000', mb: 0 }}>
@@ -337,19 +427,25 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
                 <Grid item xs={1.5} sx={{ p: 1 }}>Assessed Value</Grid>
               </Grid>
               
-              {assessments.map((assess, idx) => (
-                <Grid container key={idx} sx={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', borderBottom: idx < assessments.length - 1 ? '1px solid #000' : 'none' }}>
-                  <Grid item xs={3} sx={{ p: 1, borderRight: '1px solid #000' }}>{assess.classname || assess.classcode || '—'}</Grid>
-                  <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000', display: 'flex', justifyContent: 'center', gap: 1 }}>
-                    <span>{assess.areasqm ? formatCurrency(assess.areasqm) : formatAreaHa(assess.areaha)}</span> 
-                    <span>{assess.areasqm ? 'SQM' : 'HA'}</span>
+              {assessments.map((assess, idx) => {
+                const className = assess.class_title || assess.classname || assess.classcode || assess.name || '—';
+                const mv = assess.market_value != null ? assess.market_value : assess.marketvalue;
+                const av = assess.assessed_value != null ? assess.assessed_value : assess.assessedvalue;
+                const level = assess.assessment_level != null ? assess.assessment_level : assess.assesslevel;
+                return (
+                  <Grid container key={idx} sx={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', borderBottom: idx < assessments.length - 1 ? '1px solid #000' : 'none' }}>
+                    <Grid item xs={3} sx={{ p: 1, borderRight: '1px solid #000' }}>{className}</Grid>
+                    <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000', display: 'flex', justifyContent: 'center', gap: 1 }}>
+                      <span>{assess.areasqm ? formatCurrency(assess.areasqm) : formatAreaHa(assess.areaha)}</span> 
+                      <span>{assess.areasqm ? 'SQM' : 'HA'}</span>
+                    </Grid>
+                    <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000', textAlign: 'right' }}>{formatCurrency(mv)}</Grid>
+                    <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000' }}>{assess.actualuse || assess.actual_use || '—'}</Grid>
+                    <Grid item xs={1.5} sx={{ p: 1, borderRight: '1px solid #000' }}>{level != null ? `${Number(level).toFixed(2)}%` : '—'}</Grid>
+                    <Grid item xs={1.5} sx={{ p: 1, textAlign: 'right' }}>{formatCurrency(av)}</Grid>
                   </Grid>
-                  <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000', textAlign: 'right' }}>{formatCurrency(assess.marketvalue)}</Grid>
-                  <Grid item xs={2} sx={{ p: 1, borderRight: '1px solid #000' }}>{assess.actualuse || '—'}</Grid>
-                  <Grid item xs={1.5} sx={{ p: 1, borderRight: '1px solid #000' }}>{assess.assesslevel ? `${assess.assesslevel}%` : '—'}</Grid>
-                  <Grid item xs={1.5} sx={{ p: 1, textAlign: 'right' }}>{formatCurrency(assess.assessedvalue)}</Grid>
-                </Grid>
-              ))}
+                );
+              })}
               {assessments.length === 0 && (
                 <Grid container sx={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
                   <Grid item xs={12} sx={{ p: 1, fontStyle: 'italic', color: '#666' }}>No assessments recorded</Grid>
@@ -453,38 +549,80 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
 
             <Divider sx={{ borderColor: '#000', borderWidth: 1, my: 1 }} />
             
-            {/* Previous Info */}
-            <Box sx={{ fontSize: '12px' }}>
-              <Box sx={{ display: 'flex', mb: 0.5 }}>
-                <Typography sx={{ width: '220px', whiteSpace: 'nowrap' }}>Cancels TD No. :</Typography>
-                <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px' }}>{property.prevtdno || property.prev_tdno || 'NEW'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', mb: 0.5 }}>
-                <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous PIN :</Typography>
-                <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_pin || '-'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', mb: 0.5 }}>
-                <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous Owner :</Typography>
-                <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_owner || '-'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', mb: 0.5 }}>
-                <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous Administrator :</Typography>
-                <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_administrator || '-'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', mb: 1, flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex' }}>
-                  <Typography sx={{ mr: 1 }}>Previous Area (sqm) :</Typography>
-                  <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '100px', textAlign: 'center' }}>{property.prev_area_sqm || property.prev_area_hectare || '-'}</Typography>
+            {/* Previous Info & Historical Predecessor Snapshots */}
+            <Box sx={{ fontSize: '12px', mb: 1 }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '13px', mb: 0.5, borderBottom: '1px solid #000' }}>
+                PREVIOUS PROPERTY REFERENCES & HISTORICAL PREDECESSOR SNAPSHOTS:
+              </Typography>
+              {Array.isArray(property.predecessors) && property.predecessors.length > 0 ? (
+                <Box sx={{ mb: 1 }}>
+                  {property.predecessors.map((pred, pIdx) => {
+                    const prevTd = pred.prevtdno || pred.prev_tdno || '—';
+                    const prevPin = pred.prevpin || pred.prev_pin || '—';
+                    const prevOwner = pred.prevowner || pred.prev_owner_name || '—';
+                    const prevAdmin = pred.prevadministrator || pred.prev_administrator || '—';
+                    const prevMv = pred.prevmv != null ? pred.prevmv : pred.prev_total_market_value;
+                    const prevAv = pred.prevav != null ? pred.prevav : pred.prev_total_assessed_value;
+                    return (
+                      <Box key={pred.objid || pIdx} sx={{ mb: 1, p: 1, border: '1px dashed #64748b', bgcolor: '#f8fafc' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography sx={{ fontSize: '12px', fontWeight: 600 }}>
+                            Predecessor #{pIdx + 1}: TD No. <strong>{prevTd}</strong>
+                          </Typography>
+                          <Typography sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                            Historical Snapshot ({pred.origin_type || 'HISTORICAL'})
+                          </Typography>
+                        </Box>
+                        <Grid container spacing={1}>
+                          <Grid item xs={6}>
+                            <Typography sx={{ fontSize: '11px' }}><strong>Previous PIN:</strong> {prevPin}</Typography>
+                            <Typography sx={{ fontSize: '11px' }}><strong>Previous Owner:</strong> {prevOwner}</Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography sx={{ fontSize: '11px' }}><strong>Previous Admin:</strong> {prevAdmin}</Typography>
+                            <Typography sx={{ fontSize: '11px' }}>
+                              <strong>Assessed Value:</strong> ₱{formatCurrency(prevAv)} | <strong>Market Value:</strong> ₱{formatCurrency(prevMv)}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    );
+                  })}
                 </Box>
-                <Box sx={{ display: 'flex' }}>
-                  <Typography sx={{ mr: 1 }}>Previous M.V. Php :</Typography>
-                  <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px', textAlign: 'center' }}>{formatCurrency(property.prev_market_value)}</Typography>
+              ) : (
+                <Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography sx={{ width: '220px', whiteSpace: 'nowrap' }}>Cancels TD No. :</Typography>
+                    <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px' }}>{property.prevtdno || property.prev_tdno || 'NEW'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous PIN :</Typography>
+                    <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_pin || '-'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous Owner :</Typography>
+                    <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_owner || '-'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography sx={{ width: '220px', textAlign: 'right', pr: 1, whiteSpace: 'nowrap' }}>Previous Administrator :</Typography>
+                    <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '350px' }}>{property.prev_administrator || '-'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 1, flexWrap: 'wrap', gap: 2 }}>
+                    <Box sx={{ display: 'flex' }}>
+                      <Typography sx={{ mr: 1 }}>Previous Area (sqm) :</Typography>
+                      <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '100px', textAlign: 'center' }}>{property.prev_area_sqm || property.prev_area_hectare || '-'}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex' }}>
+                      <Typography sx={{ mr: 1 }}>Previous M.V. Php :</Typography>
+                      <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px', textAlign: 'center' }}>{formatCurrency(property.prev_market_value)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex' }}>
+                      <Typography sx={{ mr: 1 }}>Previous A.V. Php :</Typography>
+                      <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px', textAlign: 'center' }}>{formatCurrency(property.prev_assessed_value)}</Typography>
+                    </Box>
+                  </Box>
                 </Box>
-                <Box sx={{ display: 'flex' }}>
-                  <Typography sx={{ mr: 1 }}>Previous A.V. Php :</Typography>
-                  <Typography sx={{ fontWeight: 'bold', borderBottom: '1px solid #000', minWidth: '150px', textAlign: 'center' }}>{formatCurrency(property.prev_assessed_value)}</Typography>
-                </Box>
-              </Box>
+              )}
             </Box>
 
             <Box sx={{ border: '1px solid #000', p: 1, mb: 1, minHeight: '80px', fontSize: '12px' }}>
@@ -496,7 +634,8 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
               <strong>Note:</strong> This declaration is for real property taxation purposes only and the valuation indicated herein are based on the schedule of unit market values prepared for the purpose and duly enacted into an ordinance... It does not and cannot by itself alone confer any ownership or legal title to the property.
             </Typography>
 
-            {(property.state === 'CANCELLED' || property.rpu_state === 'CANCELLED') && (
+            {/* Structured Cancellation Watermark / Overlay */}
+            {((property.effective_state || property.state) === 'CANCELLED' || property.rpu_state === 'CANCELLED') && (
               <Box sx={{
                 position: 'absolute',
                 top: '50%',
@@ -508,16 +647,40 @@ const TaxDeclarationPreviewModal = ({ open, onClose, property }) => {
                 pointerEvents: 'none',
                 border: '3px solid red',
                 p: 2,
-                backgroundColor: 'rgba(255,255,255,0.85)'
+                backgroundColor: 'rgba(255,255,255,0.9)'
               }}>
-                <Typography sx={{ fontSize: '80px', fontWeight: 'bold', letterSpacing: '10px', lineHeight: 1, mb: 1, opacity: 0.9 }}>
-                  CANCELLED
+                <Typography sx={{ fontSize: '70px', fontWeight: 'bold', letterSpacing: '8px', lineHeight: 1, mb: 1, opacity: 0.9 }}>
+                  DECLARATION CANCELLED
                 </Typography>
-                <Typography sx={{ fontSize: '18px', fontWeight: 'bold' }}>
-                  Cancelled By TD/ARP No. {property.cancelled_by_tdnos || '—'}. 
-                  PIN No. {property.cancelled_by_pin || '—'}. 
-                  Effective Year {property.cancelled_year || '—'}. 
-                  Date {property.cancel_date || '—'}.
+                <Typography sx={{ fontSize: '16px', fontWeight: 'bold' }}>
+                  Cancelled By TD/ARP No. {property.cancelled_by_tdno || property.cancelled_by_tdnos || property.cancelledbytdnos || '—'}.
+                </Typography>
+                <Typography sx={{ fontSize: '14px', mt: 0.5 }}>
+                  Reason: {property.cancellation_reason || property.cancel_reason || property.cancelreason || 'Superseded by Approved Lineage'}.
+                  {property.cancellation_date || property.cancel_date ? ` Date: ${property.cancellation_date || property.cancel_date}.` : ''}
+                </Typography>
+                {property.cancel_note && (
+                  <Typography sx={{ fontSize: '12px', fontStyle: 'italic', mt: 0.5 }}>
+                    Note: {property.cancel_note}
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {/* Disapproval Notice (Distinct from True Cancellation) */}
+            {(property.effective_state || property.state) === 'DISAPPROVED' && (
+              <Box sx={{
+                mt: 2,
+                p: 2,
+                bgcolor: '#fef2f2',
+                border: '2px solid #ef4444',
+                borderRadius: 1
+              }}>
+                <Typography variant="subtitle2" sx={{ color: '#b91c1c', fontWeight: 700 }}>
+                  DECLARATION DISAPPROVED / RETURNED TO DRAFT
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#7f1d1d', mt: 0.5 }}>
+                  <strong>Disapproval Rationale:</strong> {property.disapproval_reason || property.cancelreason || property.cancelnote || 'Returned for corrections before approval.'}
                 </Typography>
               </Box>
             )}

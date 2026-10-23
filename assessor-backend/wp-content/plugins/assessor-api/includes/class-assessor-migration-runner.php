@@ -58,6 +58,24 @@ class Assessor_Migration_Runner {
                 'description' => 'Migrates assessor_property_types, assessor_general_classes, assessor_locations, and assessor_request_purposes id columns to UUID v7 (RFC 9562).',
                 'handler'     => array($this, 'run_lookup_tables_uuid_migration'),
             ),
+            '006_shadow_etracs_ownership_metadata' => array(
+                'name'        => '006_shadow_etracs_ownership_metadata',
+                'title'       => 'Shadow ETRACS Ownership Metadata & Provenance Migration (WP-01)',
+                'description' => 'Adds origin_type ENUM(REPLICA, LOCAL) and idx_origin_type index to 24 Shadow ETRACS tables and backfills pre-existing rows as REPLICA.',
+                'handler'     => array($this, 'run_shadow_ownership_migration'),
+            ),
+            '007_shadow_etracs_audit_trail' => array(
+                'name'        => '007_shadow_etracs_audit_trail',
+                'title'       => 'Shadow ETRACS Dedicated Audit Trail & Change History (WP-07)',
+                'description' => 'Creates wp_assessor_shadow_audit table with indexes for durable, queryable, append-only Shadow ETRACS audit logging.',
+                'handler'     => array($this, 'run_shadow_audit_migration'),
+            ),
+            '008_property_assessed_descriptions_schema' => array(
+                'name'        => '008_property_assessed_descriptions_schema',
+                'title'       => 'Property Assessed Descriptions Schema & Ownership Hardening',
+                'description' => 'Creates or ensures assessor_machine, assessor_planttree, and assessor_planttreedetail tables with origin_type ownership protection and indexing on assessor_planttreedetail.',
+                'handler'     => array($this, 'run_property_assessed_descriptions_migration'),
+            ),
         );
     }
 
@@ -99,8 +117,22 @@ class Assessor_Migration_Runner {
             KEY status (status)
         ) $charset_collate;";
 
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
+        if (!function_exists('dbDelta')) {
+            if (defined('WP_CONTENT_DIR')) {
+                if (file_exists(ABSPATH . 'wp-admin/includes/upgrade.php')) {
+                    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+                } elseif (defined('WP_ADMIN_DIR') && file_exists(WP_ADMIN_DIR . '/includes/upgrade.php')) {
+                    require_once(WP_ADMIN_DIR . '/includes/upgrade.php');
+                } elseif (file_exists('C:/xampp/htdocs/wp-admin/includes/upgrade.php')) {
+                    require_once('C:/xampp/htdocs/wp-admin/includes/upgrade.php');
+                }
+            }
+        }
+        if (function_exists('dbDelta')) {
+            dbDelta($sql);
+        } else {
+            $wpdb->query($sql);
+        }
     }
 
     /**
@@ -340,12 +372,20 @@ class Assessor_Migration_Runner {
         $this->ensure_migrations_table();
         $table_migrations = $this->get_table_name();
 
-        $params = $request->get_json_params();
-        if (empty($params)) {
-            $params = $request->get_params();
+        if (is_string($request)) {
+            $params = array('migration_name' => $request);
+        } elseif (is_array($request)) {
+            $params = $request;
+        } elseif (is_object($request) && method_exists($request, 'get_json_params')) {
+            $params = $request->get_json_params();
+            if (empty($params)) {
+                $params = $request->get_params();
+            }
+        } else {
+            $params = array();
         }
 
-        $migration_name = isset($params['migration_name']) ? sanitize_text_field($params['migration_name']) : '';
+        $migration_name = isset($params['migration_name']) ? (function_exists('sanitize_text_field') ? sanitize_text_field($params['migration_name']) : trim($params['migration_name'])) : '';
         if (empty($migration_name)) {
             return new WP_Error('missing_migration_name', 'Parameter migration_name is required.', array('status' => 400));
         }
@@ -1362,6 +1402,53 @@ class Assessor_Migration_Runner {
         }
 
         return $results;
+    }
+
+    /**
+     * Migration 006: Shadow ETRACS Ownership Metadata & Provenance Migration (WP-01)
+     *
+     * Adds origin_type ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'
+     * and idx_origin_type index to 24 Shadow ETRACS tables and backfills pre-existing rows as REPLICA.
+     *
+     * @return array
+     */
+    public function run_shadow_ownership_migration() {
+        if (!class_exists('Assessor_Database')) {
+            require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
+        }
+        $db = new Assessor_Database();
+        return $db->migrate_shadow_ownership_metadata();
+    }
+
+    /**
+     * Migration 007: Shadow ETRACS Dedicated Audit Trail Table (WP-07)
+     *
+     * Creates or validates the wp_assessor_shadow_audit table.
+     *
+     * @return array
+     */
+    public function run_shadow_audit_migration() {
+        if (!class_exists('Assessor_Database')) {
+            require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
+        }
+        $db = new Assessor_Database();
+        return $db->migrate_shadow_audit_table();
+    }
+
+    /**
+     * Migration 008: Property Assessed Descriptions Schema & Ownership Hardening
+     *
+     * Creates or validates assessor_machine, assessor_planttree, and assessor_planttreedetail tables,
+     * ensuring origin_type ownership protection on assessor_planttreedetail.
+     *
+     * @return array
+     */
+    public function run_property_assessed_descriptions_migration() {
+        if (!class_exists('Assessor_Database')) {
+            require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
+        }
+        $db = new Assessor_Database();
+        return $db->migrate_property_assessed_descriptions_schema();
     }
 }
 

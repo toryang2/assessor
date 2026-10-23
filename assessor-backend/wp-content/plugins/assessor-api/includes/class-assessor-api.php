@@ -702,7 +702,22 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/etracs/faas/(?P<id>[a-zA-Z0-9\-\:]+)/cancel', array(
             'methods'  => 'POST',
             'callback' => array($this, 'etracs_cancel_faas'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/etracs/faas/(?P<id>[a-zA-Z0-9\-\:]+)/submit', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'etracs_submit_faas'),
             'permission_callback' => array($this, 'check_admin'),
+        ));
+        register_rest_route('assessor/v1', '/etracs/faas/(?P<id>[a-zA-Z0-9\-\:]+)/approve', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'etracs_approve_faas'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+        register_rest_route('assessor/v1', '/etracs/faas/(?P<id>[a-zA-Z0-9\-\:]+)/disapprove', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'etracs_disapprove_faas'),
+            'permission_callback' => array($this, 'check_manager'),
         ));
         
         // ETRACS Sync Pull
@@ -719,11 +734,25 @@ class Assessor_API {
             'permission_callback' => array($this, 'check_manager'),
         ));
 
+        // ETRACS Sync Pull Diagnostics
+        register_rest_route('assessor/v1', '/etracs/pull/diagnostics', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'etracs_pull_sync_diagnostics'),
+            'permission_callback' => array($this, 'check_manager'),
+        ));
+
         // ETRACS stats
         register_rest_route('assessor/v1', '/etracs/stats', array(
             'methods'  => 'GET',
             'callback' => array($this, 'etracs_get_stats'),
             'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        // ETRACS Audit Trail (WP-07)
+        register_rest_route('assessor/v1', '/etracs/audit-trail', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'etracs_get_audit_trail'),
+            'permission_callback' => array($this, 'check_manager'),
         ));
 
         // Transaction types
@@ -791,6 +820,16 @@ class Assessor_API {
         register_rest_route('assessor/v1', '/etracs/rpu/(?P<id>[a-zA-Z0-9\-\:]+)/detail', array(
             'methods'  => 'GET',
             'callback' => array($this, 'etracs_get_rpu_detail'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+        register_rest_route('assessor/v1', '/etracs/rpu/(?P<id>[a-zA-Z0-9\-\:]+)/assessment', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'etracs_get_rpu_assessment'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+        register_rest_route('assessor/v1', '/etracs/rpu/(?P<id>[a-zA-Z0-9\-\:]+)/assessment', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'etracs_update_rpu_assessment'),
             'permission_callback' => array($this, 'check_admin'),
         ));
 
@@ -1550,9 +1589,25 @@ class Assessor_API {
         $etracs = new Assessor_Etracs();
         return $etracs->cancel_faas($request['id'], $request);
     }
+    public function etracs_submit_faas($request) {
+        $etracs = new Assessor_Etracs();
+        return $etracs->submit_faas($request['id'], $request);
+    }
+    public function etracs_approve_faas($request) {
+        $etracs = new Assessor_Etracs();
+        return $etracs->approve_faas($request['id'], $request);
+    }
+    public function etracs_disapprove_faas($request) {
+        $etracs = new Assessor_Etracs();
+        return $etracs->disapprove_faas($request['id'], $request);
+    }
     public function etracs_get_stats($request) {
         $etracs = new Assessor_Etracs();
         return $etracs->get_faas_stats($request);
+    }
+    public function etracs_get_audit_trail($request) {
+        $etracs = new Assessor_Etracs();
+        return $etracs->get_shadow_audit_trail($request);
     }
     public function etracs_get_transaction_types($request) {
         $etracs = new Assessor_Etracs();
@@ -1614,6 +1669,16 @@ class Assessor_API {
         return rest_ensure_response($result);
     }
 
+    public function etracs_get_rpu_assessment($request) {
+        $etracs = new Assessor_Etracs();
+        return rest_ensure_response($etracs->get_rpu_assessments($request['id']));
+    }
+
+    public function etracs_update_rpu_assessment($request) {
+        $etracs = new Assessor_Etracs();
+        return $etracs->update_rpu_assessments($request['id'], $request);
+    }
+
     public function etracs_pull_sync($request) {
         $stats = Assessor_Etracs_Sync::trigger_sync();
         if (is_wp_error($stats)) {
@@ -1628,8 +1693,17 @@ class Assessor_API {
 
     public function etracs_pull_sync_status($request) {
         $status = get_option('assessor_sync_progress', 'Not running');
+        $diagnostics = Assessor_Etracs_Sync::get_diagnostics();
         return rest_ensure_response(array(
-            'status' => $status
+            'status' => $status,
+            'diagnostics' => $diagnostics,
+        ));
+    }
+
+    public function etracs_pull_sync_diagnostics($request) {
+        $diagnostics = Assessor_Etracs_Sync::get_diagnostics();
+        return rest_ensure_response(array(
+            'diagnostics' => $diagnostics,
         ));
     }
 }

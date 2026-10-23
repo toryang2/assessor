@@ -136,6 +136,9 @@ export const endpoints = {
   etracsFaas: '/etracs/faas',
   etracsFaasItem: (id) => `/etracs/faas/${id}`,
   etracsFaasCancel: (id) => `/etracs/faas/${id}/cancel`,
+  etracsFaasSubmit: (id) => `/etracs/faas/${id}/submit`,
+  etracsFaasApprove: (id) => `/etracs/faas/${id}/approve`,
+  etracsFaasDisapprove: (id) => `/etracs/faas/${id}/disapprove`,
   etracsFaasSignatory: (id) => `/etracs/faas/${id}/signatory`,
   etracsStats: '/etracs/stats',
   etracsTransactionTypes: '/etracs/transaction-types',
@@ -150,6 +153,8 @@ export const endpoints = {
   etracsBuildingRevisionSettings: '/etracs/building/revision-settings',
   etracsRpuAssessment: (rpuid) => `/etracs/rpu/${rpuid}/assessment`,
   etracsRpuDetail: (rpuid) => `/etracs/rpu/${rpuid}/detail`,
+  etracsAuditTrail: '/etracs/audit-trail',
+  etracsPullSyncDiagnostics: '/etracs/pull/diagnostics',
 };
 
 // API functions
@@ -1121,6 +1126,30 @@ export const etracsService = {
       throw handleApiError(error);
     }
   },
+  submitFaas: async (id) => {
+    try {
+      const response = await api.post(endpoints.etracsFaasSubmit(id));
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  approveFaas: async (id, data = {}) => {
+    try {
+      const response = await api.post(endpoints.etracsFaasApprove(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  disapproveFaas: async (id, data = {}) => {
+    try {
+      const response = await api.post(endpoints.etracsFaasDisapprove(id), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
   // Stats
   getStats: async () => {
     try {
@@ -1251,6 +1280,33 @@ export const etracsService = {
   getBuildingRevisionSettings: async (params = {}) => {
     try {
       const response = await api.get(endpoints.etracsBuildingRevisionSettings, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateRpuAssessments: async (rpuid, data) => {
+    try {
+      const response = await api.post(endpoints.etracsRpuAssessment(rpuid), data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getAuditTrail: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsAuditTrail, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getPullSyncDiagnostics: async () => {
+    try {
+      const response = await api.get(endpoints.etracsPullSyncDiagnostics);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

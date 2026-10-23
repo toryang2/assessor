@@ -40,7 +40,11 @@ import {
   Refresh as RefreshIcon,
   Assignment as AssignmentIcon,
   CheckCircle as CheckCircleIcon,
-  Block as BlockIcon
+  Block as BlockIcon,
+  Send as SendIcon,
+  ThumbDown as ThumbDownIcon,
+  ThumbUp as ThumbUpIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
@@ -48,16 +52,22 @@ import { etracsService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import EtracsPropertyFormModal from '../EtracsPropertyFormModal/EtracsPropertyFormModal';
 import TaxDeclarationPreviewModal from './TaxDeclarationPreviewModal';
+import EtracsAuditTimelineModal from './EtracsAuditTimelineModal';
 
 const stateColors = {
   CURRENT: { bg: '#e8f5e9', color: '#2e7d32', label: 'Current' },
+  FORAPPROVAL: { bg: '#fff8e1', color: '#b78103', label: 'For Approval' },
+  INTERIM: { bg: '#e0f2fe', color: '#0369a1', label: 'Interim Draft' },
+  PENDING: { bg: '#e0f2fe', color: '#0369a1', label: 'Pending Draft' },
+  DISAPPROVED: { bg: '#fef2f2', color: '#991b1b', label: 'Disapproved' },
   CANCELLED: { bg: '#ffebee', color: '#c62828', label: 'Cancelled' },
   DELETED: { bg: '#f5f5f5', color: '#757575', label: 'Deleted' },
 };
 
 const EtracsPropertyTable = () => {
-  const { isSuperAdmin, isAdmin } = useAuth();
+  const { isSuperAdmin, isAdmin, isAssessor, canManage } = useAuth();
   const canEdit = isSuperAdmin || isAdmin;
+  const canApprove = isSuperAdmin || isAdmin || isAssessor || canManage;
 
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +94,18 @@ const EtracsPropertyTable = () => {
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNote, setCancelNote] = useState('');
+
+  // Lifecycle dialog states
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [disapproveDialogOpen, setDisapproveDialogOpen] = useState(false);
+  const [disapproveTarget, setDisapproveTarget] = useState(null);
+  const [disapproveReason, setDisapproveReason] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+
+  // Audit history modal state
+  const [auditDialogOpen, setAuditDialogOpen] = useState(false);
+  const [auditTargetFaasId, setAuditTargetFaasId] = useState(null);
 
   const fetchProperties = useCallback(async () => {
     try {
@@ -191,9 +213,19 @@ const EtracsPropertyTable = () => {
     }
   };
 
-  const handleCancel = async () => {
-    if (!cancelTarget) return;
+  const refreshAll = useCallback(async () => {
+    fetchProperties();
     try {
+      const statsData = await etracsService.getStats();
+      setStats(statsData);
+    } catch (_) {}
+  }, [fetchProperties]);
+
+  const handleCancel = async () => {
+    if (!cancelTarget || actionSubmitting) return;
+    try {
+      setActionSubmitting(true);
+      setError(null);
       await etracsService.cancelFaas(cancelTarget.id, {
         cancel_reason: cancelReason,
         cancel_note: cancelNote,
@@ -202,16 +234,67 @@ const EtracsPropertyTable = () => {
       setCancelTarget(null);
       setCancelReason('');
       setCancelNote('');
-      fetchProperties();
+      refreshAll();
     } catch (err) {
-      setError('Failed to cancel record');
+      setError(err.message || 'Failed to cancel record');
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleSubmitForApproval = async (row) => {
+    if (actionSubmitting) return;
+    try {
+      setActionSubmitting(true);
+      setError(null);
+      await etracsService.submitFaas(row.id);
+      refreshAll();
+    } catch (err) {
+      setError(err.message || 'Failed to submit declaration for approval');
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!approveTarget || actionSubmitting) return;
+    try {
+      setActionSubmitting(true);
+      setError(null);
+      await etracsService.approveFaas(approveTarget.id);
+      setApproveDialogOpen(false);
+      setApproveTarget(null);
+      refreshAll();
+    } catch (err) {
+      setError(err.message || 'Failed to approve declaration');
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleDisapprove = async () => {
+    if (!disapproveTarget || actionSubmitting) return;
+    try {
+      setActionSubmitting(true);
+      setError(null);
+      await etracsService.disapproveFaas(disapproveTarget.id, {
+        reason: disapproveReason,
+      });
+      setDisapproveDialogOpen(false);
+      setDisapproveTarget(null);
+      setDisapproveReason('');
+      refreshAll();
+    } catch (err) {
+      setError(err.message || 'Failed to disapprove declaration');
+    } finally {
+      setActionSubmitting(false);
     }
   };
 
   const handleFormSave = () => {
     setFormOpen(false);
     setSelectedProperty(null);
-    fetchProperties();
+    refreshAll();
   };
 
   const formatCurrency = (val) => {
@@ -227,9 +310,11 @@ const EtracsPropertyTable = () => {
           {[
             { title: 'Total Records', value: stats.total?.toLocaleString() || 0, icon: <AssignmentIcon />, color: '#3b82f6' },
             { title: 'Current', value: stats.current?.toLocaleString() || 0, icon: <CheckCircleIcon />, color: '#10b981' },
+            { title: 'For Approval', value: stats.forapproval?.toLocaleString() || 0, icon: <SendIcon />, color: '#f59e0b' },
+            { title: 'Draft / Interim', value: stats.interim?.toLocaleString() || 0, icon: <EditIcon />, color: '#6366f1' },
             { title: 'Cancelled', value: stats.cancelled?.toLocaleString() || 0, icon: <BlockIcon />, color: '#ef4444' },
           ].map((stat, i) => (
-            <Grid item xs={12} sm={4} key={i}>
+            <Grid item xs={12} sm={6} md={2.4} key={i}>
               <motion.div
                 whileHover={{ scale: 1.02, y: -5 }}
                 transition={{ duration: 0.2 }}
@@ -303,6 +388,9 @@ const EtracsPropertyTable = () => {
               <Select value={stateFilter} onChange={(e) => { setStateFilter(e.target.value); setPage(0); }} label="State">
                 <MenuItem value="">All</MenuItem>
                 <MenuItem value="CURRENT">Current</MenuItem>
+                <MenuItem value="FORAPPROVAL">For Approval</MenuItem>
+                <MenuItem value="INTERIM">Interim Draft</MenuItem>
+                <MenuItem value="DISAPPROVED">Disapproved</MenuItem>
                 <MenuItem value="CANCELLED">Cancelled</MenuItem>
               </Select>
             </FormControl>
@@ -345,20 +433,35 @@ const EtracsPropertyTable = () => {
       </Paper>
 
       {/* Action bar */}
-      {canEdit && (
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => { setSelectedProperty(null); setFormOpen(true); }}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
-          >
-            New FAAS Record
-          </Button>
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          {canApprove && (
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<HistoryIcon />}
+              onClick={() => { setAuditTargetFaasId(null); setAuditDialogOpen(true); }}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            >
+              Shadow Audit Log
+            </Button>
+          )}
         </Box>
-      )}
+        <Box>
+          {canEdit && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => { setSelectedProperty(null); setFormOpen(true); }}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            >
+              New FAAS Record
+            </Button>
+          )}
+        </Box>
+      </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
       {/* Table */}
       <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -375,7 +478,7 @@ const EtracsPropertyTable = () => {
               <TableCell sx={{ fontWeight: 600 }}>Market Value</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Assessed Value</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Txn</TableCell>
-
+              <TableCell sx={{ fontWeight: 600 }}>Origin</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>State</TableCell>
               <TableCell sx={{ fontWeight: 600, textAlign: 'center' }}>Actions</TableCell>
             </TableRow>
@@ -398,7 +501,9 @@ const EtracsPropertyTable = () => {
               </TableRow>
             ) : (
               properties.map((row) => {
-                const st = stateColors[row.state] || stateColors.CURRENT;
+                const effectiveState = row.effective_state || row.state;
+                const isReplica = row.origin_type === 'REPLICA';
+                const st = stateColors[effectiveState] || stateColors.CURRENT;
                 return (
                   <motion.tr
                     key={row.id}
@@ -430,7 +535,15 @@ const EtracsPropertyTable = () => {
                     <TableCell>
                       <Chip label={row.txntype_code || '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
                     </TableCell>
-
+                    <TableCell>
+                      <Chip
+                        label={isReplica ? 'REPLICA' : 'LOCAL'}
+                        size="small"
+                        color={isReplica ? 'info' : 'success'}
+                        variant="outlined"
+                        sx={{ fontSize: '0.65rem', fontWeight: 700 }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={st.label}
@@ -439,27 +552,61 @@ const EtracsPropertyTable = () => {
                       />
                     </TableCell>
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title="View">
+                      <Tooltip title="View Declaration">
                         <IconButton size="small" onClick={() => handleView(row.id)}>
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      {canEdit && row.state !== 'CANCELLED' && (
+                      {/* Audit History (Available to assessors/managers) */}
+                      {canApprove && (
+                        <Tooltip title="Audit History">
+                          <IconButton size="small" color="default" onClick={() => { setAuditTargetFaasId(row.id); setAuditDialogOpen(true); }}>
+                            <HistoryIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Submit for Approval (Drafts: INTERIM, PENDING, DISAPPROVED) - LOCAL records only */}
+                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                        <Tooltip title="Submit for Approval">
+                          <IconButton size="small" color="primary" onClick={() => handleSubmitForApproval(row)}>
+                            <SendIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Assessor Approval Actions (FORAPPROVAL) - LOCAL records only */}
+                      {!isReplica && canApprove && effectiveState === 'FORAPPROVAL' && (
                         <>
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => handleEdit(row.id)}>
-                              <EditIcon fontSize="small" />
+                          <Tooltip title="Approve Declaration">
+                            <IconButton size="small" color="success" onClick={() => { setApproveTarget(row); setApproveDialogOpen(true); }}>
+                              <ThumbUpIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Cancel">
-                            <IconButton size="small" color="warning" onClick={() => { setCancelTarget(row); setCancelDialogOpen(true); }}>
-                              <CancelIcon fontSize="small" />
+                          <Tooltip title="Disapprove / Return">
+                            <IconButton size="small" color="error" onClick={() => { setDisapproveTarget(row); setDisapproveDialogOpen(true); }}>
+                              <ThumbDownIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </>
                       )}
-                      {canEdit && (
-                        <Tooltip title="Delete">
+                      {/* Edit (only local drafts can be edited) */}
+                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                        <Tooltip title="Edit Draft">
+                          <IconButton size="small" onClick={() => handleEdit(row.id)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Cancel (only CURRENT local declarations can be cancelled directly) */}
+                      {!isReplica && canApprove && effectiveState === 'CURRENT' && (
+                        <Tooltip title="Cancel FAAS">
+                          <IconButton size="small" color="warning" onClick={() => { setCancelTarget(row); setCancelDialogOpen(true); }}>
+                            <CancelIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Delete (only unapproved local drafts can be deleted) */}
+                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                        <Tooltip title="Delete Draft">
                           <IconButton size="small" color="error" onClick={() => { setDeleteTarget(row); setDeleteDialogOpen(true); }}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -487,6 +634,13 @@ const EtracsPropertyTable = () => {
         open={viewDialogOpen} 
         onClose={() => setViewDialogOpen(false)} 
         property={viewProperty} 
+      />
+
+      {/* Shadow Audit Timeline Modal */}
+      <EtracsAuditTimelineModal
+        open={auditDialogOpen}
+        onClose={() => setAuditDialogOpen(false)}
+        faasId={auditTargetFaasId}
       />
 
       {/* Delete Confirmation */}
@@ -525,8 +679,56 @@ const EtracsPropertyTable = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCancelDialogOpen(false)}>Back</Button>
-          <Button onClick={handleCancel} color="warning" variant="contained">Confirm Cancel</Button>
+          <Button onClick={() => setCancelDialogOpen(false)} disabled={actionSubmitting}>Back</Button>
+          <Button onClick={handleCancel} color="warning" variant="contained" disabled={actionSubmitting}>
+            {actionSubmitting ? 'Cancelling...' : 'Confirm Cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Approve Confirmation Dialog */}
+      <Dialog open={approveDialogOpen} onClose={() => setApproveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Approve Declaration?</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Are you sure you want to approve TD# <strong>{approveTarget?.tdno}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Approving this declaration will promote its state to <strong>CURRENT</strong>. If a previous tax declaration was referenced ({approveTarget?.prevtdno || 'none'}), it will be automatically cancelled.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setApproveDialogOpen(false)} disabled={actionSubmitting}>Cancel</Button>
+          <Button onClick={handleApprove} color="success" variant="contained" disabled={actionSubmitting}>
+            {actionSubmitting ? 'Approving...' : 'Approve & Make Current'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Disapprove Confirmation Dialog */}
+      <Dialog open={disapproveDialogOpen} onClose={() => setDisapproveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Disapprove Declaration?</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Return declaration TD# <strong>{disapproveTarget?.tdno}</strong> to draft status?
+          </Typography>
+          <TextField
+            fullWidth
+            label="Disapproval Reason"
+            value={disapproveReason}
+            onChange={(e) => setDisapproveReason(e.target.value)}
+            size="small"
+            multiline
+            rows={3}
+            placeholder="Enter reason for returning or rejecting this declaration..."
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDisapproveDialogOpen(false)} disabled={actionSubmitting}>Back</Button>
+          <Button onClick={handleDisapprove} color="error" variant="contained" disabled={actionSubmitting}>
+            {actionSubmitting ? 'Returning...' : 'Disapprove'}
+          </Button>
         </DialogActions>
       </Dialog>
 

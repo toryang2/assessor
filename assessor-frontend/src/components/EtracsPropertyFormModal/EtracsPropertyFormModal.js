@@ -14,7 +14,7 @@ const defaultFormData = {
   tdno: '', utdno: '', pin_type: 'NEW', section: '', parcel: '', claim_no: '',
   txntype_code: 'GR', effectivity_year: '', effectivity_qtr: '', owner_name: '', owner_address: '',
   administrator_name: '', administrator_address: '', beneficiary_name: '', beneficiary_address: '',
-  pin: '', title_type: '', title_no: '',  title_date: '', prevtdno: '', prev_owner: '', prev_pin: '', prev_administrator: '',
+  pin: '', title_type: '', title_no: '',  title_date: '', prevfaasid: '', prevtdno: '', prev_owner: '', prev_pin: '', prev_administrator: '',
   prev_assessed_value: '', prev_market_value: '', prev_area_hectare: '', prev_area_sqm: '',
   prev_effectivity: '', memoranda: '', back_tax_years: 0, ry_ordinance_no: '', ry_ordinance_date: '',
   date_approved: '', year_issued: '', public_land: 0,
@@ -188,11 +188,12 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
   const handlePrevFaasSelect = (event, newValue) => {
     if (newValue) {
       if (typeof newValue === 'string') {
-        setFormData(prev => ({ ...prev, prevtdno: newValue }));
+        setFormData(prev => ({ ...prev, prevtdno: newValue, prevfaasid: '' }));
         return;
       }
       setFormData(prev => ({
         ...prev,
+        prevfaasid: newValue.objid || newValue.id || '',
         prevtdno: newValue.tdno || '',
         prev_owner: newValue.owner_name || newValue.taxpayer_name || '',
         prev_assessed_value: newValue.total_assessed_value || '',
@@ -201,7 +202,7 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
         prev_area_sqm: newValue.total_area_sqm || '',
       }));
     } else {
-      setFormData(prev => ({ ...prev, prevtdno: '' }));
+      setFormData(prev => ({ ...prev, prevtdno: '', prevfaasid: '' }));
     }
   };
 
@@ -243,29 +244,135 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
     setActiveStep(1);
   };
 
+  const handleAddAssessmentLine = () => {
+    const newLine = {
+      objid: '',
+      actualuse: '',
+      classcode: 'RES',
+      classname: 'Residential',
+      areasqm: 0,
+      areaha: 0,
+      marketvalue: 0,
+      assesslevel: 20,
+      assessedvalue: 0,
+      taxable: 1,
+    };
+    setAssessments(prev => [...prev, newLine]);
+  };
+
+  const handleAssessmentChange = (index, field, value) => {
+    setAssessments(prev => {
+      const updated = [...prev];
+      const line = { ...updated[index], [field]: value };
+
+      if (field === 'areasqm') {
+        const sqm = parseFloat(value) || 0;
+        line.areasqm = sqm;
+        line.areaha = parseFloat((sqm / 10000).toFixed(4));
+      } else if (field === 'areaha') {
+        const ha = parseFloat(value) || 0;
+        line.areaha = ha;
+        line.areasqm = parseFloat((ha * 10000).toFixed(2));
+      }
+
+      if (field === 'marketvalue' || field === 'assesslevel') {
+        const mv = field === 'marketvalue' ? (parseFloat(value) || 0) : (parseFloat(line.marketvalue) || 0);
+        const lvl = field === 'assesslevel' ? (parseFloat(value) || 0) : (parseFloat(line.assesslevel) || 0);
+        line.assessedvalue = Math.round(mv * (lvl / 100));
+      }
+
+      updated[index] = line;
+
+      // Automatically recalculate aggregate RPU values
+      const totalMv = updated.reduce((s, it) => s + (parseFloat(it.marketvalue) || 0), 0);
+      const totalAv = updated.reduce((s, it) => s + (parseFloat(it.assessedvalue) || 0), 0);
+      const totalSqm = updated.reduce((s, it) => s + (parseFloat(it.areasqm) || 0), 0);
+      const totalHa = updated.reduce((s, it) => s + (parseFloat(it.areaha) || 0), 0);
+
+      setFormData(f => ({
+        ...f,
+        total_market_value: totalMv,
+        total_assessed_value: totalAv,
+        total_area_sqm: totalSqm,
+        total_area_hectare: totalHa,
+      }));
+
+      return updated;
+    });
+  };
+
+  const handleRemoveAssessmentLine = (index) => {
+    setAssessments(prev => {
+      const updated = prev.filter((_, idx) => idx !== index);
+      const totalMv = updated.reduce((s, it) => s + (parseFloat(it.marketvalue) || 0), 0);
+      const totalAv = updated.reduce((s, it) => s + (parseFloat(it.assessedvalue) || 0), 0);
+      const totalSqm = updated.reduce((s, it) => s + (parseFloat(it.areasqm) || 0), 0);
+      const totalHa = updated.reduce((s, it) => s + (parseFloat(it.areaha) || 0), 0);
+
+      setFormData(f => ({
+        ...f,
+        total_market_value: totalMv,
+        total_assessed_value: totalAv,
+        total_area_sqm: totalSqm,
+        total_area_hectare: totalHa,
+      }));
+
+      return updated;
+    });
+  };
+
   const handleSubmit = async () => {
     if (!formData.tdno || !formData.owner_name) {
       setError('TD Number and Owner Name are required');
       return;
     }
+
+    // Guard: Prevent saving or editing REPLICA records
+    if (isEditing && property?.origin_type === 'REPLICA') {
+      setError('REPLICA records cannot be modified via local authoring draft editor.');
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
+
+      const payload = {
+        ...formData,
+        assessments: assessments.map(a => ({
+          objid: a.objid || undefined,
+          actualuse: a.actualuse,
+          actualuse_objid: a.actualuse_objid,
+          classcode: a.classcode,
+          classname: a.classname,
+          classification_objid: a.classification_objid,
+          rputype: a.rputype || formData.rpu_type,
+          areasqm: parseFloat(a.areasqm) || 0,
+          areaha: parseFloat(a.areaha) || 0,
+          marketvalue: parseFloat(a.marketvalue) || 0,
+          assesslevel: parseFloat(a.assesslevel) || 0,
+          assessedvalue: parseFloat(a.assessedvalue) || 0,
+          taxable: a.taxable !== undefined ? parseInt(a.taxable, 10) : 1,
+        })),
+      };
+
       if (isEditing) {
-        await etracsService.updateFaas(property.id, formData);
+        await etracsService.updateFaas(property.id, payload);
         if (Object.keys(signatory).length > 0) {
           await etracsService.updateFaasSignatory(property.id, signatory);
         }
-        setToast({ open: true, message: 'Updated', severity: 'success' });
+        setToast({ open: true, message: 'Draft updated successfully', severity: 'success' });
       } else {
-        const res = await etracsService.createFaas(formData);
+        const res = await etracsService.createFaas(payload);
         if (res && res.id && Object.keys(signatory).length > 0) {
           await etracsService.updateFaasSignatory(res.id, signatory);
         }
-        setToast({ open: true, message: 'Created', severity: 'success' });
+        setToast({ open: true, message: 'Draft Created (Interim)', severity: 'success' });
       }
       onSave?.();
     } catch (err) {
-      setError(err.message || 'Failed to save record');
+      // Retain unsaved form data and show meaningful backend validation error
+      setError(err.message || 'Failed to save declaration record');
     } finally {
       setLoading(false);
     }
@@ -502,36 +609,116 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                     {/* Assessment Tab */}
                     {((formData.rpu_type?.toUpperCase() !== 'BLDG' && activeTab === 1) || (formData.rpu_type?.toUpperCase() === 'BLDG' && activeTab === 4)) && (
                       <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            RPU Assessment Schedule Lines
+                          </Typography>
+                          <Button size="small" variant="outlined" onClick={handleAddAssessmentLine}>
+                            + Add Line Item
+                          </Button>
+                        </Box>
                         <TableContainer component={Paper} variant="outlined">
                           <Table size="small">
                             <TableHead>
                               <TableRow sx={{ bgcolor: '#f0f0f0' }}>
-                                <TableCell>Actual Use</TableCell>
-                                <TableCell>Class</TableCell>
-                                <TableCell>Area</TableCell>
-                                <TableCell>Market Value</TableCell>
-                                <TableCell>Assess Level</TableCell>
-                                <TableCell>Assessed Value</TableCell>
+                                <TableCell sx={{ width: '22%' }}>Actual Use</TableCell>
+                                <TableCell sx={{ width: '18%' }}>Class Code</TableCell>
+                                <TableCell sx={{ width: '14%' }}>Area (sqm)</TableCell>
+                                <TableCell sx={{ width: '18%' }}>Market Value (₱)</TableCell>
+                                <TableCell sx={{ width: '12%' }}>Assess Level (%)</TableCell>
+                                <TableCell sx={{ width: '16%' }}>Assessed Value (₱)</TableCell>
+                                <TableCell sx={{ width: '5%' }} align="center"></TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
                               {assessments.map((r, i) => (
-                                <TableRow key={i}>
-                                  <TableCell>{r.actualuse || 'N/A'}</TableCell>
-                                  <TableCell>{r.classname || r.classcode}</TableCell>
-                                  <TableCell>{r.areasqm ? `${r.areasqm} sqm` : `${r.areaha} ha`}</TableCell>
-                                  <TableCell>₱{Number(r.marketvalue).toLocaleString()}</TableCell>
-                                  <TableCell>{Number(r.assesslevel)}%</TableCell>
-                                  <TableCell sx={{ fontWeight: 'bold' }}>₱{Number(r.assessedvalue).toLocaleString()}</TableCell>
+                                <TableRow key={r.objid || i}>
+                                  <TableCell>
+                                    <TextField
+                                      size="small"
+                                      variant="standard"
+                                      fullWidth
+                                      value={r.actualuse || ''}
+                                      placeholder="e.g. RESIDENTIAL"
+                                      onChange={(e) => handleAssessmentChange(i, 'actualuse', e.target.value)}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <TextField
+                                      size="small"
+                                      variant="standard"
+                                      fullWidth
+                                      value={r.classcode || r.classname || ''}
+                                      placeholder="e.g. RES"
+                                      onChange={(e) => handleAssessmentChange(i, 'classcode', e.target.value)}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <TextField
+                                      size="small"
+                                      variant="standard"
+                                      type="number"
+                                      fullWidth
+                                      value={r.areasqm ?? ''}
+                                      onChange={(e) => handleAssessmentChange(i, 'areasqm', e.target.value)}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <TextField
+                                      size="small"
+                                      variant="standard"
+                                      type="number"
+                                      fullWidth
+                                      value={r.marketvalue ?? ''}
+                                      onChange={(e) => handleAssessmentChange(i, 'marketvalue', e.target.value)}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <TextField
+                                      size="small"
+                                      variant="standard"
+                                      type="number"
+                                      fullWidth
+                                      value={r.assesslevel ?? 20}
+                                      onChange={(e) => handleAssessmentChange(i, 'assesslevel', e.target.value)}
+                                    />
+                                  </TableCell>
+                                  <TableCell sx={{ fontWeight: 'bold' }}>
+                                    ₱{Number(r.assessedvalue || 0).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    <Button
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleRemoveAssessmentLine(i)}
+                                      sx={{ minWidth: 28, p: 0.5 }}
+                                    >
+                                      ✕
+                                    </Button>
+                                  </TableCell>
                                 </TableRow>
                               ))}
-                              {assessments.length === 0 && <TableRow><TableCell colSpan={6} align="center">No assessment records found.</TableCell></TableRow>}
+                              {assessments.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                    No assessment schedule lines yet. Click "+ Add Line Item" above to create one.
+                                  </TableCell>
+                                </TableRow>
+                              )}
                             </TableBody>
                           </Table>
                         </TableContainer>
                         <Grid container spacing={2} sx={{ mt: 2 }}>
-                          <Grid item xs={6}><Typography variant="subtitle2">Total Market Value: ₱{Number(formData.total_market_value || 0).toLocaleString()}</Typography></Grid>
-                          <Grid item xs={6}><Typography variant="subtitle2" color="primary.main">Total Assessed Value: ₱{Number(formData.total_assessed_value || 0).toLocaleString()}</Typography></Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="subtitle2">
+                              Aggregate Market Value: ₱{Number(formData.total_market_value || 0).toLocaleString()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="subtitle2" color="primary.main">
+                              Aggregate Assessed Value: ₱{Number(formData.total_assessed_value || 0).toLocaleString()}
+                            </Typography>
+                          </Grid>
                         </Grid>
                       </Box>
                     )}
@@ -602,7 +789,7 @@ const EtracsPropertyFormModal = ({ open, onClose, property, onSave, transactionT
                 <>
                   {!isEditing && <Button onClick={() => setActiveStep(0)} variant="outlined" disabled={loading}>Back</Button>}
                   <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-                    {loading ? 'Saving...' : isEditing ? 'Update Record' : 'Create Record'}
+                    {loading ? 'Saving...' : isEditing ? 'Update Record' : 'Save Draft'}
                   </Button>
                 </>
               )}
