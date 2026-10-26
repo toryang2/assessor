@@ -14,10 +14,18 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ASSESSOR_API_VERSION', '1.1.17');
-define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');
-define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
+if (!defined('ASSESSOR_API_VERSION')) {
+    define('ASSESSOR_API_VERSION', '1.1.17');
+}
+if (!defined('ASSESSOR_SHADOW_SCHEMA_VERSION')) {
+    define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');
+}
+if (!defined('ASSESSOR_API_PLUGIN_DIR')) {
+    define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('ASSESSOR_API_PLUGIN_URL')) {
+    define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 
 // Set global timezone for the plugin
 date_default_timezone_set('Asia/Manila');

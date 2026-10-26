@@ -64,14 +64,11 @@ if (!defined('OBJECT')) {
 if (!defined('ARRAY_A')) {
     define('ARRAY_A', 'ARRAY_A');
 }
+if (!defined('ASSESSOR_IS_LOCAL_BUILD')) {
+    define('ASSESSOR_IS_LOCAL_BUILD', true);
+}
 if (!defined('ASSESSOR_API_PLUGIN_DIR')) {
     define('ASSESSOR_API_PLUGIN_DIR', dirname(__DIR__) . '/wp-content/plugins/assessor-api/');
-}
-if (!defined('ASSESSOR_API_VERSION')) {
-    define('ASSESSOR_API_VERSION', '1.1.17');
-}
-if (!defined('ASSESSOR_SHADOW_SCHEMA_VERSION')) {
-    define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');
 }
 
 if (!function_exists('current_time')) {
@@ -133,6 +130,62 @@ if (!function_exists('wp_generate_uuid4')) {
             mt_rand(0, 0x3fff) | 0x8000,
             mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
         );
+    }
+}
+
+// WordPress Hook Stubs
+$wp_actions = [];
+$wp_activation_hooks = [];
+$wp_deactivation_hooks = [];
+
+if (!function_exists('add_action')) {
+    function add_action($tag, $callback, $priority = 10, $accepted_args = 1) {
+        global $wp_actions;
+        $wp_actions[$tag][] = $callback;
+    }
+}
+if (!function_exists('do_action')) {
+    function do_action($tag) {
+        global $wp_actions;
+        if (!empty($wp_actions[$tag])) {
+            foreach ($wp_actions[$tag] as $cb) {
+                call_user_func($cb);
+            }
+        }
+    }
+}
+if (!function_exists('register_activation_hook')) {
+    function register_activation_hook($file, $callback) {
+        global $wp_activation_hooks;
+        $norm = str_replace('\\', '/', realpath($file) ?: $file);
+        $wp_activation_hooks[$norm] = $callback;
+    }
+}
+if (!function_exists('register_deactivation_hook')) {
+    function register_deactivation_hook($file, $callback) {
+        global $wp_deactivation_hooks;
+        $norm = str_replace('\\', '/', realpath($file) ?: $file);
+        $wp_deactivation_hooks[$norm] = $callback;
+    }
+}
+if (!function_exists('plugin_dir_path')) {
+    function plugin_dir_path($file) {
+        return dirname($file) . '/';
+    }
+}
+if (!function_exists('plugin_dir_url')) {
+    function plugin_dir_url($file) {
+        return 'http://localhost/wp-content/plugins/assessor-api/';
+    }
+}
+if (!function_exists('wp_parse_url')) {
+    function wp_parse_url($url, $component = -1) {
+        return parse_url($url, $component);
+    }
+}
+if (!function_exists('home_url')) {
+    function home_url() {
+        return 'http://localhost';
     }
 }
 
@@ -309,65 +362,8 @@ function reset_disposable_db($pdo) {
 
 reset_disposable_db($pdo);
 
-require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
-require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-migration-runner.php';
-
-// Production helper functions from assessor-api.php for lifecycle testing
-if (!function_exists('assessor_api_check_version')) {
-    function assessor_api_check_version() {
-        $current_version = get_option('assessor_db_version');
-
-        if ($current_version !== ASSESSOR_API_VERSION) {
-            $database = new Assessor_Database();
-            $database->create_tables();
-            update_option('assessor_db_version', ASSESSOR_API_VERSION);
-        }
-
-        // Dedicated Shadow ETRACS schema-version marker check
-        $shadow_schema_version = get_option('assessor_shadow_schema_version');
-        if ($shadow_schema_version !== ASSESSOR_SHADOW_SCHEMA_VERSION) {
-            if (class_exists('Assessor_Migration_Runner')) {
-                $runner = new Assessor_Migration_Runner();
-                $validation = $runner->validate_migration_008_schema();
-                if ($validation['valid']) {
-                    $runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema');
-                    update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
-                } else {
-                    $result = $runner->run_automatic_schema_upgrades();
-                    if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
-                        $revalidation = $runner->validate_migration_008_schema();
-                        if ($revalidation['valid']) {
-                            update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-if (!function_exists('assessor_api_activate')) {
-    function assessor_api_activate() {
-        $database = new Assessor_Database();
-        $database->create_tables();
-
-        if (class_exists('Assessor_Migration_Runner')) {
-            $runner = new Assessor_Migration_Runner();
-            if ($runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema')) {
-                update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
-            } else {
-                $result = $runner->run_automatic_schema_upgrades();
-                if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
-                    $val = $runner->validate_migration_008_schema();
-                    if ($val['valid']) {
-                        update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
-                    }
-                }
-            }
-        }
-        update_option('assessor_db_version', ASSESSOR_API_VERSION);
-    }
-}
+// Load production plugin file directly to test the actual implementation and hook wiring
+require_once ASSESSOR_API_PLUGIN_DIR . 'assessor-api.php';
 
 // =========================================================================
 // TEST SCENARIO 1 & 2: Fresh installation via assessor_api_activate()
@@ -376,8 +372,17 @@ echo "\n--- Scenario 1 & 2: Fresh Installation via assessor_api_activate() ---\n
 reset_disposable_db($pdo);
 $mock_options = [];
 
-// Directly invoke production assessor_api_activate()
-assessor_api_activate();
+// Verify production WordPress hook registration
+// Verify production WordPress hook registration
+global $wp_actions, $wp_activation_hooks;
+$plugin_entry = str_replace('\\', '/', realpath(ASSESSOR_API_PLUGIN_DIR . 'assessor-api.php'));
+$has_check_version_hook = !empty($wp_actions['plugins_loaded']) && in_array('assessor_api_check_version', $wp_actions['plugins_loaded'], true);
+$has_activation_hook = isset($wp_activation_hooks[$plugin_entry]) && $wp_activation_hooks[$plugin_entry] === 'assessor_api_activate';
+assert_test($has_check_version_hook, "assessor-api.php registers assessor_api_check_version on plugins_loaded hook");
+assert_test($has_activation_hook, "assessor-api.php registers assessor_api_activate on activation hook");
+
+// Directly invoke production activation callback registered on the hook
+call_user_func($wp_activation_hooks[$plugin_entry]);
 
 $runner = new Assessor_Migration_Runner();
 $val1 = $runner->validate_migration_008_schema();
