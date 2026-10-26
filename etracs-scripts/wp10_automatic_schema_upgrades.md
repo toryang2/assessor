@@ -1,81 +1,78 @@
-# WP-10 — Automatic Shadow ETRACS Schema Upgrades Specification & Lifecycle
+# WP-10 — Canonical Database Creation & Scoped Compatibility Specification (Hardened)
 
 ## 1. Overview & Objective
 
-To eliminate manual execution of schema migrations across deployment environments (development, staging, new server activations, and production upgrades), **WP-10** introduces an automated, deployment-safe schema upgrade lifecycle within the Assessor plugin.
-
-When a fresh installation is activated or an existing server receives a plugin update, approved Shadow ETRACS schema upgrades execute automatically without manual CLI intervention, without rerunning native table installations, and without altering native property data.
-
----
-
-## 2. Architecture & Lifecycle Hooks
-
-### A. Lifecycle Touchpoints in [`assessor-api.php`](file:///d:/CODE/assessor/assessor-backend/wp-content/plugins/assessor-api/assessor-api.php)
-
-1. **Fresh Plugin Activation (`register_activation_hook` -> `assessor_api_activate`):**
-   - Calls `Assessor_Database::create_tables()`.
-   - Triggers `Assessor_Migration_Runner::run_automatic_schema_upgrades()`.
-   - Ensures Shadow ETRACS schema dependencies (`wp_assessor_machine`, `wp_assessor_planttree`, `wp_assessor_planttreedetail`) exist from the first moment the plugin is active.
-
-2. **Plugin Upgrade / Version Change (`plugins_loaded` -> `assessor_api_check_version`):**
-   - Detects when `get_option('assessor_db_version') !== ASSESSOR_API_VERSION`.
-   - Calls `Assessor_Database::create_tables()`.
-   - Automatically executes `Assessor_Migration_Runner::run_automatic_schema_upgrades()`.
-   - Updates `assessor_db_version` in options.
-
-3. **Active Installation Schema Validation Safeguard:**
-   - Even when `assessor_db_version` matches the plugin version (e.g. database restored or copied between environments), `assessor_api_check_version()` performs a lightweight schema validation check via `validate_migration_008_schema()`.
-   - If physical tables or columns are missing, `run_automatic_schema_upgrades()` is invoked automatically to heal the schema.
-   - Does **not** rerun `create_tables()` if the version already matches, preventing unnecessary table scans or native schema touches.
+The Assessor system requires a conventional, authoritative database lifecycle:
+- **Fresh installations:** `Assessor_Database::create_tables()` creates the canonical Shadow ETRACS tables and their complete schema.
+- **Existing installations:** Automatically detect whether the Shadow ETRACS schema needs a one-time compatibility repair, without relying exclusively on `ASSESSOR_API_VERSION` (which remains `1.1.17`).
+- **Normal boots and deployments:** Do not repeatedly run Migration 008 or execute unnecessary DDL.
 
 ---
 
-## 3. Migration Runner Safeguards (`Assessor_Migration_Runner`)
+## 2. Dedicated Shadow Schema Marker Lifecycle
 
-The automatic upgrade pipeline incorporates the following safeguards:
+A dedicated WordPress option and schema constant govern the Shadow ETRACS compatibility lifecycle:
+- Constant: `define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');` in [`assessor-api.php`](file:///d:/CODE/assessor/assessor-backend/wp-content/plugins/assessor-api/assessor-api.php)
+- WordPress Option: `assessor_shadow_schema_version`
 
-1. **Selective Execution:**
-   - Only approved schema upgrades (Migration 008) are included in `run_automatic_schema_upgrades()`.
-   - Migrations 001–007 (data transformations, UUID backfills) are **not** rerun automatically.
-2. **Atomic Concurrency Guarding:**
-   - Checks `wp_assessor_migrations` using atomic row updates (`UPDATE ... WHERE status != 'running' OR started_at < 5 minutes ago`).
-   - If another worker or request is currently executing the migration, subsequent requests gracefully skip execution with status `in_progress` or `concurrency_lock_held`.
-3. **Idempotent Skip:**
-   - If `status = 'completed'` and physical schema validation passes, returns `already_completed` with `skipped = true` without modifying database state or updating timestamps.
-4. **Physical Verification Before Completion:**
-   - Before marking a migration completed in `wp_assessor_migrations`, the runner calls `validate_migration_008_schema()`, physically inspecting:
-     - `wp_assessor_machine` table exists.
-     - `wp_assessor_planttree` table exists.
-     - `wp_assessor_planttreedetail` table exists.
-     - `origin_type` column exists on `wp_assessor_planttreedetail`.
-     - `idx_origin_type` index exists on `wp_assessor_planttreedetail`.
-   - If any requirement fails, the migration is marked `failed` with diagnostic details in the database and PHP error log.
-5. **Separation of Schema and Data:**
-   - Schema creation does **not** trigger an automatic or uncontrolled ETRACS pull.
-   - Lookup data population is handled separately via the approved, collision-guarded `Assessor_Etracs_Sync` process.
+### Lifecycle Touchpoints
+
+1. **Normal Boot (`plugins_loaded` -> `assessor_api_check_version`):**
+   - Check marker: `get_option('assessor_shadow_schema_version') === ASSESSOR_SHADOW_SCHEMA_VERSION`.
+   - **Marker Current:** Skip all schema checks and migration logic entirely. Zero recurring DDL overhead.
+   - **Marker Missing or Outdated:**
+     1. Run deep schema validation (`validate_migration_008_schema()`).
+     2. If valid, reconcile migration status (`mark_migration_completed_if_valid()`) and update `assessor_shadow_schema_version` to `1.0.0`.
+     3. If invalid or partial, run scoped compatibility repair once (`run_automatic_schema_upgrades()`).
+     4. Re-validate schema. Update marker only if post-repair validation succeeds. If validation or repair fails, retain the outdated marker and log the diagnostic error for subsequent retry.
+
+2. **Fresh Plugin Activation (`register_activation_hook` -> `assessor_api_activate`):**
+   - Runs `Assessor_Database::create_tables()` to install all canonical tables.
+   - Reconciles Migration 008 status via `mark_migration_completed_if_valid()`, falling back to scoped repair if needed.
+   - Updates `assessor_shadow_schema_version` to `1.0.0` and `assessor_db_version` to `1.1.17`.
+
+---
+
+## 3. Deep Schema Validation & Safe Repair
+
+### A. Deep Validation Matrix ([`validate_migration_008_schema`](file:///d:/CODE/assessor/assessor-backend/wp-content/plugins/assessor-api/includes/class-assessor-migration-runner.php))
+
+Schema validation inspects `INFORMATION_SCHEMA` against canonical definitions:
+- **`wp_assessor_machine`:**
+  - Columns: `objid`, `state`, `code`, `name`.
+  - Primary Key: `PRIMARY (objid)`.
+  - Indexes: `ux_machine_code` (UNIQUE on `code`), `ux_machine_name` (UNIQUE on `name`), `ix_machine_state` (KEY on `state`).
+- **`wp_assessor_planttree`:**
+  - Columns: `objid`, `state`, `code`, `name`.
+  - Primary Key: `PRIMARY (objid)`.
+  - Indexes: `ux_planttree_code` (UNIQUE on `code`), `ux_planttree_name` (UNIQUE on `name`), `ix_planttree_state` (KEY on `state`).
+- **`wp_assessor_planttreedetail`:**
+  - Columns: All 18 canonical columns (`objid`, `planttreerpuid`, `landrpuid`, `planttreeunitvalue_objid`, `planttree_objid`, `actualuse_objid`, `productive`, `nonproductive`, `nonproductiveage`, `unitvalue`, `basemarketvalue`, `adjustment`, `adjustmentrate`, `marketvalue`, `assesslevel`, `assessedvalue`, `areacovered`, `origin_type`).
+  - Primary Key: `PRIMARY (objid)`.
+  - Indexes: `ix_planttreedetail_landrpuid` (on `landrpuid`), `ix_planttreedetail_planttreerpuid` (on `planttreerpuid`), `ix_planttreedetail_planttree_objid` (on `planttree_objid`), `idx_origin_type` (on `origin_type`).
+- Verifies column ordering in composite indexes and matches `NON_UNIQUE = 0` for uniqueness.
+
+### B. Safe Compatibility Repair ([`migrate_property_assessed_descriptions_schema`](file:///d:/CODE/assessor/assessor-backend/wp-content/plugins/assessor-api/includes/class-assessor-database.php))
+
+- Missing primary keys are safely added with null/duplicate pre-checks.
+- Duplicate data is checked prior to adding unique constraints. If duplicates exist, the repair aborts safely with an informative error rather than dropping or corrupting data.
+- Never drops or recreates existing tables.
+- Portable paths: Removed all hard-coded XAMPP paths (`C:/xampp/htdocs`). Uses `ABSPATH`, `WP_CONTENT_DIR`, or `WP_ADMIN_DIR`, reporting explicit errors if `dbDelta()` cannot be loaded.
 
 ---
 
 ## 4. Test Matrix & Verification
 
-A dedicated test suite was implemented in [`assessor-backend/scripts/test-wp10-automatic-schema-upgrades.php`](file:///d:/CODE/assessor/assessor-backend/scripts/test-wp10-automatic-schema-upgrades.php) against an isolated disposable database (`test_wp10_disposable`).
+Executed against isolated disposable test database `test_wp10_disposable`:
 
-| Test Suite | Scenario Tested | Result |
+| Scenario | Tested Lifecycle / State | Result |
 | :--- | :--- | :--- |
-| **Suite 1** | Fresh Installation (table creation, column/index verification, registry completion) | **PASS** (6/6 assertions) |
-| **Suite 2** | Already-Completed Migration (idempotent skip, timestamp preservation) | **PASS** (4/4 assertions) |
-| **Suite 3** | Active Plugin Upgrade (pending migration detection and execution) | **PASS** (3/3 assertions) |
-| **Suite 4** | Partial Schema State (healing missing column on pre-existing table) | **PASS** (2/2 assertions) |
-| **Suite 5** | Concurrency Guarding (detection and blocking of concurrent execution) | **PASS** (2/2 assertions) |
-| **Suite 6** | Failure Diagnostics (error logging, fail status recorded in registry, error message persisted) | **PASS** (5/5 assertions) |
-| **Total** | **All Scenarios** | **PASS (22/22 assertions)** |
-
----
-
-## 5. Adding Future Automatic Schema Migrations
-
-To add a new automatic schema migration:
-1. Implement the schema creation/alteration method in `Assessor_Database`.
-2. Register the migration in `Assessor_Migration_Runner::$registered_migrations`.
-3. Add a dedicated `run_automatic_migration_XXX()` method in `Assessor_Migration_Runner` adhering to the lock -> execute -> physical validate -> mark complete lifecycle.
-4. Call it from `run_automatic_schema_upgrades()`.
+| **Scenario 1 & 2** | Fresh installation via `assessor_api_activate()`: canonical tables created, migration recorded completed, schema marker updated to `1.0.0` | **PASS** (9 assertions) |
+| **Scenario 3** | Existing installation with complete schema: subsequent boots skip repairs, timestamps unchanged, zero DDL executed | **PASS** (5 assertions) |
+| **Scenario 4** | Existing installation at plugin version `1.1.17` with missing marker and missing shadow tables: automatically detected and repaired on boot | **PASS** (4 assertions) |
+| **Scenario 4B** | Existing installation with valid schema & missing marker: marked current without running DDL repair, status reconciled | **PASS** (2 assertions) |
+| **Scenario 5** | Partial schema repair: restores missing columns/indexes while preserving pre-existing rows and backfilling `origin_type` | **PASS** (4 assertions) |
+| **Scenario 6** | Native Assessor schemas and records remain completely untouched | **PASS** (2 assertions) |
+| **Scenario 7** | Data pull isolation: Shadow lookup tables have 0 rows; no ETRACS contact triggered | **PASS** (3 assertions) |
+| **Scenario 8** | Failure handling & retry: duplicate data safely halts repair without data loss, retains outdated marker, succeeds upon retry | **PASS** (4 assertions) |
+| **Total** | **All 8 Lifecycle Scenarios Verified** | **PASS (33/33 assertions)** |

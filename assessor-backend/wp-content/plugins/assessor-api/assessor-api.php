@@ -14,9 +14,18 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ASSESSOR_API_VERSION', '1.1.17');
-define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
+if (!defined('ASSESSOR_API_VERSION')) {
+    define('ASSESSOR_API_VERSION', '1.1.17');
+}
+if (!defined('ASSESSOR_SHADOW_SCHEMA_VERSION')) {
+    define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');
+}
+if (!defined('ASSESSOR_API_PLUGIN_DIR')) {
+    define('ASSESSOR_API_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('ASSESSOR_API_PLUGIN_URL')) {
+    define('ASSESSOR_API_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 
 // Set global timezone for the plugin
 date_default_timezone_set('Asia/Manila');
@@ -66,29 +75,42 @@ add_action('init', 'assessor_api_init');
 // Initialize security setup during plugins_loaded
 add_action('plugins_loaded', array('Assessor_Security_Setup', 'init'));
 
-// Auto-migrate database if version changes
+// Auto-migrate database if version changes or if Shadow ETRACS schema needs one-time upgrade
 add_action('plugins_loaded', 'assessor_api_check_version');
 function assessor_api_check_version() {
     $current_version = get_option('assessor_db_version');
+
     if ($current_version !== ASSESSOR_API_VERSION) {
         $database = new Assessor_Database();
         $database->create_tables();
-
-        // WP-10: Execute approved automatic Shadow ETRACS schema upgrades (Migration 008)
-        if (class_exists('Assessor_Migration_Runner')) {
-            $runner = new Assessor_Migration_Runner();
-            $runner->run_automatic_schema_upgrades();
-        }
-
         update_option('assessor_db_version', ASSESSOR_API_VERSION);
-    } else {
-        // Idempotent safeguard: check pending approved Shadow ETRACS schema upgrades
-        // without running full create_tables() routine if version matches
+    }
+
+    // Dedicated Shadow ETRACS schema-version marker check
+    // Allows automatic one-time repair on existing installations even if plugin version remains 1.1.17
+    $shadow_schema_version = get_option('assessor_shadow_schema_version');
+    if ($shadow_schema_version !== ASSESSOR_SHADOW_SCHEMA_VERSION) {
         if (class_exists('Assessor_Migration_Runner')) {
             $runner = new Assessor_Migration_Runner();
+            // First check if the schema is already completely valid
             $validation = $runner->validate_migration_008_schema();
-            if (!$validation['valid']) {
-                $runner->run_automatic_schema_upgrades();
+            if ($validation['valid']) {
+                $runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema');
+                update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+            } else {
+                // Schema is missing or partial: run scoped compatibility repair once
+                $result = $runner->run_automatic_schema_upgrades();
+                if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
+                    $revalidation = $runner->validate_migration_008_schema();
+                    if ($revalidation['valid']) {
+                        update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+                    } else {
+                        error_log('❌ Assessor API: Post-upgrade schema revalidation failed: ' . implode(', ', $revalidation['missing']));
+                    }
+                } else {
+                    $err = isset($result['008_property_assessed_descriptions_schema']['error']) ? $result['008_property_assessed_descriptions_schema']['error'] : 'Unknown error';
+                    error_log('❌ Assessor API: Automatic Shadow ETRACS schema upgrade failed: ' . $err);
+                }
             }
         }
     }
@@ -104,11 +126,23 @@ function assessor_api_activate() {
     $database = new Assessor_Database();
     $database->create_tables();
 
-    // WP-10: Execute approved automatic Shadow ETRACS schema upgrades on fresh activation
+    // Ensure Migration 008 is recorded as completed if schema was created through normal create_tables
     if (class_exists('Assessor_Migration_Runner')) {
         $runner = new Assessor_Migration_Runner();
-        $runner->run_automatic_schema_upgrades();
+        if ($runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema')) {
+            update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+        } else {
+            // Compatibility fallback if tables pre-existed in partial state
+            $result = $runner->run_automatic_schema_upgrades();
+            if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
+                $val = $runner->validate_migration_008_schema();
+                if ($val['valid']) {
+                    update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+                }
+            }
+        }
     }
+    update_option('assessor_db_version', ASSESSOR_API_VERSION);
 
     // Ensure deployment has an installation ID without overwriting JWT secrets
     Assessor_Security_Setup::ensure_installation_id();

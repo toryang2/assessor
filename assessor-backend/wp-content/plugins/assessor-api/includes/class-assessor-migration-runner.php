@@ -84,9 +84,70 @@ class Assessor_Migration_Runner {
      *
      * @return string
      */
-    private function get_table_name() {
+    public function get_table_name() {
         global $wpdb;
         return $wpdb->prefix . self::TABLE_MIGRATIONS;
+    }
+
+    /**
+     * Mark an approved migration completed if its physical schema is already valid.
+     * Used during normal fresh database installation.
+     *
+     * @param string $migration_name
+     * @return bool
+     */
+    public function mark_migration_completed_if_valid($migration_name) {
+        global $wpdb;
+
+        if ($migration_name !== '008_property_assessed_descriptions_schema') {
+            return false;
+        }
+
+        $this->ensure_migrations_table();
+        $validation = $this->validate_migration_008_schema();
+        if (!$validation['valid']) {
+            return false;
+        }
+
+        $table_migrations = $this->get_table_name();
+        $now = current_time('mysql');
+        
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, status FROM $table_migrations WHERE migration_name = %s",
+            $migration_name
+        ), ARRAY_A);
+
+        if ($existing) {
+            if ($existing['status'] === 'completed') {
+                return true;
+            }
+            $res = $wpdb->update(
+                $table_migrations,
+                array(
+                    'status'       => 'completed',
+                    'completed_at' => $now,
+                    'error'        => null,
+                ),
+                array('migration_name' => $migration_name),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+            return ($res !== false);
+        } else {
+            $res = $wpdb->insert(
+                $table_migrations,
+                array(
+                    'migration_name' => $migration_name,
+                    'status'         => 'completed',
+                    'started_at'     => $now,
+                    'completed_at'   => $now,
+                    'batch'          => 1,
+                    'created_at'     => $now,
+                ),
+                array('%s', '%s', '%s', '%s', '%d', '%s')
+            );
+            return ($res !== false);
+        }
     }
 
     /**
@@ -118,14 +179,12 @@ class Assessor_Migration_Runner {
         ) $charset_collate;";
 
         if (!function_exists('dbDelta')) {
-            if (defined('WP_CONTENT_DIR')) {
-                if (file_exists(ABSPATH . 'wp-admin/includes/upgrade.php')) {
-                    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-                } elseif (defined('WP_ADMIN_DIR') && file_exists(WP_ADMIN_DIR . '/includes/upgrade.php')) {
-                    require_once(WP_ADMIN_DIR . '/includes/upgrade.php');
-                } elseif (file_exists('C:/xampp/htdocs/wp-admin/includes/upgrade.php')) {
-                    require_once('C:/xampp/htdocs/wp-admin/includes/upgrade.php');
-                }
+            if (defined('ABSPATH') && file_exists(ABSPATH . 'wp-admin/includes/upgrade.php')) {
+                require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            } elseif (defined('WP_CONTENT_DIR') && file_exists(dirname(WP_CONTENT_DIR) . '/wp-admin/includes/upgrade.php')) {
+                require_once(dirname(WP_CONTENT_DIR) . '/wp-admin/includes/upgrade.php');
+            } elseif (defined('WP_ADMIN_DIR') && file_exists(WP_ADMIN_DIR . '/includes/upgrade.php')) {
+                require_once(WP_ADMIN_DIR . '/includes/upgrade.php');
             }
         }
         if (function_exists('dbDelta')) {
@@ -1632,9 +1691,10 @@ class Assessor_Migration_Runner {
     }
 
     /**
-     * Validates that all physical schema requirements of Migration 008 exist in the active database.
+     * Validates that all physical schema requirements of Migration 008 / WP-10 exist in the active database.
+     * Verifies every canonical column, primary key, index name, ordered indexed columns, and uniqueness.
      *
-     * @return array Validation result and any missing items
+     * @return array Validation result and any missing or mismatched items
      */
     public function validate_migration_008_schema() {
         global $wpdb;
@@ -1645,31 +1705,124 @@ class Assessor_Migration_Runner {
 
         $missing = array();
 
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_machine)) !== $t_machine) {
-            $missing[] = "Table $t_machine";
-        }
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttree)) !== $t_planttree) {
-            $missing[] = "Table $t_planttree";
-        }
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttreedetail)) !== $t_planttreedetail) {
-            $missing[] = "Table $t_planttreedetail";
-        } else {
-            // Check origin_type column
-            $has_origin = $wpdb->get_var($wpdb->prepare(
-                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'origin_type'",
-                $t_planttreedetail
-            ));
-            if (!$has_origin) {
-                $missing[] = "Column $t_planttreedetail.origin_type";
+        // Helper to check table existence
+        $check_table = function($table) use ($wpdb, &$missing) {
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+                $missing[] = "Table $table";
+                return false;
             }
-            // Check idx_origin_type index
-            $has_idx = $wpdb->get_var($wpdb->prepare(
-                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'idx_origin_type' LIMIT 1",
-                $t_planttreedetail
+            return true;
+        };
+
+        // Helper to check column existence
+        $check_columns = function($table, array $columns) use ($wpdb, &$missing) {
+            $cols = $wpdb->get_col($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $table
             ));
-            if (!$has_idx) {
-                $missing[] = "Index $t_planttreedetail.idx_origin_type";
+            $col_set = array_flip(array_map('strtolower', $cols ?: array()));
+            foreach ($columns as $column) {
+                if (!isset($col_set[strtolower($column)])) {
+                    $missing[] = "Column $table.$column";
+                }
             }
+        };
+
+        // Helper to check primary key
+        $check_primary_key = function($table, array $expected_pk_cols) use ($wpdb, &$missing) {
+            $pk_rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT COLUMN_NAME, SEQ_IN_INDEX FROM INFORMATION_SCHEMA.STATISTICS 
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'PRIMARY' 
+                 ORDER BY SEQ_IN_INDEX ASC",
+                $table
+            ), ARRAY_A);
+
+            if (empty($pk_rows)) {
+                $missing[] = "Primary Key on $table";
+                return;
+            }
+
+            $actual_cols = array_map(function($r) { return strtolower($r['COLUMN_NAME']); }, $pk_rows);
+            $expected_lower = array_map('strtolower', $expected_pk_cols);
+            if ($actual_cols !== $expected_lower) {
+                $missing[] = "Primary Key on $table (expected " . implode(',', $expected_pk_cols) . ", got " . implode(',', $actual_cols) . ")";
+            }
+        };
+
+        // Helper to check index existence, columns in exact sequence, and uniqueness
+        $check_index_spec = function($table, $idx_name, array $expected_cols, $should_be_unique) use ($wpdb, &$missing) {
+            $idx_rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX FROM INFORMATION_SCHEMA.STATISTICS 
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s 
+                 ORDER BY SEQ_IN_INDEX ASC",
+                $table, $idx_name
+            ), ARRAY_A);
+
+            if (empty($idx_rows)) {
+                $missing[] = "Index $table.$idx_name";
+                return;
+            }
+
+            $is_non_unique = (int)$idx_rows[0]['NON_UNIQUE'];
+            $is_unique = ($is_non_unique === 0);
+            if ($is_unique !== $should_be_unique) {
+                $type_expected = $should_be_unique ? 'UNIQUE' : 'NON-UNIQUE';
+                $type_actual = $is_unique ? 'UNIQUE' : 'NON-UNIQUE';
+                $missing[] = "Index $table.$idx_name uniqueness mismatch (expected $type_expected, got $type_actual)";
+            }
+
+            $actual_cols = array_map(function($r) { return strtolower($r['COLUMN_NAME']); }, $idx_rows);
+            $expected_lower = array_map('strtolower', $expected_cols);
+            if ($actual_cols !== $expected_lower) {
+                $missing[] = "Index $table.$idx_name columns mismatch (expected [" . implode(',', $expected_cols) . "], got [" . implode(',', $actual_cols) . "])";
+            }
+        };
+
+        // 1. Validate assessor_machine
+        if ($check_table($t_machine)) {
+            $check_columns($t_machine, array('objid', 'state', 'code', 'name'));
+            $check_primary_key($t_machine, array('objid'));
+            $check_index_spec($t_machine, 'ux_machine_code', array('code'), true);
+            $check_index_spec($t_machine, 'ux_machine_name', array('name'), true);
+            $check_index_spec($t_machine, 'ix_machine_state', array('state'), false);
+        }
+
+        // 2. Validate assessor_planttree
+        if ($check_table($t_planttree)) {
+            $check_columns($t_planttree, array('objid', 'state', 'code', 'name'));
+            $check_primary_key($t_planttree, array('objid'));
+            $check_index_spec($t_planttree, 'ux_planttree_code', array('code'), true);
+            $check_index_spec($t_planttree, 'ux_planttree_name', array('name'), true);
+            $check_index_spec($t_planttree, 'ix_planttree_state', array('state'), false);
+        }
+
+        // 3. Validate assessor_planttreedetail
+        if ($check_table($t_planttreedetail)) {
+            $check_columns($t_planttreedetail, array(
+                'objid',
+                'planttreerpuid',
+                'landrpuid',
+                'planttreeunitvalue_objid',
+                'planttree_objid',
+                'actualuse_objid',
+                'productive',
+                'nonproductive',
+                'nonproductiveage',
+                'unitvalue',
+                'basemarketvalue',
+                'adjustment',
+                'adjustmentrate',
+                'marketvalue',
+                'assesslevel',
+                'assessedvalue',
+                'areacovered',
+                'origin_type'
+            ));
+            $check_primary_key($t_planttreedetail, array('objid'));
+            $check_index_spec($t_planttreedetail, 'ix_planttreedetail_landrpuid', array('landrpuid'), false);
+            $check_index_spec($t_planttreedetail, 'ix_planttreedetail_planttreerpuid', array('planttreerpuid'), false);
+            $check_index_spec($t_planttreedetail, 'ix_planttreedetail_planttree_objid', array('planttree_objid'), false);
+            $check_index_spec($t_planttreedetail, 'idx_origin_type', array('origin_type'), false);
         }
 
         return array(
