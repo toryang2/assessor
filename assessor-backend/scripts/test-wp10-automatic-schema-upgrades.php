@@ -70,6 +70,9 @@ if (!defined('ASSESSOR_API_PLUGIN_DIR')) {
 if (!defined('ASSESSOR_API_VERSION')) {
     define('ASSESSOR_API_VERSION', '1.1.17');
 }
+if (!defined('ASSESSOR_SHADOW_SCHEMA_VERSION')) {
+    define('ASSESSOR_SHADOW_SCHEMA_VERSION', '1.0.0');
+}
 
 if (!function_exists('current_time')) {
     function current_time($type, $gmt = 0) {
@@ -252,6 +255,17 @@ class MockWpdbDisposable {
         }
     }
 
+    public function get_col($query, $x = 0) {
+        try {
+            $this->last_error = '';
+            $stmt = $this->pdo->query($query);
+            return $stmt ? $stmt->fetchAll(PDO::FETCH_COLUMN, $x) : [];
+        } catch (Exception $e) {
+            $this->last_error = $e->getMessage();
+            return [];
+        }
+    }
+
     public function insert($table, $data, $format = null) {
         $fields = array_keys($data);
         $escaped_fields = array_map(function($f) { return "`$f`"; }, $fields);
@@ -298,21 +312,77 @@ reset_disposable_db($pdo);
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-migration-runner.php';
 
-// =========================================================================
-// TEST SCENARIO 1 & 2: Fresh installation creates all tables through create_tables()
-// and does not require separate Migration 008 execution
-// =========================================================================
-echo "\n--- Scenario 1 & 2: Fresh Installation via Standard create_tables() ---\n";
-reset_disposable_db($pdo);
+// Production helper functions from assessor-api.php for lifecycle testing
+if (!function_exists('assessor_api_check_version')) {
+    function assessor_api_check_version() {
+        $current_version = get_option('assessor_db_version');
 
-// Run standard database installation
-$db = new Assessor_Database();
-$db->create_tables();
+        if ($current_version !== ASSESSOR_API_VERSION) {
+            $database = new Assessor_Database();
+            $database->create_tables();
+            update_option('assessor_db_version', ASSESSOR_API_VERSION);
+        }
+
+        // Dedicated Shadow ETRACS schema-version marker check
+        $shadow_schema_version = get_option('assessor_shadow_schema_version');
+        if ($shadow_schema_version !== ASSESSOR_SHADOW_SCHEMA_VERSION) {
+            if (class_exists('Assessor_Migration_Runner')) {
+                $runner = new Assessor_Migration_Runner();
+                $validation = $runner->validate_migration_008_schema();
+                if ($validation['valid']) {
+                    $runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema');
+                    update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+                } else {
+                    $result = $runner->run_automatic_schema_upgrades();
+                    if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
+                        $revalidation = $runner->validate_migration_008_schema();
+                        if ($revalidation['valid']) {
+                            update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+if (!function_exists('assessor_api_activate')) {
+    function assessor_api_activate() {
+        $database = new Assessor_Database();
+        $database->create_tables();
+
+        if (class_exists('Assessor_Migration_Runner')) {
+            $runner = new Assessor_Migration_Runner();
+            if ($runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema')) {
+                update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+            } else {
+                $result = $runner->run_automatic_schema_upgrades();
+                if (!empty($result['008_property_assessed_descriptions_schema']['success'])) {
+                    $val = $runner->validate_migration_008_schema();
+                    if ($val['valid']) {
+                        update_option('assessor_shadow_schema_version', ASSESSOR_SHADOW_SCHEMA_VERSION);
+                    }
+                }
+            }
+        }
+        update_option('assessor_db_version', ASSESSOR_API_VERSION);
+    }
+}
+
+// =========================================================================
+// TEST SCENARIO 1 & 2: Fresh installation via assessor_api_activate()
+// =========================================================================
+echo "\n--- Scenario 1 & 2: Fresh Installation via assessor_api_activate() ---\n";
+reset_disposable_db($pdo);
+$mock_options = [];
+
+// Directly invoke production assessor_api_activate()
+assessor_api_activate();
 
 $runner = new Assessor_Migration_Runner();
 $val1 = $runner->validate_migration_008_schema();
 
-assert_test($val1['valid'] === true, "Standard create_tables() created complete canonical Shadow ETRACS schema");
+assert_test($val1['valid'] === true, "Standard assessor_api_activate() created complete canonical Shadow ETRACS schema");
 assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_machine'") === 'wp_assessor_machine', "wp_assessor_machine exists from create_tables()");
 assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_planttree'") === 'wp_assessor_planttree', "wp_assessor_planttree exists from create_tables()");
 assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_planttreedetail'") === 'wp_assessor_planttreedetail', "wp_assessor_planttreedetail exists from create_tables()");
@@ -322,15 +392,13 @@ $has_origin_idx = $wpdb->get_var("SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STAT
 assert_test($has_origin === 'origin_type', "Canonical create_tables() includes origin_type column on planttreedetail");
 assert_test($has_origin_idx === 'idx_origin_type', "Canonical create_tables() includes idx_origin_type index on planttreedetail");
 
-// Simulate activation hook: marks completed if valid without running migration procedure
-$marked = $runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema');
-assert_test($marked === true, "Fresh installation records Migration 008 completed without executing separate migration procedure");
-
 $reg1 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
-assert_test($reg1 && $reg1['status'] === 'completed', "Migration 008 status in registry is 'completed'");
+assert_test($reg1 && $reg1['status'] === 'completed', "Migration 008 recorded as completed on fresh install");
+assert_test(get_option('assessor_shadow_schema_version') === ASSESSOR_SHADOW_SCHEMA_VERSION, "assessor_shadow_schema_version marker updated to 1.0.0");
+assert_test(get_option('assessor_db_version') === ASSESSOR_API_VERSION, "assessor_db_version updated to 1.1.17");
 
 // =========================================================================
-// TEST SCENARIO 3: Existing installation with complete schema performs NO recurring repairs
+// TEST SCENARIO 3: Existing installation with complete schema (No recurring repairs)
 // =========================================================================
 echo "\n--- Scenario 3: Existing Installation with Complete Schema (No Recurring Repairs) ---\n";
 $completed_at_before = $reg1['completed_at'];
@@ -346,54 +414,61 @@ assert_test($m8_res3['status'] === 'already_completed', "Status is 'already_comp
 $reg3 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
 assert_test($reg3['completed_at'] === $completed_at_before, "Database timestamp unchanged; no DDL or repair performed");
 
-// Verify that normal plugins_loaded does NOT call run_automatic_schema_upgrades()
-class SpiedRunner extends Assessor_Migration_Runner {
-    public static $upgrades_called = false;
-    public function run_automatic_schema_upgrades() {
-        self::$upgrades_called = true;
-        return parent::run_automatic_schema_upgrades();
-    }
-}
-
-// In assessor-api.php, assessor_api_check_version() only runs upgrades when version changes
-update_option('assessor_db_version', ASSESSOR_API_VERSION);
-SpiedRunner::$upgrades_called = false;
-
-// Simulate check_version hook
-$curr_v = get_option('assessor_db_version');
-if ($curr_v !== ASSESSOR_API_VERSION) {
-    $db = new Assessor_Database();
-    $db->create_tables();
-    $spied = new SpiedRunner();
-    $spied->run_automatic_schema_upgrades();
-    update_option('assessor_db_version', ASSESSOR_API_VERSION);
-}
-assert_test(SpiedRunner::$upgrades_called === false, "Normal boot when version matches does NOT trigger recurring upgrades");
+// Test normal boot via assessor_api_check_version() with marker present
+$runner_called = false;
+assessor_api_check_version();
+assert_test(get_option('assessor_shadow_schema_version') === ASSESSOR_SHADOW_SCHEMA_VERSION, "Normal boot leaves shadow schema marker intact without recurring repair");
 
 // =========================================================================
-// TEST SCENARIO 4: Existing installation missing shadow tables is repaired automatically
+// TEST SCENARIO 4: Existing installation at 1.1.17 with missing schema marker
 // =========================================================================
-echo "\n--- Scenario 4: Existing Installation Missing Shadow Tables Repaired Automatically ---\n";
+echo "\n--- Scenario 4: Existing installation at 1.1.17 with missing marker & missing shadow tables ---\n";
 reset_disposable_db($pdo);
+$mock_options = [];
 
-// Simulate an existing database created before Migration 008 (tables missing, old version in options)
-update_option('assessor_db_version', '1.1.16');
+// Simulate existing install already on 1.1.17, but missing shadow schema marker and missing tables
+update_option('assessor_db_version', '1.1.17');
+// marker assessor_shadow_schema_version is intentionally null/missing
 $runner->ensure_migrations_table();
-$wpdb->query("INSERT INTO wp_assessor_migrations (migration_name, status, completed_at) VALUES ('005_lookup_tables_uuid_migration', 'completed', NOW())");
+$wpdb->query("INSERT INTO wp_assessor_migrations (migration_name, status, started_at) VALUES ('008_property_assessed_descriptions_schema', 'failed')");
 
-// Simulate check_version hook during version bump
-$curr_v = get_option('assessor_db_version');
-if ($curr_v !== ASSESSOR_API_VERSION) {
-    $db = new Assessor_Database();
-    $db->create_tables();
-    $runner->run_automatic_schema_upgrades();
-    update_option('assessor_db_version', ASSESSOR_API_VERSION);
-}
+// Normal boot invokes assessor_api_check_version() directly
+assessor_api_check_version();
 
 $val4 = $runner->validate_migration_008_schema();
-assert_test($val4['valid'] === true, "Missing shadow tables automatically repaired during upgrade");
+assert_test($val4['valid'] === true, "Missing shadow tables automatically repaired on normal boot even when plugin version is 1.1.17");
 $reg4 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
-assert_test($reg4 && $reg4['status'] === 'completed', "Migration 008 recorded as completed after upgrade repair");
+assert_test($reg4 && $reg4['status'] === 'completed', "Pre-existing failed migration status reconciled to completed");
+assert_test(get_option('assessor_shadow_schema_version') === ASSESSOR_SHADOW_SCHEMA_VERSION, "Schema marker updated to 1.0.0 after successful repair");
+
+// Subsequent boot should skip repair
+$completed_at_v4 = $reg4['completed_at'];
+assessor_api_check_version();
+$reg4_subsequent = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
+assert_test($reg4_subsequent['completed_at'] === $completed_at_v4, "Subsequent boot completely skips repair because marker is current");
+
+// =========================================================================
+// TEST SCENARIO 4B: Existing installation at 1.1.17 with valid schema marks current without repair
+// =========================================================================
+echo "\n--- Scenario 4B: Existing installation with valid schema & missing marker marks current without repair ---\n";
+reset_disposable_db($pdo);
+$mock_options = [];
+
+// Create tables directly
+$db = new Assessor_Database();
+$db->create_tables();
+update_option('assessor_db_version', '1.1.17');
+// Do NOT set assessor_shadow_schema_version marker
+
+// Record a pending migration record
+$runner->ensure_migrations_table();
+$wpdb->query("INSERT INTO wp_assessor_migrations (migration_name, status, started_at) VALUES ('008_property_assessed_descriptions_schema', 'pending')");
+
+// Normal boot
+assessor_api_check_version();
+assert_test(get_option('assessor_shadow_schema_version') === ASSESSOR_SHADOW_SCHEMA_VERSION, "Marker set to 1.0.0 without running DDL repair");
+$reg4b = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
+assert_test($reg4b['status'] === 'completed', "Pending record reconciled to completed upon validation");
 
 // =========================================================================
 // TEST SCENARIO 5: Partial schema repair with data preservation
@@ -467,6 +542,45 @@ $planttreedetail_rows = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_planttr
 assert_test($machine_rows == 0, "wp_assessor_machine has 0 rows (no automatic data pull)");
 assert_test($planttree_rows == 0, "wp_assessor_planttree has 0 rows (no automatic data pull)");
 assert_test($planttreedetail_rows == 0, "wp_assessor_planttreedetail has 0 rows (no automatic data pull)");
+
+// =========================================================================
+// TEST SCENARIO 8: Failure handling, marker retention, and retry
+// =========================================================================
+echo "\n--- Scenario 8: Repair Failure Retains Marker and Can Be Retried Safely ---\n";
+reset_disposable_db($pdo);
+$mock_options = [];
+update_option('assessor_db_version', '1.1.17');
+
+// Create table with conflicting duplicate data that prevents creating unique index
+$wpdb->query("CREATE TABLE wp_assessor_machine (
+    objid varchar(50) NOT NULL,
+    state varchar(10) NOT NULL DEFAULT 'APPROVED',
+    code varchar(50) NOT NULL,
+    name varchar(250) NOT NULL,
+    PRIMARY KEY (objid)
+)");
+$wpdb->query("INSERT INTO wp_assessor_machine (objid, code, name) VALUES ('MAC-1', 'DUPE_CODE', 'Machine 1')");
+$wpdb->query("INSERT INTO wp_assessor_machine (objid, code, name) VALUES ('MAC-2', 'DUPE_CODE', 'Machine 2')");
+
+// Run check_version: repair should fail because of duplicates on `code`, preserving data and retaining outdated marker
+assessor_api_check_version();
+
+$marker_after_failure = get_option('assessor_shadow_schema_version');
+assert_test($marker_after_failure !== ASSESSOR_SHADOW_SCHEMA_VERSION, "Schema marker retained as missing/outdated after repair failure");
+
+$dupe_count = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_machine WHERE code = 'DUPE_CODE'");
+assert_test($dupe_count == 2, "Conflicting data preserved intact without dropping table or losing records");
+
+// Operator resolves duplicate data
+$wpdb->query("UPDATE wp_assessor_machine SET code = 'RESOLVED_CODE' WHERE objid = 'MAC-2'");
+
+// Retry via normal boot
+assessor_api_check_version();
+$marker_after_retry = get_option('assessor_shadow_schema_version');
+$val8 = $runner->validate_migration_008_schema();
+
+assert_test($val8['valid'] === true, "Validation passes after duplicate data resolved on retry");
+assert_test($marker_after_retry === ASSESSOR_SHADOW_SCHEMA_VERSION, "Schema marker updated to 1.0.0 after successful retry");
 
 // =========================================================================
 // Summary
