@@ -1450,6 +1450,233 @@ class Assessor_Migration_Runner {
         $db = new Assessor_Database();
         return $db->migrate_property_assessed_descriptions_schema();
     }
+
+    /**
+     * WP-10: Execute approved automatic Shadow ETRACS schema upgrades.
+     *
+     * Safe for fresh activations, version updates, and idempotent re-runs.
+     * - Only runs approved automatic schema migrations (Migration 008).
+     * - Uses atomic DB row locking / concurrency guarding.
+     * - Validates physical schema artifacts before marking completion.
+     * - Never reruns 001-007 or initiates full ETRACS pull.
+     *
+     * @return array Summary of upgrade operations
+     */
+    public function run_automatic_schema_upgrades() {
+        $results = array();
+
+        // 1. Migration 008: Property Assessed Descriptions Schema
+        $results['008_property_assessed_descriptions_schema'] = $this->run_automatic_migration_008();
+
+        return $results;
+    }
+
+    /**
+     * Safely and idempotently run Migration 008 with concurrency protection and post-validation.
+     *
+     * @return array Status and diagnostic details
+     */
+    public function run_automatic_migration_008() {
+        global $wpdb;
+
+        $this->ensure_migrations_table();
+        $table_migrations = $this->get_table_name();
+        $migration_name = '008_property_assessed_descriptions_schema';
+
+        // 1. Check if already marked completed
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_migrations WHERE migration_name = %s",
+            $migration_name
+        ), ARRAY_A);
+
+        if ($existing && $existing['status'] === 'completed') {
+            // Confirm physical schema presence in case DB was partially restored
+            $validation = $this->validate_migration_008_schema();
+            if ($validation['valid']) {
+                return array(
+                    'success'        => true,
+                    'skipped'        => true,
+                    'status'         => 'already_completed',
+                    'migration_name' => $migration_name,
+                    'completed_at'   => $existing['completed_at'],
+                    'validation'     => $validation
+                );
+            }
+            // If marked completed but tables missing, fall through to re-verify/repair
+            error_log("⚠️ Assessor Migration Runner: $migration_name marked completed but schema validation failed. Re-running.");
+        }
+
+        // 2. Concurrency guard: Check if running recently (within last 5 minutes)
+        if ($existing && $existing['status'] === 'running') {
+            $started_time = !empty($existing['started_at']) ? strtotime($existing['started_at']) : 0;
+            if ($started_time > 0 && (time() - $started_time) < 300) {
+                return array(
+                    'success'        => true,
+                    'skipped'        => true,
+                    'status'         => 'in_progress',
+                    'migration_name' => $migration_name,
+                    'started_at'     => $existing['started_at'],
+                    'message'        => 'Migration is currently running in another process.'
+                );
+            }
+        }
+
+        // 3. Acquire execution lock atomically
+        $now = current_time('mysql');
+        if ($existing) {
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE $table_migrations SET status = 'running', started_at = %s, error = NULL WHERE migration_name = %s AND (status != 'running' OR started_at < %s)",
+                $now,
+                $migration_name,
+                date('Y-m-d H:i:s', time() - 300)
+            ));
+            if ($updated === false || $updated === 0) {
+                // Another process acquired the lock
+                return array(
+                    'success'        => true,
+                    'skipped'        => true,
+                    'status'         => 'concurrency_lock_held',
+                    'migration_name' => $migration_name
+                );
+            }
+        } else {
+            $inserted = $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO $table_migrations (migration_name, status, started_at, batch, created_at) VALUES (%s, 'running', %s, 1, %s)",
+                $migration_name,
+                $now,
+                $now
+            ));
+            if (!$inserted) {
+                // If collision on UNIQUE KEY migration_name, another thread inserted first
+                return array(
+                    'success'        => true,
+                    'skipped'        => true,
+                    'status'         => 'concurrency_collision',
+                    'migration_name' => $migration_name
+                );
+            }
+        }
+
+        // 4. Execute the schema migration handler
+        try {
+            $details = $this->run_property_assessed_descriptions_migration();
+
+            // 5. Strict post-execution schema validation
+            $validation = $this->validate_migration_008_schema();
+            if (!$validation['valid']) {
+                $error_msg = 'Schema validation failed: ' . implode(', ', $validation['missing']);
+                $wpdb->update(
+                    $table_migrations,
+                    array(
+                        'status' => 'failed',
+                        'error'  => $error_msg,
+                    ),
+                    array('migration_name' => $migration_name),
+                    array('%s', '%s'),
+                    array('%s')
+                );
+                error_log("❌ Assessor Migration Runner: $migration_name failed validation: $error_msg");
+                return array(
+                    'success'        => false,
+                    'status'         => 'failed',
+                    'migration_name' => $migration_name,
+                    'error'          => $error_msg,
+                    'validation'     => $validation
+                );
+            }
+
+            // 6. Mark completed upon successful physical validation
+            $completed_at = current_time('mysql');
+            $wpdb->update(
+                $table_migrations,
+                array(
+                    'status'       => 'completed',
+                    'completed_at' => $completed_at,
+                    'error'        => null,
+                ),
+                array('migration_name' => $migration_name),
+                array('%s', '%s', '%s'),
+                array('%s')
+            );
+
+            return array(
+                'success'        => true,
+                'status'         => 'completed',
+                'migration_name' => $migration_name,
+                'started_at'     => $now,
+                'completed_at'   => $completed_at,
+                'details'        => $details,
+                'validation'     => $validation
+            );
+
+        } catch (Exception $e) {
+            $err = $e->getMessage();
+            $wpdb->update(
+                $table_migrations,
+                array(
+                    'status' => 'failed',
+                    'error'  => $err,
+                ),
+                array('migration_name' => $migration_name),
+                array('%s', '%s'),
+                array('%s')
+            );
+            error_log("❌ Assessor Migration Runner: $migration_name threw exception: $err");
+            return array(
+                'success'        => false,
+                'status'         => 'failed',
+                'migration_name' => $migration_name,
+                'error'          => $err
+            );
+        }
+    }
+
+    /**
+     * Validates that all physical schema requirements of Migration 008 exist in the active database.
+     *
+     * @return array Validation result and any missing items
+     */
+    public function validate_migration_008_schema() {
+        global $wpdb;
+
+        $t_machine = $wpdb->prefix . 'assessor_machine';
+        $t_planttree = $wpdb->prefix . 'assessor_planttree';
+        $t_planttreedetail = $wpdb->prefix . 'assessor_planttreedetail';
+
+        $missing = array();
+
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_machine)) !== $t_machine) {
+            $missing[] = "Table $t_machine";
+        }
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttree)) !== $t_planttree) {
+            $missing[] = "Table $t_planttree";
+        }
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttreedetail)) !== $t_planttreedetail) {
+            $missing[] = "Table $t_planttreedetail";
+        } else {
+            // Check origin_type column
+            $has_origin = $wpdb->get_var($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'origin_type'",
+                $t_planttreedetail
+            ));
+            if (!$has_origin) {
+                $missing[] = "Column $t_planttreedetail.origin_type";
+            }
+            // Check idx_origin_type index
+            $has_idx = $wpdb->get_var($wpdb->prepare(
+                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'idx_origin_type' LIMIT 1",
+                $t_planttreedetail
+            ));
+            if (!$has_idx) {
+                $missing[] = "Index $t_planttreedetail.idx_origin_type";
+            }
+        }
+
+        return array(
+            'valid'   => empty($missing),
+            'missing' => $missing
+        );
+    }
 }
 
 

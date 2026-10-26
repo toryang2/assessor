@@ -69,10 +69,28 @@ add_action('plugins_loaded', array('Assessor_Security_Setup', 'init'));
 // Auto-migrate database if version changes
 add_action('plugins_loaded', 'assessor_api_check_version');
 function assessor_api_check_version() {
-    if (get_option('assessor_db_version') !== ASSESSOR_API_VERSION) {
+    $current_version = get_option('assessor_db_version');
+    if ($current_version !== ASSESSOR_API_VERSION) {
         $database = new Assessor_Database();
         $database->create_tables();
+
+        // WP-10: Execute approved automatic Shadow ETRACS schema upgrades (Migration 008)
+        if (class_exists('Assessor_Migration_Runner')) {
+            $runner = new Assessor_Migration_Runner();
+            $runner->run_automatic_schema_upgrades();
+        }
+
         update_option('assessor_db_version', ASSESSOR_API_VERSION);
+    } else {
+        // Idempotent safeguard: check pending approved Shadow ETRACS schema upgrades
+        // without running full create_tables() routine if version matches
+        if (class_exists('Assessor_Migration_Runner')) {
+            $runner = new Assessor_Migration_Runner();
+            $validation = $runner->validate_migration_008_schema();
+            if (!$validation['valid']) {
+                $runner->run_automatic_schema_upgrades();
+            }
+        }
     }
 }
 
@@ -85,6 +103,12 @@ register_activation_hook(__FILE__, 'assessor_api_activate');
 function assessor_api_activate() {
     $database = new Assessor_Database();
     $database->create_tables();
+
+    // WP-10: Execute approved automatic Shadow ETRACS schema upgrades on fresh activation
+    if (class_exists('Assessor_Migration_Runner')) {
+        $runner = new Assessor_Migration_Runner();
+        $runner->run_automatic_schema_upgrades();
+    }
 
     // Ensure deployment has an installation ID without overwriting JWT secrets
     Assessor_Security_Setup::ensure_installation_id();
