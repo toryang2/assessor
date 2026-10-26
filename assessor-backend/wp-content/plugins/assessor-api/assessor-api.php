@@ -67,22 +67,21 @@ add_action('init', 'assessor_api_init');
 add_action('plugins_loaded', array('Assessor_Security_Setup', 'init'));
 
 // Auto-migrate database if version changes
+// Auto-migrate database if version changes
 add_action('plugins_loaded', 'assessor_api_check_version');
 function assessor_api_check_version() {
     $current_version = get_option('assessor_db_version');
 
-    // 1. WP-10: Execute approved automatic Shadow ETRACS schema upgrades (Migration 008)
-    // Runs independently of legacy create_tables() so Shadow ETRACS schemas are safely
-    // created or repaired on existing servers without triggering broad native table routines.
-    if (class_exists('Assessor_Migration_Runner')) {
-        $runner = new Assessor_Migration_Runner();
-        $runner->run_automatic_schema_upgrades();
-    }
-
-    // 2. Legacy core database version check (preserved for backwards-compatible plugin updates)
     if ($current_version !== ASSESSOR_API_VERSION) {
         $database = new Assessor_Database();
         $database->create_tables();
+
+        // Compatibility path: Ensure Shadow ETRACS schema is complete on version upgrade
+        if (class_exists('Assessor_Migration_Runner')) {
+            $runner = new Assessor_Migration_Runner();
+            $runner->run_automatic_schema_upgrades();
+        }
+
         update_option('assessor_db_version', ASSESSOR_API_VERSION);
     }
 }
@@ -97,10 +96,13 @@ function assessor_api_activate() {
     $database = new Assessor_Database();
     $database->create_tables();
 
-    // WP-10: Execute approved automatic Shadow ETRACS schema upgrades on fresh activation
+    // Ensure Migration 008 is recorded as completed if schema was created through normal create_tables
     if (class_exists('Assessor_Migration_Runner')) {
         $runner = new Assessor_Migration_Runner();
-        $runner->run_automatic_schema_upgrades();
+        if (!$runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema')) {
+            // Compatibility fallback if tables pre-existed in partial state
+            $runner->run_automatic_schema_upgrades();
+        }
     }
 
     // Ensure deployment has an installation ID without overwriting JWT secrets

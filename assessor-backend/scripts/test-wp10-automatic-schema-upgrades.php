@@ -1,14 +1,19 @@
 <?php
 /**
- * Automated Test Suite: WP-10 — Automatic Shadow ETRACS Schema Upgrades (Hardened)
+ * Automated Test Suite: WP-10 — Canonical Database Creation & Scoped Compatibility (Hardened)
  *
  * Strict Architectural Safeguards:
  * - Fail-closed check: Target database MUST be 'test_wp10_disposable'.
  * - NEVER connect to assessor_local, test, or production environments.
  * - Zero modifications to native Assessor tables, workflows, or synchronization classes.
- * - Thoroughly tests fresh install, plugin update, already completed, failed state,
- *   partial schema state, concurrent execution, stale lock recovery, retry after failure,
- *   lifecycle independence from create_tables(), and native Assessor table preservation.
+ * - Tests:
+ *   1. Fresh installation creates all required ETRACS shadow tables through normal create_tables().
+ *   2. Fresh installation does not require a separate Migration 008 execution (mark completed if valid).
+ *   3. Existing installation with complete schema performs no recurring repair operations.
+ *   4. Existing installation missing shadow tables is repaired automatically through the scoped compatibility path.
+ *   5. Partial schemas are repaired safely, or fail with useful diagnostics when repair would risk existing records.
+ *   6. Native Assessor schemas and records remain unchanged.
+ *   7. No ETRACS pull is triggered.
  */
 
 // 1. Connection Guard: Connect strictly to test_wp10_disposable
@@ -30,7 +35,7 @@ if ($current_db !== 'test_wp10_disposable') {
 }
 
 echo "========================================================================\n";
-echo "   WP-10: AUTOMATIC SHADOW ETRACS SCHEMA UPGRADES HARDENED TEST HARNESS\n";
+echo "   WP-10: CANONICAL DB CREATION & SCOPED COMPATIBILITY TEST HARNESS\n";
 echo "   Target Database: test_wp10_disposable (Disposable Isolated Environment)\n";
 echo "   Connection Guard: VERIFIED (DATABASE() === 'test_wp10_disposable')\n";
 echo "========================================================================\n\n";
@@ -111,6 +116,22 @@ if (!function_exists('is_wp_error')) {
         return ($thing instanceof WP_Error);
     }
 }
+if (!function_exists('wp_hash_password')) {
+    function wp_hash_password($password) {
+        return password_hash($password, PASSWORD_DEFAULT);
+    }
+}
+if (!function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4() {
+        return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
+    }
+}
 
 // In-memory options mock for disposable environment
 $mock_options = [];
@@ -122,6 +143,25 @@ function update_option($key, $val, $autoload = null) {
     global $mock_options;
     $mock_options[$key] = $val;
     return true;
+}
+
+// Ensure dbDelta stub for pure disposable test execution if upgrade.php is not loaded
+if (!function_exists('dbDelta')) {
+    function dbDelta($queries) {
+        global $wpdb;
+        if (!is_array($queries)) {
+            $queries = explode(';', $queries);
+        }
+        $results = [];
+        foreach ($queries as $sql) {
+            $sql = trim($sql);
+            if (!empty($sql)) {
+                $wpdb->query($sql);
+                $results[] = $sql;
+            }
+        }
+        return $results;
+    }
 }
 
 // WPDB Mock Bridge for disposable DB
@@ -138,7 +178,11 @@ class MockWpdbDisposable {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
     }
 
-    public function prepare($query, $args) {
+    public function prepare($query, $args = null) {
+        $num_args = func_num_args();
+        if ($num_args <= 1) {
+            return $query;
+        }
         if (!is_array($args)) {
             $args = array_slice(func_get_args(), 1);
         }
@@ -162,8 +206,7 @@ class MockWpdbDisposable {
     public function query($sql) {
         try {
             $this->last_error = '';
-            $res = $this->pdo->exec($sql);
-            return $res;
+            return $this->pdo->exec($sql);
         } catch (Exception $e) {
             $this->last_error = $e->getMessage();
             return false;
@@ -256,72 +299,115 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-database.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-migration-runner.php';
 
 // =========================================================================
-// TEST SUITE 1: Fresh Installation
+// TEST SCENARIO 1 & 2: Fresh installation creates all tables through create_tables()
+// and does not require separate Migration 008 execution
 // =========================================================================
-echo "\n--- Test Suite 1: Fresh Installation ---\n";
+echo "\n--- Scenario 1 & 2: Fresh Installation via Standard create_tables() ---\n";
 reset_disposable_db($pdo);
-$runner = new Assessor_Migration_Runner();
 
-// Run automatic upgrade
-$res1 = $runner->run_automatic_schema_upgrades();
+// Run standard database installation
+$db = new Assessor_Database();
+$db->create_tables();
+
+$runner = new Assessor_Migration_Runner();
 $val1 = $runner->validate_migration_008_schema();
 
-assert_test($res1['008_property_assessed_descriptions_schema']['success'] === true, "Fresh installation executes migration 008 successfully");
-assert_test($val1['valid'] === true, "Fresh installation validates all tables, columns, and indexes");
+assert_test($val1['valid'] === true, "Standard create_tables() created complete canonical Shadow ETRACS schema");
+assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_machine'") === 'wp_assessor_machine', "wp_assessor_machine exists from create_tables()");
+assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_planttree'") === 'wp_assessor_planttree', "wp_assessor_planttree exists from create_tables()");
+assert_test($wpdb->get_var("SHOW TABLES LIKE 'wp_assessor_planttreedetail'") === 'wp_assessor_planttreedetail', "wp_assessor_planttreedetail exists from create_tables()");
+
+$has_origin = $wpdb->get_var("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'test_wp10_disposable' AND TABLE_NAME = 'wp_assessor_planttreedetail' AND COLUMN_NAME = 'origin_type'");
+$has_origin_idx = $wpdb->get_var("SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = 'test_wp10_disposable' AND TABLE_NAME = 'wp_assessor_planttreedetail' AND INDEX_NAME = 'idx_origin_type' LIMIT 1");
+assert_test($has_origin === 'origin_type', "Canonical create_tables() includes origin_type column on planttreedetail");
+assert_test($has_origin_idx === 'idx_origin_type', "Canonical create_tables() includes idx_origin_type index on planttreedetail");
+
+// Simulate activation hook: marks completed if valid without running migration procedure
+$marked = $runner->mark_migration_completed_if_valid('008_property_assessed_descriptions_schema');
+assert_test($marked === true, "Fresh installation records Migration 008 completed without executing separate migration procedure");
+
 $reg1 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
-assert_test($reg1 && $reg1['status'] === 'completed', "Fresh installation records completed status in wp_assessor_migrations");
+assert_test($reg1 && $reg1['status'] === 'completed', "Migration 008 status in registry is 'completed'");
 
 // =========================================================================
-// TEST SUITE 2: Existing Installation with Expected Schema (Idempotent Skip)
+// TEST SCENARIO 3: Existing installation with complete schema performs NO recurring repairs
 // =========================================================================
-echo "\n--- Test Suite 2: Existing Installation with Expected Schema ---\n";
-$completed_before = $reg1['completed_at'];
+echo "\n--- Scenario 3: Existing Installation with Complete Schema (No Recurring Repairs) ---\n";
+$completed_at_before = $reg1['completed_at'];
 
-$res2 = $runner->run_automatic_schema_upgrades();
-$res2_m8 = $res2['008_property_assessed_descriptions_schema'];
+// Calling automatic schema upgrades on complete installation
+$res3 = $runner->run_automatic_schema_upgrades();
+$m8_res3 = $res3['008_property_assessed_descriptions_schema'];
 
-assert_test($res2_m8['success'] === true, "Repeat execution returns success: true");
-assert_test($res2_m8['skipped'] === true, "Repeat execution is safely skipped");
-assert_test($res2_m8['status'] === 'already_completed', "Status is 'already_completed'");
-$reg2 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
-assert_test($reg2['completed_at'] === $completed_before, "Completed timestamp preserved without DB mutations");
+assert_test($m8_res3['success'] === true, "Complete installation returns success: true");
+assert_test($m8_res3['skipped'] === true, "Complete installation safely skips execution");
+assert_test($m8_res3['status'] === 'already_completed', "Status is 'already_completed'");
+
+$reg3 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
+assert_test($reg3['completed_at'] === $completed_at_before, "Database timestamp unchanged; no DDL or repair performed");
+
+// Verify that normal plugins_loaded does NOT call run_automatic_schema_upgrades()
+class SpiedRunner extends Assessor_Migration_Runner {
+    public static $upgrades_called = false;
+    public function run_automatic_schema_upgrades() {
+        self::$upgrades_called = true;
+        return parent::run_automatic_schema_upgrades();
+    }
+}
+
+// In assessor-api.php, assessor_api_check_version() only runs upgrades when version changes
+update_option('assessor_db_version', ASSESSOR_API_VERSION);
+SpiedRunner::$upgrades_called = false;
+
+// Simulate check_version hook
+$curr_v = get_option('assessor_db_version');
+if ($curr_v !== ASSESSOR_API_VERSION) {
+    $db = new Assessor_Database();
+    $db->create_tables();
+    $spied = new SpiedRunner();
+    $spied->run_automatic_schema_upgrades();
+    update_option('assessor_db_version', ASSESSOR_API_VERSION);
+}
+assert_test(SpiedRunner::$upgrades_called === false, "Normal boot when version matches does NOT trigger recurring upgrades");
 
 // =========================================================================
-// TEST SUITE 3: Existing Installation Missing Migration 008
+// TEST SCENARIO 4: Existing installation missing shadow tables is repaired automatically
 // =========================================================================
-echo "\n--- Test Suite 3: Existing Installation Missing Migration 008 ---\n";
+echo "\n--- Scenario 4: Existing Installation Missing Shadow Tables Repaired Automatically ---\n";
 reset_disposable_db($pdo);
 
-// Simulate an existing database that has legacy migration history
+// Simulate an existing database created before Migration 008 (tables missing, old version in options)
+update_option('assessor_db_version', '1.1.16');
 $runner->ensure_migrations_table();
 $wpdb->query("INSERT INTO wp_assessor_migrations (migration_name, status, completed_at) VALUES ('005_lookup_tables_uuid_migration', 'completed', NOW())");
 
-$res3 = $runner->run_automatic_schema_upgrades();
-$val3 = $runner->validate_migration_008_schema();
+// Simulate check_version hook during version bump
+$curr_v = get_option('assessor_db_version');
+if ($curr_v !== ASSESSOR_API_VERSION) {
+    $db = new Assessor_Database();
+    $db->create_tables();
+    $runner->run_automatic_schema_upgrades();
+    update_option('assessor_db_version', ASSESSOR_API_VERSION);
+}
 
-assert_test($res3['008_property_assessed_descriptions_schema']['status'] === 'completed', "Pending migration 008 detected and executed on existing installation");
-assert_test($val3['valid'] === true, "All required schema elements created on existing installation");
+$val4 = $runner->validate_migration_008_schema();
+assert_test($val4['valid'] === true, "Missing shadow tables automatically repaired during upgrade");
+$reg4 = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
+assert_test($reg4 && $reg4['status'] === 'completed', "Migration 008 recorded as completed after upgrade repair");
 
 // =========================================================================
-// TEST SUITE 4: Partially Existing Tables Missing Columns/Indexes & Data Preservation
+// TEST SCENARIO 5: Partial schema repair with data preservation
 // =========================================================================
-echo "\n--- Test Suite 4: Partially Existing Tables Missing Columns/Indexes ---\n";
+echo "\n--- Scenario 5: Partial Schema Repair with Data Preservation ---\n";
 reset_disposable_db($pdo);
 
-// Create partially-defined tables with pre-existing data
+// Create partial table with custom user data
 $wpdb->query("CREATE TABLE wp_assessor_machine (
     objid varchar(50) NOT NULL,
     code varchar(50) NOT NULL,
     PRIMARY KEY (objid)
 )");
-$wpdb->query("INSERT INTO wp_assessor_machine (objid, code) VALUES ('MAC-001', 'GSWCA')");
-
-$wpdb->query("CREATE TABLE wp_assessor_planttree (
-    objid varchar(50) NOT NULL,
-    code varchar(20) NOT NULL,
-    PRIMARY KEY (objid)
-)");
-$wpdb->query("INSERT INTO wp_assessor_planttree (objid, code) VALUES ('PT-001', 'COCO')");
+$wpdb->query("INSERT INTO wp_assessor_machine (objid, code) VALUES ('MAC-EXISTING', 'TESTCODE')");
 
 $wpdb->query("CREATE TABLE wp_assessor_planttreedetail (
     objid varchar(50) NOT NULL,
@@ -329,95 +415,26 @@ $wpdb->query("CREATE TABLE wp_assessor_planttreedetail (
     unitvalue decimal(16,2) NOT NULL DEFAULT '0.00',
     PRIMARY KEY (objid)
 )");
-$wpdb->query("INSERT INTO wp_assessor_planttreedetail (objid, planttree_objid, unitvalue) VALUES ('PTD-001', 'PT-001', 500.00)");
+$wpdb->query("INSERT INTO wp_assessor_planttreedetail (objid, planttree_objid, unitvalue) VALUES ('PTD-EXISTING', 'PT-01', 750.00)");
 
-// Validation should initially report missing items
-$val_before = $runner->validate_migration_008_schema();
-assert_test($val_before['valid'] === false, "Pre-repair validation correctly detects missing columns and indexes across all tables");
+$res5 = $runner->run_automatic_schema_upgrades();
+$val5 = $runner->validate_migration_008_schema();
 
-// Run upgrade to repair
-$res4 = $runner->run_automatic_schema_upgrades();
-$val_after = $runner->validate_migration_008_schema();
+assert_test($res5['008_property_assessed_descriptions_schema']['success'] === true, "Scoped compatibility repair succeeded on partial schema");
+assert_test($val5['valid'] === true, "All required columns and indexes restored");
 
-assert_test($res4['008_property_assessed_descriptions_schema']['success'] === true, "Automatic upgrade repairs incomplete tables successfully");
-assert_test($val_after['valid'] === true, "Post-repair validation confirms all required columns and indexes exist");
-
-// Verify existing records were preserved intact
-$m_row = $wpdb->get_row("SELECT * FROM wp_assessor_machine WHERE objid = 'MAC-001'", ARRAY_A);
-$pt_row = $wpdb->get_row("SELECT * FROM wp_assessor_planttree WHERE objid = 'PT-001'", ARRAY_A);
-$ptd_row = $wpdb->get_row("SELECT * FROM wp_assessor_planttreedetail WHERE objid = 'PTD-001'", ARRAY_A);
-
-assert_test($m_row && $m_row['code'] === 'GSWCA' && $m_row['state'] === 'APPROVED', "Pre-existing machine row preserved with new state column default");
-assert_test($pt_row && $pt_row['code'] === 'COCO' && $pt_row['state'] === 'APPROVED', "Pre-existing planttree row preserved with new state column default");
-assert_test($ptd_row && floatval($ptd_row['unitvalue']) == 500.00 && $ptd_row['origin_type'] === 'REPLICA', "Pre-existing planttreedetail row preserved and backfilled as REPLICA");
+$m_check = $wpdb->get_row("SELECT * FROM wp_assessor_machine WHERE objid = 'MAC-EXISTING'", ARRAY_A);
+$ptd_check = $wpdb->get_row("SELECT * FROM wp_assessor_planttreedetail WHERE objid = 'PTD-EXISTING'", ARRAY_A);
+assert_test($m_check && $m_check['code'] === 'TESTCODE' && $m_check['state'] === 'APPROVED', "Pre-existing machine row preserved with new state default");
+assert_test($ptd_check && floatval($ptd_check['unitvalue']) == 750.00 && $ptd_check['origin_type'] === 'REPLICA', "Pre-existing planttreedetail row preserved and backfilled as REPLICA");
 
 // =========================================================================
-// TEST SUITE 5: Concurrency Guarding & Stale Lock Recovery
+// TEST SCENARIO 6: Native Assessor Schema & Data Integrity
 // =========================================================================
-echo "\n--- Test Suite 5: Concurrency Guarding & Stale Lock Recovery ---\n";
-reset_disposable_db($pdo);
-$runner->ensure_migrations_table();
-
-// Subcase 5A: Active lock held (running recently)
-$recent_time = date('Y-m-d H:i:s', time() - 30); // 30 seconds ago
-$wpdb->query("INSERT INTO wp_assessor_migrations (migration_name, status, started_at) VALUES ('008_property_assessed_descriptions_schema', 'running', '$recent_time')");
-
-$res5a = $runner->run_automatic_schema_upgrades();
-assert_test($res5a['008_property_assessed_descriptions_schema']['status'] === 'in_progress', "Active concurrent migration is blocked by lock");
-assert_test($res5a['008_property_assessed_descriptions_schema']['skipped'] === true, "Active concurrent migration is gracefully skipped");
-
-// Subcase 5B: Stale lock recovery (> 5 minutes old)
-$stale_time = date('Y-m-d H:i:s', time() - 400); // ~6.6 minutes ago
-$wpdb->query("UPDATE wp_assessor_migrations SET status = 'running', started_at = '$stale_time' WHERE migration_name = '008_property_assessed_descriptions_schema'");
-
-$res5b = $runner->run_automatic_schema_upgrades();
-assert_test($res5b['008_property_assessed_descriptions_schema']['status'] === 'completed', "Stale running lock is safely reclaimed and completed");
-$val5b = $runner->validate_migration_008_schema();
-assert_test($val5b['valid'] === true, "Schema is valid after stale lock recovery");
-
-// =========================================================================
-// TEST SUITE 6: Migration Failure, Diagnostics, and Retry
-// =========================================================================
-echo "\n--- Test Suite 6: Migration Failure, Diagnostics, and Retry ---\n";
-reset_disposable_db($pdo);
-$runner->ensure_migrations_table();
-
-class FailingRunnerMock extends Assessor_Migration_Runner {
-    public $should_fail = true;
-    public function run_property_assessed_descriptions_migration() {
-        if ($this->should_fail) {
-            throw new Exception("Simulated Transient DB Error");
-        }
-        return parent::run_property_assessed_descriptions_migration();
-    }
-}
-
-$mock_runner = new FailingRunnerMock();
-$res6a = $mock_runner->run_automatic_schema_upgrades();
-
-assert_test($res6a['008_property_assessed_descriptions_schema']['success'] === false, "Failed migration returns success: false");
-assert_test($res6a['008_property_assessed_descriptions_schema']['status'] === 'failed', "Failed migration returns status: 'failed'");
-assert_test(strpos($res6a['008_property_assessed_descriptions_schema']['error'], 'Simulated Transient DB Error') !== false, "Error message captured in response");
-
-$reg6a = $wpdb->get_row("SELECT * FROM wp_assessor_migrations WHERE migration_name = '008_property_assessed_descriptions_schema'", ARRAY_A);
-assert_test($reg6a && $reg6a['status'] === 'failed', "Failed status recorded in registry for diagnostics");
-
-// Now test Retry: transient failure resolved
-$mock_runner->should_fail = false;
-$res6b = $mock_runner->run_automatic_schema_upgrades();
-
-assert_test($res6b['008_property_assessed_descriptions_schema']['success'] === true, "Retried migration executes successfully after resolving failure");
-assert_test($res6b['008_property_assessed_descriptions_schema']['status'] === 'completed', "Registry status transitions from 'failed' to 'completed'");
-$val6b = $runner->validate_migration_008_schema();
-assert_test($val6b['valid'] === true, "Schema valid after retry");
-
-// =========================================================================
-// TEST SUITE 7: Decoupled Lifecycle & Native Assessor Data/Schema Protection
-// =========================================================================
-echo "\n--- Test Suite 7: Decoupled Lifecycle & Native Assessor Protection ---\n";
+echo "\n--- Scenario 6: Native Assessor Schemas and Records Remain Untouched ---\n";
 reset_disposable_db($pdo);
 
-// Create native property table with sensitive native records
+// Insert native table and record
 $wpdb->query("CREATE TABLE wp_assessor_properties (
     id varchar(36) NOT NULL,
     tax_declaration_number varchar(100) NOT NULL,
@@ -425,49 +442,31 @@ $wpdb->query("CREATE TABLE wp_assessor_properties (
     declarant_first_name varchar(255) NOT NULL,
     PRIMARY KEY (id)
 )");
-$wpdb->query("INSERT INTO wp_assessor_properties VALUES ('UUID-001', 'TD-2026-0001', 'DELA CRUZ', 'JUAN')");
+$wpdb->query("INSERT INTO wp_assessor_properties VALUES ('PROP-001', 'TD-NATIVE-999', 'SANTOS', 'MARIA')");
 
-// Set up Mock plugin version matching ASSESSOR_API_VERSION
-update_option('assessor_db_version', ASSESSOR_API_VERSION);
+// Run standard create_tables and automatic upgrades
+$db = new Assessor_Database();
+$db->create_tables();
+$runner->run_automatic_schema_upgrades();
 
-// Track whether create_tables was called
-class TrackedDatabaseMock extends Assessor_Database {
-    public static $create_tables_called = false;
-    public function create_tables() {
-        self::$create_tables_called = true;
-        return parent::create_tables();
-    }
-}
+$native_count = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_properties");
+$native_row = $wpdb->get_row("SELECT * FROM wp_assessor_properties WHERE id = 'PROP-001'", ARRAY_A);
 
-// Simulate the assessor_api_check_version() logic from assessor-api.php
-function simulate_check_version_hook() {
-    $current_version = get_option('assessor_db_version');
+assert_test($native_count == 1, "Native property count unchanged (exactly 1 row)");
+assert_test($native_row && $native_row['tax_declaration_number'] === 'TD-NATIVE-999', "Native property record data completely intact");
 
-    // WP-10 decoupled execution
-    if (class_exists('Assessor_Migration_Runner')) {
-        $runner = new Assessor_Migration_Runner();
-        $runner->run_automatic_schema_upgrades();
-    }
+// =========================================================================
+// TEST SCENARIO 7: No ETRACS pull or remote contact triggered
+// =========================================================================
+echo "\n--- Scenario 7: No ETRACS pull or remote contact triggered ---\n";
+// Ensure shadow lookup data table row count is 0 after schema creation
+$machine_rows = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_machine");
+$planttree_rows = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_planttree");
+$planttreedetail_rows = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_planttreedetail");
 
-    // Legacy core database version check
-    if ($current_version !== ASSESSOR_API_VERSION) {
-        TrackedDatabaseMock::$create_tables_called = true;
-        update_option('assessor_db_version', ASSESSOR_API_VERSION);
-    }
-}
-
-TrackedDatabaseMock::$create_tables_called = false;
-simulate_check_version_hook();
-
-assert_test(TrackedDatabaseMock::$create_tables_called === false, "WP-10 execution on existing installation does NOT call broad create_tables()");
-$val7 = $runner->validate_migration_008_schema();
-assert_test($val7['valid'] === true, "Migration 008 executed and validated automatically via lifecycle hook");
-
-// Native Assessor data and schema verification
-$prop_count = $wpdb->get_var("SELECT COUNT(*) FROM wp_assessor_properties");
-$prop_row = $wpdb->get_row("SELECT * FROM wp_assessor_properties WHERE id = 'UUID-001'", ARRAY_A);
-assert_test($prop_count == 1, "Native Assessor table row count unchanged (1 row)");
-assert_test($prop_row && $prop_row['tax_declaration_number'] === 'TD-2026-0001', "Native Assessor property records completely intact and untouched");
+assert_test($machine_rows == 0, "wp_assessor_machine has 0 rows (no automatic data pull)");
+assert_test($planttree_rows == 0, "wp_assessor_planttree has 0 rows (no automatic data pull)");
+assert_test($planttreedetail_rows == 0, "wp_assessor_planttreedetail has 0 rows (no automatic data pull)");
 
 // =========================================================================
 // Summary

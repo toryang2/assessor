@@ -1697,10 +1697,12 @@ class Assessor_Database {
   assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
   assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
   areacovered decimal(16,4) DEFAULT NULL,
+  origin_type enum('REPLICA','LOCAL') NOT NULL DEFAULT 'REPLICA',
   PRIMARY KEY (objid),
   KEY ix_planttreedetail_landrpuid (landrpuid),
   KEY ix_planttreedetail_planttreerpuid (planttreerpuid),
-  KEY ix_planttreedetail_planttree_objid (planttree_objid)
+  KEY ix_planttreedetail_planttree_objid (planttree_objid),
+  KEY idx_origin_type (origin_type)
 ) $charset_collate;";
 
 
@@ -1772,7 +1774,15 @@ class Assessor_Database {
 
 
         // Execute SQL statements
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        if (!function_exists('dbDelta')) {
+            if (file_exists(ABSPATH . 'wp-admin/includes/upgrade.php')) {
+                require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            } elseif (defined('WP_CONTENT_DIR') && file_exists(dirname(WP_CONTENT_DIR) . '/wp-admin/includes/upgrade.php')) {
+                require_once(dirname(WP_CONTENT_DIR) . '/wp-admin/includes/upgrade.php');
+            } elseif (file_exists('C:/xampp/htdocs/wp-admin/includes/upgrade.php')) {
+                require_once('C:/xampp/htdocs/wp-admin/includes/upgrade.php');
+            }
+        }
         
         dbDelta($sql_users);
         dbDelta($sql_properties);

@@ -84,9 +84,43 @@ class Assessor_Migration_Runner {
      *
      * @return string
      */
-    private function get_table_name() {
+    public function get_table_name() {
         global $wpdb;
         return $wpdb->prefix . self::TABLE_MIGRATIONS;
+    }
+
+    /**
+     * Mark an approved migration completed if its physical schema is already valid.
+     * Used during normal fresh database installation.
+     *
+     * @param string $migration_name
+     * @return bool
+     */
+    public function mark_migration_completed_if_valid($migration_name) {
+        global $wpdb;
+
+        if ($migration_name !== '008_property_assessed_descriptions_schema') {
+            return false;
+        }
+
+        $this->ensure_migrations_table();
+        $validation = $this->validate_migration_008_schema();
+        if (!$validation['valid']) {
+            return false;
+        }
+
+        $table_migrations = $this->get_table_name();
+        $now = current_time('mysql');
+        $res = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO $table_migrations (migration_name, status, started_at, completed_at, batch, created_at)
+             VALUES (%s, 'completed', %s, %s, 1, %s)",
+            $migration_name,
+            $now,
+            $now,
+            $now
+        ));
+
+        return ($res !== false);
     }
 
     /**
