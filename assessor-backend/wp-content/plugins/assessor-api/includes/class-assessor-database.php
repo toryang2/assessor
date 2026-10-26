@@ -2726,49 +2726,93 @@ class Assessor_Database {
   KEY `idx_origin_type` (`origin_type`)
 ) ENGINE=InnoDB $charset_collate;";
 
-        $wpdb->query($sql_machine);
-        $wpdb->query($sql_planttree);
-        $wpdb->query($sql_planttreedetail);
+        $r1 = $wpdb->query($sql_machine);
+        $r2 = $wpdb->query($sql_planttree);
+        $r3 = $wpdb->query($sql_planttreedetail);
 
-        // Ensure origin_type column exists on planttreedetail if table pre-existed without it
-        $col_origin = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME
-                 FROM INFORMATION_SCHEMA.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = %s
-                   AND COLUMN_NAME = 'origin_type'",
-                $table_planttreedetail
-            )
-        );
-
-        $origin_col_added = false;
-        if (!$col_origin) {
-            $wpdb->query("ALTER TABLE `$table_planttreedetail` ADD COLUMN `origin_type` ENUM('REPLICA', 'LOCAL') NOT NULL DEFAULT 'REPLICA'");
-            $origin_col_added = true;
+        if ($r1 === false || $r2 === false || $r3 === false) {
+            throw new Exception("Failed to execute initial table creation SQL: " . $wpdb->last_error);
         }
 
-        // Ensure idx_origin_type index exists
-        $has_origin_idx = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT INDEX_NAME
-                 FROM INFORMATION_SCHEMA.STATISTICS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = %s
-                   AND INDEX_NAME = 'idx_origin_type'
-                 LIMIT 1",
-                $table_planttreedetail
-            )
-        );
+        // Helper closures for safe column & index additions
+        $ensure_column = function($table, $col_name, $col_def) use ($wpdb) {
+            $has_col = $wpdb->get_var($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                $table, $col_name
+            ));
+            if (!$has_col) {
+                $res = $wpdb->query("ALTER TABLE `$table` ADD COLUMN `$col_name` $col_def");
+                if ($res === false) {
+                    throw new Exception("Failed to add column `$col_name` to table `$table`: " . $wpdb->last_error);
+                }
+                return true;
+            }
+            return false;
+        };
 
-        $origin_idx_added = false;
-        if (!$has_origin_idx) {
-            $wpdb->query("ALTER TABLE `$table_planttreedetail` ADD KEY `idx_origin_type` (`origin_type`)");
-            $origin_idx_added = true;
-        }
+        $ensure_index = function($table, $idx_name, $idx_def) use ($wpdb) {
+            $has_idx = $wpdb->get_var($wpdb->prepare(
+                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s LIMIT 1",
+                $table, $idx_name
+            ));
+            if (!$has_idx) {
+                $res = $wpdb->query("ALTER TABLE `$table` ADD $idx_def");
+                if ($res === false) {
+                    throw new Exception("Failed to add index `$idx_name` to table `$table`: " . $wpdb->last_error);
+                }
+                return true;
+            }
+            return false;
+        };
 
-        // Backfill pre-existing rows as REPLICA
+        // 2. Repair columns and indexes on assessor_machine if table pre-existed in partial state
+        $ensure_column($table_machine, 'objid', "varchar(50) NOT NULL");
+        $ensure_column($table_machine, 'state', "varchar(10) NOT NULL DEFAULT 'APPROVED'");
+        $ensure_column($table_machine, 'code', "varchar(50) NOT NULL");
+        $ensure_column($table_machine, 'name', "varchar(250) NOT NULL");
+        $ensure_index($table_machine, 'ux_machine_code', "UNIQUE KEY `ux_machine_code` (`code`)");
+        $ensure_index($table_machine, 'ux_machine_name', "UNIQUE KEY `ux_machine_name` (`name`)");
+        $ensure_index($table_machine, 'ix_machine_state', "KEY `ix_machine_state` (`state`)");
+
+        // 3. Repair columns and indexes on assessor_planttree if table pre-existed in partial state
+        $ensure_column($table_planttree, 'objid', "varchar(50) NOT NULL");
+        $ensure_column($table_planttree, 'state', "varchar(10) NOT NULL DEFAULT 'APPROVED'");
+        $ensure_column($table_planttree, 'code', "varchar(20) NOT NULL");
+        $ensure_column($table_planttree, 'name', "varchar(100) NOT NULL");
+        $ensure_index($table_planttree, 'ux_planttree_code', "UNIQUE KEY `ux_planttree_code` (`code`)");
+        $ensure_index($table_planttree, 'ux_planttree_name', "UNIQUE KEY `ux_planttree_name` (`name`)");
+        $ensure_index($table_planttree, 'ix_planttree_state', "KEY `ix_planttree_state` (`state`)");
+
+        // 4. Repair columns and indexes on assessor_planttreedetail
+        $ensure_column($table_planttreedetail, 'objid', "varchar(50) NOT NULL");
+        $ensure_column($table_planttreedetail, 'planttreerpuid', "varchar(50) DEFAULT NULL");
+        $ensure_column($table_planttreedetail, 'landrpuid', "varchar(50) DEFAULT NULL");
+        $ensure_column($table_planttreedetail, 'planttreeunitvalue_objid', "varchar(50) DEFAULT NULL");
+        $ensure_column($table_planttreedetail, 'planttree_objid', "varchar(50) NOT NULL");
+        $ensure_column($table_planttreedetail, 'actualuse_objid', "varchar(50) DEFAULT NULL");
+        $ensure_column($table_planttreedetail, 'productive', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'nonproductive', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'nonproductiveage', "varchar(25) DEFAULT NULL");
+        $ensure_column($table_planttreedetail, 'unitvalue', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'basemarketvalue', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'adjustment', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'adjustmentrate', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'marketvalue', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'assesslevel', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'assessedvalue', "decimal(16,2) NOT NULL DEFAULT '0.00'");
+        $ensure_column($table_planttreedetail, 'areacovered', "decimal(16,4) DEFAULT NULL");
+        $origin_col_added = $ensure_column($table_planttreedetail, 'origin_type', "enum('REPLICA','LOCAL') NOT NULL DEFAULT 'REPLICA'");
+
+        $ensure_index($table_planttreedetail, 'ix_planttreedetail_landrpuid', "KEY `ix_planttreedetail_landrpuid` (`landrpuid`)");
+        $ensure_index($table_planttreedetail, 'ix_planttreedetail_planttreerpuid', "KEY `ix_planttreedetail_planttreerpuid` (`planttreerpuid`)");
+        $ensure_index($table_planttreedetail, 'ix_planttreedetail_planttree_objid', "KEY `ix_planttreedetail_planttree_objid` (`planttree_objid`)");
+        $origin_idx_added = $ensure_index($table_planttreedetail, 'idx_origin_type', "KEY `idx_origin_type` (`origin_type`)");
+
+        // 5. Backfill pre-existing rows as REPLICA
         $backfilled = $wpdb->query("UPDATE `$table_planttreedetail` SET `origin_type` = 'REPLICA' WHERE `origin_type` IS NULL OR `origin_type` = ''");
+        if ($backfilled === false) {
+            throw new Exception("Failed to backfill origin_type on `$table_planttreedetail`: " . $wpdb->last_error);
+        }
 
         return array(
             'machine_table'      => ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_machine)) === $table_machine),

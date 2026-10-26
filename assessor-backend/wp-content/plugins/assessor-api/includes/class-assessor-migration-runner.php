@@ -1645,31 +1645,74 @@ class Assessor_Migration_Runner {
 
         $missing = array();
 
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_machine)) !== $t_machine) {
-            $missing[] = "Table $t_machine";
-        }
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttree)) !== $t_planttree) {
-            $missing[] = "Table $t_planttree";
-        }
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_planttreedetail)) !== $t_planttreedetail) {
-            $missing[] = "Table $t_planttreedetail";
-        } else {
-            // Check origin_type column
-            $has_origin = $wpdb->get_var($wpdb->prepare(
-                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'origin_type'",
-                $t_planttreedetail
-            ));
-            if (!$has_origin) {
-                $missing[] = "Column $t_planttreedetail.origin_type";
+        // Helper to check table existence
+        $check_table = function($table) use ($wpdb, &$missing) {
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+                $missing[] = "Table $table";
+                return false;
             }
-            // Check idx_origin_type index
+            return true;
+        };
+
+        // Helper to check required column
+        $check_column = function($table, $column) use ($wpdb, &$missing) {
+            $has_col = $wpdb->get_var($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                $table, $column
+            ));
+            if (!$has_col) {
+                $missing[] = "Column $table.$column";
+            }
+        };
+
+        // Helper to check required index
+        $check_index = function($table, $index) use ($wpdb, &$missing) {
             $has_idx = $wpdb->get_var($wpdb->prepare(
-                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'idx_origin_type' LIMIT 1",
-                $t_planttreedetail
+                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s LIMIT 1",
+                $table, $index
             ));
             if (!$has_idx) {
-                $missing[] = "Index $t_planttreedetail.idx_origin_type";
+                $missing[] = "Index $table.$index";
             }
+        };
+
+        // 1. Validate assessor_machine
+        if ($check_table($t_machine)) {
+            $check_column($t_machine, 'objid');
+            $check_column($t_machine, 'state');
+            $check_column($t_machine, 'code');
+            $check_column($t_machine, 'name');
+            $check_index($t_machine, 'ux_machine_code');
+            $check_index($t_machine, 'ux_machine_name');
+            $check_index($t_machine, 'ix_machine_state');
+        }
+
+        // 2. Validate assessor_planttree
+        if ($check_table($t_planttree)) {
+            $check_column($t_planttree, 'objid');
+            $check_column($t_planttree, 'state');
+            $check_column($t_planttree, 'code');
+            $check_column($t_planttree, 'name');
+            $check_index($t_planttree, 'ux_planttree_code');
+            $check_index($t_planttree, 'ux_planttree_name');
+            $check_index($t_planttree, 'ix_planttree_state');
+        }
+
+        // 3. Validate assessor_planttreedetail
+        if ($check_table($t_planttreedetail)) {
+            $check_column($t_planttreedetail, 'objid');
+            $check_column($t_planttreedetail, 'planttreerpuid');
+            $check_column($t_planttreedetail, 'landrpuid');
+            $check_column($t_planttreedetail, 'planttree_objid');
+            $check_column($t_planttreedetail, 'unitvalue');
+            $check_column($t_planttreedetail, 'basemarketvalue');
+            $check_column($t_planttreedetail, 'marketvalue');
+            $check_column($t_planttreedetail, 'assessedvalue');
+            $check_column($t_planttreedetail, 'origin_type');
+            $check_index($t_planttreedetail, 'ix_planttreedetail_landrpuid');
+            $check_index($t_planttreedetail, 'ix_planttreedetail_planttreerpuid');
+            $check_index($t_planttreedetail, 'ix_planttreedetail_planttree_objid');
+            $check_index($t_planttreedetail, 'idx_origin_type');
         }
 
         return array(
