@@ -1680,23 +1680,66 @@ class Assessor_API {
     }
 
     public function etracs_pull_sync($request) {
-        $stats = Assessor_Etracs_Sync::trigger_sync();
-        if (is_wp_error($stats)) {
-            return $stats;
+        $single_batch = filter_var($request->get_param('single_batch') ?? true, FILTER_VALIDATE_BOOLEAN);
+        $force_new    = filter_var($request->get_param('force_new') ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $result = Assessor_Etracs_Sync::trigger_sync(null, $single_batch, $force_new);
+        if (is_wp_error($result)) {
+            $err_data = $result->get_error_data();
+            $status_code = !empty($err_data['status']) ? intval($err_data['status']) : 500;
+            return new WP_Error(
+                $result->get_error_code(),
+                $result->get_error_message(),
+                array(
+                    'status'      => $status_code,
+                    'sync_status' => 'FAILED',
+                    'is_completed'=> true,
+                    'diagnostics' => Assessor_Etracs_Sync::get_diagnostics(),
+                    'run_state'   => get_option('assessor_etracs_sync_run_state', null),
+                )
+            );
         }
+
+        $diagnostics = Assessor_Etracs_Sync::get_diagnostics();
+        $run_state = get_option('assessor_etracs_sync_run_state', null);
+        $sync_status = !empty($result['sync_status']) ? strtoupper($result['sync_status']) : (!empty($diagnostics['status']) ? strtoupper($diagnostics['status']) : 'IN_PROGRESS');
+        $is_completed = !empty($result['is_completed']) || in_array($sync_status, array('SUCCESS', 'PARTIAL', 'FAILED'), true);
+
         return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'ETRACS sync completed successfully.',
-            'stats' => $stats
+            'success'      => true,
+            'sync_status'  => $sync_status,
+            'is_completed' => $is_completed,
+            'message'      => !empty($result['message']) ? $result['message'] : (!empty($diagnostics['message']) ? $diagnostics['message'] : 'ETRACS sync in progress.'),
+            'stats'        => !empty($result['stats']) ? $result['stats'] : ($run_state['stats'] ?? array()),
+            'diagnostics'  => $diagnostics,
+            'run_state'    => $run_state,
         ));
     }
 
     public function etracs_pull_sync_status($request) {
-        $status = get_option('assessor_sync_progress', 'Not running');
+        $progress = get_option('assessor_sync_progress', null);
         $diagnostics = Assessor_Etracs_Sync::get_diagnostics();
+        $run_state = get_option('assessor_etracs_sync_run_state', null);
+        $is_locked = (bool) get_option('assessor_etracs_sync_lock', false);
+
+        $status_label = 'IDLE';
+        if ($is_locked || !empty($progress)) {
+            $status_label = 'IN_PROGRESS';
+        } elseif (!empty($run_state['status'])) {
+            $status_label = strtoupper($run_state['status']);
+        } elseif (!empty($diagnostics['status'])) {
+            $status_label = strtoupper($diagnostics['status']);
+        }
+
+        $is_completed = in_array($status_label, array('SUCCESS', 'PARTIAL', 'FAILED'), true);
+
         return rest_ensure_response(array(
-            'status' => $status,
-            'diagnostics' => $diagnostics,
+            'status'       => $progress ?: ($status_label === 'IDLE' ? 'Not running' : $status_label),
+            'sync_status'  => $status_label,
+            'is_running'   => ($is_locked || !empty($progress)) && !$is_completed,
+            'is_completed' => $is_completed,
+            'diagnostics'  => $diagnostics,
+            'run_state'    => $run_state,
         ));
     }
 

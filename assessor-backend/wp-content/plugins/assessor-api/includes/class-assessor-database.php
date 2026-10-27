@@ -1419,20 +1419,18 @@ class Assessor_Database {
   objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
   rpuid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
   classification_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  classcode varchar(20) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  classname varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   actualuse_objid varchar(50) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
-  actualuse varchar(100) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   areasqm decimal(16,2) NOT NULL DEFAULT '0.00',
   areaha decimal(16,6) NOT NULL DEFAULT '0.000000',
-  areatype varchar(10) COLLATE utf8mb4_unicode_520_ci DEFAULT 'SQM',
   marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
   assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
   assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
   rputype varchar(25) COLLATE utf8mb4_unicode_520_ci DEFAULT NULL,
   taxable int DEFAULT '1',
+  origin_type enum('REPLICA','LOCAL') COLLATE utf8mb4_unicode_520_ci NOT NULL DEFAULT 'REPLICA',
   PRIMARY KEY (objid),
-  KEY ix_rpuassess_rpuid (rpuid)
+  KEY ix_rpuassess_rpuid (rpuid),
+  KEY idx_origin_type (origin_type)
 ) $charset_collate;";
 
         $table_assessor_rpumaster = $wpdb->prefix . 'assessor_rpumaster';

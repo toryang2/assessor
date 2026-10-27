@@ -328,6 +328,7 @@ const Settings = () => {
   const [pastedToken, setPastedToken] = useState('');
   const [etracsPulling, setEtracsPulling] = useState(false);
   const [syncProgress, setSyncProgress] = useState('Not running');
+  const [syncReport, setSyncReport] = useState(null);
 
   useEffect(() => {
     let interval;
@@ -338,15 +339,20 @@ const Settings = () => {
           if (res.status) {
             setSyncProgress(res.status);
           }
+          if (res.diagnostics || res.run_state) {
+            setSyncReport({
+              status: res.sync_status || res.diagnostics?.status || (res.is_running ? 'RUNNING' : 'IDLE'),
+              diagnostics: res.diagnostics,
+              run_state: res.run_state,
+            });
+          }
         } catch (e) {
           console.error('Failed to get sync status', e);
         }
       }, 1500);
-    } else if (syncProgress !== 'Complete') {
-      setSyncProgress('Not running');
     }
     return () => clearInterval(interval);
-  }, [etracsPulling, syncProgress]);
+  }, [etracsPulling]);
 
   // Load sync config when user opens the Sync tab
   const [syncConfigError, setSyncConfigError] = useState(null);
@@ -1783,18 +1789,97 @@ const Settings = () => {
 
   const handleEtracsPull = async () => {
     setEtracsPulling(true);
+    setSyncProgress('Initiating ETRACS sync pipeline...');
     try {
-      const res = await apiService.pullEtracsSync();
-      setToast({
-        open: true,
-        message: `ETRACS Pull Successful! Stats: Entities(${res.stats?.entity || 0}) RealProperty(${res.stats?.real_property || 0}) RPU(${res.stats?.rpu || 0}) FAAS(${res.stats?.faas || 0})`,
-        severity: 'success'
+      let isCompleted = false;
+      let lastRes = null;
+      let iteration = 0;
+      const maxIterations = 5000; // Protection against infinite loops
+
+      while (!isCompleted && iteration < maxIterations) {
+        iteration++;
+        const res = await apiService.pullEtracsSync({ single_batch: true });
+        lastRes = res;
+
+        const syncStatus = (res.sync_status || (res.success ? 'IN_PROGRESS' : 'FAILED')).toUpperCase();
+        const runState = res.run_state || {};
+        const stats = res.stats || runState.stats || {};
+
+        if (res.is_completed || ['SUCCESS', 'PARTIAL', 'FAILED'].includes(syncStatus)) {
+          isCompleted = true;
+          break;
+        }
+
+        // Active batch in progress: Update progress indicator and report
+        const currentStage = runState.current_stage !== undefined ? `Stage ${runState.current_stage + 1}` : 'Batch';
+        const cursor = runState.cursor !== undefined ? `offset ${runState.cursor}` : '';
+        setSyncProgress(`IN_PROGRESS: ${res.message || `Processing ${currentStage} (${cursor})...`}`);
+        setSyncReport({
+          status: 'IN_PROGRESS',
+          stats: stats,
+          diagnostics: res.diagnostics,
+          run_state: runState,
+          message: res.message,
+        });
+
+        // Small pause between batches for smooth rendering and event queue drainage
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+
+      if (!lastRes) {
+        throw new Error('No response received from sync pipeline.');
+      }
+
+      const terminalStatus = (lastRes.sync_status || (lastRes.success ? 'SUCCESS' : 'FAILED')).toUpperCase();
+      const isPartial = terminalStatus === 'PARTIAL';
+      const isSuccess = terminalStatus === 'SUCCESS';
+      const finalStats = lastRes.stats || lastRes.run_state?.stats || {};
+
+      setSyncReport({
+        status: terminalStatus,
+        stats: finalStats,
+        diagnostics: lastRes.diagnostics,
+        run_state: lastRes.run_state,
+        message: lastRes.message,
       });
+
+      if (isSuccess) {
+        setSyncProgress(`SUCCESS: Synchronization and post-import verification completed. Synced ${finalStats.rpu_assessment || finalStats.rpu || 0} assessment records.`);
+        setToast({
+          open: true,
+          message: `ETRACS Pull Successful! Stats: Entities(${finalStats.entity || 0}) RealProperty(${finalStats.real_property || 0}) RPU(${finalStats.rpu || 0}) FAAS(${finalStats.faas || 0}) Assessments(${finalStats.rpu_assessment || 0})`,
+          severity: 'success'
+        });
+      } else if (isPartial) {
+        setSyncProgress(`PARTIAL: Completed with warnings. Some non-fatal writes or records require review.`);
+        setToast({
+          open: true,
+          message: `ETRACS Pull completed with warnings (PARTIAL). Check report below.`,
+          severity: 'warning'
+        });
+      } else {
+        setSyncProgress(`FAILED: ${lastRes.message || 'Sync failed.'}`);
+        setToast({
+          open: true,
+          message: lastRes.message || 'Sync failed.',
+          severity: 'error'
+        });
+      }
     } catch (e) {
-      setToast({ open: true, message: e.message || 'Failed to pull ETRACS data.', severity: 'error' });
+      const errorMsg = e.response?.data?.message || e.message || 'Failed to pull ETRACS data.';
+      const diag = e.response?.data?.data?.diagnostics || e.response?.data?.diagnostics;
+      const runState = e.response?.data?.data?.run_state || e.response?.data?.run_state;
+
+      setSyncReport({
+        status: 'FAILED',
+        error: errorMsg,
+        diagnostics: diag,
+        run_state: runState,
+      });
+      setSyncProgress(`FAILED: ${errorMsg}`);
+      setToast({ open: true, message: errorMsg, severity: 'error' });
     } finally {
       setEtracsPulling(false);
-      setSyncProgress('Complete');
     }
   };
 
@@ -1923,11 +2008,48 @@ const Settings = () => {
                 {etracsPulling ? 'Pulling Data...' : 'Pull Latest Data from ETRACS'}
               </Button>
 
-              {(etracsPulling || syncProgress === 'Complete') && (
-                <Paper variant="outlined" sx={{ p: 2, mt: 2.5, bgcolor: 'grey.900', color: 'success.main', fontFamily: 'monospace', borderRadius: 1.5 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+              {syncProgress && syncProgress !== 'Not running' && (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mt: 2.5,
+                    bgcolor: 'grey.900',
+                    color: syncProgress.startsWith('FAILED')
+                      ? 'error.main'
+                      : syncProgress.startsWith('PARTIAL')
+                        ? 'warning.main'
+                        : 'success.main',
+                    fontFamily: 'monospace',
+                    borderRadius: 1.5,
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
                     {'$ ' + syncProgress}
                   </Typography>
+                  {syncReport?.status && (
+                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <Typography variant="caption" sx={{ color: 'grey.400', display: 'block' }}>
+                        Pipeline Status: <strong>{syncReport.status}</strong>
+                        {syncReport.run_state?.stage && ` | Stage: ${syncReport.run_state.stage}`}
+                        {syncReport.run_state?.run_id && ` | Run ID: ${syncReport.run_state.run_id}`}
+                      </Typography>
+                      {syncReport.run_state?.stats && (
+                        <Typography variant="caption" sx={{ color: 'grey.300', display: 'block', mt: 0.5 }}>
+                          Imported: {Object.entries(syncReport.run_state.stats)
+                            .filter(([k, v]) => Number(v) > 0)
+                            .slice(0, 8)
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(' • ')}
+                        </Typography>
+                      )}
+                      {syncReport.diagnostics?.last_error && (
+                        <Typography variant="caption" sx={{ color: 'error.light', display: 'block', mt: 0.5 }}>
+                          Error: {syncReport.diagnostics.last_error}
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Paper>
               )}
             </CardContent>

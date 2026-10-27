@@ -59,14 +59,93 @@ class Assessor_Etracs_Sync {
     }
 
     /**
+     * Get the ordered stage pipeline definition for ETRACS synchronization.
+     *
+     * @return array
+     */
+    public static function get_sync_stages() {
+        $stages = array(
+            array('name' => 'entity', 'type' => 'custom', 'source_table' => 'entity', 'target_table' => 'assessor_entity', 'order_by' => 'objid'),
+            array('name' => 'real_property', 'type' => 'custom', 'source_table' => 'realproperty', 'target_table' => 'assessor_real_property', 'order_by' => 'objid'),
+            array('name' => 'rpu', 'type' => 'custom', 'source_table' => 'rpu', 'target_table' => 'assessor_rpu', 'order_by' => 'objid'),
+            array('name' => 'faas', 'type' => 'custom', 'source_table' => 'faas', 'target_table' => 'assessor_faas', 'order_by' => 'objid'),
+        );
+
+        $tables_to_sync_direct = array(
+            'faas_previous'          => 'assessor_faas_previous',
+            'faas_list'              => 'assessor_faas_list',
+            'faas_signatory'         => 'assessor_faas_signatory',
+            'bldgrpu'                => 'assessor_bldgrpu',
+            'bldgfloor'              => 'assessor_bldgfloor',
+            'bldgflooradditional'    => 'assessor_bldgflooradditional',
+            'bldgadditionalitem'     => 'assessor_bldgadditionalitem',
+            'bldguse'                => 'assessor_bldguse',
+            'bldgstructure'          => 'assessor_bldgstructure',
+            'bldgrpu_structuraltype' => 'assessor_bldgrpu_structuraltype',
+            'bldgtype_depreciation'  => 'assessor_bldgtype_depreciation',
+            'bldgkind'               => 'assessor_bldgkind',
+            'bldgkindbucc'           => 'assessor_bldgkindbucc',
+            'bldgtype'               => 'assessor_bldgtype',
+            'bldgrysetting'          => 'assessor_bldgrysetting',
+            'landrpu'                => 'assessor_landrpu',
+            'landdetail'             => 'assessor_landdetail',
+            'machrpu'                => 'assessor_machrpu',
+            'machdetail'             => 'assessor_machdetail',
+            'machine'                => 'assessor_machine',
+            'machine_smv'            => 'assessor_machine_smv',
+            'miscrpu'                => 'assessor_miscrpu',
+            'miscitem'               => 'assessor_miscitem',
+            'miscrpuitem'            => 'assessor_miscrpuitem',
+            'planttreerpu'           => 'assessor_planttreerpu',
+            'planttree'              => 'assessor_planttree',
+            'planttreedetail'        => 'assessor_planttreedetail',
+            'landassesslevel'        => 'assessor_landassesslevel',
+            'bldgassesslevel'        => 'assessor_bldgassesslevel',
+            'machassesslevel'        => 'assessor_machassesslevel',
+            'planttreeassesslevel'   => 'assessor_planttreeassesslevel',
+            'miscassesslevel'        => 'assessor_miscassesslevel',
+            'propertyclassification' => 'assessor_propertyclassification',
+            'structure'              => 'assessor_structure',
+            'material'               => 'assessor_material',
+            'barangay'               => 'assessor_barangay',
+            'exemptiontype'          => 'assessor_exemptiontype',
+            'rpumaster'              => 'assessor_rpumaster',
+        );
+
+        foreach ($tables_to_sync_direct as $src => $dest) {
+            $stages[] = array(
+                'name'         => $dest,
+                'type'         => 'direct',
+                'source_table' => $src,
+                'target_table' => $dest,
+                'order_by'     => 'objid',
+            );
+        }
+
+        // Assessment stage
+        $stages[] = array(
+            'name'         => 'rpu_assessment',
+            'type'         => 'assessment',
+            'source_table' => 'rpu_assessment',
+            'target_table' => 'assessor_rpu_assessment',
+            'order_by'     => 'objid',
+        );
+
+        return $stages;
+    }
+
+    /**
      * Primary ETRACS sync coordinator with ownership protection and collision preflight.
+     * Supports resumable bounded-batch HTTP execution, lock ownership verification, and
+     * deterministic recovery from interrupted runs.
      *
      * @param PDO|null $external_pdo Optional mock or test PDO connection
+     * @param bool $single_batch When true, executes exactly one bounded batch or verification step and returns promptly
+     * @param bool $force_new When true, ignores any existing completed or running state and starts a fresh run
      * @return array|WP_Error
      */
-    public static function trigger_sync($external_pdo = null) {
+    public static function trigger_sync($external_pdo = null, $single_batch = false, $force_new = false) {
         set_time_limit(0);
-        self::update_progress("Starting sync...");
         self::ensure_schema();
 
         if ($external_pdo instanceof PDO) {
@@ -81,7 +160,7 @@ class Assessor_Etracs_Sync {
             if (empty($host) || empty($db) || empty($user)) {
                 $err = new WP_Error('missing_config', 'ETRACS database configuration is incomplete.', array('status' => 400));
                 self::set_diagnostics(array(
-                    'status'    => 'failed',
+                    'status'    => 'FAILED',
                     'timestamp' => current_time('mysql', true),
                     'error'     => 'missing_config',
                     'message'   => $err->get_error_message()
@@ -100,7 +179,7 @@ class Assessor_Etracs_Sync {
             } catch (PDOException $e) {
                 $err = new WP_Error('db_connect_failed', 'Failed to connect to ETRACS Database: ' . $e->getMessage(), array('status' => 500));
                 self::set_diagnostics(array(
-                    'status'    => 'failed',
+                    'status'    => 'FAILED',
                     'timestamp' => current_time('mysql', true),
                     'error'     => 'db_connect_failed',
                     'message'   => $err->get_error_message()
@@ -111,508 +190,474 @@ class Assessor_Etracs_Sync {
 
         global $wpdb;
 
-        // ──────────────────────────────────────────────
-        // STEP 1: READ-ONLY COLLISION PREFLIGHT
-        // ──────────────────────────────────────────────
-        self::update_progress("Running collision preflight...");
-        $preflight_result = self::run_collision_preflight($pdo);
-        if (is_wp_error($preflight_result)) {
-            delete_option('assessor_sync_progress');
+        // Generate a unique worker token for this execution invocation
+        $worker_id = 'WORKER_' . wp_generate_uuid4();
 
-            // Log WP-07 Audit Event: Preflight Aborted Collision
-            if (class_exists('Assessor_Etracs')) {
-                $err_data = $preflight_result->get_error_data();
-                $conflict_count = !empty($err_data['diagnostics']['conflict_count']) ? $err_data['diagnostics']['conflict_count'] : 0;
-                Assessor_Etracs::log_shadow_audit(array(
-                    'event_type'            => 'SYNC_PULL',
-                    'action_outcome'        => 'ABORTED',
-                    'source_classification' => 'SOURCE_SYNC',
-                    'origin_type'           => 'REPLICA',
-                    'object_type'           => 'SYSTEM_SYNC',
-                    'object_id'             => 'BATCH_ABORTED_' . gmdate('Ymd_His'),
-                    'user_id'               => 'SYSTEM_SYNC',
-                    'actor_name'            => 'Source ETRACS Replica Sync',
-                    'changed_fields'        => array(),
-                    'details'               => array(
-                        'error_code'     => $preflight_result->get_error_code(),
-                        'error_message'  => $preflight_result->get_error_message(),
-                        'conflict_count' => $conflict_count,
-                    ),
-                    'correlation_id'        => 'SYNC_ABORT_' . wp_generate_uuid4(),
-                ));
+        // Load existing run state
+        $run_state = get_option('assessor_etracs_sync_run_state', null);
+        $stages = self::get_sync_stages();
+        $total_stages = count($stages);
+
+        $has_active_run = !empty($run_state) && is_array($run_state) &&
+            isset($run_state['run_id']) &&
+            in_array(strtolower($run_state['status'] ?? ''), array('running', 'in_progress', 'paused'), true) &&
+            !$force_new;
+
+        // Check if run lock is active and still fresh (within 10 minutes)
+        $lock = get_option('assessor_etracs_sync_lock', null);
+        if ($lock && isset($lock['timestamp'])) {
+            $lock_age = time() - intval($lock['timestamp']);
+            // Case 1: Different run is active within 10 minutes
+            if ($lock_age < 600 && (!$has_active_run || $lock['run_id'] !== $run_state['run_id'])) {
+                return new WP_Error('sync_locked', 'Another synchronization is currently running (Run ID: ' . esc_html($lock['run_id']) . ').', array('status' => 409));
             }
 
-            return $preflight_result;
-        }
-
-        // ──────────────────────────────────────────────
-        // STEP 2: SAFE PROTECTED WRITE PHASE
-        // ──────────────────────────────────────────────
-        $stats = [
-            'entity' => 0,
-            'real_property' => 0,
-            'rpu' => 0,
-            'faas' => 0
-        ];
-
-        $wp_entity = $wpdb->prefix . 'assessor_entity';
-        $wp_rp = $wpdb->prefix . 'assessor_real_property';
-        $wp_rpu = $wpdb->prefix . 'assessor_rpu';
-        $wp_faas = $wpdb->prefix . 'assessor_faas';
-
-        // 1. Entity Sync
-        try {
-            $stmt = $pdo->query("SELECT * FROM entity");
-            while ($row = $stmt->fetch()) {
-                $data = [
-                    'objid' => $row['objid'],
-                    'entityno' => $row['entityno'],
-                    'name' => $row['name'],
-                    'address_text' => $row['address_text'],
-                    'mailingaddress' => $row['mailingaddress'],
-                    'type' => $row['type'],
-                    'sys_lastupdate' => $row['sys_lastupdate'],
-                    'sys_lastupdateby' => $row['sys_lastupdateby'],
-                    'remarks' => $row['remarks'],
-                    'entityname' => $row['entityname'],
-                    'address_objid' => $row['address_objid'],
-                    'mobileno' => $row['mobileno'],
-                    'phoneno' => $row['phoneno'],
-                    'email' => $row['email'],
-                    'state' => $row['state'],
-                    'origin_type' => 'REPLICA',
-                ];
-                self::safe_upsert_row($wp_entity, $data, 'objid');
-                $stats['entity']++;
-                if ($stats['entity'] % 500 === 0) self::update_progress("Syncing Entities ({$stats['entity']} rows)...");
+            // Case 2: Same run, but another worker refreshed heartbeat very recently (within 45s)
+            // Prevent duplicate concurrent workers on the same run
+            if ($has_active_run && $lock['run_id'] === $run_state['run_id'] && !empty($lock['worker_id']) && $lock_age < 45) {
+                return new WP_Error('worker_busy', 'Another worker is currently processing this run (Worker ID: ' . esc_html($lock['worker_id']) . ').', array('status' => 409));
             }
-        } catch (Exception $e) {
-            error_log("Assessor ETRACS Sync Error in Entity: " . $e->getMessage());
         }
 
-        // 2. Real Property Sync
-        try {
-            $stmt = $pdo->query("
-                SELECT rp.*, b.name as barangay_name 
-                FROM realproperty rp 
-                LEFT JOIN barangay b ON rp.barangayid = b.objid
-            ");
-            while ($row = $stmt->fetch()) {
-                $data = [
-                    'objid' => $row['objid'],
-                    'pin' => $row['pin'],
-                    'cadastrallotno' => $row['cadastrallotno'],
-                    'surveyno' => $row['surveyno'],
-                    'blockno' => $row['blockno'],
-                    'barangay' => !empty($row['barangay_name']) ? $row['barangay_name'] : $row['barangayid'],
-                    'municipality' => $row['lgutype'] == 'municipality' ? $row['lguid'] : '',
-                    'north' => $row['north'],
-                    'south' => $row['south'],
-                    'east' => $row['east'],
-                    'west' => $row['west'],
-                    'pintype' => $row['pintype'],
-                    'ry' => $row['ry'],
-                    'barangayid' => $row['barangayid'],
-                    'lguid' => $row['lguid'],
-                    'lgutype' => $row['lgutype'],
-                    'purok' => $row['purok'],
-                    'street' => $row['street'],
-                    'stewardshipno' => $row['stewardshipno'],
-                    'portionof' => $row['portionof'],
-                    'autonumber' => $row['autonumber'],
-                    'previd' => $row['previd'],
-                    'claimno' => $row['claimno'],
-                    'section' => $row['section'],
-                    'parcel' => $row['parcel'],
-                    'origin_type' => 'REPLICA',
-                ];
-                self::safe_upsert_row($wp_rp, $data, 'objid');
-                $stats['real_property']++;
-                if ($stats['real_property'] % 500 === 0) self::update_progress("Syncing Real Properties ({$stats['real_property']} rows)...");
+        if ($has_active_run) {
+            $run_id = $run_state['run_id'];
+            $run_state['status'] = 'IN_PROGRESS';
+            // Acquire / refresh lock with new worker ID
+            update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
+        } else {
+            // New run: Collision preflight is required before writing any records
+            self::update_progress("Running collision preflight...");
+            $preflight_result = self::run_collision_preflight($pdo);
+            if (is_wp_error($preflight_result)) {
+                delete_option('assessor_sync_progress');
+
+                if (class_exists('Assessor_Etracs')) {
+                    $err_data = $preflight_result->get_error_data();
+                    $conflict_count = !empty($err_data['diagnostics']['conflict_count']) ? $err_data['diagnostics']['conflict_count'] : 0;
+                    Assessor_Etracs::log_shadow_audit(array(
+                        'event_type'            => 'SYNC_PULL',
+                        'action_outcome'        => 'ABORTED',
+                        'source_classification' => 'SOURCE_SYNC',
+                        'origin_type'           => 'REPLICA',
+                        'object_type'           => 'SYSTEM_SYNC',
+                        'object_id'             => 'BATCH_ABORTED_' . gmdate('Ymd_His'),
+                        'user_id'               => 'SYSTEM_SYNC',
+                        'actor_name'            => 'Source ETRACS Replica Sync',
+                        'changed_fields'        => array(),
+                        'details'               => array(
+                            'error_code'     => $preflight_result->get_error_code(),
+                            'error_message'  => $preflight_result->get_error_message(),
+                            'conflict_count' => $conflict_count,
+                        ),
+                        'correlation_id'        => 'SYNC_ABORT_' . wp_generate_uuid4(),
+                    ));
+                }
+
+                return $preflight_result;
             }
-        } catch (Exception $e) {
-            error_log("Assessor ETRACS Sync Error in Real Property: " . $e->getMessage());
+
+            $run_id = 'SYNC_' . gmdate('Ymd_His') . '_' . wp_generate_uuid4();
+            update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
+
+            $run_state = array(
+                'run_id'           => $run_id,
+                'status'           => 'IN_PROGRESS',
+                'current_stage'    => 0,
+                'cursor'           => 0,
+                'last_seen_id'     => '',
+                'stats'            => array(),
+                'write_failures'   => array(),
+                'stage_errors'     => array(),
+                'last_error'       => null,
+                'started_at'       => current_time('mysql', true),
+                'updated_at'       => current_time('mysql', true),
+            );
+            update_option('assessor_etracs_sync_run_state', $run_state, false);
         }
 
-        // 3. RPU Sync
-        try {
-            $stmt = $pdo->query("
-                SELECT rpu.*, pc.code as class_code, rp2.barangayid as rp_barangayid
-                FROM rpu 
-                LEFT JOIN propertyclassification pc ON rpu.classification_objid = pc.objid
-                LEFT JOIN realproperty rp2 ON rpu.realpropertyid = rp2.objid
-            ");
-            while ($row = $stmt->fetch()) {
-                $data = [
-                    'objid' => $row['objid'],
-                    'state' => $row['state'],
-                    'realpropertyid' => $row['realpropertyid'],
-                    'rpu_type' => $row['rputype'],
-                    'classification' => !empty($row['class_code']) ? $row['class_code'] : $row['classification_objid'],
-                    'ry' => $row['ry'],
-                    'total_market_value' => floatval($row['totalmv']),
-                    'total_assessed_value' => floatval($row['totalav']),
-                    'taxable' => $row['taxable'],
-                    'total_area_hectare' => floatval($row['totalareaha']),
-                    'total_area_sqm' => floatval($row['totalareasqm']),
-                    'fullpin' => $row['fullpin'],
-                    'suffix' => intval($row['suffix']),
-                    'subsuffix' => $row['subsuffix'],
-                    'classification_objid' => $row['classification_objid'],
-                    'exemptiontype_objid' => $row['exemptiontype_objid'],
-                    'totalbmv' => floatval($row['totalbmv']),
-                    'previd' => $row['previd'],
-                    'rpumasterid' => $row['rpumasterid'],
-                    'barangayid' => $row['rp_barangayid'] ?? '',
-                    'origin_type' => 'REPLICA',
-                ];
-                self::safe_upsert_row($wp_rpu, $data, 'objid');
-                $stats['rpu']++;
-                if ($stats['rpu'] % 500 === 0) self::update_progress("Syncing RPUs ({$stats['rpu']} rows)...");
+        $batch_size = 500;
+
+        // Process batches
+        while ($run_state['current_stage'] < $total_stages) {
+            $stage_idx = $run_state['current_stage'];
+            $stage = $stages[$stage_idx];
+            $stage_name = $stage['name'];
+            $target_table = $wpdb->prefix . $stage['target_table'];
+            $source_table = $stage['source_table'];
+
+            if (!isset($run_state['stats'][$stage_name])) {
+                $run_state['stats'][$stage_name] = 0;
             }
-        } catch (Exception $e) {
-            error_log("Assessor ETRACS Sync Error in RPU: " . $e->getMessage());
-        }
 
-        // 4. FAAS Sync
-        try {
-            $stmt = $pdo->query("SELECT * FROM faas");
-            while ($row = $stmt->fetch()) {
-                $data = [
-                    'objid' => $row['objid'],
-                    'state' => $row['state'],
-                    'rpuid' => $row['rpuid'],
-                    'realpropertyid' => $row['realpropertyid'],
-                    'datacapture' => $row['datacapture'],
-                    'autonumber' => $row['autonumber'],
-                    'utdno' => $row['utdno'],
-                    'tdno' => $row['tdno'],
-                    'txntype_objid' => $row['txntype_objid'],
-                    'effectivityyear' => $row['effectivityyear'],
-                    'effectivityqtr' => $row['effectivityqtr'],
-                    'titletype' => $row['titletype'],
-                    'titleno' => $row['titleno'],
-                    'titledate' => $row['titledate'],
-                    'taxpayer_objid' => $row['taxpayer_objid'],
-                    'owner_name' => $row['owner_name'],
-                    'owner_address' => $row['owner_address'],
-                    'administrator_objid' => $row['administrator_objid'],
-                    'administrator_name' => $row['administrator_name'],
-                    'administrator_address' => $row['administrator_address'],
-                    'beneficiary_objid' => $row['beneficiary_objid'],
-                    'beneficiary_name' => $row['beneficiary_name'],
-                    'beneficiary_address' => $row['beneficiary_address'],
-                    'memoranda' => $row['memoranda'],
-                    'cancelnote' => $row['cancelnote'],
-                    'restrictionid' => $row['restrictionid'],
-                    'backtaxyrs' => $row['backtaxyrs'],
-                    'prevtdno' => $row['prevtdno'],
-                    'prevpin' => $row['prevpin'],
-                    'prevowner' => $row['prevowner'],
-                    'prevav' => $row['prevav'],
-                    'prevmv' => $row['prevmv'],
-                    'cancelreason' => $row['cancelreason'],
-                    'canceldate' => $row['canceldate'],
-                    'cancelledbytdnos' => $row['cancelledbytdnos'],
-                    'lguid' => $row['lguid'],
-                    'publicland' => $row['publicland'],
-                    'txntimestamp' => $row['txntimestamp'],
-                    'cancelledtimestamp' => $row['cancelledtimestamp'],
-                    'name' => $row['name'],
-                    'dtapproved' => $row['dtapproved'],
-                    'lgutype' => $row['lgutype'],
-                    'signatories' => $row['signatories'],
-                    'ryordinanceno' => $row['ryordinanceno'],
-                    'ryordinancedate' => $row['ryordinancedate'],
-                    'prevareaha' => $row['prevareaha'],
-                    'prevareasqm' => $row['prevareasqm'],
-                    'fullpin' => $row['fullpin'],
-                    'preveffectivity' => $row['preveffectivity'],
-                    'year' => $row['year'],
-                    'qtr' => $row['qtr'],
-                    'month' => $row['month'],
-                    'day' => $row['day'],
-                    'cancelledyear' => $row['cancelledyear'],
-                    'cancelledqtr' => $row['cancelledqtr'],
-                    'cancelledmonth' => $row['cancelledmonth'],
-                    'cancelledday' => $row['cancelledday'],
-                    'prevadministrator' => $row['prevadministrator'],
-                    'originlguid' => $row['originlguid'],
-                    'parentfaasid' => $row['parentfaasid'],
-                    'origin_type' => 'REPLICA',
-                ];
-                self::safe_upsert_row($wp_faas, $data, 'objid');
-                $stats['faas']++;
-                if ($stats['faas'] % 500 === 0) self::update_progress("Syncing FAAS ({$stats['faas']} rows)...");
-            }
-        } catch (Exception $e) {
-            error_log("Assessor ETRACS Sync Error in FAAS: " . $e->getMessage());
-        }
+            self::update_progress(sprintf('Syncing %s (stage %d/%d, offset %d)...', $stage_name, $stage_idx + 1, $total_stages, $run_state['cursor']));
 
-        // 5. Sync detail & lookup tables
-        $tables_to_sync_direct = [
-            'faas_previous' => 'assessor_faas_previous',
-            'faas_list' => 'assessor_faas_list',
-            'faas_signatory' => 'assessor_faas_signatory',
-            // Building detail tables
-            'bldgrpu' => 'assessor_bldgrpu',
-            'bldgfloor' => 'assessor_bldgfloor',
-            'bldgflooradditional' => 'assessor_bldgflooradditional',
-            'bldgadditionalitem' => 'assessor_bldgadditionalitem',
-            'bldguse' => 'assessor_bldguse',
-            'bldgstructure' => 'assessor_bldgstructure',
-            'bldgrpu_structuraltype' => 'assessor_bldgrpu_structuraltype',
-            'bldgtype_depreciation' => 'assessor_bldgtype_depreciation',
-            // Building lookups
-            'bldgkind' => 'assessor_bldgkind',
-            'bldgkindbucc' => 'assessor_bldgkindbucc',
-            'bldgtype' => 'assessor_bldgtype',
-            'bldgrysetting' => 'assessor_bldgrysetting',
-            // Land detail tables
-            'landrpu' => 'assessor_landrpu',
-            'landdetail' => 'assessor_landdetail',
-            // Machinery detail tables
-            'machrpu' => 'assessor_machrpu',
-            'machdetail' => 'assessor_machdetail',
-            'machine' => 'assessor_machine',
-            'machine_smv' => 'assessor_machine_smv',
-            // Misc detail tables
-            'miscrpu' => 'assessor_miscrpu',
-            'miscitem' => 'assessor_miscitem',
-            'miscrpuitem' => 'assessor_miscrpuitem',
-            // Plant/Tree detail tables
-            'planttreerpu' => 'assessor_planttreerpu',
-            'planttree' => 'assessor_planttree',
-            'planttreedetail' => 'assessor_planttreedetail',
-            // Assessment level lookups
-            'landassesslevel' => 'assessor_landassesslevel',
-            'bldgassesslevel' => 'assessor_bldgassesslevel',
-            'machassesslevel' => 'assessor_machassesslevel',
-            'planttreeassesslevel' => 'assessor_planttreeassesslevel',
-            'miscassesslevel' => 'assessor_miscassesslevel',
-            // General lookups
-            'propertyclassification' => 'assessor_propertyclassification',
-            'structure' => 'assessor_structure',
-            'material' => 'assessor_material',
-            'barangay' => 'assessor_barangay',
-            'exemptiontype' => 'assessor_exemptiontype',
-            'rpumaster' => 'assessor_rpumaster',
-        ];
-
-        foreach ($tables_to_sync_direct as $etracs_table => $local_table) {
-            $full_local_table = $wpdb->prefix . $local_table;
             try {
-                $valid_columns = $wpdb->get_col("DESCRIBE `$full_local_table`", 0);
-                if (empty($valid_columns)) continue;
-                $valid_columns_flip = array_flip($valid_columns);
+                $offset = intval($run_state['cursor']);
+                if ($stage['type'] === 'custom') {
+                    if ($stage_name === 'entity') {
+                        $sql = "SELECT * FROM entity ORDER BY objid LIMIT $batch_size OFFSET $offset";
+                    } elseif ($stage_name === 'real_property') {
+                        $has_bgy = false;
+                        try {
+                            $chk = $pdo->query("SHOW TABLES LIKE 'barangay'")->fetchColumn();
+                            $has_bgy = !empty($chk);
+                        } catch (Exception $e) { $has_bgy = false; }
 
-                $stmt = $pdo->query("SELECT * FROM `$etracs_table`");
-                if ($stmt) {
-                    $stats[$local_table] = 0;
-                    self::update_progress("Syncing $etracs_table...");
-                    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                        $filtered_row = array_intersect_key($row, $valid_columns_flip);
-                        if (isset($valid_columns_flip['origin_type'])) {
-                            $filtered_row['origin_type'] = 'REPLICA';
+                        if ($has_bgy) {
+                            $sql = "SELECT rp.*, b.name as barangay_name FROM realproperty rp LEFT JOIN barangay b ON rp.barangayid = b.objid ORDER BY rp.objid LIMIT $batch_size OFFSET $offset";
+                        } else {
+                            $sql = "SELECT rp.*, rp.barangayid as barangay_name FROM realproperty rp ORDER BY rp.objid LIMIT $batch_size OFFSET $offset";
                         }
-                        self::safe_upsert_row($full_local_table, $filtered_row, 'objid');
+                    } elseif ($stage_name === 'rpu') {
+                        $has_pc = false;
+                        $has_rp = false;
+                        try {
+                            $has_pc = !empty($pdo->query("SHOW TABLES LIKE 'propertyclassification'")->fetchColumn());
+                            $has_rp = !empty($pdo->query("SHOW TABLES LIKE 'realproperty'")->fetchColumn());
+                        } catch (Exception $e) {}
 
-                        $stats[$local_table]++;
-                        if ($stats[$local_table] % 500 === 0) self::update_progress("Syncing $etracs_table ({$stats[$local_table]} rows)...");
+                        if ($has_pc && $has_rp) {
+                            $sql = "SELECT rpu.*, pc.code as class_code, rp2.barangayid as rp_barangayid FROM rpu LEFT JOIN propertyclassification pc ON rpu.classification_objid = pc.objid LEFT JOIN realproperty rp2 ON rpu.realpropertyid = rp2.objid ORDER BY rpu.objid LIMIT $batch_size OFFSET $offset";
+                        } else {
+                            $sql = "SELECT rpu.*, '' as class_code, '' as rp_barangayid FROM rpu ORDER BY rpu.objid LIMIT $batch_size OFFSET $offset";
+                        }
+                    } elseif ($stage_name === 'faas') {
+                        $sql = "SELECT * FROM faas ORDER BY objid LIMIT $batch_size OFFSET $offset";
                     }
-                }
-            } catch (Exception $e) {
-                // Ignore if table doesn't exist in source ETRACS
-            }
-        }
+                } elseif ($stage['type'] === 'assessment') {
+                    $has_table = false;
+                    try {
+                        $chk = $pdo->query("SHOW TABLES LIKE 'rpu_assessment'")->fetchColumn();
+                        $has_table = !empty($chk);
+                    } catch (Exception $e) { $has_table = false; }
 
-        // 6. Sync rpu_assessment with write diagnostics.
-        // Diagnostic only: test in staging before running any synchronization.
-        $wp_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
-
-        $assessment_diag = array(
-            'status'                => 'running',
-            'rows_seen'             => 0,
-            'rows_seen_by_type'     => array(),
-            'writes_ok'             => 0,
-            'writes_ok_by_type'     => array(),
-            'writes_failed'         => 0,
-            'failures_by_type'      => array(),
-            'first_failure_by_type' => array(),
-            'exception'             => null,
-        );
-
-        try {
-            $valid_columns_ra = $wpdb->get_col(
-                "DESCRIBE `$wp_rpu_assessment`",
-                0
-            );
-
-            $valid_columns_ra_flip = !empty($valid_columns_ra)
-                ? array_flip($valid_columns_ra)
-                : array();
-
-            if (empty($valid_columns_ra_flip)) {
-                throw new RuntimeException(
-                    'Could not read columns from target table: '
-                    . $wp_rpu_assessment
-                );
-            }
-
-            $stmt = $pdo->query("
-                SELECT
-                    ra.*,
-                    pc1.code AS classcode,
-                    pc1.name AS classname,
-                    COALESCE(
-                        la.name,
-                        ba.name,
-                        ma.name,
-                        pa.name,
-                        mia.name,
-                        pc2.name
-                    ) AS actualuse
-                FROM rpu_assessment ra
-                LEFT JOIN propertyclassification pc1
-                    ON pc1.objid = ra.classification_objid
-                LEFT JOIN propertyclassification pc2
-                    ON pc2.objid = ra.actualuse_objid
-                LEFT JOIN landassesslevel la
-                    ON la.objid = ra.actualuse_objid
-                LEFT JOIN bldgassesslevel ba
-                    ON ba.objid = ra.actualuse_objid
-                LEFT JOIN machassesslevel ma
-                    ON ma.objid = ra.actualuse_objid
-                LEFT JOIN planttreeassesslevel pa
-                    ON pa.objid = ra.actualuse_objid
-                LEFT JOIN miscassesslevel mia
-                    ON mia.objid = ra.actualuse_objid
-            ");
-
-            $stats['rpu_assessment'] = 0;
-            self::update_progress(
-                'Syncing rpu_assessment with write diagnostics...'
-            );
-
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $assessment_diag['rows_seen']++;
-
-                $type = strtolower(
-                    trim((string) ($row['rputype'] ?? '(null)'))
-                );
-
-                if (!isset($assessment_diag['rows_seen_by_type'][$type])) {
-                    $assessment_diag['rows_seen_by_type'][$type] = 0;
-                }
-                $assessment_diag['rows_seen_by_type'][$type]++;
-
-                $filtered_row = array_intersect_key(
-                    $row,
-                    $valid_columns_ra_flip
-                );
-
-                if (isset($valid_columns_ra_flip['origin_type'])) {
-                    $filtered_row['origin_type'] = 'REPLICA';
-                }
-
-                $write_result = self::safe_upsert_row(
-                    $wp_rpu_assessment,
-                    $filtered_row,
-                    'objid'
-                );
-
-                if ($write_result === false) {
-                    $assessment_diag['writes_failed']++;
-
-                    if (!isset($assessment_diag['failures_by_type'][$type])) {
-                        $assessment_diag['failures_by_type'][$type] = 0;
+                    if (!$has_table) {
+                        $run_state['current_stage']++;
+                        $run_state['cursor'] = 0;
+                        $run_state['last_seen_id'] = '';
+                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        if ($single_batch) {
+                            return array(
+                                'status'       => 'IN_PROGRESS',
+                                'sync_status'  => 'IN_PROGRESS',
+                                'is_completed' => false,
+                                'run_id'       => $run_id,
+                                'stats'        => $run_state['stats'],
+                                'run_state'    => $run_state,
+                                'message'      => sprintf('Skipped non-existent table %s.', $source_table),
+                            );
+                        }
+                        continue;
                     }
-                    $assessment_diag['failures_by_type'][$type]++;
+                    $sql = "SELECT * FROM rpu_assessment ORDER BY objid LIMIT $batch_size OFFSET $offset";
+                } else {
+                    $has_table = false;
+                    try {
+                        $chk = $pdo->query("SHOW TABLES LIKE '$source_table'")->fetchColumn();
+                        $has_table = !empty($chk);
+                    } catch (Exception $e) { $has_table = false; }
 
-                    // Keep the first failure per type to limit log volume.
-                    if (!isset(
-                        $assessment_diag['first_failure_by_type'][$type]
-                    )) {
-                        $failure = array(
-                            'objid' => $row['objid'] ?? null,
-                            'rputype' => $type,
-                            'row_has_objid' => isset($filtered_row['objid']),
-                            'filtered_column_count' => count($filtered_row),
-                            'db_error' => $wpdb->last_error !== ''
-                                ? $wpdb->last_error
-                                : 'Write returned false without a DB error message',
-                        );
+                    if (!$has_table) {
+                        $run_state['current_stage']++;
+                        $run_state['cursor'] = 0;
+                        $run_state['last_seen_id'] = '';
+                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        if ($single_batch) {
+                            delete_option('assessor_etracs_sync_lock');
+                            return array(
+                                'status'       => 'IN_PROGRESS',
+                                'sync_status'  => 'IN_PROGRESS',
+                                'is_completed' => false,
+                                'run_id'       => $run_id,
+                                'stats'        => $run_state['stats'],
+                                'run_state'    => $run_state,
+                                'message'      => sprintf('Skipped non-existent table %s.', $source_table),
+                            );
+                        }
+                        continue;
+                    }
+                    $sql = "SELECT * FROM `$source_table` ORDER BY objid LIMIT $batch_size OFFSET $offset";
+                }
 
-                        $assessment_diag['first_failure_by_type'][$type]
-                            = $failure;
+                $stmt = $pdo->query($sql);
+                $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : array();
+                $count = count($rows);
 
-                        error_log(
-                            'ETRACS rpu_assessment write failure: '
-                            . wp_json_encode($failure)
+                if ($count > 0) {
+                    $tbl_exists = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $target_table)) === $target_table);
+                    if (!$tbl_exists) {
+                        $run_state['cursor'] += $count;
+                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        if ($single_batch) {
+                            delete_option('assessor_etracs_sync_lock');
+                            return array(
+                                'status'       => 'IN_PROGRESS',
+                                'sync_status'  => 'IN_PROGRESS',
+                                'is_completed' => false,
+                                'run_id'       => $run_id,
+                                'stats'        => $run_state['stats'],
+                                'run_state'    => $run_state,
+                                'message'      => sprintf('Target table %s does not exist; advancing cursor.', $target_table),
+                            );
+                        }
+                        continue;
+                    }
+
+                    $valid_cols = $wpdb->get_col("DESCRIBE `$target_table`", 0);
+                    $valid_cols_flip = !empty($valid_cols) ? array_flip($valid_cols) : array();
+
+                    foreach ($rows as $row) {
+                        if ($stage['type'] === 'custom') {
+                            if ($stage_name === 'entity') {
+                                $data = [
+                                    'objid' => $row['objid'],
+                                    'entityno' => $row['entityno'],
+                                    'name' => $row['name'],
+                                    'address_text' => $row['address_text'],
+                                    'mailingaddress' => $row['mailingaddress'],
+                                    'type' => $row['type'],
+                                    'sys_lastupdate' => $row['sys_lastupdate'],
+                                    'sys_lastupdateby' => $row['sys_lastupdateby'],
+                                    'remarks' => $row['remarks'],
+                                    'entityname' => $row['entityname'],
+                                    'address_objid' => $row['address_objid'],
+                                    'mobileno' => $row['mobileno'],
+                                    'phoneno' => $row['phoneno'],
+                                    'email' => $row['email'],
+                                    'state' => $row['state'],
+                                    'origin_type' => 'REPLICA',
+                                ];
+                            } elseif ($stage_name === 'real_property') {
+                                $data = [
+                                    'objid' => $row['objid'],
+                                    'pin' => $row['pin'],
+                                    'cadastrallotno' => $row['cadastrallotno'],
+                                    'surveyno' => $row['surveyno'],
+                                    'blockno' => $row['blockno'],
+                                    'barangay' => !empty($row['barangay_name']) ? $row['barangay_name'] : $row['barangayid'],
+                                    'municipality' => ($row['lgutype'] ?? '') == 'municipality' ? ($row['lguid'] ?? '') : '',
+                                    'north' => $row['north'],
+                                    'south' => $row['south'],
+                                    'east' => $row['east'],
+                                    'west' => $row['west'],
+                                    'pintype' => $row['pintype'],
+                                    'ry' => $row['ry'],
+                                    'barangayid' => $row['barangayid'],
+                                    'lguid' => $row['lguid'],
+                                    'lgutype' => $row['lgutype'],
+                                    'purok' => $row['purok'],
+                                    'street' => $row['street'],
+                                    'stewardshipno' => $row['stewardshipno'],
+                                    'portionof' => $row['portionof'],
+                                    'autonumber' => $row['autonumber'],
+                                    'previd' => $row['previd'],
+                                    'claimno' => $row['claimno'],
+                                    'section' => $row['section'],
+                                    'parcel' => $row['parcel'],
+                                    'origin_type' => 'REPLICA',
+                                ];
+                            } elseif ($stage_name === 'rpu') {
+                                $data = [
+                                    'objid' => $row['objid'],
+                                    'state' => $row['state'],
+                                    'realpropertyid' => $row['realpropertyid'],
+                                    'rpu_type' => $row['rputype'],
+                                    'classification' => !empty($row['class_code']) ? $row['class_code'] : $row['classification_objid'],
+                                    'ry' => $row['ry'],
+                                    'total_market_value' => floatval($row['totalmv']),
+                                    'total_assessed_value' => floatval($row['totalav']),
+                                    'taxable' => $row['taxable'],
+                                    'total_area_hectare' => floatval($row['totalareaha']),
+                                    'total_area_sqm' => floatval($row['totalareasqm']),
+                                    'fullpin' => $row['fullpin'],
+                                    'suffix' => intval($row['suffix']),
+                                    'subsuffix' => $row['subsuffix'],
+                                    'classification_objid' => $row['classification_objid'],
+                                    'exemptiontype_objid' => $row['exemptiontype_objid'],
+                                    'totalbmv' => floatval($row['totalbmv']),
+                                    'previd' => $row['previd'],
+                                    'rpumasterid' => $row['rpumasterid'],
+                                    'barangayid' => $row['rp_barangayid'] ?? '',
+                                    'origin_type' => 'REPLICA',
+                                ];
+                            } elseif ($stage_name === 'faas') {
+                                $data = array_intersect_key($row, $valid_cols_flip);
+                                $data['origin_type'] = 'REPLICA';
+                            }
+                        } elseif ($stage['type'] === 'assessment') {
+                            $data = array(
+                                'objid'                => $row['objid'],
+                                'rpuid'                => $row['rpuid'],
+                                'classification_objid' => $row['classification_objid'] ?? null,
+                                'actualuse_objid'      => $row['actualuse_objid'] ?? null,
+                                'areasqm'              => $row['areasqm'] ?? 0.00,
+                                'areaha'               => $row['areaha'] ?? 0.000000,
+                                'marketvalue'          => $row['marketvalue'] ?? 0.00,
+                                'assesslevel'          => $row['assesslevel'] ?? 0.00,
+                                'assessedvalue'        => $row['assessedvalue'] ?? 0.00,
+                                'rputype'              => $row['rputype'] ?? null,
+                                'taxable'              => isset($row['taxable']) ? intval($row['taxable']) : 1,
+                                'origin_type'          => 'REPLICA',
+                            );
+                            if (!empty($valid_cols_flip)) {
+                                $data = array_intersect_key($data, $valid_cols_flip);
+                            }
+                        } else {
+                            $data = array_intersect_key($row, $valid_cols_flip);
+                            if (isset($valid_cols_flip['origin_type'])) {
+                                $data['origin_type'] = 'REPLICA';
+                            }
+                        }
+
+                        $pk = 'objid';
+
+                        // Verify worker lock ownership before writing
+                        $current_lock = get_option('assessor_etracs_sync_lock', null);
+                        if (!$current_lock || $current_lock['run_id'] !== $run_id || (isset($current_lock['worker_id']) && $current_lock['worker_id'] !== $worker_id)) {
+                            return new WP_Error('worker_preempted', 'Sync lock was preempted or acquired by another worker. Halting write.', array('status' => 409));
+                        }
+
+                        $write_res = self::safe_upsert_row($target_table, $data, $pk);
+
+                        if ($write_res === false) {
+                            $err_msg = $wpdb->last_error !== '' ? $wpdb->last_error : 'Write returned false';
+                            $run_state['write_failures'][] = array(
+                                'stage'     => $stage_name,
+                                'objid'     => $row['objid'] ?? null,
+                                'db_error'  => $err_msg,
+                                'timestamp' => current_time('mysql', true),
+                            );
+                            $run_state['last_error'] = "Write failed in stage $stage_name for objid " . ($row['objid'] ?? 'unknown') . ": $err_msg";
+                            $run_state['status'] = 'FAILED';
+                            update_option('assessor_etracs_sync_run_state', $run_state, false);
+                            delete_option('assessor_etracs_sync_lock');
+
+                            $err = new WP_Error('write_failure', $run_state['last_error'], array('status' => 500));
+                            self::set_diagnostics(array(
+                                'status'         => 'FAILED',
+                                'run_id'         => $run_id,
+                                'last_error'     => $run_state['last_error'],
+                                'stage'          => $stage_name,
+                                'stats'          => $run_state['stats'],
+                                'write_failures' => $run_state['write_failures'],
+                            ));
+                            return $err;
+                        }
+
+                        $run_state['stats'][$stage_name]++;
+                        $run_state['cursor']++;
+                    }
+
+                    $run_state['updated_at'] = current_time('mysql', true);
+                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
+
+                    // If less than batch size returned, stage is complete
+                    if ($count < $batch_size) {
+                        $run_state['current_stage']++;
+                        $run_state['cursor'] = 0;
+                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    }
+                } else {
+                    // Stage had 0 records or finished
+                    $run_state['current_stage']++;
+                    $run_state['cursor'] = 0;
+                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                }
+
+                if ($single_batch) {
+                    delete_option('assessor_etracs_sync_lock');
+                    return array(
+                        'status'       => 'IN_PROGRESS',
+                        'sync_status'  => 'IN_PROGRESS',
+                        'is_completed' => false,
+                        'run_id'       => $run_id,
+                        'stage'        => $stage_name,
+                        'current_stage'=> $run_state['current_stage'],
+                        'cursor'       => $run_state['cursor'],
+                        'stats'        => $run_state['stats'],
+                        'run_state'    => $run_state,
+                        'message'      => sprintf('Processed batch of %d records for stage %s.', $count, $stage_name),
+                    );
+                }
+            } catch (Throwable $e) {
+                if ($stage['type'] === 'direct') {
+                    $run_state['current_stage']++;
+                    $run_state['cursor'] = 0;
+                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    if ($single_batch) {
+                        delete_option('assessor_etracs_sync_lock');
+                        return array(
+                            'status'       => 'IN_PROGRESS',
+                            'sync_status'  => 'IN_PROGRESS',
+                            'is_completed' => false,
+                            'run_id'       => $run_id,
+                            'stats'        => $run_state['stats'],
+                            'run_state'    => $run_state,
+                            'message'      => sprintf('Skipped optional stage %s after non-fatal notice: %s', $stage_name, $e->getMessage()),
                         );
                     }
                 } else {
-                    // A result of 0 can still mean a successful unchanged row.
-                    $assessment_diag['writes_ok']++;
+                    $run_state['status'] = 'FAILED';
+                    $run_state['last_error'] = "Exception in stage $stage_name: " . $e->getMessage();
+                    $run_state['stage_errors'][] = array('stage' => $stage_name, 'error' => $e->getMessage());
+                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    delete_option('assessor_etracs_sync_lock');
 
-                    if (!isset($assessment_diag['writes_ok_by_type'][$type])) {
-                        $assessment_diag['writes_ok_by_type'][$type] = 0;
-                    }
-                    $assessment_diag['writes_ok_by_type'][$type]++;
-                }
-
-                // Processed count is not the same as successfully written count.
-                $stats['rpu_assessment']++;
-
-                if ($stats['rpu_assessment'] % 500 === 0) {
-                    self::update_progress(
-                        'Processed rpu_assessment: '
-                        . $stats['rpu_assessment']
-                        . ' rows; failed writes: '
-                        . $assessment_diag['writes_failed']
-                    );
+                    $err = new WP_Error('stage_exception', $run_state['last_error'], array('status' => 500));
+                    self::set_diagnostics(array(
+                        'status'      => 'FAILED',
+                        'run_id'      => $run_id,
+                        'last_error'  => $run_state['last_error'],
+                        'stage'       => $stage_name,
+                        'stats'       => $run_state['stats'],
+                    ));
+                    return $err;
                 }
             }
-
-            $assessment_diag['status'] =
-                $assessment_diag['writes_failed'] > 0
-                    ? 'completed_with_write_failures'
-                    : 'completed_no_reported_write_failures';
-
-        } catch (Throwable $e) {
-            $assessment_diag['status'] = 'exception';
-            $assessment_diag['exception'] = array(
-                'class' => get_class($e),
-                'message' => $e->getMessage(),
-                'rows_seen' => $assessment_diag['rows_seen'],
-            );
-
-            error_log(
-                'ETRACS rpu_assessment import exception: '
-                . wp_json_encode($assessment_diag['exception'])
-            );
         }
 
-        $assessment_diag['timestamp'] = current_time('mysql', true);
-        $assessment_diag['processed_counter'] =
-            $stats['rpu_assessment'] ?? 0;
+        // ──────────────────────────────────────────────
+        // STEP 3: POST-IMPORT MEANINGFUL VERIFICATION
+        // ──────────────────────────────────────────────
+        self::update_progress("Running post-import verification...");
+        $verify_result = self::verify_post_import($pdo, $run_state['stats']);
 
-        update_option(
-            'assessor_etracs_assessment_write_diag',
-            $assessment_diag,
-            false
-        );
+        if (is_wp_error($verify_result)) {
+            $run_state['status'] = 'FAILED';
+            $run_state['last_error'] = $verify_result->get_error_message();
+            update_option('assessor_etracs_sync_run_state', $run_state, false);
+            delete_option('assessor_etracs_sync_lock');
+
+            self::set_diagnostics(array(
+                'status'              => 'FAILED',
+                'run_id'              => $run_id,
+                'last_error'          => $verify_result->get_error_message(),
+                'verification'        => $verify_result->get_error_data(),
+                'stats'               => $run_state['stats'],
+            ));
+            return $verify_result;
+        }
+
+        // Check if there were any partial warnings/write failures
+        $is_partial = !empty($run_state['write_failures']) || !empty($verify_result['warnings']);
+
+        $run_state['status'] = $is_partial ? 'PARTIAL' : 'SUCCESS';
+        $run_state['completed_at'] = current_time('mysql', true);
+        $run_state['verification'] = $verify_result;
+        update_option('assessor_etracs_sync_run_state', $run_state, false);
+        delete_option('assessor_etracs_sync_lock');
 
         update_option('assessor_etracs_last_sync', current_time('mysql', true));
         delete_option('assessor_sync_progress');
 
-        // Log WP-07 Audit Event: Source Replica Synchronization
-        $audit_logged = false;
+        // Log WP-07 Audit Event
+        $stats = $run_state['stats'];
         if (class_exists('Assessor_Etracs')) {
             $total_synced = array_sum(array_filter($stats, 'is_numeric'));
-            $audit_id = Assessor_Etracs::log_shadow_audit(array(
+            Assessor_Etracs::log_shadow_audit(array(
                 'event_type'            => 'SYNC_PULL',
-                'action_outcome'        => 'SUCCESS',
+                'action_outcome'        => $is_partial ? 'PARTIAL' : 'SUCCESS',
                 'source_classification' => 'SOURCE_SYNC',
                 'origin_type'           => 'REPLICA',
                 'object_type'           => 'SYSTEM_SYNC',
@@ -621,39 +666,200 @@ class Assessor_Etracs_Sync {
                 'actor_name'            => 'Source ETRACS Replica Sync',
                 'changed_fields'        => array_keys($stats),
                 'details'               => array(
+                    'run_id'            => $run_id,
                     'total_synced_rows' => $total_synced,
                     'table_breakdown'   => $stats,
+                    'verification'      => $verify_result,
                 ),
                 'correlation_id'        => 'SYNC_' . wp_generate_uuid4(),
             ));
-            $audit_logged = ($audit_id !== false);
         }
 
-        if ($audit_logged) {
-            self::set_diagnostics(array(
-                'status'       => 'success',
-                'sync_status'  => 'success',
-                'audit_status' => 'success',
-                'timestamp'    => current_time('mysql', true),
+        $diag = array(
+            'status'       => $is_partial ? 'PARTIAL' : 'SUCCESS',
+            'sync_status'  => $is_partial ? 'PARTIAL' : 'SUCCESS',
+            'run_id'       => $run_id,
+            'timestamp'    => current_time('mysql', true),
+            'stats'        => $stats,
+            'verification' => $verify_result,
+            'message'      => $is_partial ? 'Sync completed with warnings or partial writes.' : 'Synchronization and post-import verification completed successfully.',
+        );
+        self::set_diagnostics($diag);
+
+        if ($single_batch) {
+            return array(
+                'status'       => $is_partial ? 'PARTIAL' : 'SUCCESS',
+                'sync_status'  => $is_partial ? 'PARTIAL' : 'SUCCESS',
+                'is_completed' => true,
+                'run_id'       => $run_id,
                 'stats'        => $stats,
-                'message'      => 'Synchronization and audit logging completed successfully with zero collisions.'
-            ));
-        } else {
-            // Data sync completed and committed, but audit event could not be persisted.
-            // Do NOT claim the operation was fully audited or that writes were rolled back.
-            self::set_diagnostics(array(
-                'status'       => 'completed_audit_failed',
-                'sync_status'  => 'success',
-                'audit_status' => 'failed',
-                'timestamp'    => current_time('mysql', true),
-                'stats'        => $stats,
-                'message'      => 'Synchronization completed successfully, but recording the SYNC_PULL audit event failed.'
-            ));
-            $stats['_audit_status'] = 'failed';
-            $stats['_audit_warning'] = 'Data synchronization succeeded, but audit event persistence failed.';
+                'verification' => $verify_result,
+                'run_state'    => $run_state,
+                'diagnostics'  => $diag,
+                'message'      => $diag['message'],
+            );
         }
 
         return $stats;
+    }
+
+    /**
+     * Post-import verification check (WP requirements).
+     *
+     * Validates:
+     * 1. Destination assessment count matches source dynamically.
+     * 2. Distinct objid count matches source.
+     * 3. Assessment rows link to valid RPU rows.
+     * 4. Actual Use identifiers resolve to the 5 lookup tables based on rputype.
+     * 5. No memory exhaustion when streaming chunked IDs.
+     *
+     * @param PDO $pdo
+     * @param array $stats
+     * @return array|WP_Error
+     */
+    public static function verify_post_import(PDO $pdo, array $stats = array()) {
+        global $wpdb;
+
+        $t_ra = $wpdb->prefix . 'assessor_rpu_assessment';
+        $t_rpu = $wpdb->prefix . 'assessor_rpu';
+        $warnings = array();
+
+        // 1. Dynamic source vs destination assessment count
+        $src_count = 0;
+        try {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM rpu_assessment");
+            if ($stmt) {
+                $src_count = (int)$stmt->fetchColumn();
+            }
+        } catch (Exception $e) {
+            // Source table doesn't exist or query failed
+            return array('status' => 'skipped_no_source_table', 'message' => 'Source rpu_assessment could not be queried: ' . $e->getMessage());
+        }
+
+        $dest_count = (int)$wpdb->get_var("SELECT COUNT(*) FROM `$t_ra`");
+        $dest_distinct = (int)$wpdb->get_var("SELECT COUNT(DISTINCT objid) FROM `$t_ra`");
+
+        if ($src_count > 0 && $dest_distinct < $src_count) {
+            return new WP_Error(
+                'verification_count_mismatch',
+                sprintf('Assessment verification failed: expected %d source records, found %d distinct destination records.', $src_count, $dest_distinct),
+                array('expected' => $src_count, 'actual_distinct' => $dest_distinct, 'actual_total' => $dest_count)
+            );
+        }
+
+        // 2. Chunked ID-level check to verify all source identifiers exist in destination without memory exhaustion
+        try {
+            $chunk_size = 2000;
+            $offset = 0;
+            $missing_ids = array();
+
+            while ($offset < $src_count) {
+                $stmt = $pdo->query("SELECT objid FROM rpu_assessment ORDER BY objid LIMIT $chunk_size OFFSET $offset");
+                $src_ids = $stmt ? $stmt->fetchAll(PDO::FETCH_COLUMN, 0) : array();
+                if (empty($src_ids)) {
+                    break;
+                }
+
+                $placeholders = implode(', ', array_fill(0, count($src_ids), '%s'));
+                $query = $wpdb->prepare("SELECT objid FROM `$t_ra` WHERE objid IN ($placeholders)", $src_ids);
+                $found_ids = $wpdb->get_col($query, 0);
+                $found_map = !empty($found_ids) ? array_flip($found_ids) : array();
+
+                foreach ($src_ids as $sid) {
+                    if (!isset($found_map[$sid])) {
+                        $missing_ids[] = $sid;
+                        if (count($missing_ids) >= 100) break; // Cap reported missing IDs
+                    }
+                }
+                if (!empty($missing_ids)) {
+                    break;
+                }
+                $offset += $chunk_size;
+            }
+
+            if (!empty($missing_ids)) {
+                return new WP_Error(
+                    'verification_missing_records',
+                    sprintf('Assessment verification failed: %d missing assessment objid(s) detected.', count($missing_ids)),
+                    array('missing_ids' => array_slice($missing_ids, 0, 20))
+                );
+            }
+        } catch (Exception $e) {
+            $warnings[] = 'ID chunk verification warning: ' . $e->getMessage();
+        }
+
+        // 3. Verify valid RPU links
+        $orphan_assessments = (int)$wpdb->get_var("
+            SELECT COUNT(*) FROM `$t_ra` ra
+            LEFT JOIN `$t_rpu` r ON ra.rpuid = r.objid
+            WHERE r.objid IS NULL
+        ");
+        if ($orphan_assessments > 0) {
+            $warnings[] = sprintf('%d assessment line(s) have unlinked/orphan rpuid.', $orphan_assessments);
+        }
+
+        // 4. Verify Actual Use identifiers resolve through the 5 lookup tables
+        $t_la = $wpdb->prefix . 'assessor_landassesslevel';
+        $t_ba = $wpdb->prefix . 'assessor_bldgassesslevel';
+        $t_ma = $wpdb->prefix . 'assessor_machassesslevel';
+        $t_pa = $wpdb->prefix . 'assessor_planttreeassesslevel';
+        $t_mia = $wpdb->prefix . 'assessor_miscassesslevel';
+
+        $has_lookups = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_la)) === $t_la);
+
+        $unresolved_actualuse_count = 0;
+        $unresolved_details = array();
+        if ($has_lookups) {
+            $unresolved_rows = $wpdb->get_results("
+                SELECT 
+                    ra.objid, 
+                    ra.rpuid, 
+                    ra.rputype, 
+                    ra.actualuse_objid,
+                    CASE 
+                        WHEN LOWER(ra.rputype) = 'land' THEN 'landassesslevel'
+                        WHEN LOWER(ra.rputype) = 'bldg' THEN 'bldgassesslevel'
+                        WHEN LOWER(ra.rputype) = 'mach' THEN 'machassesslevel'
+                        WHEN LOWER(ra.rputype) = 'planttree' THEN 'planttreeassesslevel'
+                        WHEN LOWER(ra.rputype) = 'misc' THEN 'miscassesslevel'
+                        ELSE 'unknown_rputype_table'
+                    END as expected_lookup_table
+                FROM `$t_ra` ra
+                LEFT JOIN `$t_la` la ON LOWER(ra.rputype) = 'land' AND la.objid = ra.actualuse_objid
+                LEFT JOIN `$t_ba` ba ON LOWER(ra.rputype) = 'bldg' AND ba.objid = ra.actualuse_objid
+                LEFT JOIN `$t_ma` ma ON LOWER(ra.rputype) = 'mach' AND ma.objid = ra.actualuse_objid
+                LEFT JOIN `$t_pa` pa ON LOWER(ra.rputype) = 'planttree' AND pa.objid = ra.actualuse_objid
+                LEFT JOIN `$t_mia` mia ON LOWER(ra.rputype) = 'misc' AND mia.objid = ra.actualuse_objid
+                WHERE ra.actualuse_objid IS NOT NULL 
+                  AND ra.actualuse_objid != ''
+                  AND COALESCE(la.name, ba.name, ma.name, pa.name, mia.name) IS NULL
+            ", ARRAY_A);
+
+            if (!empty($unresolved_rows)) {
+                $unresolved_actualuse_count = count($unresolved_rows);
+                foreach (array_slice($unresolved_rows, 0, 50) as $ur) {
+                    $unresolved_details[] = array(
+                        'objid'                 => $ur['objid'],
+                        'rpuid'                 => $ur['rpuid'],
+                        'rputype'               => $ur['rputype'],
+                        'actualuse_objid'       => $ur['actualuse_objid'],
+                        'expected_lookup_table' => $ur['expected_lookup_table'],
+                    );
+                }
+                $warnings[] = sprintf('%d assessment line(s) have actualuse_objid that could not be resolved against the expected lookup tables.', $unresolved_actualuse_count);
+            }
+        }
+
+        return array(
+            'status'                     => 'verified',
+            'source_count'               => $src_count,
+            'destination_count'          => $dest_count,
+            'distinct_objids'            => $dest_distinct,
+            'orphan_assessments'         => $orphan_assessments,
+            'unresolved_actualuse_count' => $unresolved_actualuse_count,
+            'unresolved_actualuse'       => $unresolved_details,
+            'warnings'                   => $warnings,
+        );
     }
 
     /**

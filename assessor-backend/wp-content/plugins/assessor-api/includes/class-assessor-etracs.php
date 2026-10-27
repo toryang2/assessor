@@ -480,12 +480,29 @@ class Assessor_Etracs {
 
         $t_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
         $t_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
+        $t_la = $wpdb->prefix . 'assessor_landassesslevel';
+        $t_ba = $wpdb->prefix . 'assessor_bldgassesslevel';
+        $t_ma = $wpdb->prefix . 'assessor_machassesslevel';
+        $t_pa = $wpdb->prefix . 'assessor_planttreeassesslevel';
+        $t_mia = $wpdb->prefix . 'assessor_miscassesslevel';
+
         $joins = "
             LEFT JOIN $t_rpu r ON f.rpuid = r.objid
             LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
             LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid
             LEFT JOIN $t_txn tx ON f.txntype_objid = tx.code
-            LEFT JOIN (SELECT rpuid, GROUP_CONCAT(DISTINCT actualuse SEPARATOR ', ') as actualuse FROM $t_rpu_assessment GROUP BY rpuid) ra ON r.objid = ra.rpuid
+            LEFT JOIN (
+                SELECT 
+                    ra.rpuid, 
+                    GROUP_CONCAT(DISTINCT COALESCE(la.name, ba.name, ma.name, pa.name, mia.name) SEPARATOR ', ') as actualuse 
+                FROM $t_rpu_assessment ra
+                LEFT JOIN $t_la la ON LOWER(ra.rputype) = 'land' AND la.objid = ra.actualuse_objid
+                LEFT JOIN $t_ba ba ON LOWER(ra.rputype) = 'bldg' AND ba.objid = ra.actualuse_objid
+                LEFT JOIN $t_ma ma ON LOWER(ra.rputype) = 'mach' AND ma.objid = ra.actualuse_objid
+                LEFT JOIN $t_pa pa ON LOWER(ra.rputype) = 'planttree' AND pa.objid = ra.actualuse_objid
+                LEFT JOIN $t_mia mia ON LOWER(ra.rputype) = 'misc' AND mia.objid = ra.actualuse_objid
+                GROUP BY ra.rpuid
+            ) ra ON r.objid = ra.rpuid
             LEFT JOIN (
                 SELECT 
                     faasid,
@@ -2220,13 +2237,8 @@ class Assessor_Etracs {
             return new WP_Error('not_found', 'RPU not found', array('status' => 404));
         }
 
-        $assessments = $wpdb->get_results($wpdb->prepare("
-            SELECT *
-            FROM {$wpdb->prefix}assessor_rpu_assessment
-            WHERE rpuid = %s
-        ", $id));
-
-        $rpu->assessments = $assessments ? $assessments : [];
+        $assessments = $this->get_rpu_assessments($id);
+        $rpu->assessments = !empty($assessments) ? $assessments : [];
 
         $rpu_type = strtoupper($rpu->rpu_type);
 
@@ -2781,7 +2793,13 @@ class Assessor_Etracs {
 
             $marketvalue = isset($line['marketvalue']) && $line['marketvalue'] !== '' ? floatval($line['marketvalue']) : 0.0;
             $assesslevel = isset($line['assesslevel']) && $line['assesslevel'] !== '' ? floatval($line['assesslevel']) : 0.0;
-            $assessedvalue = isset($line['assessedvalue']) && $line['assessedvalue'] !== '' ? floatval($line['assessedvalue']) : 0.0;
+            
+            // For local assessment lines, maintain assessedvalue = marketvalue * (assesslevel / 100) if not explicitly set
+            if (isset($line['assessedvalue']) && $line['assessedvalue'] !== '') {
+                $assessedvalue = floatval($line['assessedvalue']);
+            } else {
+                $assessedvalue = round($marketvalue * ($assesslevel / 100.0), 2);
+            }
             $taxable = isset($line['taxable']) ? intval($line['taxable']) : 1;
 
             // Calculate aggregate accumulators
@@ -2794,21 +2812,35 @@ class Assessor_Etracs {
             $line_data = array(
                 'rpuid'                => $rpu_id,
                 'origin_type'          => 'LOCAL',
-                'actualuse'            => $actualuse,
                 'actualuse_objid'      => $actualuse_objid,
-                'classcode'            => $classcode,
-                'classname'            => $classname,
                 'classification_objid' => $classification_objid,
                 'rputype'              => $rputype,
                 'areasqm'              => $areasqm,
                 'areaha'               => $areaha,
-                'areatype'             => $areatype,
                 'marketvalue'          => $marketvalue,
                 'assesslevel'          => $assesslevel,
                 'assessedvalue'        => $assessedvalue,
                 'taxable'              => $taxable,
             );
 
+            // Strict schema allowlist: only the 11 source business columns plus origin_type
+            $allowed_assessment_cols = array(
+                'objid'                => true,
+                'rpuid'                => true,
+                'classification_objid' => true,
+                'actualuse_objid'      => true,
+                'areasqm'              => true,
+                'areaha'               => true,
+                'marketvalue'          => true,
+                'assesslevel'          => true,
+                'assessedvalue'        => true,
+                'rputype'              => true,
+                'taxable'              => true,
+                'origin_type'          => true,
+            );
+
+            // Filter by strict allowlist, and if target table has restricted columns, by valid table columns
+            $line_data = array_intersect_key($line_data, $allowed_assessment_cols);
             if (!empty($col_flip)) {
                 $line_data = array_intersect_key($line_data, $col_flip);
             }
@@ -2921,9 +2953,43 @@ class Assessor_Etracs {
      * @return array
      */
     public function get_rpu_assessments($rpuid) {
+        if (!defined('ARRAY_A')) {
+            define('ARRAY_A', 'ARRAY_A');
+        }
         global $wpdb;
         $t_ra = $wpdb->prefix . 'assessor_rpu_assessment';
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t_ra WHERE rpuid = %s ORDER BY objid ASC", $rpuid), ARRAY_A);
+        $t_la = $wpdb->prefix . 'assessor_landassesslevel';
+        $t_ba = $wpdb->prefix . 'assessor_bldgassesslevel';
+        $t_ma = $wpdb->prefix . 'assessor_machassesslevel';
+        $t_pa = $wpdb->prefix . 'assessor_planttreeassesslevel';
+        $t_mia = $wpdb->prefix . 'assessor_miscassesslevel';
+        $t_pc = $wpdb->prefix . 'assessor_propertyclassification';
+
+        // Check if lookup tables exist
+        $has_lookups = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t_la)) === $t_la);
+
+        if ($has_lookups) {
+            $query = "
+                SELECT 
+                    ra.*,
+                    COALESCE(la.name, ba.name, ma.name, pa.name, mia.name) AS actualuse,
+                    pc.code AS classcode,
+                    pc.name AS classname
+                FROM $t_ra ra
+                LEFT JOIN $t_la la ON LOWER(ra.rputype) = 'land' AND la.objid = ra.actualuse_objid
+                LEFT JOIN $t_ba ba ON LOWER(ra.rputype) = 'bldg' AND ba.objid = ra.actualuse_objid
+                LEFT JOIN $t_ma ma ON LOWER(ra.rputype) = 'mach' AND ma.objid = ra.actualuse_objid
+                LEFT JOIN $t_pa pa ON LOWER(ra.rputype) = 'planttree' AND pa.objid = ra.actualuse_objid
+                LEFT JOIN $t_mia mia ON LOWER(ra.rputype) = 'misc' AND mia.objid = ra.actualuse_objid
+                LEFT JOIN $t_pc pc ON pc.objid = ra.classification_objid
+                WHERE ra.rpuid = %s
+                ORDER BY ra.objid ASC
+            ";
+        } else {
+            $query = "SELECT ra.* FROM $t_ra ra WHERE ra.rpuid = %s ORDER BY ra.objid ASC";
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare($query, $rpuid), ARRAY_A);
         return !empty($rows) ? $rows : array();
     }
 }

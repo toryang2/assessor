@@ -922,9 +922,9 @@ export const apiService = {
   },
 
   // ETRACS Sync
-  pullEtracsSync: async () => {
+  pullEtracsSync: async (params = {}) => {
     try {
-      const response = await api.post(endpoints.etracsPullSync, {}, { timeout: 300000 });
+      const response = await api.post(endpoints.etracsPullSync, params, { timeout: 60000 });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
