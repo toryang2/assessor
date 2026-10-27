@@ -426,42 +426,182 @@ class Assessor_Etracs_Sync {
             }
         }
 
-        // 6. Sync rpu_assessment with JOINs to get classname and actualuse
+        // 6. Sync rpu_assessment with write diagnostics.
+        // Diagnostic only: test in staging before running any synchronization.
         $wp_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
+
+        $assessment_diag = array(
+            'status'                => 'running',
+            'rows_seen'             => 0,
+            'rows_seen_by_type'     => array(),
+            'writes_ok'             => 0,
+            'writes_ok_by_type'     => array(),
+            'writes_failed'         => 0,
+            'failures_by_type'      => array(),
+            'first_failure_by_type' => array(),
+            'exception'             => null,
+        );
+
         try {
-            $valid_columns_ra = $wpdb->get_col("DESCRIBE `$wp_rpu_assessment`", 0);
-            $valid_columns_ra_flip = !empty($valid_columns_ra) ? array_flip($valid_columns_ra) : [];
+            $valid_columns_ra = $wpdb->get_col(
+                "DESCRIBE `$wp_rpu_assessment`",
+                0
+            );
+
+            $valid_columns_ra_flip = !empty($valid_columns_ra)
+                ? array_flip($valid_columns_ra)
+                : array();
+
+            if (empty($valid_columns_ra_flip)) {
+                throw new RuntimeException(
+                    'Could not read columns from target table: '
+                    . $wp_rpu_assessment
+                );
+            }
 
             $stmt = $pdo->query("
-                SELECT ra.*, 
-                       pc1.code as classcode, 
-                       pc1.name as classname, 
-                       COALESCE(la.name, ba.name, ma.name, pa.name, mia.name, pc2.name) as actualuse
+                SELECT
+                    ra.*,
+                    pc1.code AS classcode,
+                    pc1.name AS classname,
+                    COALESCE(
+                        la.name,
+                        ba.name,
+                        ma.name,
+                        pa.name,
+                        mia.name,
+                        pc2.name
+                    ) AS actualuse
                 FROM rpu_assessment ra
-                LEFT JOIN propertyclassification pc1 ON pc1.objid = ra.classification_objid
-                LEFT JOIN propertyclassification pc2 ON pc2.objid = ra.actualuse_objid
-                LEFT JOIN landassesslevel la ON la.objid = ra.actualuse_objid
-                LEFT JOIN bldgassesslevel ba ON ba.objid = ra.actualuse_objid
-                LEFT JOIN machassesslevel ma ON ma.objid = ra.actualuse_objid
-                LEFT JOIN planttreeassesslevel pa ON pa.objid = ra.actualuse_objid
-                LEFT JOIN miscassesslevel mia ON mia.objid = ra.actualuse_objid
+                LEFT JOIN propertyclassification pc1
+                    ON pc1.objid = ra.classification_objid
+                LEFT JOIN propertyclassification pc2
+                    ON pc2.objid = ra.actualuse_objid
+                LEFT JOIN landassesslevel la
+                    ON la.objid = ra.actualuse_objid
+                LEFT JOIN bldgassesslevel ba
+                    ON ba.objid = ra.actualuse_objid
+                LEFT JOIN machassesslevel ma
+                    ON ma.objid = ra.actualuse_objid
+                LEFT JOIN planttreeassesslevel pa
+                    ON pa.objid = ra.actualuse_objid
+                LEFT JOIN miscassesslevel mia
+                    ON mia.objid = ra.actualuse_objid
             ");
-            if ($stmt && !empty($valid_columns_ra_flip)) {
-                $stats['rpu_assessment'] = 0;
-                self::update_progress("Syncing rpu_assessment...");
-                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    $filtered_row = array_intersect_key($row, $valid_columns_ra_flip);
-                    if (isset($valid_columns_ra_flip['origin_type'])) {
-                        $filtered_row['origin_type'] = 'REPLICA';
+
+            $stats['rpu_assessment'] = 0;
+            self::update_progress(
+                'Syncing rpu_assessment with write diagnostics...'
+            );
+
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $assessment_diag['rows_seen']++;
+
+                $type = strtolower(
+                    trim((string) ($row['rputype'] ?? '(null)'))
+                );
+
+                if (!isset($assessment_diag['rows_seen_by_type'][$type])) {
+                    $assessment_diag['rows_seen_by_type'][$type] = 0;
+                }
+                $assessment_diag['rows_seen_by_type'][$type]++;
+
+                $filtered_row = array_intersect_key(
+                    $row,
+                    $valid_columns_ra_flip
+                );
+
+                if (isset($valid_columns_ra_flip['origin_type'])) {
+                    $filtered_row['origin_type'] = 'REPLICA';
+                }
+
+                $write_result = self::safe_upsert_row(
+                    $wp_rpu_assessment,
+                    $filtered_row,
+                    'objid'
+                );
+
+                if ($write_result === false) {
+                    $assessment_diag['writes_failed']++;
+
+                    if (!isset($assessment_diag['failures_by_type'][$type])) {
+                        $assessment_diag['failures_by_type'][$type] = 0;
                     }
-                    self::safe_upsert_row($wp_rpu_assessment, $filtered_row, 'objid');
-                    $stats['rpu_assessment']++;
-                    if ($stats['rpu_assessment'] % 500 === 0) self::update_progress("Syncing rpu_assessment ({$stats['rpu_assessment']} rows)...");
+                    $assessment_diag['failures_by_type'][$type]++;
+
+                    // Keep the first failure per type to limit log volume.
+                    if (!isset(
+                        $assessment_diag['first_failure_by_type'][$type]
+                    )) {
+                        $failure = array(
+                            'objid' => $row['objid'] ?? null,
+                            'rputype' => $type,
+                            'row_has_objid' => isset($filtered_row['objid']),
+                            'filtered_column_count' => count($filtered_row),
+                            'db_error' => $wpdb->last_error !== ''
+                                ? $wpdb->last_error
+                                : 'Write returned false without a DB error message',
+                        );
+
+                        $assessment_diag['first_failure_by_type'][$type]
+                            = $failure;
+
+                        error_log(
+                            'ETRACS rpu_assessment write failure: '
+                            . wp_json_encode($failure)
+                        );
+                    }
+                } else {
+                    // A result of 0 can still mean a successful unchanged row.
+                    $assessment_diag['writes_ok']++;
+
+                    if (!isset($assessment_diag['writes_ok_by_type'][$type])) {
+                        $assessment_diag['writes_ok_by_type'][$type] = 0;
+                    }
+                    $assessment_diag['writes_ok_by_type'][$type]++;
+                }
+
+                // Processed count is not the same as successfully written count.
+                $stats['rpu_assessment']++;
+
+                if ($stats['rpu_assessment'] % 500 === 0) {
+                    self::update_progress(
+                        'Processed rpu_assessment: '
+                        . $stats['rpu_assessment']
+                        . ' rows; failed writes: '
+                        . $assessment_diag['writes_failed']
+                    );
                 }
             }
-        } catch (Exception $e) {
-            error_log("Assessor ETRACS Sync Error in rpu_assessment: " . $e->getMessage());
+
+            $assessment_diag['status'] =
+                $assessment_diag['writes_failed'] > 0
+                    ? 'completed_with_write_failures'
+                    : 'completed_no_reported_write_failures';
+
+        } catch (Throwable $e) {
+            $assessment_diag['status'] = 'exception';
+            $assessment_diag['exception'] = array(
+                'class' => get_class($e),
+                'message' => $e->getMessage(),
+                'rows_seen' => $assessment_diag['rows_seen'],
+            );
+
+            error_log(
+                'ETRACS rpu_assessment import exception: '
+                . wp_json_encode($assessment_diag['exception'])
+            );
         }
+
+        $assessment_diag['timestamp'] = current_time('mysql', true);
+        $assessment_diag['processed_counter'] =
+            $stats['rpu_assessment'] ?? 0;
+
+        update_option(
+            'assessor_etracs_assessment_write_diag',
+            $assessment_diag,
+            false
+        );
 
         update_option('assessor_etracs_last_sync', current_time('mysql', true));
         delete_option('assessor_sync_progress');
