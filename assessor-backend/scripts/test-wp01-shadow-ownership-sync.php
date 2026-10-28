@@ -231,6 +231,11 @@ function assert_test($description, $condition) {
 // dropped, altered, or seeded in the test database.
 // ─────────────────────────────────────────────────────────────
 $pdo_target->exec("DROP TABLE IF EXISTS wp_assessor_faas, wp_assessor_rpu, wp_assessor_real_property, wp_assessor_entity, wp_assessor_faas_previous, wp_assessor_rpu_assessment, wp_assessor_bldgkind, wp_assessor_propertyclassification");
+try {
+    $pdo_target->exec("DELETE FROM wp_options WHERE option_name IN ('assessor_etracs_sync_lock', 'assessor_etracs_sync_run_state', 'assessor_sync_progress')");
+} catch (Exception $e) {}
+Assessor_Etracs_Sync::clean_lock_cache();
+$GLOBALS['wp_options_mock'] = array();
 
 // Create test shadow tables without origin_type first to test migration
 $pdo_target->exec("

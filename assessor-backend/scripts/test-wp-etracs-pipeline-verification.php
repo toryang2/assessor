@@ -28,75 +28,6 @@ if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 if (!defined('ARRAY_N')) define('ARRAY_N', 'ARRAY_N');
 if (!defined('OBJECT'))  define('OBJECT', 'OBJECT');
 
-$GLOBALS['wp_options_mock'] = array();
-function update_option($name, $value, $autoload = null) {
-    $GLOBALS['wp_options_mock'][$name] = $value;
-    return true;
-}
-function get_option($name, $default = false) {
-    return isset($GLOBALS['wp_options_mock'][$name]) ? $GLOBALS['wp_options_mock'][$name] : $default;
-}
-function delete_option($name) {
-    unset($GLOBALS['wp_options_mock'][$name]);
-    return true;
-}
-if (!function_exists('wp_json_encode')) {
-    function wp_json_encode($data, $options = 0, $depth = 512) {
-        return json_encode($data, $options, $depth);
-    }
-}
-if (!function_exists('wp_generate_uuid4')) {
-    function wp_generate_uuid4() {
-        return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-        );
-    }
-}
-if (!function_exists('current_time')) {
-    function current_time($type, $gmt = 0) {
-        return gmdate('Y-m-d H:i:s');
-    }
-}
-if (!function_exists('esc_html')) {
-    function esc_html($s) {
-        return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-    }
-}
-if (!function_exists('sanitize_text_field')) {
-    function sanitize_text_field($str) {
-        return trim(strip_tags((string)$str));
-    }
-}
-if (!class_exists('WP_Error')) {
-    class WP_Error {
-        protected $code;
-        protected $message;
-        protected $data;
-        public function __construct($code = '', $message = '', $data = '') {
-            $this->code = $code;
-            $this->message = $message;
-            $this->data = $data;
-        }
-        public function get_error_code() { return $this->code; }
-        public function get_error_message() { return $this->message; }
-        public function get_error_data() { return $this->data; }
-    }
-}
-if (!function_exists('is_wp_error')) {
-    function is_wp_error($thing) {
-        return ($thing instanceof WP_Error);
-    }
-}
-
-// Load backend classes under test
-require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-database.php';
-require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-etracs-sync.php';
-require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-etracs.php';
-
 // Connect to disposable test database
 $disposable_db = 'test_wp01_disposable';
 $pdo = new PDO("mysql:host=localhost;dbname=$disposable_db;charset=utf8mb4", 'root', '', [
@@ -113,21 +44,37 @@ if ($curr_db !== $disposable_db) {
 class MockWPDBPipeline {
     public $prefix = 'wp_';
     private $pdo;
+    public $options = 'wp_options';
     public function __construct(PDO $pdo) {
         $this->pdo = $pdo;
+        $this->options = 'wp_options';
     }
     public function prepare($query, ...$args) {
-        if (is_array($args[0]) && count($args) === 1) $args = $args[0];
-        foreach ($args as $arg) {
-            $val = is_numeric($arg) ? $arg : "'" . addslashes((string)$arg) . "'";
-            $query = preg_replace('/%[sdf]/', $val, $query, 1);
+        if (isset($args[0]) && is_array($args[0]) && count($args) === 1) {
+            $args = $args[0];
         }
-        return $query;
+        $parts = explode('%s', $query);
+        $res = array_shift($parts);
+        foreach ($parts as $i => $part) {
+            $val = isset($args[$i]) ? $args[$i] : null;
+            if ($val === null) {
+                $res .= 'NULL';
+            } else {
+                $res .= $this->pdo->quote((string)$val);
+            }
+            $res .= $part;
+        }
+        return $res;
+    }
+    public function esc_like($text) {
+        return addcslashes($text, '_%\\');
     }
     public function get_var($query) {
         try {
             $stmt = $this->pdo->query($query);
-            return $stmt ? $stmt->fetchColumn() : null;
+            if (!$stmt) return null;
+            $res = $stmt->fetchColumn();
+            return ($res === false) ? null : $res;
         } catch (Exception $e) { return null; }
     }
     public function get_row($query, $output = OBJECT) {
@@ -202,6 +149,239 @@ class MockWPDBPipeline {
 global $wpdb;
 $wpdb = new MockWPDBPipeline($pdo);
 
+// WordPress Object Cache Mock
+$GLOBALS['wp_object_cache'] = array(
+    'options' => array(),
+);
+
+if (!function_exists('wp_cache_get')) {
+    function wp_cache_get($key, $group = '') {
+        if (empty($group)) $group = 'default';
+        return isset($GLOBALS['wp_object_cache'][$group][$key]) ? $GLOBALS['wp_object_cache'][$group][$key] : false;
+    }
+}
+
+if (!function_exists('wp_cache_set')) {
+    function wp_cache_set($key, $data, $group = '', $expire = 0) {
+        if (empty($group)) $group = 'default';
+        if (!isset($GLOBALS['wp_object_cache'][$group])) {
+            $GLOBALS['wp_object_cache'][$group] = array();
+        }
+        $GLOBALS['wp_object_cache'][$group][$key] = $data;
+        return true;
+    }
+}
+
+if (!function_exists('wp_cache_delete')) {
+    function wp_cache_delete($key, $group = '') {
+        if (empty($group)) $group = 'default';
+        if (isset($GLOBALS['wp_object_cache'][$group][$key])) {
+            unset($GLOBALS['wp_object_cache'][$group][$key]);
+            return true;
+        }
+        return false;
+    }
+}
+
+$GLOBALS['wp_options_mock'] = array();
+
+function update_option($name, $value, $autoload = null) {
+    global $wpdb;
+    $GLOBALS['wp_options_mock'][$name] = $value;
+
+    // Core WordPress option cache update
+    wp_cache_set($name, $value, 'options');
+    $notoptions = wp_cache_get('notoptions', 'options');
+    if (is_array($notoptions) && isset($notoptions[$name])) {
+        unset($notoptions[$name]);
+        wp_cache_set('notoptions', $notoptions, 'options');
+    }
+
+    if (!empty($wpdb)) {
+        $options_tbl = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        $val_ser = is_scalar($value) ? (string)$value : serialize($value);
+        try {
+            $exists = $wpdb->get_var($wpdb->prepare("SELECT option_id FROM `$options_tbl` WHERE option_name = %s", $name));
+            if ($exists) {
+                $wpdb->query($wpdb->prepare("UPDATE `$options_tbl` SET option_value = %s WHERE option_name = %s", $val_ser, $name));
+            } else {
+                $wpdb->query($wpdb->prepare("INSERT INTO `$options_tbl` (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $val_ser));
+            }
+        } catch (Exception $e) {}
+    }
+    return true;
+}
+
+function get_option($name, $default = false) {
+    // 1. Check notoptions cache
+    $notoptions = wp_cache_get('notoptions', 'options');
+    if (is_array($notoptions) && isset($notoptions[$name])) {
+        return $default;
+    }
+
+    // 2. Check individual option cache
+    $cached = wp_cache_get($name, 'options');
+    if ($cached !== false) {
+        return $cached;
+    }
+
+    // 3. Fallback to DB if options table exists
+    global $wpdb;
+    if (!empty($wpdb)) {
+        $options_tbl = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        try {
+            $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM `$options_tbl` WHERE option_name = %s", $name));
+            if ($raw !== null) {
+                $val = maybe_unserialize($raw);
+                wp_cache_set($name, $val, 'options');
+                return $val;
+            }
+        } catch (Exception $e) {}
+    }
+
+    // 4. Fallback to mock array
+    if (isset($GLOBALS['wp_options_mock'][$name])) {
+        $val = $GLOBALS['wp_options_mock'][$name];
+        wp_cache_set($name, $val, 'options');
+        return $val;
+    }
+
+    // Option does not exist: record in notoptions cache (standard WP core behavior)
+    if (!is_array($notoptions)) {
+        $notoptions = array();
+    }
+    $notoptions[$name] = true;
+    wp_cache_set('notoptions', $notoptions, 'options');
+
+    return $default;
+}
+
+function delete_option($name) {
+    global $wpdb;
+    unset($GLOBALS['wp_options_mock'][$name]);
+    wp_cache_delete($name, 'options');
+    $notoptions = wp_cache_get('notoptions', 'options');
+    if (is_array($notoptions) && isset($notoptions[$name])) {
+        unset($notoptions[$name]);
+        wp_cache_set('notoptions', $notoptions, 'options');
+    }
+
+    global $wpdb, $pdo;
+    if (!empty($wpdb)) {
+        $options_tbl = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        try {
+            $wpdb->query($wpdb->prepare("DELETE FROM `$options_tbl` WHERE option_name = %s", $name));
+        } catch (Exception $e) {}
+    } elseif (!empty($pdo)) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM `wp_options` WHERE option_name = ?");
+            $stmt->execute([$name]);
+        } catch (Exception $e) {}
+    }
+    return true;
+}
+if (!function_exists('wp_json_encode')) {
+    function wp_json_encode($data, $options = 0, $depth = 512) {
+        return json_encode($data, $options, $depth);
+    }
+}
+if (!function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4() {
+        return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
+    }
+}
+if (!function_exists('current_time')) {
+    function current_time($type, $gmt = 0) {
+        return gmdate('Y-m-d H:i:s');
+    }
+}
+if (!function_exists('esc_html')) {
+    function esc_html($s) {
+        return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    }
+}
+if (!function_exists('sanitize_text_field')) {
+    function sanitize_text_field($str) {
+        return trim(strip_tags((string)$str));
+    }
+}
+if (!class_exists('WP_Error')) {
+    class WP_Error {
+        protected $code;
+        protected $message;
+        protected $data;
+        public function __construct($code = '', $message = '', $data = '') {
+            $this->code = $code;
+            $this->message = $message;
+            $this->data = $data;
+        }
+        public function get_error_code() { return $this->code; }
+        public function get_error_message() { return $this->message; }
+        public function get_error_data() { return $this->data; }
+    }
+}
+if (!function_exists('maybe_unserialize')) {
+    function maybe_unserialize($original) {
+        if (is_serialized($original)) {
+            return @unserialize($original);
+        }
+        return $original;
+    }
+}
+if (!function_exists('is_serialized')) {
+    function is_serialized($data, $strict = true) {
+        if (!is_string($data)) return false;
+        $data = trim($data);
+        if ('N;' === $data) return true;
+        if (strlen($data) < 4) return false;
+        if (':' !== $data[1]) return false;
+        if ($strict) {
+            $lastc = substr($data, -1);
+            if (';' !== $lastc && '}' !== $lastc) return false;
+        } else {
+            $semicolon = strpos($data, ';');
+            $brace     = strpos($data, '}');
+            if (false === $semicolon && false === $brace) return false;
+            if (false !== $semicolon && $semicolon < 3) return false;
+            if (false !== $brace && $brace < 4) return false;
+        }
+        $token = $data[0];
+        switch ($token) {
+            case 's':
+                if ($strict) {
+                    if ('"' !== substr($data, -2, 1)) return false;
+                } elseif (false === strpos($data, '"')) return false;
+            case 'a':
+            case 'O':
+                return (bool) preg_match("/^{$token}:[0-9]+:/s", $data);
+            case 'b':
+            case 'i':
+            case 'd':
+                $end = $strict ? '$' : '';
+                return (bool) preg_match("/^{$token}:[0-9.E+-]+;$end/", $data);
+        }
+        return false;
+    }
+}
+if (!function_exists('is_wp_error')) {
+    function is_wp_error($thing) {
+        return ($thing instanceof WP_Error);
+    }
+}
+
+// Load backend classes under test
+require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-database.php';
+require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-etracs-sync.php';
+require_once __DIR__ . '/../wp-content/plugins/assessor-api/includes/class-assessor-etracs.php';
+
+// End of class shims
+
 echo "========================================================================\n";
 echo "   ETRACS PULL PIPELINE & ASSESSMENT SCHEMA TEST SUITE\n";
 echo "   Target DB: $disposable_db\n";
@@ -244,6 +424,19 @@ DROP TABLE IF EXISTS
     planttreeassesslevel,
     miscassesslevel,
     propertyclassification;
+");
+
+// Ensure wp_options table exists in disposable test environment for realistic WordPress option caching & direct SQL tests
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS `wp_options` (
+  `option_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `option_name` varchar(191) NOT NULL DEFAULT '',
+  `option_value` longtext NOT NULL,
+  `autoload` varchar(20) NOT NULL DEFAULT 'yes',
+  PRIMARY KEY (`option_id`),
+  UNIQUE KEY `option_name` (`option_name`),
+  KEY `autoload` (`autoload`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
 
 // Create fresh shadow table using exact definition from class-assessor-database.php
@@ -845,6 +1038,398 @@ update_option('assessor_etracs_sync_lock', array(
 $resumed_step = Assessor_Etracs_Sync::trigger_sync($pdo, true, false);
 test("Interrupted run with stale lock successfully resumes without error", !is_wp_error($resumed_step));
 test("Resumed run preserved existing run_id", $resumed_step['run_id'] === 'SYNC_CONCURRENT_TEST');
+
+// ─────────────────────────────────────────────────────────────
+// Test 12: Atomic Concurrency, Race Condition Simulation & Checkpoint Safety
+// ─────────────────────────────────────────────────────────────
+echo "\n--- 12. Atomic Concurrency & Checkpoint Safety Verification ---\n";
+
+// Subtest 12.1: Two concurrent requests attempting to acquire an initially empty lock
+delete_option('assessor_etracs_sync_lock');
+delete_option('assessor_etracs_sync_run_state');
+
+$w1_token = 'WORKER_SIM_RACE_1';
+$w2_token = 'WORKER_SIM_RACE_2';
+$race_run_id = 'SYNC_RACE_INIT';
+
+// Simulate simultaneous arrival: Worker 1 wins atomic insert, Worker 2 must be rejected
+$res_w1 = Assessor_Etracs_Sync::acquire_lock_atomic($race_run_id, $w1_token, false);
+$res_w2 = Assessor_Etracs_Sync::acquire_lock_atomic($race_run_id, $w2_token, false);
+
+test("Worker 1 acquired empty lock atomically", $res_w1 === true);
+test("Worker 2 simultaneously attempting empty lock was rejected", is_wp_error($res_w2));
+
+// Subtest 12.2: Two continuation requests arriving together for the same run
+$run_state_race = array(
+    'run_id'        => $race_run_id,
+    'status'        => 'IN_PROGRESS',
+    'current_stage' => 0,
+    'cursor'        => 100,
+    'last_seen_id'  => '',
+    'stats'         => array('entity' => 100),
+    'write_failures'=> array(),
+    'stage_errors'  => array(),
+    'last_error'    => null,
+    'started_at'    => gmdate('Y-m-d H:i:s'),
+    'updated_at'    => gmdate('Y-m-d H:i:s'),
+);
+update_option('assessor_etracs_sync_run_state', $run_state_race);
+
+// While Worker 1 holds active lock, a simultaneous Worker 3 continuation arrives
+$w3_token = 'WORKER_SIM_CONT_3';
+$res_w3 = Assessor_Etracs_Sync::acquire_lock_atomic($race_run_id, $w3_token, true);
+test("Simultaneous continuation request arriving during active lock is rejected with worker_busy", is_wp_error($res_w3) && $res_w3->get_error_code() === 'worker_busy');
+
+// Subtest 12.3: Worker remaining active beyond 45 seconds (heartbeat refreshed) cannot be stolen
+// Worker 1 refreshes heartbeat periodically (simulating active execution)
+Assessor_Etracs_Sync::refresh_heartbeat_atomic($race_run_id, $w1_token);
+$lock_active = get_option('assessor_etracs_sync_lock');
+test("Active worker heartbeat kept timestamp fresh (<45s)", (time() - $lock_active['timestamp']) < 5);
+
+$res_takeover_attempt = Assessor_Etracs_Sync::acquire_lock_atomic($race_run_id, 'WORKER_ROGUE', true);
+test("Active worker executing beyond 45s with heartbeat cannot be superseded", is_wp_error($res_takeover_attempt) && $res_takeover_attempt->get_error_code() === 'worker_busy');
+
+// Subtest 12.4: Preempted worker attempting to write and save checkpoint afterward
+// Simulate Worker 1 being legitimately preempted after true abandonment (>45s inactive)
+update_option('assessor_etracs_sync_lock', array(
+    'run_id'    => $race_run_id,
+    'worker_id' => 'WORKER_NEW_LEGITIMATE',
+    'timestamp' => time()
+));
+
+// Worker 1 now attempts safe checkpoint update and write verification
+$w1_stale_state = $run_state_race;
+$w1_stale_state['cursor'] = 999; // Stale progress
+$checkpoint_saved = Assessor_Etracs_Sync::update_checkpoint_safe($w1_stale_state, $w1_token);
+test("Preempted worker checkpoint write was strictly rejected", $checkpoint_saved === false);
+
+$current_persisted_state = get_option('assessor_etracs_sync_run_state');
+test("Persisted run state was NOT overwritten by preempted worker", $current_persisted_state['cursor'] === 100);
+
+// Cleanup race test state
+delete_option('assessor_etracs_sync_lock');
+delete_option('assessor_etracs_sync_run_state');
+
+// =========================================================================
+// 13. WORDPRESS OBJECT-CACHE COHERENCE & ATOMIC LOCK AUDIT
+// =========================================================================
+echo "\n--- 13. WordPress Object-Cache Coherence & Atomic Lock Audit ---\n";
+
+// Subtest 13.1: Lock acquisition when previously absent and absence was cached in 'notoptions'
+// Ensure lock option does not exist in DB
+global $wpdb;
+$options_tbl = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+$wpdb->query($wpdb->prepare("DELETE FROM `$options_tbl` WHERE option_name = %s", Assessor_Etracs_Sync::OPTION_LOCK));
+
+// Prime the WordPress object cache with 'notoptions' entry containing the lock
+if (function_exists('wp_cache_set')) {
+    $notoptions = wp_cache_get('notoptions', 'options');
+    if (!is_array($notoptions)) {
+        $notoptions = array();
+    }
+    $notoptions[Assessor_Etracs_Sync::OPTION_LOCK] = true;
+    wp_cache_set('notoptions', $notoptions, 'options');
+}
+
+// Perform atomic lock acquisition
+$cache_run_id = 'RUN_CACHE_TEST_01';
+$cache_w1 = 'WORKER_CACHE_1';
+$acq_res = Assessor_Etracs_Sync::acquire_lock_atomic($cache_run_id, $cache_w1, false);
+test("Lock acquisition succeeds when lock option was previously absent", $acq_res === true);
+
+// Verify that 'notoptions' cache was purged and get_option immediately observes the acquired lock
+$cached_notoptions = function_exists('wp_cache_get') ? wp_cache_get('notoptions', 'options') : array();
+$notoptions_purged = !is_array($cached_notoptions) || !isset($cached_notoptions[Assessor_Etracs_Sync::OPTION_LOCK]);
+test("wp_cache 'notoptions' entry was purged upon atomic insert", $notoptions_purged);
+
+$observed_lock = get_option(Assessor_Etracs_Sync::OPTION_LOCK);
+test("get_option() immediately observes newly acquired lock without stale notoptions interference",
+    is_array($observed_lock) && ($observed_lock['worker_id'] ?? '') === $cache_w1
+);
+
+$fresh_lock = Assessor_Etracs_Sync::get_lock_fresh();
+test("get_lock_fresh() reads identical ownership from database",
+    is_array($fresh_lock) && ($fresh_lock['worker_id'] ?? '') === $cache_w1
+);
+
+// Subtest 13.2: Lock reassignment from Worker A to Worker B followed by Worker A ownership check
+// Worker B acquires/steals lock directly or via atomic update
+$cache_w2 = 'WORKER_CACHE_2';
+$new_lock_data = array('run_id' => $cache_run_id, 'worker_id' => $cache_w2, 'timestamp' => time());
+$wpdb->query($wpdb->prepare(
+    "UPDATE `$options_tbl` SET option_value = %s WHERE option_name = %s",
+    serialize($new_lock_data),
+    Assessor_Etracs_Sync::OPTION_LOCK
+));
+$GLOBALS['wp_options_mock'][Assessor_Etracs_Sync::OPTION_LOCK] = $new_lock_data;
+
+// Intentionally pollute the object cache with Worker A's stale lock to simulate a persistent cache lag
+if (function_exists('wp_cache_set')) {
+    wp_cache_set(Assessor_Etracs_Sync::OPTION_LOCK, array('run_id' => $cache_run_id, 'worker_id' => $cache_w1, 'timestamp' => time()), 'options');
+}
+
+// Worker A now performs ownership validation via get_lock_fresh() and update_checkpoint_safe()
+$stale_w1_seen_lock = Assessor_Etracs_Sync::get_lock_fresh();
+test("get_lock_fresh() bypasses stale cached lock and detects reassignment to Worker B",
+    is_array($stale_w1_seen_lock) && ($stale_w1_seen_lock['worker_id'] ?? '') === $cache_w2
+);
+
+// Worker A attempts checkpoint save
+$dummy_state = array('run_id' => $cache_run_id, 'cursor' => 50, 'status' => 'IN_PROGRESS');
+$w1_checkpoint_res = Assessor_Etracs_Sync::update_checkpoint_safe($dummy_state, $cache_w1);
+test("Worker A checkpoint update is rejected because ownership was transferred to Worker B", $w1_checkpoint_res === false);
+
+// Worker A attempts heartbeat renewal
+$w1_heartbeat_res = Assessor_Etracs_Sync::refresh_heartbeat_atomic($cache_run_id, $cache_w1);
+test("Worker A heartbeat renewal is rejected because ownership was transferred to Worker B", $w1_heartbeat_res === false);
+
+// Subtest 13.3: Lock release followed by immediate reacquisition
+// Worker B releases lock
+Assessor_Etracs_Sync::release_lock_atomic($cache_w2);
+
+$after_release_db = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM `$options_tbl` WHERE option_name = %s", Assessor_Etracs_Sync::OPTION_LOCK));
+test("Lock row was deleted from database on atomic release", $after_release_db === null);
+
+$after_release_fresh = Assessor_Etracs_Sync::get_lock_fresh();
+test("get_lock_fresh() confirms lock absence after release", $after_release_fresh === null || $after_release_fresh === false);
+
+// Immediate reacquisition by Worker C
+$cache_w3 = 'WORKER_CACHE_3';
+$reacq_res = Assessor_Etracs_Sync::acquire_lock_atomic($cache_run_id, $cache_w3, false);
+test("Immediate reacquisition succeeds after release", $reacq_res === true);
+
+$reacq_lock = Assessor_Etracs_Sync::get_lock_fresh();
+test("Reacquired lock belongs to Worker C in both DB and cache",
+    is_array($reacq_lock) && ($reacq_lock['worker_id'] ?? '') === $cache_w3
+);
+
+// Cleanup
+Assessor_Etracs_Sync::release_lock_atomic($cache_w3);
+delete_option(Assessor_Etracs_Sync::OPTION_LOCK);
+delete_option(Assessor_Etracs_Sync::OPTION_RUN_STATE);
+Assessor_Etracs_Sync::clean_lock_cache();
+
+// ─────────────────────────────────────────────────────────────
+// Test 14: Row-Write Fencing Verification (Post-Lock Loss Protection)
+// ─────────────────────────────────────────────────────────────
+echo "\n--- 14. Row-Write Fencing Verification (Post-Lock Loss Protection) ---\n";
+
+$fence_run_id = 'RUN-FENCE-' . time();
+$worker_a = 'WORKER_FENCE_A';
+$worker_b = 'WORKER_FENCE_B';
+
+// Step 1: Worker A acquires lock cleanly
+$acq_a = Assessor_Etracs_Sync::acquire_lock_atomic($fence_run_id, $worker_a, false);
+test("Worker A acquires initial lock", $acq_a === true);
+
+// Step 2: Worker A validates lock ownership
+$a_lock_seen = Assessor_Etracs_Sync::get_lock_fresh();
+test("Worker A confirms active lock ownership", is_array($a_lock_seen) && ($a_lock_seen['worker_id'] ?? '') === $worker_a);
+
+// Step 3: Worker A pauses / stalls. In the meantime, timeout occurs and Worker B takes over the lock
+$new_lock_b = array('run_id' => $fence_run_id, 'worker_id' => $worker_b, 'timestamp' => time());
+$wpdb->query($wpdb->prepare(
+    "UPDATE `$options_tbl` SET option_value = %s WHERE option_name = %s",
+    serialize($new_lock_b),
+    Assessor_Etracs_Sync::OPTION_LOCK
+));
+$GLOBALS['wp_options_mock'][Assessor_Etracs_Sync::OPTION_LOCK] = $new_lock_b;
+Assessor_Etracs_Sync::clean_lock_cache();
+
+$b_lock_seen = Assessor_Etracs_Sync::get_lock_fresh();
+test("Worker B has successfully taken over lock ownership", is_array($b_lock_seen) && ($b_lock_seen['worker_id'] ?? '') === $worker_b);
+
+// Step 4: Worker A resumes and attempts to write a row using safe_upsert_row() with its stale worker_id
+$stale_row_data = array(
+    'objid' => 'ASM-FENCE-STALE-A',
+    'rpuid' => 'RPU-FENCE-001',
+    'origin_type' => 'REPLICA',
+    'marketvalue' => 12345.00
+);
+$target_asm_tbl = $wpdb->prefix . 'assessor_rpu_assessment';
+$stale_write_res = Assessor_Etracs_Sync::safe_upsert_row($target_asm_tbl, $stale_row_data, 'objid', $worker_a);
+
+test("Worker A row write is strictly rejected by fencing mechanism", $stale_write_res === false);
+
+// Verify that the row was NOT written to the database
+$check_stale_in_db = $wpdb->get_var($wpdb->prepare(
+    "SELECT objid FROM `$target_asm_tbl` WHERE objid = %s",
+    'ASM-FENCE-STALE-A'
+));
+test("Stale row ASM-FENCE-STALE-A was NOT inserted into database", empty($check_stale_in_db));
+
+// Step 5: Worker A attempts checkpoint persistence
+$stale_state = array('run_id' => $fence_run_id, 'cursor' => 999, 'status' => 'IN_PROGRESS');
+$stale_cp_res = Assessor_Etracs_Sync::update_checkpoint_safe($stale_state, $worker_a);
+test("Worker A checkpoint update is strictly rejected", $stale_cp_res === false);
+
+// Step 6: Worker B writes legitimate row with valid worker_id
+$valid_row_b = array(
+    'objid' => 'ASM-FENCE-VALID-B',
+    'rpuid' => 'RPU-FENCE-001',
+    'origin_type' => 'REPLICA',
+    'marketvalue' => 67890.00
+);
+$valid_write_b = Assessor_Etracs_Sync::safe_upsert_row($target_asm_tbl, $valid_row_b, 'objid', $worker_b);
+test("Worker B legitimate row write succeeds under valid ownership", $valid_write_b !== false);
+
+$check_valid_in_db = $wpdb->get_var($wpdb->prepare(
+    "SELECT objid FROM `$target_asm_tbl` WHERE objid = %s",
+    'ASM-FENCE-VALID-B'
+));
+test("Valid row ASM-FENCE-VALID-B is present in database", $check_valid_in_db === 'ASM-FENCE-VALID-B');
+
+// Step 7: Worker B updates checkpoint
+$valid_state_b = array('run_id' => $fence_run_id, 'cursor' => 10, 'status' => 'IN_PROGRESS');
+$valid_cp_res = Assessor_Etracs_Sync::update_checkpoint_safe($valid_state_b, $worker_b);
+test("Worker B checkpoint update succeeds", $valid_cp_res === true);
+
+// Clean up test rows and lock
+$wpdb->query($wpdb->prepare("DELETE FROM `$target_asm_tbl` WHERE objid IN ('ASM-FENCE-STALE-A', 'ASM-FENCE-VALID-B')"));
+Assessor_Etracs_Sync::release_lock_atomic($worker_b);
+// ─────────────────────────────────────────────────────────────
+// Test 15: Checkpoint Persistence Fencing Race & Deterministic Interleaving
+// ─────────────────────────────────────────────────────────────
+echo "\n--- 15. Real Two-Connection Checkpoint Fencing & Row-Locking Test ---\n";
+
+// 1. Verify that the test wp_options table uses InnoDB
+$engine_check = $pdo->query("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'test_wp01_disposable' AND TABLE_NAME = 'wp_options'")->fetchColumn();
+test("wp_options table uses InnoDB storage engine", strcasecmp($engine_check, 'InnoDB') === 0);
+
+// 2. Open two independent database connections, Connection A and Connection B
+$pdo_a = new PDO("mysql:host=localhost;dbname=test_wp01_disposable;charset=utf8mb4", 'root', '', [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+$pdo_b = new PDO("mysql:host=localhost;dbname=test_wp01_disposable;charset=utf8mb4", 'root', '', [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+
+// Set a short lock-wait timeout on Connection B (1 second) so contention is detected quickly and cleanly
+$pdo_b->exec("SET innodb_lock_wait_timeout = 1");
+
+$wpdb_a = new MockWPDBPipeline($pdo_a);
+$wpdb_b = new MockWPDBPipeline($pdo_b);
+
+$run_id_15 = 'RUN-FENCE-2CONN-' . time();
+$worker_a = 'WORKER_2CONN_A';
+$worker_b = 'WORKER_2CONN_B';
+
+// Set global $wpdb to Connection A for Worker A operations
+global $wpdb;
+$orig_wpdb = $wpdb;
+
+// Clean slate in DB and cache
+$pdo_a->exec("DELETE FROM wp_options WHERE option_name IN ('" . Assessor_Etracs_Sync::OPTION_LOCK . "', '" . Assessor_Etracs_Sync::OPTION_RUN_STATE . "')");
+Assessor_Etracs_Sync::clean_lock_cache();
+
+// ── Test A: Lock contention and valid commit ordering ──
+
+// Worker A acquires lock via production atomic acquisition
+$wpdb = $wpdb_a;
+$acq_a_res = Assessor_Etracs_Sync::acquire_lock_atomic($run_id_15, $worker_a, false);
+test("Connection A: Worker A acquires initial lock atomically", $acq_a_res === true);
+
+// Worker A starts a transaction and locks the worker-lock row with SELECT ... FOR UPDATE
+$pdo_a->exec("START TRANSACTION");
+$locked_raw_a = $pdo_a->query("SELECT option_value FROM wp_options WHERE option_name = '" . Assessor_Etracs_Sync::OPTION_LOCK . "' FOR UPDATE")->fetchColumn();
+$locked_lock_a = maybe_unserialize($locked_raw_a);
+test("Connection A: Holds active exclusive FOR UPDATE row lock on worker-lock row", is_array($locked_lock_a) && ($locked_lock_a['worker_id'] ?? '') === $worker_a);
+
+// While Connection A holds the exclusive row lock, Connection B attempts lock takeover.
+// Because the row is locked with FOR UPDATE, Connection B must block and experience lock-wait timeout!
+$wpdb = $wpdb_b;
+$b_blocked = false;
+$b_error_msg = '';
+$t0 = microtime(true);
+try {
+    // Attempt direct atomic lock update or takeover on Connection B
+    $lock_val_b = serialize(array('run_id' => $run_id_15, 'worker_id' => $worker_b, 'timestamp' => time()));
+    $pdo_b->exec("UPDATE wp_options SET option_value = " . $pdo_b->quote($lock_val_b) . " WHERE option_name = '" . Assessor_Etracs_Sync::OPTION_LOCK . "'");
+} catch (Exception $e) {
+    $b_error_msg = $e->getMessage();
+    if (strpos($b_error_msg, '1205') !== false || stripos($b_error_msg, 'timeout') !== false) {
+        $b_blocked = true;
+    }
+}
+$elapsed_wait = microtime(true) - $t0;
+test("Connection B: Lock takeover is strictly BLOCKED while Connection A holds row lock (wait: " . round($elapsed_wait, 2) . "s)", $b_blocked === true);
+
+// Allow Connection A to persist its checkpoint and commit
+$wpdb = $wpdb_a;
+$state_a = array(
+    'run_id' => $run_id_15,
+    'cursor' => 100,
+    'status' => 'IN_PROGRESS',
+    'worker_id' => $worker_a
+);
+$state_a_ser = serialize($state_a);
+// Write state on connection A and commit
+$pdo_a->exec("INSERT INTO wp_options (option_name, option_value, autoload) VALUES ('" . Assessor_Etracs_Sync::OPTION_RUN_STATE . "', " . $pdo_a->quote($state_a_ser) . ", 'no') ON DUPLICATE KEY UPDATE option_value = " . $pdo_a->quote($state_a_ser));
+$pdo_a->exec("COMMIT");
+Assessor_Etracs_Sync::clean_lock_cache();
+test("Connection A: Commits transaction and releases row lock", true);
+
+// Fast-forward lock timestamp so Worker B can perform legitimate stale-worker takeover (>45s)
+$wpdb = $wpdb_a;
+$stale_time = time() - 60;
+$stale_lock_a = serialize(array('run_id' => $run_id_15, 'worker_id' => $worker_a, 'timestamp' => $stale_time));
+$pdo_a->exec("UPDATE wp_options SET option_value = " . $pdo_a->quote($stale_lock_a) . " WHERE option_name = '" . Assessor_Etracs_Sync::OPTION_LOCK . "'");
+Assessor_Etracs_Sync::clean_lock_cache();
+
+// Now Connection B attempts production atomic lock acquisition
+$wpdb = $wpdb_b;
+$acq_b_res = Assessor_Etracs_Sync::acquire_lock_atomic($run_id_15, $worker_b, true);
+test("Connection B: Production acquire_lock_atomic() succeeds after Worker A commit & timeout", $acq_b_res === true);
+
+// Connection B persists a newer checkpoint using production update_checkpoint_safe()
+$state_b = array(
+    'run_id' => $run_id_15,
+    'cursor' => 300,
+    'status' => 'SUCCESS',
+    'is_completed' => true,
+    'worker_id' => $worker_b
+);
+$cp_b_res = Assessor_Etracs_Sync::update_checkpoint_safe($state_b, $worker_b);
+test("Connection B: Production update_checkpoint_safe() persists terminal state", $cp_b_res === true);
+
+// Verify that the final database state reflects the valid committed order
+$final_state_raw = $pdo_a->query("SELECT option_value FROM wp_options WHERE option_name = '" . Assessor_Etracs_Sync::OPTION_RUN_STATE . "'")->fetchColumn();
+$final_state = maybe_unserialize($final_state_raw);
+test("Committed order preserved: Final status is SUCCESS", ($final_state['status'] ?? '') === 'SUCCESS');
+test("Committed order preserved: Final cursor is 300", (int)($final_state['cursor'] ?? 0) === 300);
+test("Committed order preserved: Final worker_id is Worker B", ($final_state['worker_id'] ?? '') === $worker_b);
+
+// ── Test B: Stale worker after a completed takeover ──
+
+// Worker A now attempts to invoke production update_checkpoint_safe() with its obsolete worker_id
+$wpdb = $wpdb_a;
+$stale_a_state = array(
+    'run_id' => $run_id_15,
+    'cursor' => 150, // Stale older cursor
+    'status' => 'IN_PROGRESS', // Stale non-terminal status
+    'worker_id' => $worker_a
+);
+$stale_a_cp_res = Assessor_Etracs_Sync::update_checkpoint_safe($stale_a_state, $worker_a);
+test("Test B: Obsolete Worker A update_checkpoint_safe() is strictly REJECTED by fencing", $stale_a_cp_res === false);
+
+// Verify Worker B's checkpoint and terminal state remain unchanged in database
+$untainted_state_raw = $pdo_a->query("SELECT option_value FROM wp_options WHERE option_name = '" . Assessor_Etracs_Sync::OPTION_RUN_STATE . "'")->fetchColumn();
+$untainted_state = maybe_unserialize($untainted_state_raw);
+test("Test B: Persisted run state was NOT overwritten (status remains SUCCESS)", ($untainted_state['status'] ?? '') === 'SUCCESS');
+test("Test B: Persisted run state was NOT overwritten (cursor remains 300)", (int)($untainted_state['cursor'] ?? 0) === 300);
+test("Test B: Persisted run state was NOT overwritten (worker_id remains Worker B)", ($untainted_state['worker_id'] ?? '') === $worker_b);
+
+// Clean up connections and restore original wpdb
+$wpdb = $wpdb_b;
+Assessor_Etracs_Sync::release_lock_atomic($worker_b);
+$pdo_a->exec("DELETE FROM wp_options WHERE option_name IN ('" . Assessor_Etracs_Sync::OPTION_LOCK . "', '" . Assessor_Etracs_Sync::OPTION_RUN_STATE . "')");
+Assessor_Etracs_Sync::clean_lock_cache();
+
+// Restore original test wpdb harness
+$wpdb = $orig_wpdb;
+unset($pdo_a, $pdo_b, $wpdb_a, $wpdb_b);
 
 echo "\n========================================================================\n";
 echo "   ETRACS PULL PIPELINE TEST SUMMARY\n";

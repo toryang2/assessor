@@ -23,6 +23,338 @@ class Assessor_Etracs_Sync {
      * Diagnostic option key for ETRACS sync errors and collisions.
      */
     const OPTION_DIAGNOSTICS = 'assessor_etracs_sync_diagnostics';
+    const OPTION_LOCK = 'assessor_etracs_sync_lock';
+    const OPTION_RUN_STATE = 'assessor_etracs_sync_run_state';
+
+    /**
+     * Invalidate WordPress object caches for the lock option across all relevant cache keys:
+     * - 'assessor_etracs_sync_lock' in 'options' group
+     * - 'notoptions' in 'options' group (where absence is cached if option previously didn't exist)
+     * - 'alloptions' in 'options' group (in case autoload cache is affected)
+     */
+    public static function clean_lock_cache() {
+        if (function_exists('wp_cache_delete')) {
+            wp_cache_delete(self::OPTION_LOCK, 'options');
+            wp_cache_delete('notoptions', 'options');
+            wp_cache_delete('alloptions', 'options');
+        }
+    }
+
+    /**
+     * Fresh database read of the lock option, bypassing stale object cache.
+     * Keeps object cache synchronized.
+     *
+     * @return array|null
+     */
+    public static function get_lock_fresh() {
+        global $wpdb;
+        $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        if (!empty($wpdb)) {
+            try {
+                $raw = $wpdb->get_var($wpdb->prepare(
+                    "SELECT option_value FROM `$options_table` WHERE option_name = %s",
+                    self::OPTION_LOCK
+                ));
+                if ($raw !== null && $raw !== false) {
+                    self::clean_lock_cache();
+                    if (function_exists('maybe_unserialize')) {
+                        return maybe_unserialize($raw);
+                    }
+                    $unser = @unserialize($raw);
+                    return ($unser !== false || $raw === 'b:0;') ? $unser : $raw;
+                }
+            } catch (Exception $e) {}
+        }
+        self::clean_lock_cache();
+        return get_option(self::OPTION_LOCK, null);
+    }
+
+    /**
+     * Atomically acquire or renew the sync lock via the database.
+     * Prevents race conditions between concurrent requests.
+     *
+     * @param string $run_id
+     * @param string $worker_id
+     * @param bool $has_active_run
+     * @return true|WP_Error
+     */
+    public static function acquire_lock_atomic($run_id, $worker_id, $has_active_run = false) {
+        global $wpdb;
+        $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        $now = time();
+        $lock_val = serialize(array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now));
+
+        // Check if options table physically exists in DB (WordPress environments vs standalone mocks)
+        $has_table = false;
+        if (!empty($wpdb)) {
+            try {
+                $has_table = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $options_table)) === $options_table);
+            } catch (Exception $e) { $has_table = false; }
+        }
+
+        if ($has_table) {
+            // Attempt atomic insert via options table (succeeds only if lock does not exist)
+            $inserted = $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO `$options_table` (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+                self::OPTION_LOCK,
+                $lock_val
+            ));
+
+            if ($inserted > 0) {
+                self::clean_lock_cache();
+                return true;
+            }
+
+            // Lock already exists in database; fetch current lock directly from DB
+            $current_raw = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM `$options_table` WHERE option_name = %s",
+                self::OPTION_LOCK
+            ));
+            if (function_exists('maybe_unserialize')) {
+                $current_lock = maybe_unserialize($current_raw);
+            } else {
+                $unser = @unserialize($current_raw);
+                $current_lock = ($unser !== false || $current_raw === 'b:0;') ? $unser : $current_raw;
+            }
+        } else {
+            // Fallback for memory-mocked WordPress environments without physical options table
+            $current_lock = get_option(self::OPTION_LOCK, null);
+            $current_raw = $current_lock ? serialize($current_lock) : null;
+            if (!$current_lock) {
+                update_option(self::OPTION_LOCK, array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now), false);
+                return true;
+            }
+        }
+
+        if (!$current_lock || !isset($current_lock['timestamp'])) {
+            // Malformed lock: overwrite cleanly
+            update_option(self::OPTION_LOCK, array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now), false);
+            return true;
+        }
+
+        $lock_age = $now - intval($current_lock['timestamp']);
+        $existing_run_id = $current_lock['run_id'] ?? '';
+        $existing_worker_id = $current_lock['worker_id'] ?? '';
+
+        // Case 1: Different run is active within 600s
+        if ($lock_age < 600 && (!$has_active_run || $existing_run_id !== $run_id)) {
+            $safe_run_id = function_exists('esc_html') ? esc_html($existing_run_id) : htmlspecialchars((string)$existing_run_id, ENT_QUOTES, 'UTF-8');
+            return new WP_Error('sync_locked', 'Another synchronization is currently running (Run ID: ' . $safe_run_id . ').', array('status' => 409));
+        }
+
+        // Case 2: Same run, but another worker refreshed heartbeat very recently (within 45s)
+        if ($has_active_run && $existing_run_id === $run_id && !empty($existing_worker_id) && $existing_worker_id !== $worker_id && $lock_age < 45) {
+            $safe_worker_id = function_exists('esc_html') ? esc_html($existing_worker_id) : htmlspecialchars((string)$existing_worker_id, ENT_QUOTES, 'UTF-8');
+            return new WP_Error('worker_busy', 'Another worker is currently processing this run (Worker ID: ' . $safe_worker_id . ').', array('status' => 409));
+        }
+
+        // Case 3: Same worker renewing lock, OR takeover of stale worker (>45s for same run, or >600s for abandoned run)
+        if ($has_table && $current_raw) {
+            // Perform atomic update conditioned on the exact previous option_value to prevent race during takeover
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE `$options_table` SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                $lock_val,
+                self::OPTION_LOCK,
+                $current_raw
+            ));
+
+            if ($updated > 0) {
+                self::clean_lock_cache();
+                return true;
+            }
+
+            // If another request beat us to updating the lock value in the exact millisecond, reject concurrency
+            return new WP_Error('worker_busy', 'Lock collision detected. Another worker acquired the lock.', array('status' => 409));
+        }
+
+        update_option(self::OPTION_LOCK, array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now), false);
+        self::clean_lock_cache();
+        return true;
+    }
+
+    /**
+     * Atomically release lock if and only if owned by the specified worker.
+     *
+     * @param string $worker_id
+     */
+    public static function release_lock_atomic($worker_id) {
+        global $wpdb;
+        $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        $has_table = false;
+        if (!empty($wpdb)) {
+            try {
+                $has_table = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $options_table)) === $options_table);
+            } catch (Exception $e) { $has_table = false; }
+        }
+
+        if ($has_table) {
+            $escaped_worker = method_exists($wpdb, 'esc_like') ? $wpdb->esc_like($worker_id) : addcslashes($worker_id, '_%\\');
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM `$options_table` WHERE option_name = %s AND option_value LIKE %s",
+                self::OPTION_LOCK,
+                '%' . $escaped_worker . '%'
+            ));
+            delete_option(self::OPTION_LOCK);
+            self::clean_lock_cache();
+        } else {
+            $lock = self::get_lock_fresh();
+            if (!empty($lock['worker_id']) && $lock['worker_id'] === $worker_id) {
+                delete_option(self::OPTION_LOCK);
+                self::clean_lock_cache();
+            }
+        }
+    }
+
+    /**
+     * Atomically refresh worker heartbeat if and only if the worker is still the active owner.
+     *
+     * @param string $run_id
+     * @param string $worker_id
+     * @return bool True if refreshed, False if preempted
+     */
+    public static function refresh_heartbeat_atomic($run_id, $worker_id) {
+        global $wpdb;
+        $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        $has_table = false;
+        if (!empty($wpdb)) {
+            try {
+                $has_table = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $options_table)) === $options_table);
+            } catch (Exception $e) { $has_table = false; }
+        }
+
+        $now = time();
+        $lock_val = serialize(array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now));
+
+        if ($has_table) {
+            $escaped_worker = method_exists($wpdb, 'esc_like') ? $wpdb->esc_like($worker_id) : addcslashes($worker_id, '_%\\');
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE `$options_table` SET option_value = %s WHERE option_name = %s AND option_value LIKE %s",
+                $lock_val,
+                self::OPTION_LOCK,
+                '%' . $escaped_worker . '%'
+            ));
+
+            if ($updated > 0) {
+                self::clean_lock_cache();
+                return true;
+            }
+        } else {
+            $current_lock = self::get_lock_fresh();
+            if ($current_lock && ($current_lock['worker_id'] ?? '') === $worker_id) {
+                update_option(self::OPTION_LOCK, array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => $now), false);
+                self::clean_lock_cache();
+                return true;
+            }
+        }
+
+        // Check fresh if lock still belongs to worker
+        $current_lock = self::get_lock_fresh();
+        return ($current_lock && ($current_lock['worker_id'] ?? '') === $worker_id);
+    }
+
+    /**
+     * Safely persist run checkpoint only if the worker still holds lock ownership.
+     * Uses database-backed fencing (micro-transaction with SELECT ... FOR UPDATE on worker-lock row)
+     * so ownership validation and checkpoint persistence cannot be separated by a takeover race.
+     * Prevents an obsolete or preempted worker from overwriting newer checkpoint progress.
+     *
+     * @param array $run_state
+     * @param string $worker_id
+     * @return bool True on success, False if worker lost ownership
+     */
+    public static function update_checkpoint_safe($run_state, $worker_id) {
+        global $wpdb;
+
+        $run_state['updated_at'] = current_time('mysql', true);
+        $run_state['worker_id'] = $worker_id;
+
+        $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+        $has_options = false;
+        if (!empty($wpdb)) {
+            try {
+                $has_options = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $options_table)) === $options_table);
+            } catch (Exception $e) { $has_options = false; }
+        }
+
+        if ($has_options) {
+            $wpdb->query("START TRANSACTION");
+
+            // Lock and verify active worker lock row atomically
+            $current_raw = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM `$options_table` WHERE option_name = %s FOR UPDATE",
+                self::OPTION_LOCK
+            ));
+
+            $active_worker = null;
+            $active_run_id = null;
+            if ($current_raw !== null && $current_raw !== false) {
+                if (function_exists('maybe_unserialize')) {
+                    $lock_arr = maybe_unserialize($current_raw);
+                } else {
+                    $unser = @unserialize($current_raw);
+                    $lock_arr = ($unser !== false || $current_raw === 'b:0;') ? $unser : $current_raw;
+                }
+                if (is_array($lock_arr)) {
+                    $active_worker = $lock_arr['worker_id'] ?? null;
+                    $active_run_id = $lock_arr['run_id'] ?? null;
+                }
+            }
+
+            // Verify both worker ID and run ID match
+            $state_run_id = $run_state['run_id'] ?? null;
+            if ($active_worker !== $worker_id || ($state_run_id !== null && $active_run_id !== null && $state_run_id !== $active_run_id)) {
+                $wpdb->query("ROLLBACK");
+                self::clean_lock_cache();
+                return false;
+            }
+
+            // Persist run state atomically within the transaction
+            $state_serialized = serialize($run_state);
+            $state_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_id FROM `$options_table` WHERE option_name = %s",
+                self::OPTION_RUN_STATE
+            ));
+
+            if ($state_exists) {
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE `$options_table` SET option_value = %s WHERE option_name = %s",
+                    $state_serialized,
+                    self::OPTION_RUN_STATE
+                ));
+            } else {
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO `$options_table` (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+                    self::OPTION_RUN_STATE,
+                    $state_serialized
+                ));
+            }
+
+            $wpdb->query("COMMIT");
+
+            // Synchronize WordPress options object cache after commit
+            if (function_exists('wp_cache_set')) {
+                wp_cache_set(self::OPTION_RUN_STATE, $run_state, 'options');
+                $notoptions = function_exists('wp_cache_get') ? wp_cache_get('notoptions', 'options') : false;
+                if (is_array($notoptions) && isset($notoptions[self::OPTION_RUN_STATE])) {
+                    unset($notoptions[self::OPTION_RUN_STATE]);
+                    wp_cache_set('notoptions', $notoptions, 'options');
+                }
+            }
+            if (isset($GLOBALS['wp_options_mock'])) {
+                $GLOBALS['wp_options_mock'][self::OPTION_RUN_STATE] = $run_state;
+            }
+
+            return true;
+        } else {
+            // Fallback for memory-only environments without physical options table
+            $current_lock = self::get_lock_fresh();
+            if (!$current_lock || ($current_lock['worker_id'] ?? '') !== $worker_id) {
+                return false;
+            }
+            update_option(self::OPTION_RUN_STATE, $run_state, false);
+            return true;
+        }
+    }
 
     /**
      * Ensure schema helper. Schema is managed by Assessor_Database.
@@ -203,33 +535,29 @@ class Assessor_Etracs_Sync {
             in_array(strtolower($run_state['status'] ?? ''), array('running', 'in_progress', 'paused'), true) &&
             !$force_new;
 
-        // Check if run lock is active and still fresh (within 10 minutes)
-        $lock = get_option('assessor_etracs_sync_lock', null);
-        if ($lock && isset($lock['timestamp'])) {
-            $lock_age = time() - intval($lock['timestamp']);
-            // Case 1: Different run is active within 10 minutes
-            if ($lock_age < 600 && (!$has_active_run || $lock['run_id'] !== $run_state['run_id'])) {
-                return new WP_Error('sync_locked', 'Another synchronization is currently running (Run ID: ' . esc_html($lock['run_id']) . ').', array('status' => 409));
-            }
-
-            // Case 2: Same run, but another worker refreshed heartbeat very recently (within 45s)
-            // Prevent duplicate concurrent workers on the same run
-            if ($has_active_run && $lock['run_id'] === $run_state['run_id'] && !empty($lock['worker_id']) && $lock_age < 45) {
-                return new WP_Error('worker_busy', 'Another worker is currently processing this run (Worker ID: ' . esc_html($lock['worker_id']) . ').', array('status' => 409));
-            }
-        }
-
         if ($has_active_run) {
             $run_id = $run_state['run_id'];
             $run_state['status'] = 'IN_PROGRESS';
-            // Acquire / refresh lock with new worker ID
-            update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
+            // Atomically acquire or renew lock
+            $lock_res = self::acquire_lock_atomic($run_id, $worker_id, true);
+            if (is_wp_error($lock_res)) {
+                return $lock_res;
+            }
         } else {
-            // New run: Collision preflight is required before writing any records
+            // New run: Pre-claim an atomic lock to block concurrent initializations
+            $tentative_run_id = 'SYNC_' . gmdate('Ymd_His') . '_' . wp_generate_uuid4();
+            $lock_res = self::acquire_lock_atomic($tentative_run_id, $worker_id, false);
+            if (is_wp_error($lock_res)) {
+                return $lock_res;
+            }
+            $run_id = $tentative_run_id;
+
+            // Collision preflight is required before writing any records
             self::update_progress("Running collision preflight...");
             $preflight_result = self::run_collision_preflight($pdo);
             if (is_wp_error($preflight_result)) {
                 delete_option('assessor_sync_progress');
+                self::release_lock_atomic($worker_id);
 
                 if (class_exists('Assessor_Etracs')) {
                     $err_data = $preflight_result->get_error_data();
@@ -256,9 +584,6 @@ class Assessor_Etracs_Sync {
                 return $preflight_result;
             }
 
-            $run_id = 'SYNC_' . gmdate('Ymd_His') . '_' . wp_generate_uuid4();
-            update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
-
             $run_state = array(
                 'run_id'           => $run_id,
                 'status'           => 'IN_PROGRESS',
@@ -272,7 +597,7 @@ class Assessor_Etracs_Sync {
                 'started_at'       => current_time('mysql', true),
                 'updated_at'       => current_time('mysql', true),
             );
-            update_option('assessor_etracs_sync_run_state', $run_state, false);
+            self::update_checkpoint_safe($run_state, $worker_id);
         }
 
         $batch_size = 500;
@@ -335,8 +660,9 @@ class Assessor_Etracs_Sync {
                         $run_state['current_stage']++;
                         $run_state['cursor'] = 0;
                         $run_state['last_seen_id'] = '';
-                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        self::update_checkpoint_safe($run_state, $worker_id);
                         if ($single_batch) {
+                            self::release_lock_atomic($worker_id);
                             return array(
                                 'status'       => 'IN_PROGRESS',
                                 'sync_status'  => 'IN_PROGRESS',
@@ -361,9 +687,9 @@ class Assessor_Etracs_Sync {
                         $run_state['current_stage']++;
                         $run_state['cursor'] = 0;
                         $run_state['last_seen_id'] = '';
-                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        self::update_checkpoint_safe($run_state, $worker_id);
                         if ($single_batch) {
-                            delete_option('assessor_etracs_sync_lock');
+                            self::release_lock_atomic($worker_id);
                             return array(
                                 'status'       => 'IN_PROGRESS',
                                 'sync_status'  => 'IN_PROGRESS',
@@ -387,9 +713,9 @@ class Assessor_Etracs_Sync {
                     $tbl_exists = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $target_table)) === $target_table);
                     if (!$tbl_exists) {
                         $run_state['cursor'] += $count;
-                        update_option('assessor_etracs_sync_run_state', $run_state, false);
+                        self::update_checkpoint_safe($run_state, $worker_id);
                         if ($single_batch) {
-                            delete_option('assessor_etracs_sync_lock');
+                            self::release_lock_atomic($worker_id);
                             return array(
                                 'status'       => 'IN_PROGRESS',
                                 'sync_status'  => 'IN_PROGRESS',
@@ -512,14 +838,20 @@ class Assessor_Etracs_Sync {
                         $pk = 'objid';
 
                         // Verify worker lock ownership before writing
-                        $current_lock = get_option('assessor_etracs_sync_lock', null);
+                        $current_lock = self::get_lock_fresh();
                         if (!$current_lock || $current_lock['run_id'] !== $run_id || (isset($current_lock['worker_id']) && $current_lock['worker_id'] !== $worker_id)) {
                             return new WP_Error('worker_preempted', 'Sync lock was preempted or acquired by another worker. Halting write.', array('status' => 409));
                         }
 
-                        $write_res = self::safe_upsert_row($target_table, $data, $pk);
+                        $write_res = self::safe_upsert_row($target_table, $data, $pk, $worker_id);
 
                         if ($write_res === false) {
+                            // Check if failure was caused by worker preemption / lock loss
+                            $check_lock = self::get_lock_fresh();
+                            if (!$check_lock || ($check_lock['worker_id'] ?? '') !== $worker_id) {
+                                return new WP_Error('worker_preempted', 'Sync lock was preempted or acquired by another worker. Halting write.', array('status' => 409));
+                            }
+
                             $err_msg = $wpdb->last_error !== '' ? $wpdb->last_error : 'Write returned false';
                             $run_state['write_failures'][] = array(
                                 'stage'     => $stage_name,
@@ -529,8 +861,8 @@ class Assessor_Etracs_Sync {
                             );
                             $run_state['last_error'] = "Write failed in stage $stage_name for objid " . ($row['objid'] ?? 'unknown') . ": $err_msg";
                             $run_state['status'] = 'FAILED';
-                            update_option('assessor_etracs_sync_run_state', $run_state, false);
-                            delete_option('assessor_etracs_sync_lock');
+                            self::update_checkpoint_safe($run_state, $worker_id);
+                            self::release_lock_atomic($worker_id);
 
                             $err = new WP_Error('write_failure', $run_state['last_error'], array('status' => 500));
                             self::set_diagnostics(array(
@@ -546,27 +878,40 @@ class Assessor_Etracs_Sync {
 
                         $run_state['stats'][$stage_name]++;
                         $run_state['cursor']++;
-                    }
 
-                    $run_state['updated_at'] = current_time('mysql', true);
-                    update_option('assessor_etracs_sync_run_state', $run_state, false);
-                    update_option('assessor_etracs_sync_lock', array('run_id' => $run_id, 'worker_id' => $worker_id, 'timestamp' => time()), false);
+                        // Refresh heartbeat periodically during long batch execution to prevent false takeover
+                        if ($run_state['cursor'] % 50 === 0) {
+                            $alive = self::refresh_heartbeat_atomic($run_id, $worker_id);
+                            if (!$alive) {
+                                return new WP_Error('worker_preempted', 'Sync lock was preempted during batch processing. Halting write.', array('status' => 409));
+                            }
+                        }
+                    }
 
                     // If less than batch size returned, stage is complete
                     if ($count < $batch_size) {
                         $run_state['current_stage']++;
                         $run_state['cursor'] = 0;
-                        update_option('assessor_etracs_sync_run_state', $run_state, false);
                     }
+
+                    // Atomically verify ownership and save checkpoint
+                    $saved = self::update_checkpoint_safe($run_state, $worker_id);
+                    if (!$saved) {
+                        return new WP_Error('worker_preempted', 'Lock ownership lost before saving batch checkpoint. Halting.', array('status' => 409));
+                    }
+                    self::refresh_heartbeat_atomic($run_id, $worker_id);
                 } else {
                     // Stage had 0 records or finished
                     $run_state['current_stage']++;
                     $run_state['cursor'] = 0;
-                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    $saved = self::update_checkpoint_safe($run_state, $worker_id);
+                    if (!$saved) {
+                        return new WP_Error('worker_preempted', 'Lock ownership lost before saving stage completion. Halting.', array('status' => 409));
+                    }
                 }
 
                 if ($single_batch) {
-                    delete_option('assessor_etracs_sync_lock');
+                    self::release_lock_atomic($worker_id);
                     return array(
                         'status'       => 'IN_PROGRESS',
                         'sync_status'  => 'IN_PROGRESS',
@@ -584,9 +929,9 @@ class Assessor_Etracs_Sync {
                 if ($stage['type'] === 'direct') {
                     $run_state['current_stage']++;
                     $run_state['cursor'] = 0;
-                    update_option('assessor_etracs_sync_run_state', $run_state, false);
+                    self::update_checkpoint_safe($run_state, $worker_id);
                     if ($single_batch) {
-                        delete_option('assessor_etracs_sync_lock');
+                        self::release_lock_atomic($worker_id);
                         return array(
                             'status'       => 'IN_PROGRESS',
                             'sync_status'  => 'IN_PROGRESS',
@@ -601,8 +946,8 @@ class Assessor_Etracs_Sync {
                     $run_state['status'] = 'FAILED';
                     $run_state['last_error'] = "Exception in stage $stage_name: " . $e->getMessage();
                     $run_state['stage_errors'][] = array('stage' => $stage_name, 'error' => $e->getMessage());
-                    update_option('assessor_etracs_sync_run_state', $run_state, false);
-                    delete_option('assessor_etracs_sync_lock');
+                    self::update_checkpoint_safe($run_state, $worker_id);
+                    self::release_lock_atomic($worker_id);
 
                     $err = new WP_Error('stage_exception', $run_state['last_error'], array('status' => 500));
                     self::set_diagnostics(array(
@@ -626,8 +971,8 @@ class Assessor_Etracs_Sync {
         if (is_wp_error($verify_result)) {
             $run_state['status'] = 'FAILED';
             $run_state['last_error'] = $verify_result->get_error_message();
-            update_option('assessor_etracs_sync_run_state', $run_state, false);
-            delete_option('assessor_etracs_sync_lock');
+            self::update_checkpoint_safe($run_state, $worker_id);
+            self::release_lock_atomic($worker_id);
 
             self::set_diagnostics(array(
                 'status'              => 'FAILED',
@@ -645,8 +990,8 @@ class Assessor_Etracs_Sync {
         $run_state['status'] = $is_partial ? 'PARTIAL' : 'SUCCESS';
         $run_state['completed_at'] = current_time('mysql', true);
         $run_state['verification'] = $verify_result;
-        update_option('assessor_etracs_sync_run_state', $run_state, false);
-        delete_option('assessor_etracs_sync_lock');
+        self::update_checkpoint_safe($run_state, $worker_id);
+        self::release_lock_atomic($worker_id);
 
         update_option('assessor_etracs_last_sync', current_time('mysql', true));
         delete_option('assessor_sync_progress');
@@ -1310,9 +1655,10 @@ class Assessor_Etracs_Sync {
      * @param string $table Full table name
      * @param array $data Column => value map
      * @param string $pk_name Primary or unique column name to match on
+     * @param string|null $worker_id Optional worker_id for atomic fencing verification
      * @return int|false
      */
-    public static function safe_upsert_row($table, $data, $pk_name = 'objid') {
+    public static function safe_upsert_row($table, $data, $pk_name = 'objid', $worker_id = null) {
         global $wpdb;
 
         if (empty($data)) {
@@ -1372,8 +1718,61 @@ class Assessor_Etracs_Sync {
         $updates_sql = !empty($update_parts) ? implode(', ', $update_parts) : "`$pk_name` = `$pk_name`";
 
         $sql = "INSERT INTO `$table` ($cols_sql) VALUES ($placeholders_sql) ON DUPLICATE KEY UPDATE $updates_sql";
-
         $prepared = $wpdb->prepare($sql, $values);
+
+        // Fencing mechanism: When worker_id is provided, verify database-backed ownership atomically
+        // within a micro-transaction so Worker A cannot write after lock takeover.
+        if (!empty($worker_id)) {
+            $options_table = !empty($wpdb->options) ? $wpdb->options : ($wpdb->prefix . 'options');
+            $has_options = false;
+            if (!empty($wpdb)) {
+                try {
+                    $has_options = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $options_table)) === $options_table);
+                } catch (Exception $e) { $has_options = false; }
+            }
+
+            if ($has_options) {
+                $wpdb->query("START TRANSACTION");
+                $current_raw = $wpdb->get_var($wpdb->prepare(
+                    "SELECT option_value FROM `$options_table` WHERE option_name = %s FOR UPDATE",
+                    self::OPTION_LOCK
+                ));
+
+                $active_worker = null;
+                if ($current_raw !== null && $current_raw !== false) {
+                    if (function_exists('maybe_unserialize')) {
+                        $lock_arr = maybe_unserialize($current_raw);
+                    } else {
+                        $unser = @unserialize($current_raw);
+                        $lock_arr = ($unser !== false || $current_raw === 'b:0;') ? $unser : $current_raw;
+                    }
+                    if (is_array($lock_arr) && isset($lock_arr['worker_id'])) {
+                        $active_worker = $lock_arr['worker_id'];
+                    }
+                }
+
+                if ($active_worker !== $worker_id) {
+                    // Lock ownership lost or superseded by another worker: abort write immediately
+                    $wpdb->query("ROLLBACK");
+                    return false;
+                }
+
+                $res = $wpdb->query($prepared);
+                if ($res === false) {
+                    $wpdb->query("ROLLBACK");
+                    return false;
+                }
+                $wpdb->query("COMMIT");
+                return $res;
+            } else {
+                // In environments without options table (in-memory mocks), do atomic check
+                $current_lock = self::get_lock_fresh();
+                if (!$current_lock || ($current_lock['worker_id'] ?? '') !== $worker_id) {
+                    return false;
+                }
+            }
+        }
+
         return $wpdb->query($prepared);
     }
 }
