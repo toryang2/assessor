@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -28,7 +28,8 @@ import {
   FormControl,
   InputLabel,
   Tooltip,
-  Avatar
+  Skeleton,
+  LinearProgress,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -45,8 +46,9 @@ import {
   ThumbDown as ThumbDownIcon,
   ThumbUp as ThumbUpIcon,
   History as HistoryIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
 
 import { etracsService } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -64,13 +66,23 @@ const stateColors = {
   DELETED: { bg: '#f5f5f5', color: '#757575', label: 'Deleted' },
 };
 
+// Fixed metric card definition for administrative dashboard
+const METRIC_DEFS = [
+  { key: 'total', title: 'Total Records', color: '#1976d2', icon: <AssignmentIcon fontSize="small" /> },
+  { key: 'current', title: 'Current', color: '#2e7d32', icon: <CheckCircleIcon fontSize="small" /> },
+  { key: 'forapproval', title: 'For Approval', color: '#ed6c02', icon: <SendIcon fontSize="small" /> },
+  { key: 'interim', title: 'Draft / Interim', color: '#0288d1', icon: <EditIcon fontSize="small" /> },
+  { key: 'cancelled', title: 'Cancelled', color: '#d32f2f', icon: <BlockIcon fontSize="small" /> },
+];
+
 const EtracsPropertyTable = () => {
   const { isSuperAdmin, isAdmin, isAssessor, canManage } = useAuth();
   const canEdit = isSuperAdmin || isAdmin;
   const canApprove = isSuperAdmin || isAdmin || isAssessor || canManage;
 
   const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -81,7 +93,25 @@ const EtracsPropertyTable = () => {
   const [rpuTypeFilter, setRpuTypeFilter] = useState('');
   const [txnTypeFilter, setTxnTypeFilter] = useState('');
   const [transactionTypes, setTransactionTypes] = useState([]);
+
+  // Stats independent state
   const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+
+  // Request generation ref to cancel / ignore out-of-order responses
+  const fetchGenRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  // Expandable owner state (keyed by property id)
+  const [expandedOwners, setExpandedOwners] = useState({});
+
+  const toggleOwner = (id) => {
+    setExpandedOwners((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // Modal states
   const [formOpen, setFormOpen] = useState(false);
@@ -107,10 +137,66 @@ const EtracsPropertyTable = () => {
   const [auditDialogOpen, setAuditDialogOpen] = useState(false);
   const [auditTargetFaasId, setAuditTargetFaasId] = useState(null);
 
-  const fetchProperties = useCallback(async () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Independent stats loader
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(null);
     try {
-      setLoading(true);
-      setError(null);
+      const statsData = await etracsService.getStats();
+      if (isMountedRef.current) {
+        setStats(statsData || {});
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        setStatsError(err.message || 'Failed to load statistics');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setStatsLoading(false);
+      }
+    }
+  }, []);
+
+  // Independent metadata loader (transaction types)
+  useEffect(() => {
+    let active = true;
+    const loadTxnTypes = async () => {
+      try {
+        const types = await etracsService.getTransactionTypes();
+        if (active) {
+          setTransactionTypes(types || []);
+        }
+      } catch (e) {
+        console.warn('Failed to load transaction types:', e);
+      }
+    };
+    loadTxnTypes();
+    loadStats();
+    return () => {
+      active = false;
+    };
+  }, [loadStats]);
+
+  // Main properties list query with request guard
+  const fetchProperties = useCallback(async () => {
+    const currentGen = ++fetchGenRef.current;
+
+    // Distinguish initial load from background refresh
+    if (properties.length === 0) {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+
+    try {
       const params = {
         page: page + 1,
         per_page: rowsPerPage,
@@ -121,35 +207,33 @@ const EtracsPropertyTable = () => {
       if (txnTypeFilter) params.txntype = txnTypeFilter;
 
       const result = await etracsService.getFaasList(params);
+
+      // Check if stale response
+      if (!isMountedRef.current || currentGen !== fetchGenRef.current) {
+        return;
+      }
+
       setProperties(result.data || []);
       setTotal(result.total || 0);
     } catch (err) {
+      if (!isMountedRef.current || currentGen !== fetchGenRef.current) {
+        return;
+      }
       setError(err.message || 'Failed to load ETRACS properties');
-      setProperties([]);
+      if (properties.length === 0) {
+        setProperties([]);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current && currentGen === fetchGenRef.current) {
+        setInitialLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [page, rowsPerPage, searchQuery, stateFilter, rpuTypeFilter, txnTypeFilter]);
+  }, [page, rowsPerPage, searchQuery, stateFilter, rpuTypeFilter, txnTypeFilter, properties.length]);
 
   useEffect(() => {
     fetchProperties();
-  }, [fetchProperties]);
-
-  useEffect(() => {
-    const loadMeta = async () => {
-      try {
-        const [txnTypes, statsData] = await Promise.all([
-          etracsService.getTransactionTypes(),
-          etracsService.getStats(),
-        ]);
-        setTransactionTypes(txnTypes || []);
-        setStats(statsData);
-      } catch (e) {
-        console.warn('Failed to load ETRACS meta:', e);
-      }
-    };
-    loadMeta();
-  }, []);
+  }, [page, rowsPerPage, searchQuery, stateFilter, rpuTypeFilter, txnTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce search input
   useEffect(() => {
@@ -161,7 +245,7 @@ const EtracsPropertyTable = () => {
         }
         return prev;
       });
-    }, 500);
+    }, 400);
     return () => clearTimeout(handler);
   }, [searchInput]);
 
@@ -208,6 +292,7 @@ const EtracsPropertyTable = () => {
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
       fetchProperties();
+      loadStats();
     } catch (err) {
       setError('Failed to delete record');
     }
@@ -215,11 +300,8 @@ const EtracsPropertyTable = () => {
 
   const refreshAll = useCallback(async () => {
     fetchProperties();
-    try {
-      const statsData = await etracsService.getStats();
-      setStats(statsData);
-    } catch (_) {}
-  }, [fetchProperties]);
+    loadStats();
+  }, [fetchProperties, loadStats]);
 
   const handleCancel = async () => {
     if (!cancelTarget || actionSubmitting) return;
@@ -278,14 +360,14 @@ const EtracsPropertyTable = () => {
       setActionSubmitting(true);
       setError(null);
       await etracsService.disapproveFaas(disapproveTarget.id, {
-        reason: disapproveReason,
+        disapprove_reason: disapproveReason,
       });
       setDisapproveDialogOpen(false);
       setDisapproveTarget(null);
       setDisapproveReason('');
       refreshAll();
     } catch (err) {
-      setError(err.message || 'Failed to disapprove declaration');
+      setError(err.message || 'Failed to return declaration');
     } finally {
       setActionSubmitting(false);
     }
@@ -303,73 +385,84 @@ const EtracsPropertyTable = () => {
   };
 
   return (
-    <Box>
-      {/* Stats Cards */}
-      {stats && (
-        <Grid container spacing={3} sx={{ mb: 4 }} alignItems="stretch">
-          {[
-            { title: 'Total Records', value: stats.total?.toLocaleString() || 0, icon: <AssignmentIcon />, color: '#3b82f6' },
-            { title: 'Current', value: stats.current?.toLocaleString() || 0, icon: <CheckCircleIcon />, color: '#10b981' },
-            { title: 'For Approval', value: stats.forapproval?.toLocaleString() || 0, icon: <SendIcon />, color: '#f59e0b' },
-            { title: 'Draft / Interim', value: stats.interim?.toLocaleString() || 0, icon: <EditIcon />, color: '#6366f1' },
-            { title: 'Cancelled', value: stats.cancelled?.toLocaleString() || 0, icon: <BlockIcon />, color: '#ef4444' },
-          ].map((stat, i) => (
-            <Grid item xs={12} sm={6} md={2.4} key={i}>
-              <motion.div
-                whileHover={{ scale: 1.02, y: -5 }}
-                transition={{ duration: 0.2 }}
-                style={{ height: '100%' }}
-              >
-                <Card
-                  sx={{
-                    height: '100%',
-                    minHeight: 140,
-                    background: stat.color + '08',
-                    border: `1px solid ${stat.color}20`,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
-                  <CardContent sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography
-                          variant="h4"
-                          component="div"
-                          fontWeight={600}
-                          color={stat.color}
-                        >
-                          {stat.value}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                          {stat.title}
-                        </Typography>
-                      </Box>
-                      <Avatar
-                        sx={{
-                          backgroundColor: stat.color + '15',
-                          color: stat.color,
-                          width: 56,
-                          height: 56
-                        }}
-                      >
-                        {stat.icon}
-                      </Avatar>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </Grid>
-          ))}
-        </Grid>
-      )}
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        overflow: 'hidden',
+        width: '100%',
+        maxWidth: '100%',
+      }}
+    >
+      {/* 5 Fixed-Size Metric Cards (Skeleton while loading, predictable height, no layout shift) */}
+      <Grid container spacing={1.5} sx={{ mb: 1.5, flexShrink: 0 }} alignItems="stretch">
+        {METRIC_DEFS.map((metric) => {
+          const rawVal = stats ? stats[metric.key] : null;
+          const displayVal = rawVal !== null && rawVal !== undefined ? Number(rawVal).toLocaleString() : '—';
 
-      {/* Search & Filters */}
-      <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
+          return (
+            <Grid item xs={12} sm={6} md={2.4} key={metric.key}>
+              <Card
+                variant="outlined"
+                sx={{
+                  height: '100%',
+                  minHeight: 80,
+                  borderRadius: 2,
+                  borderColor: 'divider',
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+              >
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
+                      {metric.title}
+                    </Typography>
+                    <Box
+                      sx={{
+                        color: metric.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        p: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: `${metric.color}14`,
+                      }}
+                    >
+                      {metric.icon}
+                    </Box>
+                  </Box>
+                  {statsLoading ? (
+                    <Skeleton variant="text" width="60%" height={32} />
+                  ) : statsError ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" color="error">Error loading</Typography>
+                      <IconButton size="small" onClick={loadStats} sx={{ p: 0.2 }}>
+                        <RefreshIcon fontSize="inherit" />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, fontSize: '1.25rem' }}>
+                      {displayVal}
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+
+      {/* Filter Toolbar */}
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5, borderRadius: 2, backgroundColor: '#ffffff', flexShrink: 0 }}>
+        <Grid container spacing={1.5} alignItems="center">
+          <Grid item xs={12} sm={4} md={4}>
             <TextField
               fullWidth
               size="small"
@@ -378,15 +471,15 @@ const EtracsPropertyTable = () => {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleKeyDown}
               InputProps={{
-                startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />,
+                startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1, fontSize: 20 }} />,
               }}
             />
           </Grid>
-          <Grid item xs={6} md={2}>
+          <Grid item xs={6} sm={2.5} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>State</InputLabel>
               <Select value={stateFilter} onChange={(e) => { setStateFilter(e.target.value); setPage(0); }} label="State">
-                <MenuItem value="">All</MenuItem>
+                <MenuItem value="">All States</MenuItem>
                 <MenuItem value="CURRENT">Current</MenuItem>
                 <MenuItem value="FORAPPROVAL">For Approval</MenuItem>
                 <MenuItem value="INTERIM">Interim Draft</MenuItem>
@@ -395,11 +488,11 @@ const EtracsPropertyTable = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={6} md={2}>
+          <Grid item xs={6} sm={2.5} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Type</InputLabel>
               <Select value={rpuTypeFilter} onChange={(e) => { setRpuTypeFilter(e.target.value); setPage(0); }} label="Type">
-                <MenuItem value="">All</MenuItem>
+                <MenuItem value="">All Types</MenuItem>
                 <MenuItem value="LAND">Land</MenuItem>
                 <MenuItem value="BLDG">Building</MenuItem>
                 <MenuItem value="MACH">Machinery</MenuItem>
@@ -408,52 +501,61 @@ const EtracsPropertyTable = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={6} md={2}>
+          <Grid item xs={6} sm={3} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Transaction</InputLabel>
               <Select value={txnTypeFilter} onChange={(e) => { setTxnTypeFilter(e.target.value); setPage(0); }} label="Transaction">
-                <MenuItem value="">All</MenuItem>
+                <MenuItem value="">All Transactions</MenuItem>
                 {transactionTypes.map((t) => (
                   <MenuItem key={t.code} value={t.code}>{t.code} - {t.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={6} md={2} sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="contained" onClick={handleSearch} startIcon={<SearchIcon />} size="small">
+          <Grid item xs={6} sm={2} md={2} sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Button variant="contained" onClick={handleSearch} startIcon={<SearchIcon />} size="small" sx={{ textTransform: 'none', fontWeight: 600 }}>
               Search
             </Button>
-            <Tooltip title="Refresh">
-              <IconButton onClick={fetchProperties} size="small">
-                <RefreshIcon />
-              </IconButton>
+            <Tooltip title="Refresh properties">
+              <span>
+                <IconButton onClick={refreshAll} size="small" disabled={refreshing || initialLoading}>
+                  {refreshing ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
+                </IconButton>
+              </span>
             </Tooltip>
           </Grid>
         </Grid>
       </Paper>
 
-      {/* Action bar */}
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
+      {/* Action Bar */}
+      <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           {canApprove && (
             <Button
               variant="outlined"
               color="primary"
+              size="small"
               startIcon={<HistoryIcon />}
               onClick={() => { setAuditTargetFaasId(null); setAuditDialogOpen(true); }}
-              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600 }}
             >
               Shadow Audit Log
             </Button>
+          )}
+          {refreshing && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+              <CircularProgress size={12} thickness={5} /> Refreshing data...
+            </Typography>
           )}
         </Box>
         <Box>
           {canEdit && (
             <Button
               variant="contained"
+              size="small"
               startIcon={<AddIcon />}
               onClick={() => { setSelectedProperty(null); setFormOpen(true); }}
-              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+              sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600 }}
             >
               New FAAS Record
             </Button>
@@ -461,179 +563,470 @@ const EtracsPropertyTable = () => {
         </Box>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ background: '#f8fafc' }}>
-              <TableCell sx={{ fontWeight: 600 }}>TD No.</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Owner</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>PIN</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Barangay</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Class</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Actual Use</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Market Value</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Assessed Value</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Txn</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Origin</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>State</TableCell>
-              <TableCell sx={{ fontWeight: 600, textAlign: 'center' }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
+      {/* Table Frame with Sticky Header and Contained Overflow */}
+      <Paper
+        variant="outlined"
+        sx={{
+          borderRadius: 2,
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1 1 0',
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        {refreshing && (
+          <LinearProgress
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              height: 3,
+            }}
+          />
+        )}
+        <TableContainer
+          sx={{
+            flex: '1 1 0',
+            minHeight: 0,
+            minWidth: 0,
+            height: 0,
+            overflow: 'auto',
+          }}
+        >
+          <Table size="small" stickyHeader sx={{ minWidth: 1648, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '150px' }} />
+              <col style={{ width: '210px' }} />
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '80px' }} />
+              <col style={{ width: '180px' }} />
+              <col style={{ width: '130px' }} />
+              <col style={{ width: '130px' }} />
+              <col style={{ width: '80px' }} />
+              <col style={{ width: '92px' }} />
+              <col style={{ width: '116px' }} />
+            </colgroup>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
-                  <CircularProgress size={32} />
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Loading ETRACS records...</Typography>
+                <TableCell sx={{ width: 150, fontWeight: 700, backgroundColor: '#f8fafc' }}>TD No.</TableCell>
+                <TableCell sx={{ width: 210, fontWeight: 700, backgroundColor: '#f8fafc' }}>Owner</TableCell>
+                <TableCell sx={{ width: 140, fontWeight: 700, backgroundColor: '#f8fafc' }}>PIN</TableCell>
+                <TableCell sx={{ width: 120, fontWeight: 700, backgroundColor: '#f8fafc' }}>Barangay</TableCell>
+                <TableCell sx={{ width: 90, fontWeight: 700, backgroundColor: '#f8fafc' }}>Type</TableCell>
+                <TableCell sx={{ width: 80, fontWeight: 700, backgroundColor: '#f8fafc' }}>Class</TableCell>
+                <TableCell sx={{ width: 180, fontWeight: 700, backgroundColor: '#f8fafc' }}>Actual Use</TableCell>
+                <TableCell align="right" sx={{ width: 130, fontWeight: 700, backgroundColor: '#f8fafc' }}>Market Value</TableCell>
+                <TableCell align="right" sx={{ width: 130, fontWeight: 700, backgroundColor: '#f8fafc' }}>Assessed Value</TableCell>
+                <TableCell align="center" sx={{ width: 80, fontWeight: 700, backgroundColor: '#f8fafc' }}>Txn</TableCell>
+                <TableCell align="center" sx={{ width: 92, fontWeight: 700, backgroundColor: '#f8fafc' }}>Origin</TableCell>
+                <TableCell align="center" sx={{ width: 116, fontWeight: 700, backgroundColor: '#f8fafc' }}>State</TableCell>
+                <TableCell
+                  align="center"
+                  sx={{
+                    position: 'sticky',
+                    right: 0,
+                    zIndex: 3,
+                    backgroundColor: '#f1f5f9',
+                    borderLeft: '2px solid #e0e0e0',
+                    boxShadow: '-4px 0 8px rgba(0,0,0,0.06)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Actions
                 </TableCell>
               </TableRow>
-            ) : properties.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    {searchQuery ? 'No records match your search' : 'No ETRACS records yet. Click "New FAAS Record" to add one.'}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              properties.map((row) => {
-                const effectiveState = row.effective_state || row.state;
-                const isReplica = row.origin_type === 'REPLICA';
-                const st = stateColors[effectiveState] || stateColors.CURRENT;
-                return (
-                  <motion.tr
-                    key={row.id}
-                    component={TableRow}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2 }}
-                    hover
-                    sx={{ '&:hover': { backgroundColor: '#f8fafc' }, cursor: 'pointer' }}
-                    onClick={() => handleView(row.id)}
-                  >
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600} color="primary.main">
-                        {row.tdno || '—'}
-                      </Typography>
+            </TableHead>
+            <TableBody>
+              {initialLoading ? (
+                // Skeletons during first load
+                Array.from({ length: 8 }).map((_, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="90%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="85%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="70%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="75%" /></TableCell>
+                    <TableCell align="right"><Skeleton variant="text" width="70%" sx={{ ml: 'auto' }} /></TableCell>
+                    <TableCell align="right"><Skeleton variant="text" width="70%" sx={{ ml: 'auto' }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="rounded" width={40} height={20} sx={{ mx: 'auto' }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="rounded" width={55} height={20} sx={{ mx: 'auto' }} /></TableCell>
+                    <TableCell align="center"><Skeleton variant="rounded" width={70} height={20} sx={{ mx: 'auto' }} /></TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        width: 100,
+                        minWidth: 100,
+                        maxWidth: 100,
+                        boxSizing: 'border-box',
+                        p: '4px 6px',
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 1,
+                        backgroundColor: '#ffffff',
+                        borderLeft: '2px solid #e0e0e0',
+                        boxShadow: '-4px 0 8px rgba(0,0,0,0.06)',
+                      }}
+                    >
+                      <Skeleton variant="circular" width={22} height={22} sx={{ mx: 'auto' }} />
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.owner_name || row.taxpayer_name || '—'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell><Typography variant="body2">{row.pin || row.rp_pin || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{row.barangay || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{row.rpu_type || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{row.classification || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{row.actualuse || '—'}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{formatCurrency(row.total_market_value)}</Typography></TableCell>
-                    <TableCell><Typography variant="body2">{formatCurrency(row.total_assessed_value)}</Typography></TableCell>
-                    <TableCell>
-                      <Chip label={row.txntype_code || '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={isReplica ? 'REPLICA' : 'LOCAL'}
-                        size="small"
-                        color={isReplica ? 'info' : 'success'}
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', fontWeight: 700 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={st.label}
-                        size="small"
-                        sx={{ backgroundColor: st.bg, color: st.color, fontWeight: 600, fontSize: '0.7rem' }}
-                      />
-                    </TableCell>
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title="View Declaration">
-                        <IconButton size="small" onClick={() => handleView(row.id)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {/* Audit History (Available to assessors/managers) */}
-                      {canApprove && (
-                        <Tooltip title="Audit History">
-                          <IconButton size="small" color="default" onClick={() => { setAuditTargetFaasId(row.id); setAuditDialogOpen(true); }}>
-                            <HistoryIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {/* Submit for Approval (Drafts: INTERIM, PENDING, DISAPPROVED) - LOCAL records only */}
-                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
-                        <Tooltip title="Submit for Approval">
-                          <IconButton size="small" color="primary" onClick={() => handleSubmitForApproval(row)}>
-                            <SendIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {/* Assessor Approval Actions (FORAPPROVAL) - LOCAL records only */}
-                      {!isReplica && canApprove && effectiveState === 'FORAPPROVAL' && (
-                        <>
-                          <Tooltip title="Approve Declaration">
-                            <IconButton size="small" color="success" onClick={() => { setApproveTarget(row); setApproveDialogOpen(true); }}>
-                              <ThumbUpIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Disapprove / Return">
-                            <IconButton size="small" color="error" onClick={() => { setDisapproveTarget(row); setDisapproveDialogOpen(true); }}>
-                              <ThumbDownIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      )}
-                      {/* Edit (only local drafts can be edited) */}
-                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
-                        <Tooltip title="Edit Draft">
-                          <IconButton size="small" onClick={() => handleEdit(row.id)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {/* Cancel (only CURRENT local declarations can be cancelled directly) */}
-                      {!isReplica && canApprove && effectiveState === 'CURRENT' && (
-                        <Tooltip title="Cancel FAAS">
-                          <IconButton size="small" color="warning" onClick={() => { setCancelTarget(row); setCancelDialogOpen(true); }}>
-                            <CancelIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {/* Delete (only unapproved local drafts can be deleted) */}
-                      {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
-                        <Tooltip title="Delete Draft">
-                          <IconButton size="small" color="error" onClick={() => { setDeleteTarget(row); setDeleteDialogOpen(true); }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </motion.tr>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-        <TablePagination
-          component="div"
-          count={total}
-          page={page}
-          onPageChange={(_, p) => setPage(p)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-          rowsPerPageOptions={[10, 20, 50, 100]}
-        />
-      </TableContainer>
+                  </TableRow>
+                ))
+              ) : properties.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={13} align="center" sx={{ py: 8 }}>
+                    <Typography variant="body1" color="text.secondary" fontWeight={500}>
+                      {searchQuery ? 'No declarations match your search query.' : 'No ETRACS records found.'}
+                    </Typography>
+                    {searchQuery && (
+                      <Button size="small" onClick={() => { setSearchInput(''); setSearchQuery(''); }} sx={{ mt: 1 }}>
+                        Clear Search
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                properties.map((row) => {
+                  const effectiveState = row.effective_state || row.state;
+                  const isReplica = row.origin_type === 'REPLICA';
+                  const st = stateColors[effectiveState] || stateColors.CURRENT;
+                  const ownerText = row.owner_name || row.taxpayer_name || '—';
+                  const pinText = row.pin || row.rp_pin || '—';
+                  const actualUseText = row.actualuse || '—';
+                  const barangayText = row.barangay || '—';
+                  const isOwnerExpanded = Boolean(expandedOwners[row.id]);
+                  const hasLongOwner = ownerText && ownerText !== '—' && ownerText.length > 40;
 
-      <TaxDeclarationPreviewModal 
-        open={viewDialogOpen} 
-        onClose={() => setViewDialogOpen(false)} 
-        property={viewProperty} 
+                  return (
+                    <TableRow
+                      key={row.id}
+                      hover
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: '#f1f5f9',
+                          '& .sticky-actions-cell': {
+                            backgroundColor: '#f1f5f9',
+                          },
+                        },
+                        transition: 'background-color 0.15s ease',
+                      }}
+                      onClick={() => handleView(row.id)}
+                    >
+                      {/* TD No. */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" fontWeight={600} color="primary.main">
+                          {row.tdno || '—'}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Owner with native View/Less expandable interaction */}
+                      <TableCell sx={{ verticalAlign: 'top' }}>
+                        <Box sx={{ width: '100%', maxWidth: 220 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              whiteSpace: isOwnerExpanded ? 'normal' : 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              wordBreak: 'break-word',
+                              display: 'block',
+                            }}
+                          >
+                            {ownerText}
+                          </Typography>
+                          {hasLongOwner && (
+                            <Button
+                              size="small"
+                              variant="text"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleOwner(row.id);
+                              }}
+                              sx={{
+                                textTransform: 'none',
+                                p: 0,
+                                minWidth: 'auto',
+                                fontSize: '0.7rem',
+                                mt: 0.25,
+                                lineHeight: 1.2,
+                              }}
+                              startIcon={
+                                isOwnerExpanded ? (
+                                  <ExpandLessIcon sx={{ fontSize: 14 }} />
+                                ) : (
+                                  <ExpandMoreIcon sx={{ fontSize: 14 }} />
+                                )
+                              }
+                            >
+                              {isOwnerExpanded ? 'Less' : 'View'}
+                            </Button>
+                          )}
+                        </Box>
+                      </TableCell>
+
+                      {/* PIN */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Tooltip title={pinText} enterDelay={500}>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {pinText}
+                          </Typography>
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* Barangay */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Tooltip title={barangayText} enterDelay={500}>
+                          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {barangayText}
+                          </Typography>
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* Type */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2">{row.rpu_type || '—'}</Typography>
+                      </TableCell>
+
+                      {/* Classification */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2">{row.classification || '—'}</Typography>
+                      </TableCell>
+
+                      {/* Actual Use */}
+                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Tooltip title={actualUseText} enterDelay={500}>
+                          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {actualUseText}
+                          </Typography>
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* Market Value */}
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {formatCurrency(row.total_market_value)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Assessed Value */}
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" fontWeight={600} sx={{ fontFamily: 'monospace' }}>
+                          {formatCurrency(row.total_assessed_value)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Txn Code */}
+                      <TableCell align="center">
+                        <Chip
+                          label={row.txntype_code || '—'}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', height: 20, px: 0.5 }}
+                        />
+                      </TableCell>
+
+                      {/* Origin */}
+                      <TableCell align="center">
+                        <Chip
+                          label={isReplica ? 'REPLICA' : 'LOCAL'}
+                          size="small"
+                          color={isReplica ? 'info' : 'success'}
+                          variant="outlined"
+                          sx={{ fontSize: '0.65rem', fontWeight: 700, height: 20 }}
+                        />
+                      </TableCell>
+
+                      {/* Effective State */}
+                      <TableCell align="center">
+                        <Chip
+                          label={st.label}
+                          size="small"
+                          sx={{
+                            backgroundColor: st.bg,
+                            color: st.color,
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                            height: 22,
+                          }}
+                        />
+                      </TableCell>
+
+                      {/* Sticky Actions Cell (Fixed 100px Compact Grid) */}
+                      <TableCell
+                        className="sticky-actions-cell"
+                        align="center"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                          width: 100,
+                          minWidth: 100,
+                          maxWidth: 100,
+                          boxSizing: 'border-box',
+                          p: '4px 2px',
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 1,
+                          backgroundColor: '#ffffff',
+                          borderLeft: '2px solid #e0e0e0',
+                          boxShadow: '-4px 0 8px rgba(0,0,0,0.06)',
+                          transition: 'background-color 0.15s ease',
+                          verticalAlign: 'middle',
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, 26px)',
+                            gap: '2px',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            width: '100%',
+                          }}
+                        >
+                          <Tooltip title="View Declaration">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => { e.stopPropagation(); handleView(row.id); }}
+                              sx={{ width: 26, height: 26, p: 0 }}
+                            >
+                              <VisibilityIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* Audit History (Available to assessors/managers) */}
+                          {canApprove && (
+                            <Tooltip title="Audit History">
+                              <IconButton
+                                size="small"
+                                color="default"
+                                onClick={(e) => { e.stopPropagation(); setAuditTargetFaasId(row.id); setAuditDialogOpen(true); }}
+                                sx={{ width: 26, height: 26, p: 0 }}
+                              >
+                                <HistoryIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {/* Submit for Approval (Drafts: INTERIM, PENDING, DISAPPROVED) - LOCAL records only */}
+                          {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                            <Tooltip title="Submit for Approval">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={(e) => { e.stopPropagation(); handleSubmitForApproval(row); }}
+                                sx={{ width: 26, height: 26, p: 0 }}
+                              >
+                                <SendIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {/* Assessor Approval Actions (FORAPPROVAL) - LOCAL records only */}
+                          {!isReplica && canApprove && effectiveState === 'FORAPPROVAL' && (
+                            <>
+                              <Tooltip title="Approve Declaration">
+                                <IconButton
+                                  size="small"
+                                  color="success"
+                                  onClick={(e) => { e.stopPropagation(); setApproveTarget(row); setApproveDialogOpen(true); }}
+                                  sx={{ width: 26, height: 26, p: 0 }}
+                                >
+                                  <ThumbUpIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Disapprove / Return">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => { e.stopPropagation(); setDisapproveTarget(row); setDisapproveDialogOpen(true); }}
+                                  sx={{ width: 26, height: 26, p: 0 }}
+                                >
+                                  <ThumbDownIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+
+                          {/* Edit (only local drafts can be edited) */}
+                          {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                            <Tooltip title="Edit Draft">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => { e.stopPropagation(); handleEdit(row.id); }}
+                                sx={{ width: 26, height: 26, p: 0 }}
+                              >
+                                <EditIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {/* Cancel (only CURRENT local declarations can be cancelled directly) */}
+                          {!isReplica && canApprove && effectiveState === 'CURRENT' && (
+                            <Tooltip title="Cancel FAAS">
+                              <IconButton
+                                size="small"
+                                color="warning"
+                                onClick={(e) => { e.stopPropagation(); setCancelTarget(row); setCancelDialogOpen(true); }}
+                                sx={{ width: 26, height: 26, p: 0 }}
+                              >
+                                <CancelIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          {/* Delete (only unapproved local drafts can be deleted) */}
+                          {!isReplica && canEdit && (effectiveState === 'INTERIM' || effectiveState === 'PENDING' || effectiveState === 'DISAPPROVED') && (
+                            <Tooltip title="Delete Draft">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(row); setDeleteDialogOpen(true); }}
+                                sx={{ width: 26, height: 26, p: 0 }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Stable Pagination Footer Outside Scroll Region */}
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+          <TablePagination
+            component="div"
+            count={total}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 20, 50, 100]}
+          />
+        </Box>
+      </Paper>
+
+      {/* Modals & Dialogs */}
+      <TaxDeclarationPreviewModal
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        property={viewProperty}
       />
 
       {/* Shadow Audit Timeline Modal */}

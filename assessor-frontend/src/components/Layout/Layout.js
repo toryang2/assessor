@@ -803,7 +803,21 @@ const Layout = ({ children }) => {
           width: { md: `calc(100% - ${computedDrawerWidth})` },
           mt: '64px',
           background: '#f8fafc',
-          minHeight: 'calc(100vh - 64px)',
+          boxSizing: 'border-box',
+          ...(currentPage === 'ETRACS Properties'
+            ? {
+                height: 'calc(100vh - 64px)',
+                maxHeight: 'calc(100vh - 64px)',
+                minHeight: 0,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }
+            : {
+                minHeight: 'calc(100vh - 64px)',
+                overflow: 'auto',
+              }),
           // Hide scrollbar but maintain scrolling functionality
           '&::-webkit-scrollbar': {
             display: 'none'
@@ -812,8 +826,6 @@ const Layout = ({ children }) => {
           scrollbarWidth: 'none',
           // For IE and Edge
           msOverflowStyle: 'none',
-          // Ensure scrolling still works
-          overflow: 'auto'
         }}
       >
         <AnimatePresence mode="wait">
@@ -823,6 +835,18 @@ const Layout = ({ children }) => {
             animate="animate"
             exit="exit"
             variants={animations.fadeIn}
+            style={
+              currentPage === 'ETRACS Properties'
+                ? {
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                  }
+                : undefined
+            }
           >
             {!isPageAccessChecked ? (
               <Box sx={{ 

@@ -424,6 +424,13 @@ class Assessor_Etracs {
         $t_rp = $wpdb->prefix . 'assessor_real_property';
         $t_entity = $wpdb->prefix . 'assessor_entity';
         $t_txn = $wpdb->prefix . 'assessor_faas_txntypes';
+        $t_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
+        $t_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
+        $t_la = $wpdb->prefix . 'assessor_landassesslevel';
+        $t_ba = $wpdb->prefix . 'assessor_bldgassesslevel';
+        $t_ma = $wpdb->prefix . 'assessor_machassesslevel';
+        $t_pa = $wpdb->prefix . 'assessor_planttreeassesslevel';
+        $t_mia = $wpdb->prefix . 'assessor_miscassesslevel';
 
         $page = isset($params['page']) ? max(1, intval($params['page'])) : 1;
         $per_page = isset($params['per_page']) ? min(100, max(1, intval($params['per_page']))) : 20;
@@ -432,26 +439,38 @@ class Assessor_Etracs {
         $where = array("f.state != 'DELETED'");
         $values = array();
 
+        $needs_rpu = false;
+        $needs_rp = false;
+        $needs_entity = false;
+        $needs_txn = false;
+
         // Free-text search
         if (!empty($params['q'])) {
             $like = '%' . $wpdb->esc_like($params['q']) . '%';
             $where[] = "(f.tdno LIKE %s OR f.owner_name LIKE %s OR e.name LIKE %s OR rp.cadastrallotno LIKE %s OR f.fullpin LIKE %s)";
             $values = array_merge($values, array($like, $like, $like, $like, $like));
+            $needs_entity = true;
+            $needs_rp = true;
         }
 
-        // Effective state expression:
-        // A record whose raw state is 'CURRENT' but has an approved successor (state IN 'CURRENT', 'CANCELLED')
-        // is effectively 'CANCELLED' locally, preserving raw source-owned replica state.
-        $effective_state_expr = "CASE WHEN f.state = 'CURRENT' AND succ_link.succ_tdno IS NOT NULL THEN 'CANCELLED' ELSE f.state END";
+        $effective_state_filter = !empty($params['state']) ? strtoupper($params['state']) : null;
+        $needs_succ_filter = ($effective_state_filter === 'CURRENT' || $effective_state_filter === 'CANCELLED');
 
-        // Specific filters
-        if (!empty($params['state'])) {
-            $where[] = "$effective_state_expr = %s";
-            $values[] = strtoupper($params['state']);
+        if ($effective_state_filter !== null) {
+            if ($effective_state_filter === 'CURRENT') {
+                $where[] = "f.state = 'CURRENT' AND succ_filter.canonical_pred_id IS NULL";
+            } elseif ($effective_state_filter === 'CANCELLED') {
+                $where[] = "(f.state = 'CANCELLED' OR (f.state = 'CURRENT' AND succ_filter.canonical_pred_id IS NOT NULL))";
+            } else {
+                $where[] = "f.state = %s";
+                $values[] = $effective_state_filter;
+            }
         }
+
         if (!empty($params['rpu_type'])) {
             $where[] = "r.rpu_type = %s";
             $values[] = strtoupper($params['rpu_type']);
+            $needs_rpu = true;
         }
         if (!empty($params['txntype'])) {
             $where[] = "f.txntype_objid = %s";
@@ -460,10 +479,12 @@ class Assessor_Etracs {
         if (!empty($params['barangay'])) {
             $where[] = "rp.barangay LIKE %s";
             $values[] = '%' . $wpdb->esc_like($params['barangay']) . '%';
+            $needs_rp = true;
         }
         if (!empty($params['classification'])) {
             $where[] = "r.classification = %s";
             $values[] = $params['classification'];
+            $needs_rpu = true;
         }
         if (!empty($params['tdno'])) {
             $where[] = "f.tdno LIKE %s";
@@ -474,56 +495,41 @@ class Assessor_Etracs {
             $like = '%' . $wpdb->esc_like($params['owner_name']) . '%';
             $values[] = $like;
             $values[] = $like;
+            $needs_entity = true;
         }
 
-        $where_sql = implode(' AND ', $where);
+        // Build ORDER BY
+        $order_by = 'f.txntimestamp DESC, f.objid DESC';
+        if (!empty($params['order_by'])) {
+            $allowed = array('tdno', 'owner_name', 'total_assessed_value', 'created_at', 'effectivity_year', 'txntimestamp');
+            $field = $params['order_by'];
+            if ($field === 'created_at') $field = 'txntimestamp';
+            
+            if (in_array($field, $allowed)) {
+                $dir = (!empty($params['order_direction']) && strtoupper($params['order_direction']) === 'ASC') ? 'ASC' : 'DESC';
+                if ($field === 'total_assessed_value') {
+                    $order_by = "r.$field $dir, f.objid $dir";
+                    $needs_rpu = true;
+                } else {
+                    $order_by = "f.$field $dir, f.objid $dir";
+                }
+            }
+        }
 
-        $t_rpu_assessment = $wpdb->prefix . 'assessor_rpu_assessment';
-        $t_faas_previous = $wpdb->prefix . 'assessor_faas_previous';
-        $t_la = $wpdb->prefix . 'assessor_landassesslevel';
-        $t_ba = $wpdb->prefix . 'assessor_bldgassesslevel';
-        $t_ma = $wpdb->prefix . 'assessor_machassesslevel';
-        $t_pa = $wpdb->prefix . 'assessor_planttreeassesslevel';
-        $t_mia = $wpdb->prefix . 'assessor_miscassesslevel';
-
-        $joins = "
-            LEFT JOIN $t_rpu r ON f.rpuid = r.objid
-            LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
-            LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid
-            LEFT JOIN $t_txn tx ON f.txntype_objid = tx.code
-            LEFT JOIN (
-                SELECT 
-                    ra.rpuid, 
-                    GROUP_CONCAT(DISTINCT COALESCE(la.name, ba.name, ma.name, pa.name, mia.name) SEPARATOR ', ') as actualuse 
-                FROM $t_rpu_assessment ra
-                LEFT JOIN $t_la la ON LOWER(ra.rputype) = 'land' AND la.objid = ra.actualuse_objid
-                LEFT JOIN $t_ba ba ON LOWER(ra.rputype) = 'bldg' AND ba.objid = ra.actualuse_objid
-                LEFT JOIN $t_ma ma ON LOWER(ra.rputype) = 'mach' AND ma.objid = ra.actualuse_objid
-                LEFT JOIN $t_pa pa ON LOWER(ra.rputype) = 'planttree' AND pa.objid = ra.actualuse_objid
-                LEFT JOIN $t_mia mia ON LOWER(ra.rputype) = 'misc' AND mia.objid = ra.actualuse_objid
-                GROUP BY ra.rpuid
-            ) ra ON r.objid = ra.rpuid
-            LEFT JOIN (
-                SELECT 
-                    faasid,
-                    GROUP_CONCAT(prevtdno SEPARATOR ' | ') as fp_prevtdno,
-                    GROUP_CONCAT(prevpin SEPARATOR ' | ') as fp_prevpin,
-                    GROUP_CONCAT(prevowner SEPARATOR ' | ') as fp_prevowner,
-                    GROUP_CONCAT(prevav SEPARATOR ' | ') as fp_prevav,
-                    GROUP_CONCAT(prevmv SEPARATOR ' | ') as fp_prevmv,
-                    GROUP_CONCAT(prevareasqm SEPARATOR ' | ') as fp_prevareasqm,
-                    GROUP_CONCAT(prevareaha SEPARATOR ' | ') as fp_prevareaha,
-                    GROUP_CONCAT(prevadministrator SEPARATOR ' | ') as fp_prevadministrator
-                FROM $t_faas_previous
-                GROUP BY faasid
-            ) fp ON f.objid = fp.faasid
-            LEFT JOIN (
-                SELECT 
-                    COALESCE(f_pred_id.objid, f_pred_td.objid) AS canonical_pred_id,
-                    GROUP_CONCAT(DISTINCT f_succ.tdno ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ', ') AS succ_tdno,
-                    GROUP_CONCAT(DISTINCT f_succ.fullpin ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ', ') AS succ_pin,
-                    MIN(f_succ.dtapproved) AS succ_dtapproved,
-                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(f_succ.year, YEAR(f_succ.dtapproved)) ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ','), ',', 1) AS UNSIGNED) AS succ_year
+        $joins_filter_arr = array();
+        if ($needs_rpu) {
+            $joins_filter_arr[] = "LEFT JOIN $t_rpu r ON f.rpuid = r.objid";
+        }
+        if ($needs_rp) {
+            $joins_filter_arr[] = "LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid";
+        }
+        if ($needs_entity) {
+            $joins_filter_arr[] = "LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid";
+        }
+        if ($needs_succ_filter) {
+            $joins_filter_arr[] = "LEFT JOIN (
+                SELECT DISTINCT
+                    COALESCE(f_pred_id.objid, f_pred_td.objid) AS canonical_pred_id
                 FROM $t_faas_previous fp_sub
                 INNER JOIN $t_faas f_succ ON fp_sub.faasid = f_succ.objid
                 LEFT JOIN $t_faas f_pred_id ON (fp_sub.prevfaasid IS NOT NULL AND fp_sub.prevfaasid != '' AND fp_sub.prevfaasid = f_pred_id.objid)
@@ -536,32 +542,47 @@ class Assessor_Etracs {
                 ) f_pred_td ON (f_pred_id.objid IS NULL AND fp_sub.prevtdno IS NOT NULL AND fp_sub.prevtdno != '' AND fp_sub.prevtdno = f_pred_td.tdno)
                 WHERE f_succ.state IN ('CURRENT', 'CANCELLED')
                   AND COALESCE(f_pred_id.objid, f_pred_td.objid) IS NOT NULL
-                GROUP BY COALESCE(f_pred_id.objid, f_pred_td.objid)
-            ) succ_link ON (f.state = 'CURRENT' AND f.objid = succ_link.canonical_pred_id)
-        ";
+            ) succ_filter ON (f.state = 'CURRENT' AND f.objid = succ_filter.canonical_pred_id)";
+        }
+        $joins_filter_sql = !empty($joins_filter_arr) ? implode("\n", $joins_filter_arr) : '';
 
-        // Count
-        $count_sql = "SELECT COUNT(*) FROM $t_faas f $joins WHERE $where_sql";
+        $where_sql = implode(' AND ', $where);
+
+        // 1. Separate Total-Count Query: only joined to tables required by active filters
+        $count_sql = "SELECT COUNT(*) FROM $t_faas f $joins_filter_sql WHERE $where_sql";
         $total = !empty($values) ? $wpdb->get_var($wpdb->prepare($count_sql, $values)) : $wpdb->get_var($count_sql);
+        $total = intval($total);
 
-        // Build ORDER BY
-        $order_by = 'f.txntimestamp DESC';
-        if (!empty($params['order_by'])) {
-            $allowed = array('tdno', 'owner_name', 'total_assessed_value', 'created_at', 'effectivity_year', 'txntimestamp');
-            $field = $params['order_by'];
-            if ($field === 'created_at') $field = 'txntimestamp';
-            
-            if (in_array($field, $allowed)) {
-                $dir = (!empty($params['order_direction']) && strtoupper($params['order_direction']) === 'ASC') ? 'ASC' : 'DESC';
-                if ($field === 'total_assessed_value') {
-                    $order_by = "r.$field $dir";
-                } else {
-                    $order_by = "f.$field $dir";
-                }
-            }
+        if ($total === 0) {
+            return rest_ensure_response(array(
+                'data' => array(),
+                'total' => 0,
+                'page' => $page,
+                'per_page' => $per_page,
+                'total_pages' => 0
+            ));
         }
 
-        $select_sql = "
+        // 2. Page-First ID Identification: fetch strictly the IDs for the current page
+        $id_sql = "SELECT f.objid FROM $t_faas f $joins_filter_sql WHERE $where_sql ORDER BY $order_by LIMIT %d OFFSET %d";
+        $id_query_values = array_merge($values, array($per_page, $offset));
+        $page_ids = $wpdb->get_col($wpdb->prepare($id_sql, $id_query_values));
+
+        if (empty($page_ids)) {
+            return rest_ensure_response(array(
+                'data' => array(),
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $per_page,
+                'total_pages' => ceil($total / $per_page)
+            ));
+        }
+
+        $in_ids_placeholders = implode(', ', array_fill(0, count($page_ids), '%s'));
+        $in_ids_csv = $wpdb->prepare($in_ids_placeholders, $page_ids);
+
+        // Base page rows with basic entity, rp, rpu, and txn lookups
+        $base_select_sql = "
             SELECT
                 f.*,
                 f.objid AS id,
@@ -588,58 +609,203 @@ class Assessor_Etracs {
                 e.address_text AS taxpayer_address,
                 tx.name AS txntype_name,
                 r.taxable,
-                ra.actualuse,
-                COALESCE(NULLIF(fp.fp_prevtdno, ''), f.prevtdno) AS prevtdno,
-                COALESCE(NULLIF(fp.fp_prevpin, ''), f.prevpin) AS prev_pin,
-                COALESCE(NULLIF(fp.fp_prevowner, ''), f.prevowner) AS prev_owner,
-                COALESCE(NULLIF(fp.fp_prevav, ''), f.prevav) AS prev_assessed_value,
-                COALESCE(NULLIF(fp.fp_prevmv, ''), f.prevmv) AS prev_market_value,
-                COALESCE(NULLIF(fp.fp_prevareasqm, ''), f.prevareasqm) AS prev_area_sqm,
-                COALESCE(NULLIF(fp.fp_prevareaha, ''), f.prevareaha) AS prev_area_hectare,
-                COALESCE(NULLIF(fp.fp_prevadministrator, ''), f.prevadministrator) AS prev_administrator,
                 f.originlguid,
                 f.state AS raw_state,
-                $effective_state_expr AS state,
-                $effective_state_expr AS effective_state,
                 f.cancelledbytdnos AS raw_cancelledbytdnos,
                 f.canceldate AS raw_canceldate,
                 f.cancelledyear AS raw_cancelledyear,
                 f.cancelreason AS raw_cancelreason,
-                f.cancelnote AS raw_cancelnote,
-                COALESCE(succ_link.succ_tdno, NULLIF(f.cancelledbytdnos, '')) AS cancelledbytdnos,
-                COALESCE(succ_link.succ_tdno, NULLIF(f.cancelledbytdnos, '')) AS cancelled_by_tdnos,
-                COALESCE(succ_link.succ_dtapproved, f.canceldate) AS canceldate,
-                COALESCE(succ_link.succ_dtapproved, f.canceldate) AS cancel_date,
-                COALESCE(succ_link.succ_year, f.cancelledyear) AS cancelledyear,
-                COALESCE(succ_link.succ_year, f.cancelledyear) AS cancelled_year,
-                COALESCE(
-                    CASE WHEN succ_link.succ_tdno IS NOT NULL THEN CONCAT('Superseded by ', succ_link.succ_tdno) ELSE NULL END,
-                    NULLIF(f.cancelreason, '')
-                ) AS cancelreason,
-                COALESCE(
-                    CASE WHEN succ_link.succ_tdno IS NOT NULL THEN CONCAT('Superseded by ', succ_link.succ_tdno) ELSE NULL END,
-                    NULLIF(f.cancelreason, '')
-                ) AS cancel_reason,
-                COALESCE(
-                    (SELECT f2.fullpin FROM $t_faas f2 WHERE f2.tdno = COALESCE(succ_link.succ_tdno, NULLIF(f.cancelledbytdnos, '')) LIMIT 1),
-                    succ_link.succ_pin
-                ) AS cancelled_by_pin
+                f.cancelnote AS raw_cancelnote
             FROM $t_faas f
-            $joins
-            WHERE $where_sql
-            ORDER BY $order_by
-            LIMIT %d OFFSET %d
+            LEFT JOIN $t_rpu r ON f.rpuid = r.objid
+            LEFT JOIN $t_rp rp ON f.realpropertyid = rp.objid
+            LEFT JOIN $t_entity e ON f.taxpayer_objid = e.objid
+            LEFT JOIN $t_txn tx ON f.txntype_objid = tx.code
+            WHERE f.objid IN ($in_ids_csv)
+            ORDER BY FIELD(f.objid, $in_ids_csv)
         ";
+        $base_rows = $wpdb->get_results($base_select_sql);
 
-        $query_values = array_merge($values, array($per_page, $offset));
-        $results = $wpdb->get_results($wpdb->prepare($select_sql, $query_values));
+        // Scoped Actual Use Lookup: resolved ONLY for the current page
+        $has_rputype = ($wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM $t_rpu_assessment LIKE %s", 'rputype')) === 'rputype');
+        if ($has_rputype) {
+            $sql_au = "
+                SELECT 
+                    ra.rpuid,
+                    GROUP_CONCAT(DISTINCT COALESCE(la.name, ba.name, ma.name, pa.name, mia.name) SEPARATOR ', ') AS actualuse
+                FROM $t_rpu_assessment ra
+                INNER JOIN $t_faas f ON f.rpuid = ra.rpuid
+                LEFT JOIN $t_la la ON (LOWER(ra.rputype) = 'land' AND la.objid = ra.actualuse_objid)
+                LEFT JOIN $t_ba ba ON (LOWER(ra.rputype) = 'bldg' AND ba.objid = ra.actualuse_objid)
+                LEFT JOIN $t_ma ma ON (LOWER(ra.rputype) = 'mach' AND ma.objid = ra.actualuse_objid)
+                LEFT JOIN $t_pa pa ON (LOWER(ra.rputype) = 'planttree' AND pa.objid = ra.actualuse_objid)
+                LEFT JOIN $t_mia mia ON (LOWER(ra.rputype) = 'misc' AND mia.objid = ra.actualuse_objid)
+                WHERE f.objid IN ($in_ids_csv)
+                GROUP BY ra.rpuid
+            ";
+        } else {
+            $sql_au = "
+                SELECT 
+                    ra.rpuid,
+                    GROUP_CONCAT(DISTINCT ra.actualuse SEPARATOR ', ') AS actualuse
+                FROM $t_rpu_assessment ra
+                INNER JOIN $t_faas f ON f.rpuid = ra.rpuid
+                WHERE f.objid IN ($in_ids_csv)
+                GROUP BY ra.rpuid
+            ";
+        }
+        $au_rows = $wpdb->get_results($sql_au);
+        $au_map = array();
+        if (!empty($au_rows)) {
+            foreach ($au_rows as $au_r) {
+                $au_map[$au_r->rpuid] = $au_r->actualuse;
+            }
+        }
+
+        // Scoped Predecessor Snapshot Lookup: resolved ONLY for the current page
+        $sql_fp = "
+            SELECT 
+                faasid,
+                GROUP_CONCAT(prevtdno SEPARATOR ' | ') as fp_prevtdno,
+                GROUP_CONCAT(prevpin SEPARATOR ' | ') as fp_prevpin,
+                GROUP_CONCAT(prevowner SEPARATOR ' | ') as fp_prevowner,
+                GROUP_CONCAT(prevav SEPARATOR ' | ') as fp_prevav,
+                GROUP_CONCAT(prevmv SEPARATOR ' | ') as fp_prevmv,
+                GROUP_CONCAT(prevareasqm SEPARATOR ' | ') as fp_prevareasqm,
+                GROUP_CONCAT(prevareaha SEPARATOR ' | ') as fp_prevareaha,
+                GROUP_CONCAT(prevadministrator SEPARATOR ' | ') as fp_prevadministrator
+            FROM $t_faas_previous
+            WHERE faasid IN ($in_ids_csv)
+            GROUP BY faasid
+        ";
+        $fp_results = $wpdb->get_results($sql_fp);
+        $fp_map = array();
+        if (!empty($fp_results)) {
+            foreach ($fp_results as $fpr) {
+                $fp_map[$fpr->faasid] = $fpr;
+            }
+        }
+
+        // Scoped Successor Lineage & Effective-State Lookup: resolved ONLY for current page
+        $page_tdnos = array();
+        foreach ($base_rows as $br) {
+            if (!empty($br->tdno)) {
+                $page_tdnos[] = $br->tdno;
+            }
+        }
+        $page_tdnos = array_unique($page_tdnos);
+        if (!empty($page_tdnos)) {
+            $in_tdnos_placeholders = implode(', ', array_fill(0, count($page_tdnos), '%s'));
+            $in_tdnos_csv = $wpdb->prepare($in_tdnos_placeholders, $page_tdnos);
+            $filter_succ_clause = "( (fp_sub.prevfaasid IS NOT NULL AND fp_sub.prevfaasid != '' AND fp_sub.prevfaasid IN ($in_ids_csv)) OR (fp_sub.prevtdno IS NOT NULL AND fp_sub.prevtdno != '' AND fp_sub.prevtdno IN ($in_tdnos_csv)) )";
+        } else {
+            $filter_succ_clause = "(fp_sub.prevfaasid IS NOT NULL AND fp_sub.prevfaasid != '' AND fp_sub.prevfaasid IN ($in_ids_csv))";
+        }
+
+        $sql_succ = "
+            SELECT 
+                COALESCE(f_pred_id.objid, f_pred_td.objid) AS canonical_pred_id,
+                GROUP_CONCAT(DISTINCT f_succ.tdno ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ', ') AS succ_tdno,
+                GROUP_CONCAT(DISTINCT f_succ.fullpin ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ', ') AS succ_pin,
+                MIN(f_succ.dtapproved) AS succ_dtapproved,
+                CAST(SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(f_succ.year, YEAR(f_succ.dtapproved)) ORDER BY f_succ.dtapproved ASC, f_succ.tdno ASC SEPARATOR ','), ',', 1) AS UNSIGNED) AS succ_year
+            FROM $t_faas_previous fp_sub
+            INNER JOIN $t_faas f_succ ON fp_sub.faasid = f_succ.objid
+            LEFT JOIN $t_faas f_pred_id ON (fp_sub.prevfaasid IS NOT NULL AND fp_sub.prevfaasid != '' AND fp_sub.prevfaasid = f_pred_id.objid)
+            LEFT JOIN (
+                SELECT tdno, MIN(objid) AS objid
+                FROM $t_faas
+                WHERE tdno IS NOT NULL AND tdno != ''
+                GROUP BY tdno
+                HAVING COUNT(*) = 1
+            ) f_pred_td ON (f_pred_id.objid IS NULL AND fp_sub.prevtdno IS NOT NULL AND fp_sub.prevtdno != '' AND fp_sub.prevtdno = f_pred_td.tdno)
+            WHERE f_succ.state IN ('CURRENT', 'CANCELLED')
+              AND $filter_succ_clause
+              AND COALESCE(f_pred_id.objid, f_pred_td.objid) IN ($in_ids_csv)
+            GROUP BY COALESCE(f_pred_id.objid, f_pred_td.objid)
+        ";
+        $succ_results = $wpdb->get_results($sql_succ);
+        $succ_map = array();
+        if (!empty($succ_results)) {
+            foreach ($succ_results as $sr) {
+                $succ_map[$sr->canonical_pred_id] = $sr;
+            }
+        }
+
+        // Cache for cancelled_by_pin lookups
+        $pin_cache = array();
+
+        // 3. Assemble and hydrate page records preserving 100% field contract and lifecycle overlay
+        $hydrated_results = array();
+        foreach ($base_rows as $row) {
+            $fid = $row->objid;
+            $rpuid = $row->rpuid;
+
+            // Actual Use
+            $row->actualuse = isset($au_map[$rpuid]) ? $au_map[$rpuid] : null;
+
+            // Predecessor Snapshots
+            $fp = isset($fp_map[$fid]) ? $fp_map[$fid] : null;
+            $row->prevtdno = ($fp && !empty($fp->fp_prevtdno)) ? $fp->fp_prevtdno : $row->prevtdno;
+            $row->prev_pin = ($fp && !empty($fp->fp_prevpin)) ? $fp->fp_prevpin : $row->prevpin;
+            $row->prev_owner = ($fp && !empty($fp->fp_prevowner)) ? $fp->fp_prevowner : $row->prevowner;
+            $row->prev_assessed_value = ($fp && !empty($fp->fp_prevav)) ? $fp->fp_prevav : $row->prevav;
+            $row->prev_market_value = ($fp && !empty($fp->fp_prevmv)) ? $fp->fp_prevmv : $row->prevmv;
+            $row->prev_area_sqm = ($fp && !empty($fp->fp_prevareasqm)) ? $fp->fp_prevareasqm : $row->prevareasqm;
+            $row->prev_area_hectare = ($fp && !empty($fp->fp_prevareaha)) ? $fp->fp_prevareaha : $row->prevareaha;
+            $row->prev_administrator = ($fp && !empty($fp->fp_prevadministrator)) ? $fp->fp_prevadministrator : $row->prevadministrator;
+
+            // Effective State and Successor Lineage Overlay
+            $succ = ($row->raw_state === 'CURRENT' && isset($succ_map[$fid])) ? $succ_map[$fid] : null;
+            $is_superseded = ($succ && !empty($succ->succ_tdno));
+
+            $effective_state = $is_superseded ? 'CANCELLED' : $row->raw_state;
+            $row->state = $effective_state;
+            $row->effective_state = $effective_state;
+
+            $succ_tdno = $succ ? $succ->succ_tdno : null;
+            $succ_pin = $succ ? $succ->succ_pin : null;
+            $succ_dtapproved = $succ ? $succ->succ_dtapproved : null;
+            $succ_year = $succ ? $succ->succ_year : null;
+
+            $cancelledbytdnos = !empty($succ_tdno) ? $succ_tdno : (!empty($row->raw_cancelledbytdnos) ? $row->raw_cancelledbytdnos : null);
+            $row->cancelledbytdnos = $cancelledbytdnos;
+            $row->cancelled_by_tdnos = $cancelledbytdnos;
+
+            $canceldate = !empty($succ_dtapproved) ? $succ_dtapproved : $row->raw_canceldate;
+            $row->canceldate = $canceldate;
+            $row->cancel_date = $canceldate;
+
+            $cancelledyear = !empty($succ_year) ? $succ_year : $row->raw_cancelledyear;
+            $row->cancelledyear = $cancelledyear;
+            $row->cancelled_year = $cancelledyear;
+
+            $cancelreason = !empty($succ_tdno) ? ('Superseded by ' . $succ_tdno) : (!empty($row->raw_cancelreason) ? $row->raw_cancelreason : null);
+            $row->cancelreason = $cancelreason;
+            $row->cancel_reason = $cancelreason;
+
+            // Cancelled by PIN
+            if (!empty($cancelledbytdnos)) {
+                if (!isset($pin_cache[$cancelledbytdnos])) {
+                    $pin_cache[$cancelledbytdnos] = $wpdb->get_var($wpdb->prepare(
+                        "SELECT fullpin FROM $t_faas WHERE tdno = %s LIMIT 1",
+                        $cancelledbytdnos
+                    ));
+                }
+                $row->cancelled_by_pin = $pin_cache[$cancelledbytdnos] ?: $succ_pin;
+            } else {
+                $row->cancelled_by_pin = $succ_pin;
+            }
+
+            $hydrated_results[] = $row;
+        }
 
         return rest_ensure_response(array(
-            'data' => $results,
-            'total' => intval($total),
+            'data' => $hydrated_results,
+            'total' => $total,
             'page' => $page,
             'per_page' => $per_page,
-            'total_pages' => ceil(intval($total) / $per_page)
+            'total_pages' => ceil($total / $per_page)
         ));
     }
 
@@ -1884,11 +2050,15 @@ class Assessor_Etracs {
         // Effective Lifecycle Overlay:
         // A record with raw state 'CURRENT' that is superseded by an approved successor
         // in wp_assessor_faas_previous is counted as effectively 'CANCELLED', not 'CURRENT'.
-        $joins_succ = "
+        $sql_stats = "
+            SELECT 
+                f.state,
+                CASE WHEN f.state = 'CURRENT' AND succ.canonical_pred_id IS NOT NULL THEN 1 ELSE 0 END AS is_superseded,
+                COUNT(*) as cnt
+            FROM $t_faas f
             LEFT JOIN (
-                SELECT 
-                    COALESCE(f_pred_id.objid, f_pred_td.objid) AS canonical_pred_id,
-                    1 AS is_superseded
+                SELECT DISTINCT
+                    COALESCE(f_pred_id.objid, f_pred_td.objid) AS canonical_pred_id
                 FROM $t_faas_previous fp_sub
                 INNER JOIN $t_faas f_succ ON fp_sub.faasid = f_succ.objid
                 LEFT JOIN $t_faas f_pred_id ON (fp_sub.prevfaasid IS NOT NULL AND fp_sub.prevfaasid != '' AND fp_sub.prevfaasid = f_pred_id.objid)
@@ -1901,16 +2071,43 @@ class Assessor_Etracs {
                 ) f_pred_td ON (f_pred_id.objid IS NULL AND fp_sub.prevtdno IS NOT NULL AND fp_sub.prevtdno != '' AND fp_sub.prevtdno = f_pred_td.tdno)
                 WHERE f_succ.state IN ('CURRENT', 'CANCELLED')
                   AND COALESCE(f_pred_id.objid, f_pred_td.objid) IS NOT NULL
-                GROUP BY COALESCE(f_pred_id.objid, f_pred_td.objid)
-            ) succ_link ON (f.state = 'CURRENT' AND f.objid = succ_link.canonical_pred_id)
+            ) succ ON (f.state = 'CURRENT' AND f.objid = succ.canonical_pred_id)
+            WHERE f.state != 'DELETED'
+            GROUP BY f.state, is_superseded
         ";
 
-        $total = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f WHERE f.state != 'DELETED'");
-        $current = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f $joins_succ WHERE f.state = 'CURRENT' AND succ_link.is_superseded IS NULL");
-        $cancelled = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f $joins_succ WHERE f.state = 'CANCELLED' OR (f.state = 'CURRENT' AND succ_link.is_superseded IS NOT NULL)");
-        $forapproval = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f WHERE f.state = 'FORAPPROVAL'");
-        $interim = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f WHERE f.state IN ('INTERIM', 'PENDING')");
-        $disapproved = $wpdb->get_var("SELECT COUNT(*) FROM $t_faas f WHERE f.state = 'DISAPPROVED'");
+        $res = $wpdb->get_results($sql_stats);
+
+        $total = 0;
+        $current = 0;
+        $cancelled = 0;
+        $forapproval = 0;
+        $interim = 0;
+        $disapproved = 0;
+
+        if (!empty($res)) {
+            foreach ($res as $r) {
+                $c = intval($r->cnt);
+                $total += $c;
+                $st = $r->state;
+                $sup = intval($r->is_superseded);
+                if ($st === 'CURRENT') {
+                    if ($sup === 1) {
+                        $cancelled += $c;
+                    } else {
+                        $current += $c;
+                    }
+                } elseif ($st === 'CANCELLED') {
+                    $cancelled += $c;
+                } elseif ($st === 'FORAPPROVAL') {
+                    $forapproval += $c;
+                } elseif ($st === 'INTERIM' || $st === 'PENDING') {
+                    $interim += $c;
+                } elseif ($st === 'DISAPPROVED') {
+                    $disapproved += $c;
+                }
+            }
+        }
 
         $by_type = $wpdb->get_results("
             SELECT r.rpu_type, COUNT(*) as count

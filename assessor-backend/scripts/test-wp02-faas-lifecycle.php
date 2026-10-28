@@ -464,9 +464,17 @@ CREATE TABLE wp_assessor_faas_previous (
 CREATE TABLE wp_assessor_rpu_assessment (
     objid varchar(50) NOT NULL,
     rpuid varchar(50) NOT NULL,
-    actualuse varchar(100) DEFAULT NULL,
+    classification_objid varchar(50) DEFAULT NULL,
+    actualuse_objid varchar(50) DEFAULT NULL,
+    areasqm decimal(16,2) NOT NULL DEFAULT '0.00',
+    areaha decimal(16,6) NOT NULL DEFAULT '0.000000',
     marketvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+    assesslevel decimal(16,2) NOT NULL DEFAULT '0.00',
     assessedvalue decimal(16,2) NOT NULL DEFAULT '0.00',
+    rputype varchar(25) DEFAULT NULL,
+    taxable int DEFAULT '1',
+    origin_type enum('REPLICA','LOCAL') NOT NULL DEFAULT 'REPLICA',
+    actualuse varchar(100) DEFAULT NULL,
     PRIMARY KEY (objid)
 ) ENGINE=InnoDB;
 
