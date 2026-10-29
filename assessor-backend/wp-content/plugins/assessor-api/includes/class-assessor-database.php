@@ -2045,7 +2045,13 @@ class Assessor_Database {
                 array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'MINERAL', 'name' => 'MINERAL', 'sort_order' => 5, 'status' => 'active'),
                 array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'SPECIAL', 'name' => 'SPECIAL', 'sort_order' => 6, 'status' => 'active'),
                 array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'TIMBERLAND_FORESTAL', 'name' => 'TIMBERLAND/FORESTAL', 'sort_order' => 7, 'status' => 'active'),
-                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8, 'status' => 'active')
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'IMPROVEMENTS', 'name' => 'IMPROVEMENTS', 'sort_order' => 8, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'CL', 'name' => 'CLINIC', 'sort_order' => 9, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'EDU', 'name' => 'EDUCATIONAL', 'sort_order' => 10, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'GOCC', 'name' => 'GOV\'T OWNED & CONTROLLED CORP.', 'sort_order' => 11, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'GOV', 'name' => 'GOVERNMENT', 'sort_order' => 12, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'REL', 'name' => 'RELIGIOUS', 'sort_order' => 13, 'status' => 'active'),
+                array('id' => class_exists('Assessor_UUID') ? Assessor_UUID::v7() : wp_generate_uuid4(), 'code' => 'RROW', 'name' => 'ROAD RIGHT OF WAY', 'sort_order' => 14, 'status' => 'active')
             );
             foreach ($default_classes as $row) {
                 $wpdb->insert($table_general_classes, $row, array('%s','%s','%s','%d','%s'));
