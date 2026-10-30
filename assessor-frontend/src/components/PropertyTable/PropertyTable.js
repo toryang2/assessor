@@ -70,6 +70,8 @@ import {
   saveHistoryTableStyle
 } from '../HistoryPrintDocument/HistoryTableStyles';
 import PropertyDossierModal from './PropertyDossierModal';
+import EtracsNativeImportModal from './EtracsNativeImportModal';
+import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 
 // Helper function to sanitize declarant names by removing leading/trailing commas
 const sanitizeDeclarant = (name) => {
@@ -446,6 +448,7 @@ const PropertyTable = () => {
 
   // Modal states
   const [propertyModal, setPropertyModal] = useState(false);
+  const [etracsImportModal, setEtracsImportModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [expandedMemos, setExpandedMemos] = useState({});
@@ -1305,7 +1308,30 @@ const PropertyTable = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={6} lg={6} xl={6} display="flex" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+            <Grid item xs={12} sm={6} md={6} lg={6} xl={6} display="flex" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }} gap={1}>
+              {(isAdmin || isSuperAdmin) && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={() => setEtracsImportModal(true)}
+                  color="primary"
+                  sx={{
+                    height: 40,
+                    minHeight: 40,
+                    px: 1.5,
+                    minWidth: 'auto',
+                    width: 'auto'
+                  }}
+                >
+                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                    Import from ETRACS
+                  </Box>
+                  <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                    Import
+                  </Box>
+                </Button>
+              )}
               <Button
                 variant="contained"
                 size="small"
@@ -2848,6 +2874,14 @@ const PropertyTable = () => {
           <Button onClick={() => setMaximizedImage({ open: false, src: '', alt: '' })}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* ETRACS Native Importer Modal */}
+      {(isAdmin || isSuperAdmin) && (
+        <EtracsNativeImportModal
+          open={etracsImportModal}
+          onClose={() => setEtracsImportModal(false)}
+        />
+      )}
 
       {/* Hidden printable content for react-to-print */}
       <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>

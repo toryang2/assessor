@@ -834,6 +834,39 @@ class Assessor_API {
         ));
 
         // ──────────────────────────────────────────────
+        // ETRACS NATIVE IMPORT ROUTES (admin/superadmin only)
+        // ──────────────────────────────────────────────
+        register_rest_route('assessor/v1', '/etracs/native-import/overview', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'etracs_native_import_overview'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        register_rest_route('assessor/v1', '/etracs/native-import/preview', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'etracs_native_import_preview'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        register_rest_route('assessor/v1', '/etracs/native-import/location-audit', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'etracs_native_import_location_audit'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        register_rest_route('assessor/v1', '/etracs/native-import/approve-crosswalk', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'etracs_native_import_approve_crosswalk'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        register_rest_route('assessor/v1', '/etracs/native-import/import-batch', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'etracs_native_import_batch'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
+        // ──────────────────────────────────────────────
         // MIGRATION RUNNER ROUTES (manager/admin only)
         // ──────────────────────────────────────────────
         $migration_runner = new Assessor_Migration_Runner();
@@ -1748,6 +1781,54 @@ class Assessor_API {
         return rest_ensure_response(array(
             'diagnostics' => $diagnostics,
         ));
+    }
+
+    public function etracs_native_import_overview($request) {
+        $summary = Assessor_Etracs_Native_Importer::get_overview_summary();
+        return rest_ensure_response($summary);
+    }
+
+    public function etracs_native_import_preview($request) {
+        $params = $request->get_params();
+        $preview = Assessor_Etracs_Native_Importer::get_preview($params);
+        return rest_ensure_response($preview);
+    }
+
+    public function etracs_native_import_location_audit($request) {
+        $audit = Assessor_Etracs_Native_Importer::get_location_crosswalk_audit();
+        return rest_ensure_response(array(
+            'locations' => $audit,
+            'total'     => count($audit)
+        ));
+    }
+
+    public function etracs_native_import_approve_crosswalk($request) {
+        $user_id = $this->get_authenticated_user_id($request);
+        $params = $request->get_json_params();
+        if (empty($params)) {
+            $params = $request->get_params();
+        }
+        $result = Assessor_Etracs_Native_Importer::approve_location_crosswalk($params, $user_id);
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        return rest_ensure_response($result);
+    }
+
+    public function etracs_native_import_batch($request) {
+        $user_id = $this->get_authenticated_user_id($request);
+        $params = $request->get_json_params();
+        if (empty($params)) {
+            $params = $request->get_params();
+        }
+        $source_faas_ids = $params['source_faas_ids'] ?? array();
+        $batch_id = $params['batch_id'] ?? null;
+
+        $result = Assessor_Etracs_Native_Importer::import_batch($source_faas_ids, $user_id, $batch_id);
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        return rest_ensure_response($result);
     }
 }
 

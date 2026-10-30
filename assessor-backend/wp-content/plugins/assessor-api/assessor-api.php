@@ -58,6 +58,7 @@ require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs-sync.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-migration-runner.php';
 require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-security-setup.php';
+require_once ASSESSOR_API_PLUGIN_DIR . 'includes/class-assessor-etracs-native-importer.php';
 
 // Initialize the plugin
 function assessor_api_init() {

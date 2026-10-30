@@ -155,6 +155,13 @@ export const endpoints = {
   etracsRpuDetail: (rpuid) => `/etracs/rpu/${rpuid}/detail`,
   etracsAuditTrail: '/etracs/audit-trail',
   etracsPullSyncDiagnostics: '/etracs/pull/diagnostics',
+
+  // ETRACS Native Importer
+  etracsNativeImportOverview: '/etracs/native-import/overview',
+  etracsNativeImportPreview: '/etracs/native-import/preview',
+  etracsNativeImportLocationAudit: '/etracs/native-import/location-audit',
+  etracsNativeImportApproveCrosswalk: '/etracs/native-import/approve-crosswalk',
+  etracsNativeImportBatch: '/etracs/native-import/import-batch',
 };
 
 // API functions
@@ -1307,6 +1314,53 @@ export const etracsService = {
   getPullSyncDiagnostics: async () => {
     try {
       const response = await api.get(endpoints.etracsPullSyncDiagnostics);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+};
+
+export const etracsNativeImportApi = {
+  getOverview: async () => {
+    try {
+      const response = await api.get(endpoints.etracsNativeImportOverview);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getPreview: async (params = {}) => {
+    try {
+      const response = await api.get(endpoints.etracsNativeImportPreview, { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getLocationAudit: async () => {
+    try {
+      const response = await api.get(endpoints.etracsNativeImportLocationAudit);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  approveCrosswalk: async (data) => {
+    try {
+      const response = await api.post(endpoints.etracsNativeImportApproveCrosswalk, data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  importBatch: async (data) => {
+    try {
+      const response = await api.post(endpoints.etracsNativeImportBatch, data);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

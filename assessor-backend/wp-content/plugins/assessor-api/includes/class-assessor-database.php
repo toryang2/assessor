@@ -1357,6 +1357,50 @@ class Assessor_Database {
   KEY state (state)
 ) $charset_collate;";
 
+        $table_assessor_etracs_import_map = $wpdb->prefix . 'assessor_etracs_import_map';
+        $sql_assessor_etracs_import_map = "CREATE TABLE $table_assessor_etracs_import_map (
+  id varchar(36) NOT NULL,
+  property_id varchar(36) NOT NULL,
+  source_faas_objid varchar(50) NOT NULL,
+  source_rpu_objid varchar(50) DEFAULT NULL,
+  source_tdno varchar(100) NOT NULL,
+  source_tdno_key varchar(100) NOT NULL,
+  source_state varchar(20) NOT NULL,
+  source_barangay_objid varchar(50) DEFAULT NULL,
+  source_barangay_pin varchar(50) DEFAULT NULL,
+  native_location_id varchar(36) NOT NULL,
+  native_location_name varchar(150) NOT NULL,
+  import_batch_id varchar(36) NOT NULL,
+  mapping_version varchar(20) NOT NULL DEFAULT '1.0',
+  imported_by varchar(50) DEFAULT NULL,
+  imported_at datetime DEFAULT CURRENT_TIMESTAMP,
+  source_payload_hash varchar(64) DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY property_id (property_id),
+  UNIQUE KEY source_faas_objid (source_faas_objid),
+  UNIQUE KEY source_tdno_key (source_tdno_key),
+  KEY source_rpu_objid (source_rpu_objid),
+  KEY import_batch_id (import_batch_id),
+  KEY imported_at (imported_at)
+) $charset_collate;";
+
+        $table_assessor_etracs_crosswalk_approvals = $wpdb->prefix . 'assessor_etracs_crosswalk_approvals';
+        $sql_assessor_etracs_crosswalk_approvals = "CREATE TABLE $table_assessor_etracs_crosswalk_approvals (
+  id varchar(36) NOT NULL,
+  source_barangay_objid varchar(50) NOT NULL,
+  source_barangay_name varchar(100) NOT NULL,
+  source_barangay_pin varchar(50) NOT NULL,
+  native_location_id varchar(36) NOT NULL,
+  native_location_name varchar(150) NOT NULL,
+  resolution_type varchar(50) NOT NULL DEFAULT 'EXPLICIT_APPROVAL',
+  notes text,
+  approved_by varchar(50) DEFAULT NULL,
+  approved_at datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_source_barangay (source_barangay_objid),
+  KEY native_location_id (native_location_id)
+) $charset_collate;";
+
         $table_assessor_real_property = $wpdb->prefix . 'assessor_real_property';
         $sql_assessor_real_property = "CREATE TABLE $table_assessor_real_property (
   objid varchar(50) COLLATE utf8mb4_unicode_520_ci NOT NULL,
@@ -1872,6 +1916,16 @@ class Assessor_Database {
             $wpdb->query($sql_assessor_property_states);
         } else {
             dbDelta($sql_assessor_property_states);
+        }
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_etracs_import_map'")) {
+            $wpdb->query($sql_assessor_etracs_import_map);
+        } else {
+            dbDelta($sql_assessor_etracs_import_map);
+        }
+        if (!$wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}assessor_etracs_crosswalk_approvals'")) {
+            $wpdb->query($sql_assessor_etracs_crosswalk_approvals);
+        } else {
+            dbDelta($sql_assessor_etracs_crosswalk_approvals);
         }
         dbDelta($sql_assessor_real_property);
         dbDelta($sql_assessor_rpu);
@@ -2517,6 +2571,57 @@ class Assessor_Database {
             if (!$has_index) {
                 $wpdb->query("ALTER TABLE $table ADD KEY deleted_at (deleted_at)");
             }
+        }
+
+        // Migration: Ensure assessor_etracs_import_map and crosswalk approvals tables exist
+        $table_import_map = $wpdb->prefix . 'assessor_etracs_import_map';
+        if (!$wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_import_map))) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $wpdb->query("CREATE TABLE $table_import_map (
+                id varchar(36) NOT NULL,
+                property_id varchar(36) NOT NULL,
+                source_faas_objid varchar(50) NOT NULL,
+                source_rpu_objid varchar(50) DEFAULT NULL,
+                source_tdno varchar(100) NOT NULL,
+                source_tdno_key varchar(100) NOT NULL,
+                source_state varchar(20) NOT NULL,
+                source_barangay_objid varchar(50) DEFAULT NULL,
+                source_barangay_pin varchar(50) DEFAULT NULL,
+                native_location_id varchar(36) NOT NULL,
+                native_location_name varchar(150) NOT NULL,
+                import_batch_id varchar(36) NOT NULL,
+                mapping_version varchar(20) NOT NULL DEFAULT '1.0',
+                imported_by varchar(50) DEFAULT NULL,
+                imported_at datetime DEFAULT CURRENT_TIMESTAMP,
+                source_payload_hash varchar(64) DEFAULT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY property_id (property_id),
+                UNIQUE KEY source_faas_objid (source_faas_objid),
+                UNIQUE KEY source_tdno_key (source_tdno_key),
+                KEY source_rpu_objid (source_rpu_objid),
+                KEY import_batch_id (import_batch_id),
+                KEY imported_at (imported_at)
+            ) $charset_collate;");
+        }
+
+        $table_crosswalk = $wpdb->prefix . 'assessor_etracs_crosswalk_approvals';
+        if (!$wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_crosswalk))) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $wpdb->query("CREATE TABLE $table_crosswalk (
+                id varchar(36) NOT NULL,
+                source_barangay_objid varchar(50) NOT NULL,
+                source_barangay_name varchar(100) NOT NULL,
+                source_barangay_pin varchar(50) NOT NULL,
+                native_location_id varchar(36) NOT NULL,
+                native_location_name varchar(150) NOT NULL,
+                resolution_type varchar(50) NOT NULL DEFAULT 'EXPLICIT_APPROVAL',
+                notes text,
+                approved_by varchar(50) DEFAULT NULL,
+                approved_at datetime DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_source_barangay (source_barangay_objid),
+                KEY native_location_id (native_location_id)
+            ) $charset_collate;");
         }
     }
 
